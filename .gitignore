@@ -1,0 +1,4 @@
+FPGA/Data/Simulation/code.bin
+FPGA/Simulation/output/*.log
+FPGA/Simulation/output/*.out
+FPGA/Simulation/output/*.vcd
