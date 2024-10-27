@@ -1,0 +1,15 @@
+/*Mod to increase the maximum page width*/
+@media only screen and (min-width: 76.25em) {
+  .md-main__inner {
+    max-width: 145em;
+  }
+  .md-sidebar--primary {
+    left: 0;
+  }
+  .md-sidebar--secondary {
+    right: 0;
+    margin-left: 0;
+    -webkit-transform: none;
+    transform: none;   
+  }
+}
