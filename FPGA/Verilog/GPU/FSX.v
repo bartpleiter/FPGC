@@ -6,19 +6,10 @@ module FSX(
     //Clocks
     input clkPixel,
     input clkTMDShalf,
-    //input clk14,
-    //input clk114,
-    input clkMuxOut,
 
     //HDMI
     output [3:0] TMDS_p,
     output [3:0] TMDS_n,
-
-    //NTSC composite
-    //output [7:0] composite,
-
-    //Select output method
-    //input selectOutput,
 
     input halfRes,
 
@@ -147,7 +138,7 @@ wire [1:0] BGW_b;
 
 BGWrenderer bgwrenderer(
     // Video I/O
-    .clk(clkMuxOut),
+    .clk(clkPixel),
     .hs(hsync),
     .vs(vsync),
     .blank(blank),
@@ -179,7 +170,7 @@ wire [7:0] PX_b;
 
 PixelEngine pixelEngine(
     // Video I/O
-    .clk(clkMuxOut),
+    .clk(clkPixel),
     .hs(hsync),
     .vs(vsync),
     .blank(blank),
