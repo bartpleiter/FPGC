@@ -16,6 +16,6 @@ FPGC (FPGA Computer) is a gigantic personal FPGA hobby project where I do exactl
 This project is considered finished when:
 - The FPGC can be used as a fully portable standalone PC that can be used to write, compile and run software without the need for an external PC or programmer.
 - The FPGC can run its own web server.
-- The FPGC can run DOOM, compiled and assembled into machine code for my own instruction set architecture, to use system calls of a self designed operating system, running from a self designed file system. 
+- The FPGC can run DOOM, either the original or a simplified but similar version, compiled and assembled into machine code for my own instruction set architecture, to use system calls of a self designed operating system, running from a self designed file system. 
     - Preferably with a playable framerate, and if not then the CPU of the FPGC should run the code in <2 cycles per instruction, which should only be possible with a proper CPU pipeline design and caching.
 - The project is properly documented
