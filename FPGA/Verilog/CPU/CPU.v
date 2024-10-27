@@ -180,11 +180,12 @@ InstrMem instrMem(
 .bus_i_rom_q(bus_i_rom_q),
 
 // bus_l1i
-.bus_l1i_addr(addr_a),
-.bus_l1i_start(start_a),
-.bus_l1i_q(arbiter_q),
-.bus_l1i_done(done_a),
-.bus_l1i_ready(ready_a),
+//TODO: add l1i cache
+.bus_l1i_addr(),
+.bus_l1i_start(),
+.bus_l1i_q(),
+.bus_l1i_done(),
+.bus_l1i_ready(),
 
 .hold(stall_FE),
 .clear(flush_FE)
@@ -581,6 +582,7 @@ assign dataMem_addr_MEM = data_a_MEM + const16_MEM;
 
 DataMem dataMem(
 .clk(clk),
+.clk100(clk100),
 .reset(reset),
 .addr(dataMem_addr_MEM),
 .we(mem_write_MEM),
@@ -589,14 +591,16 @@ DataMem dataMem(
 .q(dataMem_q_WB),
 .busy(datamem_busy_MEM),
 
-// bus
-.bus_addr(addr_b),
-.bus_data(data_b),
-.bus_we(we_b),
-.bus_start(start_b),
-.bus_q(arbiter_q),
-.bus_done(done_b),
-.bus_ready(ready_b),
+//TODO: add l1d cache
+.bus_l1d_addr(),
+.bus_l1d_start(),
+.bus_l1d_data(),
+.bus_l1d_we(),
+.bus_l1d_q(),
+.bus_l1d_done(),
+.bus_l1d_ready(),
+
+// TODO: VRAM busses, SPIflash bus, MU bus
 
 .hold(stall_MEM),
 .clear(flush_MEM)

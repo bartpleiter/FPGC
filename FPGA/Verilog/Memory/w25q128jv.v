@@ -40,7 +40,7 @@ parameter JEDEC_ID_LO = 8'h18;
 parameter	UNIQUE_ID = 64'h0102030405060708;
 parameter ADDRESS_MASK = (NUM_PAGES * PAGESIZE) - 1;		// Note that NUM_PAGES must be a power of 2 for this simulation to work properly.
 
-`define MEM_FILENAME "/home/bart/Documents/FPGA/FPGC6/Verilog/memory/spi.txt"	//todo relative path	                      // Memory contents file(s)
+`define MEM_FILENAME "spi.txt"	// Memory contents file(s)
 `define SECSI_FILENAME "SECSI.TXT"
 `define SFDP_FILENAME "SFDP.TXT"
 `define SREG_FILENAME "SREG.TXT"

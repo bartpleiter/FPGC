@@ -18,7 +18,7 @@ end
 
 initial
 begin
-    $readmemb("/home/bart/Documents/FPGA/FPGC6/Verilog/memory/rom.list", rom);
+    $readmemb("FPGA/Data/Simulation/rom.list", rom);
 end
 
 endmodule

@@ -1,0 +1,115 @@
+[*]
+[*] GTKWave Analyzer v3.3.116 (w)1999-2023 BSI
+[*] Sun Oct 27 15:48:13 2024
+[*]
+[dumpfile] "/home/bart/Documents/FPGA/FPGC/FPGA/Simulation/output/cpu.vcd"
+[dumpfile_mtime] "Sun Oct 27 15:46:05 2024"
+[dumpfile_size] 1638832
+[savefile] "/home/bart/Documents/FPGA/FPGC/FPGA/Simulation/output/cpu.gtkw"
+[timestart] 0
+[size] 1536 881
+[pos] -1 -1
+*-16.199999 125000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] tb_cpu.
+[treeopen] tb_cpu.cpu.
+[sst_width] 278
+[signals_width] 302
+[sst_expanded] 1
+[sst_vpaned_height] 255
+@24
+tb_cpu.clk100
+@25
+tb_cpu.clk
+@24
+tb_cpu.reset
+@200
+-
+-CPU
+@24
+tb_cpu.cpu.pc_FE_prev[31:0]
+tb_cpu.cpu.pc_FE[31:0]
+tb_cpu.cpu.jump_addr_MEM[31:0]
+@28
+tb_cpu.cpu.instr_DE[31:0]
+tb_cpu.cpu.instr_EX[31:0]
+tb_cpu.cpu.instr_MEM[31:0]
+tb_cpu.cpu.instr_WB[31:0]
+@200
+-
+@24
+tb_cpu.cpu.stall_FE
+tb_cpu.cpu.stall_DE
+tb_cpu.cpu.stall_EX
+tb_cpu.cpu.stall_MEM
+tb_cpu.cpu.stall_WB
+@200
+-
+@24
+tb_cpu.cpu.flush_FE
+tb_cpu.cpu.flush_DE
+tb_cpu.cpu.flush_EX
+@200
+-
+@24
+tb_cpu.cpu.datamem_busy_MEM
+@200
+-
+-Registers
+@24
+tb_cpu.cpu.regbank.addr_d[3:0]
+tb_cpu.cpu.regbank.data_d[31:0]
+tb_cpu.cpu.regbank.we
+@200
+-
+@24
+tb_cpu.cpu.regbank.addr_a[3:0]
+tb_cpu.cpu.regbank.data_a[31:0]
+tb_cpu.cpu.regbank.addr_b[3:0]
+tb_cpu.cpu.regbank.data_b[31:0]
+@200
+-
+-ROM
+@24
+tb_cpu.rom.address[8:0]
+@28
+tb_cpu.rom.q[31:0]
+@200
+-
+-Instr Mem
+@24
+tb_cpu.cpu.instrMem.clk100
+tb_cpu.cpu.instrMem.addr[31:0]
+@28
+tb_cpu.cpu.instrMem.q[31:0]
+@200
+-
+@24
+tb_cpu.cpu.instrMem.clear
+tb_cpu.cpu.instrMem.hold
+@200
+-
+-Data Mem
+@24
+tb_cpu.cpu.dataMem.clk100
+tb_cpu.cpu.dataMem.addr[31:0]
+tb_cpu.cpu.dataMem.re
+tb_cpu.cpu.dataMem.we
+tb_cpu.cpu.dataMem.q[31:0]
+tb_cpu.cpu.dataMem.busy
+@200
+-
+@24
+tb_cpu.cpu.dataMem.clear
+tb_cpu.cpu.dataMem.hold
+@200
+-
+-Stack
+@24
+tb_cpu.cpu.stack.useRamResult
+tb_cpu.cpu.stack.ramResult[31:0]
+tb_cpu.cpu.stack.push
+tb_cpu.cpu.stack.pop
+tb_cpu.cpu.stack.d[31:0]
+tb_cpu.cpu.stack.q[31:0]
+[pattern_trace] 1
+[pattern_trace] 0

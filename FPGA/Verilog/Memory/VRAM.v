@@ -7,7 +7,7 @@ module VRAM
     parameter WIDTH = 32,
     parameter WORDS = 1056,
     parameter ADDR_BITS = 11,
-    parameter LIST  = "/home/bart/Documents/FPGA/FPGC6/Verilog/memory/vram32.list"
+    parameter LIST  = "vram32.list"
 ) 
 (
   input                   cpu_clk,        

@@ -6,7 +6,7 @@ module SRAM
     parameter WIDTH = 32,
     parameter WORDS = 4096,
     parameter ADDR_BITS = 12,
-    parameter LIST  = "/home/bart/Documents/FPGA/FPGC6/Verilog/memory/sram.list"
+    parameter LIST  = "FPGA/Data/Simulation/sram.list"
 ) 
 (
   input                   cpu_clk,        
