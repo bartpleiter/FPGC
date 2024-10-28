@@ -1,26 +1,24 @@
 [*]
 [*] GTKWave Analyzer v3.3.116 (w)1999-2023 BSI
-[*] Sun Oct 27 15:48:13 2024
+[*] Mon Oct 28 14:48:01 2024
 [*]
 [dumpfile] "/home/bart/Documents/FPGA/FPGC/FPGA/Simulation/output/cpu.vcd"
-[dumpfile_mtime] "Sun Oct 27 15:46:05 2024"
-[dumpfile_size] 1638832
+[dumpfile_mtime] "Mon Oct 28 14:45:35 2024"
+[dumpfile_size] 1081117
 [savefile] "/home/bart/Documents/FPGA/FPGC/FPGA/Simulation/output/cpu.gtkw"
-[timestart] 0
+[timestart] 234600
 [size] 1536 881
 [pos] -1 -1
-*-16.199999 125000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-16.499998 442600 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] tb_cpu.
 [treeopen] tb_cpu.cpu.
 [sst_width] 278
-[signals_width] 302
+[signals_width] 504
 [sst_expanded] 1
 [sst_vpaned_height] 255
 @24
 tb_cpu.clk100
-@25
 tb_cpu.clk
-@24
 tb_cpu.reset
 @200
 -
@@ -54,6 +52,56 @@ tb_cpu.cpu.flush_EX
 tb_cpu.cpu.datamem_busy_MEM
 @200
 -
+-Instr Mem
+@28
+tb_cpu.cpu.instrMem.clk
+@24
+tb_cpu.cpu.instrMem.clk100
+tb_cpu.cpu.instrMem.addr[31:0]
+@28
+tb_cpu.cpu.instrMem.q[31:0]
+tb_cpu.cpu.instrMem.hit
+@200
+-
+@24
+tb_cpu.cpu.instrMem.state[2:0]
+@200
+-
+@28
+tb_cpu.cpu.instrMem.bus_l1i_start
+tb_cpu.cpu.instrMem.bus_l1i_ready
+tb_cpu.cpu.instrMem.bus_l1i_done
+tb_cpu.cpu.instrMem.bus_l1i_q[31:0]
+@200
+-
+@24
+tb_cpu.cpu.instrMem.clear
+tb_cpu.cpu.instrMem.hold
+@200
+-
+-Mem Var Latency
+@28
+tb_cpu.mem.clk100
+@24
+tb_cpu.mem.state[2:0]
+@200
+-
+@420
+tb_cpu.mem.LATENCY
+@25
+tb_cpu.mem.counter[3:0]
+@200
+-
+@24
+tb_cpu.mem.bus_i_sdram_addr[26:0]
+@22
+tb_cpu.mem.bus_i_sdram_q[31:0]
+@28
+tb_cpu.mem.bus_i_sdram_start
+tb_cpu.mem.bus_l1i_done
+tb_cpu.mem.bus_l1i_ready
+@200
+-
 -Registers
 @24
 tb_cpu.cpu.regbank.addr_d[3:0]
@@ -73,19 +121,6 @@ tb_cpu.cpu.regbank.data_b[31:0]
 tb_cpu.rom.address[8:0]
 @28
 tb_cpu.rom.q[31:0]
-@200
--
--Instr Mem
-@24
-tb_cpu.cpu.instrMem.clk100
-tb_cpu.cpu.instrMem.addr[31:0]
-@28
-tb_cpu.cpu.instrMem.q[31:0]
-@200
--
-@24
-tb_cpu.cpu.instrMem.clear
-tb_cpu.cpu.instrMem.hold
 @200
 -
 -Data Mem

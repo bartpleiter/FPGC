@@ -16,9 +16,9 @@ else
     exit
 fi
 
-# Run simulation and open gtkwave
+# Run simulation and open gtkwave (in X11 as Wayland has issues)
 iverilog -o FPGA/Simulation/output/cpu.out FPGA/Simulation/integration/tb_cpu.v &&\
 vvp FPGA/Simulation/output/cpu.out &&\
-gtkwave --dark FPGA/Simulation/output/cpu.gtkw
+GDK_BACKEND=x11 gtkwave --dark FPGA/Simulation/output/cpu.gtkw
 
 conda deactivate

@@ -28,8 +28,6 @@ module CPU(
 
     // SDRAM bus for instruction and data memory
     output [26:0] bus_i_sdram_addr,
-    output [31:0] bus_i_sdram_data,
-    output        bus_i_sdram_we,
     output        bus_i_sdram_start,
     input [31:0]  bus_i_sdram_q,
     input         bus_i_sdram_done,
@@ -181,11 +179,11 @@ InstrMem instrMem(
 
 // bus_l1i
 //TODO: add l1i cache
-.bus_l1i_addr(),
-.bus_l1i_start(),
-.bus_l1i_q(),
-.bus_l1i_done(),
-.bus_l1i_ready(),
+.bus_l1i_addr(bus_i_sdram_addr),
+.bus_l1i_start(bus_i_sdram_start),
+.bus_l1i_q(bus_i_sdram_q),
+.bus_l1i_done(bus_i_sdram_done),
+.bus_l1i_ready(bus_i_sdram_ready),
 
 .hold(stall_FE),
 .clear(flush_FE)
