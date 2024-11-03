@@ -6,7 +6,7 @@ conda activate FPGC
 
 # Compile code
 cp Software/BareMetalASM/Simulation/cpu.asm Software/BuildTools/ASM/code.asm
-if (cd Software/BuildTools/ASM && python3 Assembler.py bdos 0x000000 > code.list)
+if (cd Software/BuildTools/ASM && python3 Assembler.py bdos 0x1000000 > code.list)
 then
     # Move to simulation directory
     mv Software/BuildTools/ASM/code.list FPGA/Data/Simulation/rom.list

@@ -27,13 +27,13 @@ module CPU(
     input clk, clk100, reset,
 
     // SDRAM bus for instruction and data memory
-    output [26:0] bus_i_sdram_addr,
+    output [22:0] bus_i_sdram_addr,
     output        bus_i_sdram_start,
     input [31:0]  bus_i_sdram_q,
     input         bus_i_sdram_done,
     input         bus_i_sdram_ready,
 
-    output [26:0] bus_d_sdram_addr,
+    output [22:0] bus_d_sdram_addr,
     output [31:0] bus_d_sdram_data,
     output        bus_d_sdram_we,
     output        bus_d_sdram_start,
@@ -41,15 +41,50 @@ module CPU(
     input         bus_d_sdram_done,
     input         bus_d_sdram_ready,
 
-    // ROM bus for instruction memory
+    // ROM bus for instruction and data memory
     output [8:0] bus_i_rom_addr,
     input [31:0] bus_i_rom_q,
+
+    output [8:0] bus_d_rom_addr,
+    input [31:0] bus_d_rom_q,
+
+    // VRAM32 cpu port
+    output [10:0]   VRAM32_cpu_addr,
+    output [31:0]   VRAM32_cpu_d,
+    output          VRAM32_cpu_we,
+    input  [31:0]   VRAM32_cpu_q,
+
+    // VRAM8 cpu port
+    output [13:0]   VRAM8_cpu_addr,
+    output [7:0]    VRAM8_cpu_d,
+    output          VRAM8_cpu_we,
+    input  [7:0]    VRAM8_cpu_q,
+
+    // VRAMspr cpu port
+    output [7:0]    VRAMspr_cpu_addr,
+    output [8:0]    VRAMspr_cpu_d,
+    output          VRAMspr_cpu_we,
+    input  [8:0]    VRAMspr_cpu_q,
+
+    // VRAMpx cpu port
+    output [16:0]   VRAMpx_cpu_addr,
+    output [7:0]    VRAMpx_cpu_d,
+    output          VRAMpx_cpu_we,
+    input  [7:0]    VRAMpx_cpu_q,
+
+    // Memory Unit
+    output [26:0]   bus_mu_addr,
+    output          bus_mu_start,
+    input [31:0]    bus_mu_data,
+    input           bus_mu_we,
+    input [31:0]    bus_mu_q,
+    input           bus_mu_done,
+    input           bus_mu_ready,
 
     input int1, int2, int3, int4, int5, int6, int7, int8, int9, int10
 );
 
-parameter PCstart = 27'h000000; // internal SRAM addr 0 //27'h000000;
-parameter PCinterruptValidFrom = 27'd100; // interrupt valid after address 100
+parameter PCstart = 27'h1000000; // internal ROM addr 0
 parameter PCincrease = 1'b1; // number of addresses to increase the PC with after each instruction
 parameter InterruptJumpAddr = 27'd1;
 
@@ -95,35 +130,35 @@ wire datamem_busy_MEM;
 */
 
 // Program Counter, initialize to address with initial code
-reg [31:0]  pc_FE = PCstart;
-reg [31:0]  pc_FE_prev;
+reg [26:0] pc_FE = PCstart;
+reg [26:0] pc_FE_prev;
 
-reg [31:0]  pc_FE_backup = 32'd0;
+reg [26:0] pc_FE_backup = 27'd0;
 
-wire [31:0] pc4_FE;
+wire [26:0] pc4_FE;
 assign pc4_FE = pc_FE + PCincrease;
 
 
-wire [31:0] PC_backup_current;
+wire [26:0] PC_backup_current;
 assign PC_backup_current = pc4_EX - PCincrease;
 
 // branch/jump/halt properly aligns interrupt with pipeline, as if it was a normal jump
 assign interruptValid = (
-    intCPU && 
-    !intDisabled && 
-    PC_backup_current >= PCinterruptValidFrom && 
+    intCPU &&
+    !intDisabled &&
+    PC_backup_current < PCstart &&
     (
         branch_MEM || jumpr_MEM || jumpc_MEM || halt_MEM
     )
 );
 
-always @(posedge clk) 
+always @(posedge clk)
 begin
     if (reset)
     begin
         pc_FE <= PCstart;
-        pc_FE_prev <= 32'd0;
-        pc_FE_backup <= 32'd0;
+        pc_FE_prev <= 27'd0;
+        pc_FE_backup <= 27'd0;
         intDisabled <= 1'b0;
     end
     else
@@ -162,7 +197,7 @@ end
 //  should eventually become a memory with variable latency
 // writes directly to next stage
 wire [31:0] instr_DE;
-wire [31:0] pc_FE_wire;
+wire [26:0] pc_FE_wire;
 assign pc_FE_wire = (stall_FE) ? pc_FE_prev : pc_FE;
 
 InstrMem instrMem(
@@ -173,11 +208,11 @@ InstrMem instrMem(
 .q(instr_DE),
 .hit(instr_hit_FE),
 
-// bus_rom
+// ROM
 .bus_i_rom_addr(bus_i_rom_addr),
 .bus_i_rom_q(bus_i_rom_q),
 
-// bus_l1i
+// L1I cache
 //TODO: add l1i cache
 .bus_l1i_addr(bus_i_sdram_addr),
 .bus_l1i_start(bus_i_sdram_start),
@@ -191,8 +226,8 @@ InstrMem instrMem(
 
 
 // Pass data from FE to DE
-wire [31:0] pc4_DE;
-Regr #(.N(32)) regr_pc4_FE_DE(
+wire [26:0] pc4_DE;
+Regr #(.N(27)) regr_pc4_FE_DE(
 .clk(clk),
 .hold(stall_FE),
 .clear(reset||flush_FE),
@@ -296,8 +331,8 @@ Regr #(.N(32)) regr_instr_DE_EX(
 .out(instr_EX)
 );
 
-wire [31:0] pc4_EX;
-Regr #(.N(32)) regr_pc4_DE_EX(
+wire [26:0] pc4_EX;
+Regr #(.N(27)) regr_pc4_DE_EX(
 .clk(clk),
 .hold(stall_DE),
 .clear(reset||flush_DE),
@@ -416,8 +451,8 @@ Regr #(.N(64)) regr_regdata_EX_MEM(
 .out({data_a_MEM, data_b_MEM})
 );
 
-wire [31:0] pc4_MEM;
-Regr #(.N(32)) regr_pc4_EX_MEM(
+wire [26:0] pc4_MEM;
+Regr #(.N(27)) regr_pc4_EX_MEM(
 .clk(clk),
 .hold(stall_EX),
 .clear(reset||flush_EX),
@@ -481,7 +516,7 @@ InstructionDecoder instrDec_MEM(
 
 reg [31:0] jump_addr_MEM;
 
-always @(*) 
+always @(*)
 begin
     jump_addr_MEM <= 32'd0;
 
@@ -509,7 +544,7 @@ begin
             jump_addr_MEM <= data_b_MEM + const16_MEM;
         end
     end
-    
+
     else if (branch_MEM)
     begin
         jump_addr_MEM <= (pc4_MEM - 1'b1) + const16_MEM;
@@ -524,7 +559,7 @@ end
 
 
 // Opcodes
-localparam 
+localparam
     BRANCH_OP_BEQ   = 3'b000, // A == B
     BRANCH_OP_BGT   = 3'b001, // A >  B
     BRANCH_OP_BGE   = 3'b010, // A >= B
@@ -536,7 +571,7 @@ localparam
 
 reg branch_passed_MEM;
 
-always @(*) 
+always @(*)
 begin
     branch_passed_MEM <= 1'b0;
 
@@ -575,7 +610,7 @@ end
 //  should eventually become a memory with variable latency
 // writes directly to the next stage
 wire [31:0] dataMem_q_WB;
-wire [31:0] dataMem_addr_MEM;
+wire [26:0] dataMem_addr_MEM;
 assign dataMem_addr_MEM = data_a_MEM + const16_MEM;
 
 DataMem dataMem(
@@ -589,16 +624,52 @@ DataMem dataMem(
 .q(dataMem_q_WB),
 .busy(datamem_busy_MEM),
 
-//TODO: add l1d cache
-.bus_l1d_addr(),
-.bus_l1d_start(),
-.bus_l1d_data(),
-.bus_l1d_we(),
-.bus_l1d_q(),
-.bus_l1d_done(),
-.bus_l1d_ready(),
+// ROM
+.bus_d_rom_addr(bus_d_rom_addr),
+.bus_d_rom_q(bus_d_rom_q),
 
-// TODO: VRAM busses, SPIflash bus, MU bus
+//TODO: add l1d cache
+// L1D cache
+.bus_l1d_addr(bus_d_sdram_addr),
+.bus_l1d_start(bus_d_sdram_start),
+.bus_l1d_data(bus_d_sdram_data),
+.bus_l1d_we(bus_d_sdram_we),
+.bus_l1d_q(bus_d_sdram_q),
+.bus_l1d_done(bus_d_sdram_done),
+.bus_l1d_ready(bus_d_sdram_ready),
+
+// VRAM32 cpu port
+.VRAM32_cpu_addr(VRAM32_cpu_addr),
+.VRAM32_cpu_d(VRAM32_cpu_d),
+.VRAM32_cpu_we(VRAM32_cpu_we),
+.VRAM32_cpu_q(VRAM32_cpu_q),
+
+// VRAM8 cpu port
+.VRAM8_cpu_addr(VRAM8_cpu_addr),
+.VRAM8_cpu_d(VRAM8_cpu_d),
+.VRAM8_cpu_we(VRAM8_cpu_we),
+.VRAM8_cpu_q(VRAM8_cpu_q),
+
+// VRAMspr cpu port
+.VRAMspr_cpu_addr(VRAMspr_cpu_addr),
+.VRAMspr_cpu_d(VRAMspr_cpu_d),
+.VRAMspr_cpu_we(VRAMspr_cpu_we),
+.VRAMspr_cpu_q(VRAMspr_cpu_q),
+
+// VRAMpx cpu port
+.VRAMpx_cpu_addr(VRAMpx_cpu_addr),
+.VRAMpx_cpu_d(VRAMpx_cpu_d),
+.VRAMpx_cpu_we(VRAMpx_cpu_we),
+.VRAMpx_cpu_q(VRAMpx_cpu_q),
+
+// Memory Unit
+.bus_mu_addr(bus_mu_addr),
+.bus_mu_start(bus_mu_start),
+.bus_mu_data(bus_mu_data),
+.bus_mu_we(bus_mu_we),
+.bus_mu_q(bus_mu_q),
+.bus_mu_done(bus_mu_done),
+.bus_mu_ready(bus_mu_ready),
 
 .hold(stall_MEM),
 .clear(flush_MEM)
@@ -640,8 +711,8 @@ Regr #(.N(32)) regr_alu_result_MEM_WB(
 .out(alu_result_WB)
 );
 
-wire [31:0] pc4_WB;
-Regr #(.N(32)) regr_pc4_MEM_WB(
+wire [26:0] pc4_WB;
+Regr #(.N(27)) regr_pc4_MEM_WB(
 .clk(clk),
 .hold(stall_MEM),
 .clear(reset||flush_MEM),
@@ -683,7 +754,7 @@ InstructionDecoder instrDec_WB(
 .sig()
 );
 
-always @(*) 
+always @(*)
 begin
     case (1'b1)
         pop_WB:
@@ -785,7 +856,7 @@ begin
     begin
         forward_b <= 2'd2;  // priority 2: forward from WB to EX
     end
-        
+
 end
 
 

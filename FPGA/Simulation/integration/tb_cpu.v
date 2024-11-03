@@ -14,8 +14,8 @@
 `include "FPGA/Verilog/CPU/IntController.v"
 `include "FPGA/Verilog/Memory/L1Icache.v"
 `include "FPGA/Verilog/Memory/L1Dcache.v"
-`include "FPGA/Verilog/Memory/SRAM.v"
 `include "FPGA/Verilog/Memory/ROM.v"
+`include "FPGA/Verilog/Memory/VRAM.v"
 
 
 module variable_latency_instruction_memory
@@ -117,15 +117,30 @@ reg clk;
 reg clk100;
 reg reset;
 
-//---------------CPU----------------
-// CPU bus I/O
-wire [26:0] bus_i_sdram_addr;
+
+//---------------Memory----------------
+// ROM 
+wire [8:0] bus_i_rom_addr;
+wire [31:0] bus_i_rom_q;
+wire [8:0] bus_d_rom_addr;
+wire [31:0] bus_d_rom_q;
+
+ROM rom(
+.clk            (clk100),
+.addr_instr     (bus_i_rom_addr),
+.q_instr        (bus_i_rom_q),
+.addr_data      (bus_d_rom_addr),
+.q_data         (bus_d_rom_q)
+);
+
+// SDRAM/L1 cache
+wire [22:0] bus_i_sdram_addr;
 wire        bus_i_sdram_start;
 wire [31:0]  bus_i_sdram_q;
 wire         bus_i_sdram_done;
 wire         bus_i_sdram_ready;
 
-wire [26:0] bus_d_sdram_addr;
+wire [22:0] bus_d_sdram_addr;
 wire [31:0] bus_d_sdram_data;
 wire        bus_d_sdram_we;
 wire        bus_d_sdram_start;
@@ -133,20 +148,128 @@ wire [31:0]  bus_d_sdram_q;
 wire         bus_d_sdram_done;
 wire         bus_d_sdram_ready;
 
-// ROM bus for instruction memory
-wire [8:0] bus_i_rom_addr;
-wire [31:0] bus_i_rom_q;
-
 variable_latency_instruction_memory mem(
 .clk100         (clk100),
 .reset          (reset),
-.bus_i_sdram_addr (bus_i_sdram_addr),
-.bus_i_sdram_start (bus_i_sdram_start),
-.bus_i_sdram_q   (bus_i_sdram_q),
-.bus_l1i_done   (bus_i_sdram_done),
-.bus_l1i_ready  (bus_i_sdram_ready)
+.bus_i_sdram_addr (),
+.bus_i_sdram_start (),
+.bus_i_sdram_q   (),
+.bus_l1i_done   (),
+.bus_l1i_ready  ()
 );
 
+// VRAM32
+wire [10:0] VRAM32_cpu_addr;
+wire [31:0] VRAM32_cpu_d;
+wire VRAM32_cpu_we;
+wire [31:0] VRAM32_cpu_q;
+
+VRAM #(
+.WIDTH(32),
+.WORDS(1056),
+.ADDR_BITS(11),
+.LIST("FPGA/Data/Simulation/vram32.list")
+) vram32(
+//CPU port
+.cpu_clk    (clk100),
+.cpu_d      (VRAM32_cpu_d),
+.cpu_addr   (VRAM32_cpu_addr),
+.cpu_we     (VRAM32_cpu_we),
+.cpu_q      (VRAM32_cpu_q),
+
+//GPU port
+.gpu_clk    (),
+.gpu_d      (),
+.gpu_addr   (),
+.gpu_we     (),
+.gpu_q      ()
+);
+
+// VRAM8
+wire [13:0] VRAM8_cpu_addr;
+wire [7:0] VRAM8_cpu_d;
+wire VRAM8_cpu_we;
+wire [7:0] VRAM8_cpu_q;
+
+VRAM #(
+.WIDTH(8),
+.WORDS(8194),
+.ADDR_BITS(14),
+.LIST("FPGA/Data/Simulation/vram8.list")
+) vram8(
+//CPU port
+.cpu_clk    (clk100),
+.cpu_d      (VRAM8_cpu_d),
+.cpu_addr   (VRAM8_cpu_addr),
+.cpu_we     (VRAM8_cpu_we),
+.cpu_q      (VRAM8_cpu_q),
+
+//GPU port
+.gpu_clk    (),
+.gpu_d      (),
+.gpu_addr   (),
+.gpu_we     (),
+.gpu_q      ()
+);
+
+// VRAMspr
+wire [7:0] VRAMspr_cpu_addr;
+wire [8:0] VRAMspr_cpu_d;
+wire VRAMspr_cpu_we;
+wire [8:0] VRAMspr_cpu_q;
+
+VRAM #(
+.WIDTH(9),
+.WORDS(256),
+.ADDR_BITS(8),
+.LIST("FPGA/Data/Simulation/vramSPR.list")
+) vramspr(
+//CPU port
+.cpu_clk    (clk100),
+.cpu_d      (VRAMspr_cpu_d),
+.cpu_addr   (VRAMspr_cpu_addr),
+.cpu_we     (VRAMspr_cpu_we),
+.cpu_q      (VRAMspr_cpu_q),
+
+//GPU port
+.gpu_clk    (),
+.gpu_d      (),
+.gpu_addr   (),
+.gpu_we     (),
+.gpu_q      ()
+);
+
+// VRAMpx
+wire [16:0] VRAMpx_cpu_addr;
+wire [7:0] VRAMpx_cpu_d;
+wire VRAMpx_cpu_we;
+wire [7:0] VRAMpx_cpu_q;
+
+VRAM #(
+.WIDTH(8),
+.WORDS(76800),
+.ADDR_BITS(17),
+.LIST("FPGA/Data/Simulation/vramPX.list")
+) vrampx(
+//CPU port
+.cpu_clk    (clk100),
+.cpu_d      (VRAMpx_cpu_d),
+.cpu_addr   (VRAMpx_cpu_addr),
+.cpu_we     (VRAMpx_cpu_we),
+.cpu_q      (VRAMpx_cpu_q),
+
+//GPU port
+.gpu_clk    (),
+.gpu_d      (),
+.gpu_addr   (),
+.gpu_we     (),
+.gpu_q      ()
+);
+
+// TODO: dummy memory unit
+
+
+//---------------CPU----------------
 CPU cpu(
 .clk            (clk),
 .clk100         (clk100),
@@ -167,9 +290,44 @@ CPU cpu(
 .bus_d_sdram_done (bus_d_sdram_done),
 .bus_d_sdram_ready (bus_d_sdram_ready),
 
-// ROM bus for instruction memory
+// ROM bus for instruction and data memory
 .bus_i_rom_addr (bus_i_rom_addr),
 .bus_i_rom_q    (bus_i_rom_q),
+.bus_d_rom_addr (bus_d_rom_addr),
+.bus_d_rom_q    (bus_d_rom_q),
+
+// VRAM32
+.VRAM32_cpu_addr (VRAM32_cpu_addr),
+.VRAM32_cpu_d   (VRAM32_cpu_d),
+.VRAM32_cpu_we  (VRAM32_cpu_we),
+.VRAM32_cpu_q   (VRAM32_cpu_q),
+
+// VRAM8
+.VRAM8_cpu_addr (VRAM8_cpu_addr),
+.VRAM8_cpu_d    (VRAM8_cpu_d),
+.VRAM8_cpu_we   (VRAM8_cpu_we),
+.VRAM8_cpu_q    (VRAM8_cpu_q),
+
+// VRAMspr
+.VRAMspr_cpu_addr (VRAMspr_cpu_addr),
+.VRAMspr_cpu_d  (VRAMspr_cpu_d),
+.VRAMspr_cpu_we (VRAMspr_cpu_we),
+.VRAMspr_cpu_q  (VRAMspr_cpu_q),
+
+// VRAMpx
+.VRAMpx_cpu_addr (VRAMpx_cpu_addr),
+.VRAMpx_cpu_d   (VRAMpx_cpu_d),
+.VRAMpx_cpu_we  (VRAMpx_cpu_we),
+.VRAMpx_cpu_q   (VRAMpx_cpu_q),
+
+// Memory Unit
+.bus_mu_addr    (),
+.bus_mu_start   (),
+.bus_mu_data    (),
+.bus_mu_we      (),
+.bus_mu_q       (),
+.bus_mu_done    (),
+.bus_mu_ready   (),
 
 .int1           (1'b0),
 .int2           (1'b0),
@@ -180,15 +338,6 @@ CPU cpu(
 .int7           (1'b0),
 .int8           (1'b0)
 
-);
-
-//---------------Memory----------------
-// ROM 
-ROM rom(
-.clk            (clk100),
-.reset          (reset),
-.address        (bus_i_rom_addr),
-.q              (bus_i_rom_q)
 );
 
 

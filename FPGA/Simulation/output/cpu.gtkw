@@ -1,31 +1,31 @@
 [*]
 [*] GTKWave Analyzer v3.3.116 (w)1999-2023 BSI
-[*] Mon Oct 28 14:48:01 2024
+[*] Sun Nov  3 17:30:17 2024
 [*]
 [dumpfile] "/home/bart/Documents/FPGA/FPGC/FPGA/Simulation/output/cpu.vcd"
-[dumpfile_mtime] "Mon Oct 28 14:45:35 2024"
-[dumpfile_size] 1081117
+[dumpfile_mtime] "Sun Nov  3 17:22:22 2024"
+[dumpfile_size] 2686240
 [savefile] "/home/bart/Documents/FPGA/FPGC/FPGA/Simulation/output/cpu.gtkw"
-[timestart] 234600
-[size] 1536 881
-[pos] -1 -1
-*-16.499998 442600 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[timestart] 0
+[size] 1920 1033
+[pos] -1162 -1113
+*-16.499998 242800 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] tb_cpu.
 [treeopen] tb_cpu.cpu.
 [sst_width] 278
 [signals_width] 504
 [sst_expanded] 1
-[sst_vpaned_height] 255
-@24
+[sst_vpaned_height] 308
+@25
 tb_cpu.clk100
+@24
 tb_cpu.clk
 tb_cpu.reset
 @200
 -
 -CPU
-@24
-tb_cpu.cpu.pc_FE_prev[31:0]
-tb_cpu.cpu.pc_FE[31:0]
+@22
+tb_cpu.cpu.pc_FE[26:0]
 tb_cpu.cpu.jump_addr_MEM[31:0]
 @28
 tb_cpu.cpu.instr_DE[31:0]
@@ -57,7 +57,8 @@ tb_cpu.cpu.datamem_busy_MEM
 tb_cpu.cpu.instrMem.clk
 @24
 tb_cpu.cpu.instrMem.clk100
-tb_cpu.cpu.instrMem.addr[31:0]
+@22
+tb_cpu.cpu.instrMem.addr[26:0]
 @28
 tb_cpu.cpu.instrMem.q[31:0]
 tb_cpu.cpu.instrMem.hit
@@ -88,7 +89,7 @@ tb_cpu.mem.state[2:0]
 -
 @420
 tb_cpu.mem.LATENCY
-@25
+@24
 tb_cpu.mem.counter[3:0]
 @200
 -
@@ -118,15 +119,23 @@ tb_cpu.cpu.regbank.data_b[31:0]
 -
 -ROM
 @24
-tb_cpu.rom.address[8:0]
+tb_cpu.rom.addr_instr[8:0]
 @28
-tb_cpu.rom.q[31:0]
+tb_cpu.rom.q_instr[31:0]
+@204
+-
+@24
+tb_cpu.rom.addr_data[8:0]
+tb_cpu.rom.q_data[31:0]
 @200
 -
 -Data Mem
 @24
 tb_cpu.cpu.dataMem.clk100
-tb_cpu.cpu.dataMem.addr[31:0]
+@22
+tb_cpu.cpu.dataMem.addr[26:0]
+@24
+tb_cpu.cpu.dataMem.data[31:0]
 tb_cpu.cpu.dataMem.re
 tb_cpu.cpu.dataMem.we
 tb_cpu.cpu.dataMem.q[31:0]
@@ -136,6 +145,15 @@ tb_cpu.cpu.dataMem.busy
 @24
 tb_cpu.cpu.dataMem.clear
 tb_cpu.cpu.dataMem.hold
+@200
+-
+-VRAM8
+@24
+tb_cpu.vram8.cpu_clk
+tb_cpu.vram8.cpu_addr[13:0]
+tb_cpu.vram8.cpu_d[7:0]
+tb_cpu.vram8.cpu_we
+tb_cpu.vram8.cpu_q[7:0]
 @200
 -
 -Stack
