@@ -21,7 +21,7 @@ module DataMem(
     input [31:0]    bus_d_rom_q,
 
     // L1 Data Cache
-    output [22:0]   bus_l1d_addr,
+    output [23:0]   bus_l1d_addr,
     output          bus_l1d_start,
     output [31:0]   bus_l1d_data,
     output          bus_l1d_we,

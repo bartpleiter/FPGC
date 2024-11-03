@@ -16,7 +16,7 @@ module InstrMem(
     output [31:0] q,
     output hit,
 
-    output [22:0]   bus_l1i_addr,
+    output [23:0]   bus_l1i_addr,
     output reg      bus_l1i_start = 1'b0,
     input [31:0]    bus_l1i_q,
     input           bus_l1i_done,

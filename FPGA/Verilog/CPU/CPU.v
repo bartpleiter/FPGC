@@ -27,13 +27,13 @@ module CPU(
     input clk, clk100, reset,
 
     // SDRAM bus for instruction and data memory
-    output [22:0] bus_i_sdram_addr,
+    output [23:0] bus_i_sdram_addr,
     output        bus_i_sdram_start,
     input [31:0]  bus_i_sdram_q,
     input         bus_i_sdram_done,
     input         bus_i_sdram_ready,
 
-    output [22:0] bus_d_sdram_addr,
+    output [23:0] bus_d_sdram_addr,
     output [31:0] bus_d_sdram_data,
     output        bus_d_sdram_we,
     output        bus_d_sdram_start,

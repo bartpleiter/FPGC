@@ -134,13 +134,13 @@ ROM rom(
 );
 
 // SDRAM/L1 cache
-wire [22:0] bus_i_sdram_addr;
+wire [23:0] bus_i_sdram_addr;
 wire        bus_i_sdram_start;
 wire [31:0]  bus_i_sdram_q;
 wire         bus_i_sdram_done;
 wire         bus_i_sdram_ready;
 
-wire [22:0] bus_d_sdram_addr;
+wire [23:0] bus_d_sdram_addr;
 wire [31:0] bus_d_sdram_data;
 wire        bus_d_sdram_we;
 wire        bus_d_sdram_start;
