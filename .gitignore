@@ -1,12 +1,9 @@
 Docs/site/
 
-FPGA/Data/Simulation/code.bin
-FPGA/Simulation/output/*.log
-FPGA/Simulation/output/*.out
-FPGA/Simulation/output/*.vcd
-
-Software/BuildTools/ASM/*.asm
-Software/BuildTools/ASM/*.list
-Software/BuildTools/ASM/*.bin
+Hardware/Vivado/FPGC.cache/
+Hardware/Vivado/FPGC.hw/
+Hardware/Vivado/FPGC.ip_user_files/
+Hardware/Vivado/FPGC.runs/
+Hardware/Vivado/FPGC.sim/
 
 __pycache__/
