@@ -1,24 +1,23 @@
 [*]
 [*] GTKWave Analyzer v3.3.116 (w)1999-2023 BSI
-[*] Sun Nov  3 17:30:17 2024
+[*] Mon Nov 11 18:54:38 2024
 [*]
 [dumpfile] "/home/bart/Documents/FPGA/FPGC/FPGA/Simulation/output/cpu.vcd"
-[dumpfile_mtime] "Sun Nov  3 17:22:22 2024"
-[dumpfile_size] 2686240
+[dumpfile_mtime] "Mon Nov 11 18:34:44 2024"
+[dumpfile_size] 2347454
 [savefile] "/home/bart/Documents/FPGA/FPGC/FPGA/Simulation/output/cpu.gtkw"
-[timestart] 0
-[size] 1920 1033
-[pos] -1162 -1113
-*-16.499998 242800 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[timestart] 280600
+[size] 1536 881
+[pos] -1 -1
+*-16.156658 425000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] tb_cpu.
 [treeopen] tb_cpu.cpu.
 [sst_width] 278
-[signals_width] 504
+[signals_width] 294
 [sst_expanded] 1
-[sst_vpaned_height] 308
-@25
-tb_cpu.clk100
+[sst_vpaned_height] 347
 @24
+tb_cpu.clk100
 tb_cpu.clk
 tb_cpu.reset
 @200
@@ -52,6 +51,70 @@ tb_cpu.cpu.flush_EX
 tb_cpu.cpu.datamem_busy_MEM
 @200
 -
+-Regtmp
+@24
+tb_cpu.cpu.regbank.addr_d[3:0]
+@25
+tb_cpu.cpu.regbank.data_d[31:0]
+@24
+tb_cpu.cpu.regbank.we
+@200
+-
+-Data Mem
+@28
+tb_cpu.cpu.dataMem.clk
+@24
+tb_cpu.cpu.dataMem.clk100
+@22
+tb_cpu.cpu.dataMem.pc[26:0]
+tb_cpu.cpu.dataMem.pc_prev[26:0]
+tb_cpu.cpu.dataMem.addr[26:0]
+@24
+tb_cpu.cpu.dataMem.data[31:0]
+tb_cpu.cpu.dataMem.re
+tb_cpu.cpu.dataMem.we
+tb_cpu.cpu.dataMem.q[31:0]
+@22
+tb_cpu.cpu.dataMem.q_l1d_latch[31:0]
+tb_cpu.cpu.dataMem.bus_l1d_q[31:0]
+@24
+tb_cpu.cpu.dataMem.q_wire[31:0]
+@200
+-
+@28
+tb_cpu.cpu.dataMem.in_range_l1d
+tb_cpu.cpu.dataMem.bus_l1d_start
+tb_cpu.cpu.dataMem.multicycle_bus_done
+tb_cpu.cpu.dataMem.multicycle_bus_done_latch
+@24
+tb_cpu.cpu.dataMem.busy
+@28
+tb_cpu.cpu.dataMem.rw_strobe
+@200
+-
+-Mem Var Latency
+@28
+tb_cpu.mem.clk100
+@24
+tb_cpu.mem.state[2:0]
+@200
+-
+@420
+tb_cpu.mem.LATENCY
+@24
+tb_cpu.mem.counter[3:0]
+@200
+-
+@24
+tb_cpu.mem.bus_i_sdram_addr[26:0]
+@22
+tb_cpu.mem.bus_i_sdram_q[31:0]
+@28
+tb_cpu.mem.bus_i_sdram_start
+tb_cpu.mem.bus_l1i_done
+tb_cpu.mem.bus_l1i_ready
+@200
+-
 -Instr Mem
 @28
 tb_cpu.cpu.instrMem.clk
@@ -80,29 +143,6 @@ tb_cpu.cpu.instrMem.clear
 tb_cpu.cpu.instrMem.hold
 @200
 -
--Mem Var Latency
-@28
-tb_cpu.mem.clk100
-@24
-tb_cpu.mem.state[2:0]
-@200
--
-@420
-tb_cpu.mem.LATENCY
-@24
-tb_cpu.mem.counter[3:0]
-@200
--
-@24
-tb_cpu.mem.bus_i_sdram_addr[26:0]
-@22
-tb_cpu.mem.bus_i_sdram_q[31:0]
-@28
-tb_cpu.mem.bus_i_sdram_start
-tb_cpu.mem.bus_l1i_done
-tb_cpu.mem.bus_l1i_ready
-@200
--
 -Registers
 @24
 tb_cpu.cpu.regbank.addr_d[3:0]
@@ -122,30 +162,13 @@ tb_cpu.cpu.regbank.data_b[31:0]
 tb_cpu.rom.addr_instr[8:0]
 @28
 tb_cpu.rom.q_instr[31:0]
-@204
+@200
 -
 @24
 tb_cpu.rom.addr_data[8:0]
 tb_cpu.rom.q_data[31:0]
 @200
 -
--Data Mem
-@24
-tb_cpu.cpu.dataMem.clk100
-@22
-tb_cpu.cpu.dataMem.addr[26:0]
-@24
-tb_cpu.cpu.dataMem.data[31:0]
-tb_cpu.cpu.dataMem.re
-tb_cpu.cpu.dataMem.we
-tb_cpu.cpu.dataMem.q[31:0]
-tb_cpu.cpu.dataMem.busy
-@200
--
-@24
-tb_cpu.cpu.dataMem.clear
-tb_cpu.cpu.dataMem.hold
-@200
 -
 -VRAM8
 @24

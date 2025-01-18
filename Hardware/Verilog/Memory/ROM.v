@@ -18,6 +18,8 @@ module ROM(
     initial
     begin
         $readmemb("FPGA/Data/Simulation/rom.list", rom);
+        q_instr = 32'b0;
+        q_data = 32'b0;
     end
 
     // Port A read

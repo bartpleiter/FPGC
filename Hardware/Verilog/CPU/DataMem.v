@@ -9,6 +9,7 @@
 
 module DataMem(
     input wire          clk, clk100, reset,
+    input wire  [26:0]  pc,
     input wire  [26:0]  addr,
     input wire          we,
     input wire          re,
@@ -123,7 +124,9 @@ assign VRAM8_cpu_we = (in_range_vram8) ? we : 1'b0;
 assign VRAMspr_cpu_we = (in_range_vramspr) ? we : 1'b0;
 assign VRAMpx_cpu_we = (in_range_vrampx) ? we : 1'b0;
 
-assign q = (in_range_l1d) ? bus_l1d_q : 
+wire [31:0] q_wire = (q_override_l1d) ? q_override_l1d_data:
+          (q_override_mu) ? q_override_mu_data:
+          (in_range_l1d) ? bus_l1d_q : 
           (in_range_rom) ? bus_d_rom_q : 
           (in_range_vram32) ? VRAM32_cpu_q : 
           (in_range_vram8) ? VRAM8_cpu_q : 
@@ -131,15 +134,61 @@ assign q = (in_range_l1d) ? bus_l1d_q :
           (in_range_vrampx) ? VRAMpx_cpu_q : 
           bus_mu_q;
 
-assign busy = (in_range_single_cycle) ? 1'b0 : 1'b1;
+assign q = q_wire;
+
+// localparam STATE_IDLE = 3'b000;
+// localparam STATE_WAIT = 3'b001;
+// reg [2:0] state = STATE_IDLE;
+
+wire multicycle_bus_done = (bus_l1d_done || bus_mu_done);
+
+reg we_prev = 1'b0;
+reg re_prev = 1'b0;
+reg [26:0] pc_prev = 27'h0;
+
+wire rw_strobe = (we && !we_prev) || (re && !re_prev) || ((we || re) && (pc != pc_prev));
+
+reg multicycle_bus_done_latch = 1'b0;
+reg bus_l1d_done_latch = 1'b0;
+reg bus_mu_done_latch = 1'b0;
+
+assign bus_l1d_start = (in_range_l1d && rw_strobe);
+
+assign busy = (!in_range_single_cycle && (we || re) && !(multicycle_bus_done || multicycle_bus_done_latch) && !bus_l1d_start);
+
+reg [31:0] q_l1d_latch = 32'd0;
+reg [31:0] q_mu_latch = 32'd0;
+
+
+wire q_override_l1d = bus_l1d_done || bus_l1d_done_latch;
+wire q_override_mu = bus_mu_done || bus_mu_done_latch;
+wire [31:0] q_override_l1d_data = bus_l1d_q || q_l1d_latch;
+wire [31:0] q_override_mu_data = bus_mu_q || q_mu_latch;
 
 always @(posedge clk100)
 begin
     if (reset)
     begin
+        we_prev <= 1'b0;
+        re_prev <= 1'b0;
+        pc_prev <= 27'h0;
+        multicycle_bus_done_latch <= 1'b0;
+        bus_l1d_done_latch <= 1'b0;
+        bus_mu_done_latch <= 1'b0;
+        q_l1d_latch <= 32'd0;
+        q_mu_latch <= 32'd0;
     end
     else
     begin
+        we_prev <= we;
+        re_prev <= re;
+        multicycle_bus_done_latch <= multicycle_bus_done;
+        bus_l1d_done_latch <= bus_l1d_done;
+        bus_mu_done_latch <= bus_mu_done;
+        pc_prev <= pc;
+        q_l1d_latch <= bus_l1d_q;
+        q_mu_latch <= bus_mu_q;
     end
 end
 endmodule
+

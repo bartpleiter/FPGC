@@ -30,7 +30,7 @@ module variable_latency_instruction_memory
     output bus_l1i_ready
 );
 
-parameter LATENCY = 1;
+parameter LATENCY = 2;
 
 reg [31:0] memory [0:511];
 reg [31:0] data_out;
@@ -74,16 +74,16 @@ begin
                 if (bus_i_sdram_start)
                 begin
                     // Uncomment for cache hit simulation
-                    data_out <= memory[bus_i_sdram_addr];
-                    ready <= 1;
-                    done <= 1;
-                    state <= STATE_IDLE;
+                    // data_out <= memory[bus_i_sdram_addr];
+                    // ready <= 1;
+                    // done <= 1;
+                    // state <= STATE_IDLE;
 
                     // Comment for cache hit simulation
-                    // state <= STATE_WAIT;
-                    // ready <= 0;
-                    // done <= 0;
-                    // counter <= 0;
+                    state <= STATE_WAIT;
+                    ready <= 0;
+                    done <= 0;
+                    counter <= 0;
                 end
             end
             STATE_WAIT:
@@ -151,11 +151,11 @@ wire         bus_d_sdram_ready;
 variable_latency_instruction_memory mem(
 .clk100         (clk100),
 .reset          (reset),
-.bus_i_sdram_addr (),
-.bus_i_sdram_start (),
-.bus_i_sdram_q   (),
-.bus_l1i_done   (),
-.bus_l1i_ready  ()
+.bus_i_sdram_addr (bus_d_sdram_addr),
+.bus_i_sdram_start (bus_d_sdram_start),
+.bus_i_sdram_q   (bus_d_sdram_q),
+.bus_l1i_done   (bus_d_sdram_done),
+.bus_l1i_ready  (bus_d_sdram_ready)
 );
 
 // VRAM32
@@ -325,9 +325,9 @@ CPU cpu(
 .bus_mu_start   (),
 .bus_mu_data    (),
 .bus_mu_we      (),
-.bus_mu_q       (),
-.bus_mu_done    (),
-.bus_mu_ready   (),
+.bus_mu_q       (32'd0),
+.bus_mu_done    (1'b0),
+.bus_mu_ready   (1'b0),
 
 .int1           (1'b0),
 .int2           (1'b0),

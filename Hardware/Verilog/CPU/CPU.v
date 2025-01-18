@@ -12,15 +12,13 @@
 
 - Hazard detection:
     - flush
-    - stall (MEM to reg)
+    - stall
     - forward
 
 - Extendable amount of interrupts
     - higher priority for lower interrupt numbers
 
-- Variable delay support from InstrMem and DataMem:
-    - NOTE/BUG: the instruction after a READ or WRITE was skipped if there is a DataMem delay but no InstrMem delay
-       This might still be a problem when caching is implemented
+- Variable delay support from InstrMem and DataMem
 */
 
 module CPU(
@@ -135,12 +133,10 @@ reg [26:0] pc_FE_prev;
 
 reg [26:0] pc_FE_backup = 27'd0;
 
-wire [26:0] pc4_FE;
-assign pc4_FE = pc_FE + PCincrease;
 
 
 wire [26:0] PC_backup_current;
-assign PC_backup_current = pc4_EX - PCincrease;
+assign PC_backup_current = pc_EX;
 
 // branch/jump/halt properly aligns interrupt with pipeline, as if it was a normal jump
 assign interruptValid = (
@@ -187,7 +183,7 @@ begin
         end
         else
         begin
-            pc_FE <= pc4_FE;
+            pc_FE <= pc_FE + PCincrease;
         end
     end
 end
@@ -226,13 +222,13 @@ InstrMem instrMem(
 
 
 // Pass data from FE to DE
-wire [26:0] pc4_DE;
-Regr #(.N(27)) regr_pc4_FE_DE(
+wire [26:0] pc_DE;
+Regr #(.N(27)) regr_pc_FE_DE(
 .clk(clk),
 .hold(stall_FE),
 .clear(reset||flush_FE),
-.in(pc4_FE),
-.out(pc4_DE)
+.in(pc_FE),
+.out(pc_DE)
 );
 
 
@@ -331,13 +327,13 @@ Regr #(.N(32)) regr_instr_DE_EX(
 .out(instr_EX)
 );
 
-wire [26:0] pc4_EX;
-Regr #(.N(27)) regr_pc4_DE_EX(
+wire [26:0] pc_EX;
+Regr #(.N(27)) regr_pc_DE_EX(
 .clk(clk),
 .hold(stall_DE),
 .clear(reset||flush_DE),
-.in(pc4_DE),
-.out(pc4_EX)
+.in(pc_DE),
+.out(pc_EX)
 );
 
 // Set to 0 during stall (bubble)
@@ -426,7 +422,7 @@ ALU alu(
 
 // for special instructions, pass other data than alu result
 wire [31:0] execute_result_EX;
-assign execute_result_EX =  (getPC_EX) ? pc4_EX - 1'b1:
+assign execute_result_EX =  (getPC_EX) ? pc_EX:
                             (getIntID_EX) ? intID:
                             alu_result_EX;
 
@@ -451,13 +447,13 @@ Regr #(.N(64)) regr_regdata_EX_MEM(
 .out({data_a_MEM, data_b_MEM})
 );
 
-wire [26:0] pc4_MEM;
-Regr #(.N(27)) regr_pc4_EX_MEM(
+wire [26:0] pc_MEM;
+Regr #(.N(27)) regr_pc_EX_MEM(
 .clk(clk),
 .hold(stall_EX),
 .clear(reset||flush_EX),
-.in(pc4_EX),
-.out(pc4_MEM)
+.in(pc_EX),
+.out(pc_MEM)
 );
 
 wire push_MEM, pop_MEM;
@@ -525,7 +521,7 @@ begin
         if (oe_MEM)
         begin
             // add sign extended to allow negative offsets
-            jump_addr_MEM <= (pc4_MEM - 1'b1) + {{5{const27_MEM[26]}}, const27_MEM[26:0]};
+            jump_addr_MEM <= (pc_MEM) + {{5{const27_MEM[26]}}, const27_MEM[26:0]};
         end
         else
         begin
@@ -537,7 +533,7 @@ begin
     begin
         if (oe_MEM)
         begin
-            jump_addr_MEM <= (pc4_MEM - 1'b1) + (data_b_MEM + const16_MEM);
+            jump_addr_MEM <= (pc_MEM) + (data_b_MEM + const16_MEM);
         end
         else
         begin
@@ -547,13 +543,13 @@ begin
 
     else if (branch_MEM)
     begin
-        jump_addr_MEM <= (pc4_MEM - 1'b1) + const16_MEM;
+        jump_addr_MEM <= (pc_MEM) + const16_MEM;
     end
 
     else if (halt_MEM)
     begin
         // jump to same address to keep halting
-        jump_addr_MEM <= pc4_MEM - 1'b1;
+        jump_addr_MEM <= pc_MEM;
     end
 end
 
@@ -617,6 +613,7 @@ DataMem dataMem(
 .clk(clk),
 .clk100(clk100),
 .reset(reset),
+.pc(pc_MEM),
 .addr(dataMem_addr_MEM),
 .we(mem_write_MEM),
 .re(mem_read_MEM),
@@ -709,15 +706,6 @@ Regr #(.N(32)) regr_alu_result_MEM_WB(
 .clear(reset||flush_MEM),
 .in(alu_result_MEM),
 .out(alu_result_WB)
-);
-
-wire [26:0] pc4_WB;
-Regr #(.N(27)) regr_pc4_MEM_WB(
-.clk(clk),
-.hold(stall_MEM),
-.clear(reset||flush_MEM),
-.in(pc4_MEM),
-.out(pc4_WB)
 );
 
 wire pop_WB, mem_read_WB;
