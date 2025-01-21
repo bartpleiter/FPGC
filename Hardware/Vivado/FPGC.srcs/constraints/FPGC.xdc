@@ -8,8 +8,11 @@ set_property BITSTREAM.CONFIG.SPI_FALL_EDGE Yes [current_design]
 set_property -dict {PACKAGE_PIN R4 IOSTANDARD DIFF_SSTL15} [get_ports sys_clk_p]
 set_property -dict {PACKAGE_PIN R14 IOSTANDARD LVCMOS33} [get_ports sys_rstn]
 
-
 set_property -dict {PACKAGE_PIN V17  IOSTANDARD TMDS_33} [get_ports HDMI_D2_P]
+#set_property -dict {PACKAGE_PIN W17  IOSTANDARD TMDS_33} [get_ports HDMI_D2_N]
 set_property -dict {PACKAGE_PIN AA19 IOSTANDARD TMDS_33} [get_ports HDMI_D1_P]
+#set_property -dict {PACKAGE_PIN AB20 IOSTANDARD TMDS_33} [get_ports HDMI_D1_N]
 set_property -dict {PACKAGE_PIN V18  IOSTANDARD TMDS_33} [get_ports HDMI_D0_P]
+#set_property -dict {PACKAGE_PIN V19  IOSTANDARD TMDS_33} [get_ports HDMI_D0_N]
 set_property -dict {PACKAGE_PIN Y18  IOSTANDARD TMDS_33} [get_ports HDMI_CLK_P]
+#set_property -dict {PACKAGE_PIN Y19  IOSTANDARD TMDS_33} [get_ports HDMI_CLK_N]

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# TODO: Update this script to use the new simulation setup after starting with the new CPU
+
 # Activate conda environment
 eval "$(conda shell.bash hook)"
 conda activate FPGC

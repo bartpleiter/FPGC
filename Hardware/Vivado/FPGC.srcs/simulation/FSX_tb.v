@@ -1,8 +1,17 @@
 /*
- * Simulation testbench for FPGC
+ * Testbench for the GPU (FSX).
+ * Designed to be used with the Icarus Verilog simulator to generate image files of frames.
  */
 `timescale 1ns / 1ps
-module FPGC_tb();
+
+`include "Hardware/Vivado/FPGC.srcs/verilog/GPU/FSX.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/GPU/BGWrenderer.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/GPU/PixelEngine.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/GPU/TimingGenerator.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/GPU/HDMI/RGB8toRGB24.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/Memory/VRAM.v"
+
+module FSX_tb ();
 
 reg clkPixel = 1'b0;
 reg clkTMDShalf = 1'b0;
@@ -166,9 +175,12 @@ FSX fsx (
 
 initial
 begin
-    repeat(10000)
+    $dumpfile("Hardware/Vivado/FPGC.srcs/simulation/output/FSX.vcd");
+    $dumpvars;
+
+    repeat(850000) // 850000 for exactly one frame at 640x480
     begin
-        // TMDS: 125MHz, Pixel: 25MHz
+        // TMDShalf: 125MHz, Pixel: 25MHz
         #4 clkTMDShalf = ~clkTMDShalf;
         #4 clkTMDShalf = ~clkTMDShalf;
         #4 clkTMDShalf = ~clkTMDShalf;
@@ -176,6 +188,5 @@ begin
         #4 clkTMDShalf = ~clkTMDShalf; clkPixel = ~clkPixel;
     end
 end
-
 
 endmodule

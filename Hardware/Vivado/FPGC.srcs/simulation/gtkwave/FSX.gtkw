@@ -1,0 +1,79 @@
+[*]
+[*] GTKWave Analyzer v3.3.116 (w)1999-2023 BSI
+[*] Tue Jan 21 18:54:31 2025
+[*]
+[dumpfile] "/home/bart/Documents/FPGA/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/FSX.vcd"
+[dumpfile_mtime] "Tue Jan 21 18:31:14 2025"
+[dumpfile_size] 131600380
+[savefile] "/home/bart/Documents/FPGA/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/FSX.gtkw"
+[timestart] 2750459000
+[size] 1536 881
+[pos] -1 -1
+*-19.000000 2751380000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] FSX_tb.
+[treeopen] FSX_tb.fsx.
+[sst_width] 278
+[signals_width] 339
+[sst_expanded] 1
+[sst_vpaned_height] 238
+@28
+FSX_tb.clkPixel
+@200
+-
+-Video timings
+@28
+FSX_tb.fsx.timingGenerator.vsync
+FSX_tb.fsx.timingGenerator.hsync
+FSX_tb.fsx.timingGenerator.blank
+@24
+FSX_tb.fsx.timingGenerator.v_count[11:0]
+FSX_tb.fsx.timingGenerator.h_count[11:0]
+@200
+-
+-BGWrenderer
+@28
+FSX_tb.fsx.bgwrenderer.r[2:0]
+FSX_tb.fsx.bgwrenderer.g[2:0]
+FSX_tb.fsx.bgwrenderer.b[1:0]
+@200
+-
+@24
+FSX_tb.fsx.bgwrenderer.h_count[11:0]
+FSX_tb.fsx.bgwrenderer.v_count[11:0]
+@200
+-
+@24
+FSX_tb.fsx.bgwrenderer.hTileCounter[5:0]
+FSX_tb.fsx.bgwrenderer.hTileDoublePixelCounter[3:0]
+FSX_tb.fsx.bgwrenderer.hTilePixelCounter[2:0]
+@200
+-
+@24
+FSX_tb.fsx.bgwrenderer.vTileCounter[4:0]
+FSX_tb.fsx.bgwrenderer.vTileDoubleLineCounter[3:0]
+FSX_tb.fsx.bgwrenderer.vTileLineCounter[2:0]
+@200
+-
+@25
+FSX_tb.fsx.bgwrenderer.bg_tile[10:0]
+@24
+FSX_tb.fsx.bgwrenderer.bg_tile_next[10:0]
+@200
+-
+@24
+FSX_tb.fsx.bgwrenderer.current_palette_bg_tile[31:0]
+FSX_tb.fsx.bgwrenderer.current_palette_window_tile[31:0]
+FSX_tb.fsx.bgwrenderer.current_pattern_bg_tile[15:0]
+FSX_tb.fsx.bgwrenderer.current_pattern_window_tile[15:0]
+FSX_tb.fsx.bgwrenderer.current_pixel_pattern_bg[1:0]
+FSX_tb.fsx.bgwrenderer.current_pixel_pattern_window[1:0]
+@200
+-
+@24
+FSX_tb.fsx.bgwrenderer.vram8_addr[13:0]
+@22
+FSX_tb.fsx.bgwrenderer.vram8_q[7:0]
+@24
+FSX_tb.fsx.bgwrenderer.vram32_addr[13:0]
+[pattern_trace] 1
+[pattern_trace] 0
