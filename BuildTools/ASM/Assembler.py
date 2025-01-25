@@ -1,4 +1,6 @@
-#!/usr/bin/env python3
+# Assembler for the B32P processor
+# Written really poorly in Python
+# TODO: Refactor either in Python or BCC compatible C
 
 import sys
 import CompileInstruction

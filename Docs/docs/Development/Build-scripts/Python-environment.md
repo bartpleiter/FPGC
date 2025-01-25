@@ -17,3 +17,6 @@ conda deactivate # Since the bash scripts will activate when needed
 ```
 
 Note that all scripts in this project are expected to be run from the project root.
+
+!!! note
+    This should be updated to use poetry venv instead

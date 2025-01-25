@@ -1,5 +1,8 @@
 # Memory map
 
+!!! warning
+      Outdated as this map will be changed with the Artix 7 design with B32P2
+
 The FPGC uses a memory map to map all CPU-accessible memory and I/O to the 27-bit address range (512MiB).
 Currently, the map is hardcoded in the instruction and data memory unit of the CPU, and the Memory Unit (MU).
 

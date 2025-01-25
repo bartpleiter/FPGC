@@ -9,8 +9,8 @@ cd Docs
 python3 -m mkdocs build --clean
 
 # Obviously this will only work on my personal server
-ssh b4rt.nl 'rm -rf /var/www/b4rt.nl/html/fpgc/'
-rsync -r site/ b4rt.nl:/var/www/b4rt.nl/html/fpgc/
-ssh b4rt.nl 'chown $USER:www-data -R /var/www/b4rt.nl/html/fpgc/'
+ssh -p 2222 b4rt.nl 'rm -rf /home/bart/PV/fpgc/'
+rsync -r -e 'ssh -p 2222' site/ b4rt.nl:/home/bart/PV/fpgc/
+ssh -p 2222 b4rt.nl 'chown $USER:$USER -R /home/bart/PV/fpgc/'
 
 conda deactivate

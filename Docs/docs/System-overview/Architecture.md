@@ -1,3 +1,3 @@
 # Architecture
 
-TODO: block diagrams
+TODO: write after general CPU design is finalized (use block diagrams)

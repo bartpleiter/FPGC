@@ -1,26 +1,31 @@
 #!/bin/bash
 
-# TODO: Update this script to use the new simulation setup after starting with the new CPU
+# TODO: Swap conda with poetry venv
 
 # Activate conda environment
 eval "$(conda shell.bash hook)"
 conda activate FPGC
 
 # Compile code
-cp Software/BareMetalASM/Simulation/cpu.asm Software/BuildTools/ASM/code.asm
-if (cd Software/BuildTools/ASM && python3 Assembler.py bdos 0x1000000 > code.list)
+cp Software/BareMetalASM/Simulation/cpu.asm BuildTools/ASM/code.asm
+if (cd BuildTools/ASM && python3 Assembler.py bdos 0x0000000 > code.list)
 then
     # Move to simulation directory
-    mv Software/BuildTools/ASM/code.list FPGA/Data/Simulation/rom.list
+    mv BuildTools/ASM/code.list Hardware/Vivado/FPGC.srcs/simulation/memory/rom.list
 else
-    # print the error, which is in code.list
-    (cat Software/BuildTools/ASM/code.list)
+    # Print the error, which is in code.list
+    (cat BuildTools/ASM/code.list)
     exit
 fi
 
 # Run simulation and open gtkwave (in X11 as Wayland has issues)
-iverilog -o FPGA/Simulation/output/cpu.out FPGA/Simulation/integration/tb_cpu.v &&\
-vvp FPGA/Simulation/output/cpu.out &&\
-GDK_BACKEND=x11 gtkwave --dark FPGA/Simulation/output/cpu.gtkw
+iverilog -o Hardware/Vivado/FPGC.srcs/simulation/output/cpu.out Hardware/Vivado/FPGC.srcs/simulation/cpu_tb.v &&\
+vvp Hardware/Vivado/FPGC.srcs/simulation/output/cpu.out &&\
+if ! pgrep -x "gtkwave" > /dev/null
+then
+    GDK_BACKEND=x11 gtkwave --dark Hardware/Vivado/FPGC.srcs/simulation/gtkwave/cpu.gtkw &
+else
+    echo "gtkwave is already running."
+fi
 
 conda deactivate
