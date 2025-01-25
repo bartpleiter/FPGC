@@ -6,6 +6,11 @@
 
 `include "Hardware/Vivado/FPGC.srcs/verilog/CPU/B32P2.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/CPU/Regr.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/Regbank.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/InstructionDecoder.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/ALU.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/ControlUnit.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/Stack.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/Memory/ROM.v"
 
 module cpu_tb ();

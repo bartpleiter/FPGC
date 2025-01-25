@@ -22,6 +22,7 @@ end
 initial
 begin
     $readmemb(LIST, rom);
+    q = {WIDTH{1'b0}};
 end
 
 endmodule

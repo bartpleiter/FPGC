@@ -1,26 +1,28 @@
 [*]
 [*] GTKWave Analyzer v3.3.116 (w)1999-2023 BSI
-[*] Sat Jan 25 12:29:32 2025
+[*] Sat Jan 25 16:17:12 2025
 [*]
 [dumpfile] "/home/bart/Documents/FPGA/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd"
-[dumpfile_mtime] "Sat Jan 25 11:02:21 2025"
-[dumpfile_size] 3241
+[dumpfile_mtime] "Sat Jan 25 16:16:07 2025"
+[dumpfile_size] 14755
 [savefile] "/home/bart/Documents/FPGA/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/cpu.gtkw"
 [timestart] 0
-[size] 1187 769
-[pos] 157 78
-*-15.900000 98100 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[size] 960 1033
+[pos] -1 -1
+*-15.900000 92900 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] cpu_tb.
 [treeopen] cpu_tb.cpu.
 [sst_width] 278
-[signals_width] 174
+[signals_width] 206
 [sst_expanded] 1
-[sst_vpaned_height] 219
+[sst_vpaned_height] 312
 @28
 cpu_tb.clk
 @200
 -
 -FE1
+@28
+cpu_tb.cpu.clk
 @24
 cpu_tb.cpu.icache_addr[8:0]
 @28
@@ -29,6 +31,89 @@ cpu_tb.cpu.icache_q[31:0]
 -
 -FE2
 @28
+cpu_tb.cpu.clk
 cpu_tb.cpu.icache_q_FE2[31:0]
+@200
+-
+-REG
+@28
+cpu_tb.cpu.clk
+cpu_tb.cpu.instr_REG[31:0]
+@22
+cpu_tb.cpu.addr_a_REG[3:0]
+@c00022
+cpu_tb.cpu.addr_b_REG[3:0]
+@28
+(0)cpu_tb.cpu.addr_b_REG[3:0]
+(1)cpu_tb.cpu.addr_b_REG[3:0]
+(2)cpu_tb.cpu.addr_b_REG[3:0]
+(3)cpu_tb.cpu.addr_b_REG[3:0]
+@1401200
+-group_end
+@200
+-
+-EXMEM1
+@28
+cpu_tb.cpu.clk
+cpu_tb.cpu.instr_EXMEM1[31:0]
+cpu_tb.cpu.instrOP_EXMEM1[3:0]
+@200
+-
+@28
+cpu_tb.cpu.alu_use_const_EXMEM1
+cpu_tb.cpu.alu_use_constu_EXMEM1
+@200
+-
+@24
+cpu_tb.cpu.data_a_EXMEM1[31:0]
+cpu_tb.cpu.data_b_EXMEM1[31:0]
+cpu_tb.cpu.constAlu_EXMEM1[31:0]
+cpu_tb.cpu.constAluu_EXMEM1[31:0]
+@200
+-
+@24
+cpu_tb.cpu.alu_a_EXMEM1[31:0]
+cpu_tb.cpu.alu_b_EXMEM1[31:0]
+@28
+cpu_tb.cpu.aluOP_EXMEM1[3:0]
+@24
+cpu_tb.cpu.alu_y_EXMEM1[31:0]
+@200
+-
+-EXMEM2
+@28
+cpu_tb.cpu.clk
+cpu_tb.cpu.instr_EXMEM2[31:0]
+cpu_tb.cpu.instrOP_EXMEM2[3:0]
+@200
+-
+@24
+cpu_tb.cpu.data_a_EXMEM2[31:0]
+cpu_tb.cpu.data_b_EXMEM2[31:0]
+cpu_tb.cpu.alu_y_EXMEM2[31:0]
+@200
+-
+@24
+cpu_tb.cpu.pop_EXMEM2
+cpu_tb.cpu.push_EXMEM2
+@200
+-
+-WB
+@29
+cpu_tb.cpu.clk
+@28
+cpu_tb.cpu.instr_WB[31:0]
+@200
+-
+@22
+cpu_tb.cpu.addr_d_WB[3:0]
+cpu_tb.cpu.data_d_WB[31:0]
+@28
+cpu_tb.cpu.we_WB
+@200
+-
+@22
+cpu_tb.cpu.alu_y_WB[31:0]
+cpu_tb.cpu.stack_q_WB[31:0]
 [pattern_trace] 1
 [pattern_trace] 0
