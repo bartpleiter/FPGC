@@ -11,6 +11,7 @@
 `include "Hardware/Vivado/FPGC.srcs/verilog/CPU/ALU.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/CPU/ControlUnit.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/CPU/Stack.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/BranchJumpUnit.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/Memory/ROM.v"
 
 module cpu_tb ();
@@ -21,6 +22,7 @@ reg reset = 1'b0;
 //-----------------------ROM-------------------------
 wire [8:0] rom_addr;
 wire [31:0] rom_q;
+wire rom_oe;
 ROM #(
     .WIDTH(32),
     .WORDS(512),
@@ -29,6 +31,7 @@ ROM #(
 ) rom (
     .clk (clk),
     .addr(rom_addr),
+    .oe  (rom_oe),
     .q   (rom_q)
 );
 
@@ -40,6 +43,7 @@ B32P2 cpu (
 
     // L1i cache
     .icache_addr(rom_addr),
+    .icache_oe(rom_oe),
     .icache_q(rom_q)
 );
 

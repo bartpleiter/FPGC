@@ -46,7 +46,7 @@ begin
         begin
             stack[ptr] <= d;
             ptr <= ptr + 1'b1;
-            `ifdef __IVERILOG__
+            `ifdef __ICARUS__
                 $display("%d: push @%d := %d", $time, ptr, d);
             `endif
         end
@@ -68,7 +68,7 @@ begin
                 useRamResult <= 1'b1;
                 ptr <= ptr - 1'b1;
                 
-                `ifdef __IVERILOG__
+                `ifdef __ICARUS__
                     $display("%d: pop @%d := %d", $time, ptr, stack[ptr - 1'b1]);
                 `endif
             end

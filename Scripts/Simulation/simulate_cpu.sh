@@ -8,7 +8,7 @@ conda activate FPGC
 
 # Compile code
 cp Software/BareMetalASM/Simulation/cpu.asm BuildTools/ASM/code.asm
-if (cd BuildTools/ASM && python3 Assembler.py bdos 0x0000000 > code.list)
+if (cd BuildTools/ASM && python3 Assembler.py -H > code.list)
 then
     # Move to simulation directory
     mv BuildTools/ASM/code.list Hardware/Vivado/FPGC.srcs/simulation/memory/rom.list

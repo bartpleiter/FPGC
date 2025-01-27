@@ -16,6 +16,9 @@ BDOSos = False
 # If we have to assemble the program as a BDOS user program
 BDOSprogram = False
 
+# If the program should not contain headers (useful for simulation)
+IgnoreHeaders = False
+
 # Global offset of program in memory
 programOffset = 0
 
@@ -585,6 +588,7 @@ def main():
     # check assemble mode and offset
     global BDOSos
     global BDOSprogram
+    global IgnoreHeaders
     global programOffset
     global optimizeSize
 
@@ -596,6 +600,8 @@ def main():
         BDOSos = sys.argv[1].lower() == "os"
     if sys.argv[len(sys.argv) - 1] == "-O":
         optimizeSize = True
+    if sys.argv[len(sys.argv) - 1] == "-H":
+        IgnoreHeaders = True
 
     # parse lines from file
     parsedLines = parseLines("code.asm")
@@ -628,7 +634,8 @@ def main():
     passOneResult = passOne(parsedLines)
 
     # add interrupt code and jumps
-    passOneResult = addHeaderCode(passOneResult)
+    if not IgnoreHeaders:
+        passOneResult = addHeaderCode(passOneResult)
 
     # move labels to the next line
     passOneResult = moveLabels(passOneResult)
@@ -647,8 +654,8 @@ def main():
     # check if all labels are processed
     checkNoLabels(passTwoResult)
 
-    # only add length of program if not BDOS user program
-    if not BDOSprogram:
+    # only add length of program if not BDOS user program or headers are not ignored
+    if not BDOSprogram and not IgnoreHeaders:
         lenString = "{0:032b}".format(len(passTwoResult)) + " //Length of program"
         # calculate length of program
         passTwoResult[2] = (2, lenString)

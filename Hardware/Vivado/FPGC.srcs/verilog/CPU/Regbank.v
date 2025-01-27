@@ -24,6 +24,8 @@ module Regbank (
     input wire          we
 );
 
+wire we_no_zero = (we && (addr_d != 4'd0));
+
 reg [31:0] regs [0:15];
 
 // RamResult are the regs that are read from block RAM
@@ -37,11 +39,11 @@ begin
     ramResulta <= regs[addr_a];
     ramResultb <= regs[addr_b];
 
-    if (we)
+    if (we_no_zero)
     begin
         regs[addr_d] <= data_d;
 
-        `ifdef __IVERILOG__
+        `ifdef __ICARUS__
             $display("%d: reg%d := %d", $time, addr_d, data_d);
         `endif
     end

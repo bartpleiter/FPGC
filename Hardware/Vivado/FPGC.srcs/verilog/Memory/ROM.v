@@ -9,6 +9,7 @@ module ROM #(
 ) (
     input  wire                 clk,
     input  wire [ADDR_BITS-1:0] addr,
+    input  wire                 oe,
     output reg  [    WIDTH-1:0] q
 );
 
@@ -16,7 +17,10 @@ reg [WIDTH-1:0] rom[0:WORDS-1];
 
 always @(posedge clk) 
 begin
-    q <= rom[addr];
+    if (oe)
+        q <= rom[addr];
+    else
+        q <= {WIDTH{1'b0}};
 end
 
 initial
