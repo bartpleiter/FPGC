@@ -47,7 +47,7 @@ begin
             stack[ptr] <= d;
             ptr <= ptr + 1'b1;
             `ifdef __ICARUS__
-                $display("%d: push @%d := %d", $time, ptr, d);
+                $display("%d: push ptr %d := %d", $time, ptr, d);
             `endif
         end
 
@@ -69,7 +69,7 @@ begin
                 ptr <= ptr - 1'b1;
                 
                 `ifdef __ICARUS__
-                    $display("%d: pop @%d := %d", $time, ptr, stack[ptr - 1'b1]);
+                    $display("%d: pop  ptr %d := %d", $time, ptr, stack[ptr - 1'b1]);
                 `endif
             end
         end

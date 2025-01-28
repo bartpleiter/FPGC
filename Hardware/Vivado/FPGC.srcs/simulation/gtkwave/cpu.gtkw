@@ -1,15 +1,15 @@
 [*]
 [*] GTKWave Analyzer v3.3.116 (w)1999-2023 BSI
-[*] Mon Jan 27 14:35:10 2025
+[*] Mon Jan 27 15:52:01 2025
 [*]
 [dumpfile] "/home/bart/Documents/FPGA/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd"
-[dumpfile_mtime] "Mon Jan 27 13:48:41 2025"
-[dumpfile_size] 62998
+[dumpfile_mtime] "Mon Jan 27 15:51:36 2025"
+[dumpfile_size] 62782
 [savefile] "/home/bart/Documents/FPGA/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/cpu.gtkw"
 [timestart] 0
 [size] 1536 881
-[pos] 1126 1079
-*-15.900000 98400 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[pos] -1 -1
+*-15.900000 100500 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] cpu_tb.
 [treeopen] cpu_tb.cpu.
 [sst_width] 278
@@ -97,12 +97,20 @@ cpu_tb.cpu.aluOP_EXMEM1[3:0]
 cpu_tb.cpu.alu_y_EXMEM1[31:0]
 @200
 -
+-EXMEM1 - Hazards
+@28
+cpu_tb.cpu.exmem1_uses_exmem2_result
+@24
+cpu_tb.cpu.forward_a[1:0]
+cpu_tb.cpu.forward_b[1:0]
+@200
+-
 -EXMEM1 - BranchJumpUnit
 @24
 cpu_tb.cpu.branchJumpUnit_EXMEM1.pc[26:0]
 @200
 -
-@29
+@28
 cpu_tb.cpu.branchJumpUnit_EXMEM1.jump_valid
 @24
 cpu_tb.cpu.branchJumpUnit_EXMEM1.jump_addr[26:0]
@@ -156,8 +164,9 @@ cpu_tb.cpu.instr_WB[31:0]
 -
 @22
 cpu_tb.cpu.addr_d_WB[3:0]
+@24
 cpu_tb.cpu.data_d_WB[31:0]
-@28
+@29
 cpu_tb.cpu.we_WB
 @200
 -

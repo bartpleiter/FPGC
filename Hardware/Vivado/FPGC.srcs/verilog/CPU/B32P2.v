@@ -32,10 +32,12 @@ module B32P2 #(
 wire flush_FE1;
 wire flush_FE2;
 wire flush_REG;
+wire flush_EXMEM1;
 
 assign flush_FE1 = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid;
 assign flush_FE2 = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid;
 assign flush_REG = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid;
+assign flush_EXMEM1 = exmem1_uses_exmem2_result;
 
 wire stall_FE1;
 wire stall_FE2;
@@ -43,15 +45,20 @@ wire stall_REG;
 wire stall_EXMEM1;
 
 // TODO stall all previous stages on EXMEM2 busy or FE2 busy
-assign stall_FE1 = 1'b0;
-assign stall_FE2 = 1'b0;
-assign stall_REG = 1'b0;
+assign stall_FE1 = exmem1_uses_exmem2_result;
+assign stall_FE2 = exmem1_uses_exmem2_result;
+assign stall_REG = exmem1_uses_exmem2_result;
 assign stall_EXMEM1 = 1'b0;
 
-// Possible forwarding/hazard situations:
-// Read after Write -> Hazard
-// EXMEM2 -> EXMEM1 (single cycle ALU operation in EXMEM1)
-// WB -> EXMEM1 (single cycle ALU operation in EXMEM1)
+// Possible hazard situations:
+// - EXMEM1 uses result of non-ALU operation from EXMEM2 -> stall
+wire exmem1_uses_exmem2_result;
+assign exmem1_uses_exmem2_result = (pop_EXMEM2 || mem_read_EXMEM2) && (dreg_EXMEM2 == areg_EXMEM1 || dreg_EXMEM2 == breg_EXMEM1);
+
+
+// Forwarding situations
+// EXMEM2 -> EXMEM1 (single cycle ALU operations)
+// WB -> EXMEM1 (single cycle ALU operations)
 wire [1:0] forward_a; // From how many stages ahead to forward from towards ALU input A
 wire [1:0] forward_b; // From how many stages ahead to forward from towards ALU input B
 
@@ -109,7 +116,7 @@ Regr #(
     .clk (clk),
     .in(PC),
     .out(PC_FE2),
-    .hold(1'b0),
+    .hold(stall_FE1),
     .clear(flush_FE1)
 );
 
@@ -132,7 +139,7 @@ Regr #(
     .clk (clk),
     .in(icache_q),
     .out(instr_REG),
-    .hold(1'b0),
+    .hold(stall_FE2),
     .clear(flush_FE2)
 );
 
@@ -143,7 +150,7 @@ Regr #(
     .clk (clk),
     .in(PC_FE2),
     .out(PC_REG),
-    .hold(1'b0),
+    .hold(stall_FE2),
     .clear(flush_FE2)
 );
 
@@ -192,8 +199,8 @@ Regbank regbank (
 
     .addr_a(addr_a_REG),
     .addr_b(addr_b_REG),
-    .clear(1'b0),
-    .hold(1'b0),
+    .clear(stall_REG),
+    .hold(flush_REG),
     .data_a(data_a_EXMEM1),
     .data_b(data_b_EXMEM1),
 
@@ -210,7 +217,7 @@ Regr #(
     .clk (clk),
     .in(instr_REG),
     .out(instr_EXMEM1),
-    .hold(1'b0),
+    .hold(stall_REG),
     .clear(flush_REG)
 );
 
@@ -221,7 +228,7 @@ Regr #(
     .clk (clk),
     .in(PC_REG),
     .out(PC_EXMEM1),
-    .hold(1'b0),
+    .hold(stall_REG),
     .clear(flush_REG)
 );
 
@@ -351,8 +358,8 @@ Regr #(
     .clk (clk),
     .in(instr_EXMEM1),
     .out(instr_EXMEM2),
-    .hold(1'b0),
-    .clear(1'b0)
+    .hold(stall_EXMEM1),
+    .clear(flush_EXMEM1)
 );
 
 wire [31:0] alu_y_EXMEM2;
@@ -362,20 +369,21 @@ Regr #(
     .clk (clk),
     .in(alu_y_EXMEM1),
     .out(alu_y_EXMEM2),
-    .hold(1'b0),
-    .clear(1'b0)
+    .hold(stall_EXMEM1),
+    .clear(flush_EXMEM1)
 );
 
+// Here the ALU inputs are used to include forwarded data
 wire [31:0] data_a_EXMEM2;
 wire [31:0] data_b_EXMEM2;
 Regr #(
     .N(64)
 ) regr_DATA_AB_EXMEM2 (
     .clk (clk),
-    .in({data_a_EXMEM1, data_b_EXMEM1}),
+    .in({alu_a_EXMEM1, alu_b_EXMEM1}),
     .out({data_a_EXMEM2, data_b_EXMEM2}),
-    .hold(1'b0),
-    .clear(1'b0)
+    .hold(stall_EXMEM1),
+    .clear(flush_EXMEM1)
 );
 
 wire [26:0] PC_EXMEM2;
@@ -385,8 +393,8 @@ Regr #(
     .clk (clk),
     .in(PC_EXMEM1),
     .out(PC_EXMEM2),
-    .hold(1'b0),
-    .clear(1'b0)
+    .hold(stall_EXMEM1),
+    .clear(flush_EXMEM1)
 );
 
 /*
@@ -399,6 +407,8 @@ wire pop_EXMEM2;
 
 wire [3:0] dreg_EXMEM2;
 wire dreg_we_EXMEM2;
+
+wire mem_read_EXMEM2;
 
 InstructionDecoder instrDec_EXMEM2 (
     .instr(instr_EXMEM2),
@@ -432,7 +442,7 @@ ControlUnit constrolUnit_EXMEM2 (
     .pop(pop_EXMEM2),
     .dreg_we(we_EXMEM2),
     .mem_write(),
-    .mem_read(),
+    .mem_read(mem_read_EXMEM2),
     .jumpc(),
     .jumpr(),
     .branch(),
