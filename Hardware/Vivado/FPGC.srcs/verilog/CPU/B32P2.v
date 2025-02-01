@@ -263,6 +263,9 @@ wire sig_EXMEM1;
 wire [3:0] areg_EXMEM1;
 wire [3:0] breg_EXMEM1;
 
+wire mem_read_EXMEM1;
+wire mem_write_EXMEM1;
+
 InstructionDecoder instrDec_EXMEM1 (
     .instr(instr_EXMEM1),
 
@@ -294,14 +297,38 @@ ControlUnit constrolUnit_EXMEM1 (
     .push(),
     .pop(),
     .dreg_we(),
-    .mem_write(),
-    .mem_read(),
+    .mem_write(mem_write_EXMEM1),
+    .mem_read(mem_read_EXMEM1),
     .jumpc(jumpc_EXMEM1),
     .jumpr(jumpr_EXMEM1),
     .branch(branch_EXMEM1),
     .halt(halt_EXMEM1),
     .reti(reti_EXMEM1),
     .clearCache()
+);
+
+wire mem_sdram_EXMEM1;
+wire [31:0] mem_local_address_EXMEM1;
+
+// TODO optimization in case address calculations are slow:
+// Calculate all signals in EXMEM1 and forward them to EXMEM2
+// This way the address decoding does not need to be done in EXMEM2
+AddressDecoder addressDecoder_EXMEM1 (
+    .areg_value(alu_a_EXMEM1), // Use forwarded data
+    .const16(const16_EXMEM1),
+    .rw(mem_read_EXMEM1 || mem_write_EXMEM1),
+
+    .mem_sdram(mem_sdram_EXMEM1),
+    .mem_sdcard(),
+    .mem_spiflash(),
+    .mem_io(),
+    .mem_rom(),
+    .mem_vram32(),
+    .mem_vram8(),
+    .mem_vrampx(),
+
+    .mem_multicycle(),
+    .mem_local_address(mem_local_address_EXMEM1)
 );
 
 assign forward_a =  (areg_EXMEM1 == dreg_EXMEM2 && we_EXMEM2 && areg_EXMEM1 != 4'd0) ? 2'd1 :
@@ -350,7 +377,7 @@ BranchJumpUnit branchJumpUnit_EXMEM1 (
 );
 
 // TODO:
-// - data cache access
+// - in case of mem_read or mem_write, read from l1d cache using mem_local_address_EXMEM1
 
 // Forward to next stage
 wire [31:0] instr_EXMEM2;
@@ -411,6 +438,8 @@ wire [3:0] dreg_EXMEM2;
 wire dreg_we_EXMEM2;
 
 wire mem_read_EXMEM2;
+wire mem_write_EXMEM2;
+wire [31:0] const16_EXMEM2;
 
 InstructionDecoder instrDec_EXMEM2 (
     .instr(instr_EXMEM2),
@@ -421,7 +450,7 @@ InstructionDecoder instrDec_EXMEM2 (
 
     .constAlu(),
     .constAluu(),
-    .const16(),
+    .const16(const16_EXMEM2),
     .const16u(),
     .const27(),
 
@@ -443,7 +472,7 @@ ControlUnit constrolUnit_EXMEM2 (
     .push(push_EXMEM2),
     .pop(pop_EXMEM2),
     .dreg_we(we_EXMEM2),
-    .mem_write(),
+    .mem_write(mem_write_EXMEM2),
     .mem_read(mem_read_EXMEM2),
     .jumpc(),
     .jumpr(),
@@ -451,6 +480,36 @@ ControlUnit constrolUnit_EXMEM2 (
     .halt(),
     .reti(),
     .clearCache()
+);
+
+wire mem_multicycle_EXMEM2;
+wire [31:0] mem_local_address_EXMEM2;
+
+wire mem_sdram_EXMEM2;
+wire mem_sdcard_EXMEM2;
+wire mem_spiflash_EXMEM2;
+wire mem_io_EXMEM2;
+wire mem_rom_EXMEM2;
+wire mem_vram32_EXMEM2;
+wire mem_vram8_EXMEM2;
+wire mem_vrampx_EXMEM2;
+
+AddressDecoder addressDecoder_EXMEM2 (
+    .areg_value(data_a_EXMEM2),
+    .const16(const16_EXMEM2),
+    .rw(mem_read_EXMEM2 || mem_write_EXMEM2),
+
+    .mem_sdram(mem_sdram_EXMEM2),
+    .mem_sdcard(mem_sdcard_EXMEM2),
+    .mem_spiflash(mem_spiflash_EXMEM2),
+    .mem_io(mem_io_EXMEM2),
+    .mem_rom(mem_rom_EXMEM2),
+    .mem_vram32(mem_vram32_EXMEM2),
+    .mem_vram8(mem_vram8_EXMEM2),
+    .mem_vrampx(mem_vrampx_EXMEM2),
+
+    .mem_multicycle(mem_multicycle_EXMEM2),
+    .mem_local_address(mem_local_address_EXMEM2)
 );
 
 // Since the stack takes a cycle, the result will be in the next (WB) stage
