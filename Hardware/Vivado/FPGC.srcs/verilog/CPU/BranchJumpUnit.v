@@ -7,7 +7,7 @@ module BranchJumpUnit (
     input wire  [31:0]  data_b,
     input wire  [31:0]  const16,
     input wire  [26:0]  const27,
-    input wire  [26:0]  pc,
+    input wire  [31:0]  pc,
     input wire halt,
     input wire branch,
     input wire jumpc,
@@ -15,7 +15,7 @@ module BranchJumpUnit (
     input wire oe,
     input wire sig,
 
-    output reg [26:0] jump_addr,
+    output reg [31:0] jump_addr,
     output wire jump_valid
 );
 
@@ -56,7 +56,7 @@ begin
         end
         else
         begin
-           jump_addr <= const27;
+            jump_addr <= {5'b0, const27};
         end
     end
 

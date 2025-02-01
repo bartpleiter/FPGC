@@ -12,6 +12,7 @@
 `include "Hardware/Vivado/FPGC.srcs/verilog/CPU/ControlUnit.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/CPU/Stack.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/CPU/BranchJumpUnit.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/AddressDecoder.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/Memory/ROM.v"
 
 module cpu_tb ();

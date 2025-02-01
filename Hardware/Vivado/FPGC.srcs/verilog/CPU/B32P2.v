@@ -11,12 +11,14 @@
  *   - EXMEM2:  Multi-cycle Execute and Data Cache Miss Handling
  *   - WB:      Writeback Register
  * - Hazard detection and forwarding
- * - 27 bit address space for 0.5GiB of addressable memory
+ * - 32 bits, word-addressable only
+ * - 32 bit address space for 16GiB of addressable memory
+ *   - 27 bits jump constant for 512MiB of easily jumpable instruction memory
  */
 module B32P2 #(
-    parameter PC_START = 27'd0, // Initial PC value, so a bootloader can be placed at a later address
-    parameter INTERRUPT_VALID_FROM = 27'd0, // Address from which interrupts are valid/enabled
-    parameter INTERRUPT_JUMP_ADDR = 27'd1 // Address to jump to when an interrupt is triggered
+    parameter PC_START = 32'd0, // Initial PC value, so a bootloader can be placed at a later address
+    parameter INTERRUPT_VALID_FROM = 32'd0, // Address from which interrupts are valid/enabled
+    parameter INTERRUPT_JUMP_ADDR = 32'd1 // Address to jump to when an interrupt is triggered
 ) (
     // Clock and reset
     input wire clk,
@@ -65,10 +67,10 @@ wire [1:0] forward_b; // From how many stages ahead to forward from towards ALU 
 // Interrupt signals
 wire interrupt_valid;
 assign interrupt_valid = 1'b0; // TODO connect to interrupt controller
-reg [26:0] PC_backup = 27'd0;
+reg [31:0] PC_backup = 32'd0;
 
 // Program counter updater
-reg [26:0] PC = PC_START; 
+reg [31:0] PC = PC_START; 
 always @(posedge clk)
 begin
     if (reset)
@@ -109,9 +111,9 @@ end
 assign icache_addr = PC;
 
 // Forward to next stage
-wire [26:0] PC_FE2;
+wire [31:0] PC_FE2;
 Regr #(
-    .N(27)
+    .N(32)
 ) regr_PC_FE1_FE2 (
     .clk (clk),
     .in(PC),
@@ -143,9 +145,9 @@ Regr #(
     .clear(flush_FE2)
 );
 
-wire [26:0] PC_REG;
+wire [31:0] PC_REG;
 Regr #(
-    .N(27)
+    .N(32)
 ) regr_PC_FE2_REG (
     .clk (clk),
     .in(PC_FE2),
@@ -221,9 +223,9 @@ Regr #(
     .clear(flush_REG)
 );
 
-wire [26:0] PC_EXMEM1;
+wire [31:0] PC_EXMEM1;
 Regr #(
-    .N(27)
+    .N(32)
 ) regr_PC_REG_EXMEM1 (
     .clk (clk),
     .in(PC_REG),
@@ -326,7 +328,7 @@ ALU alu_EXMEM1 (
     .y          (alu_y_EXMEM1)
 );
 
-wire [26:0] jump_addr_EXMEM1;
+wire [31:0] jump_addr_EXMEM1;
 wire jump_valid_EXMEM1;
 
 BranchJumpUnit branchJumpUnit_EXMEM1 (
@@ -386,9 +388,9 @@ Regr #(
     .clear(flush_EXMEM1)
 );
 
-wire [26:0] PC_EXMEM2;
+wire [31:0] PC_EXMEM2;
 Regr #(
-    .N(27)
+    .N(32)
 ) regr_PC_EXMEM1_EXMEM2 (
     .clk (clk),
     .in(PC_EXMEM1),
@@ -493,9 +495,9 @@ Regr #(
     .clear(1'b0)
 );
 
-wire [26:0] PC_WB;
+wire [31:0] PC_WB;
 Regr #(
-    .N(27)
+    .N(32)
 ) regr_PC_EXMEM2_WB (
     .clk (clk),
     .in(PC_EXMEM2),
