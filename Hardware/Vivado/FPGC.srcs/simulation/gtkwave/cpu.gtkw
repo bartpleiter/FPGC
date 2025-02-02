@@ -1,15 +1,15 @@
 [*]
 [*] GTKWave Analyzer v3.3.116 (w)1999-2023 BSI
-[*] Sun Feb  2 13:08:00 2025
+[*] Sun Feb  2 13:29:23 2025
 [*]
 [dumpfile] "/home/bart/Documents/FPGA/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd"
-[dumpfile_mtime] "Sun Feb  2 13:07:56 2025"
-[dumpfile_size] 86354
+[dumpfile_mtime] "Sun Feb  2 13:26:34 2025"
+[dumpfile_size] 92576
 [savefile] "/home/bart/Documents/FPGA/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/cpu.gtkw"
-[timestart] 81600
+[timestart] 81100
 [size] 1920 1033
 [pos] -1 -1
-*-15.900000 295600 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-15.900000 174300 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] cpu_tb.
 [treeopen] cpu_tb.cpu.
 [sst_width] 278
@@ -91,9 +91,9 @@ cpu_tb.cpu.addr_b_REG[3:0]
 cpu_tb.cpu.clk
 @22
 cpu_tb.cpu.PC_EXMEM1[31:0]
-@c00029
+@c00028
 cpu_tb.cpu.instr_EXMEM1[31:0]
-@29
+@28
 (0)cpu_tb.cpu.instr_EXMEM1[31:0]
 (1)cpu_tb.cpu.instr_EXMEM1[31:0]
 (2)cpu_tb.cpu.instr_EXMEM1[31:0]
@@ -126,7 +126,7 @@ cpu_tb.cpu.instr_EXMEM1[31:0]
 (29)cpu_tb.cpu.instr_EXMEM1[31:0]
 (30)cpu_tb.cpu.instr_EXMEM1[31:0]
 (31)cpu_tb.cpu.instr_EXMEM1[31:0]
-@1401201
+@1401200
 -group_end
 @28
 cpu_tb.cpu.instrOP_EXMEM1[3:0]
@@ -239,19 +239,34 @@ cpu_tb.cpu.mem_sdram_EXMEM2
 cpu_tb.cpu.mem_sdram_EXMEM2
 cpu_tb.cpu.mem_spiflash_EXMEM2
 cpu_tb.cpu.mem_io_EXMEM2
-cpu_tb.cpu.mem_rom_EXMEM2
-cpu_tb.cpu.mem_vram32_EXMEM2
-cpu_tb.cpu.mem_vram8_EXMEM2
-cpu_tb.cpu.mem_vrampx_EXMEM2
 @200
 -
 -EXMEM2 - ROM
-@28
-cpu_tb.cpu.mem_rom_EXMEM2
 @24
 cpu_tb.cpu.rom_mem_addr[8:0]
-@28
-cpu_tb.cpu.rom_mem_oe
+@204
+-
+-EXMEM2 - VRAM32
+@24
+cpu_tb.cpu.vram32_addr[10:0]
+@25
+cpu_tb.cpu.vram32_d[31:0]
+@24
+cpu_tb.cpu.vram32_we
+@204
+-
+-EXMEM2 - VRAM8
+@24
+cpu_tb.cpu.vram8_addr[13:0]
+cpu_tb.cpu.vram8_d[7:0]
+cpu_tb.cpu.vram8_we
+@204
+-
+-EXMEM2 - VRAMPX
+@24
+cpu_tb.cpu.vramPX_addr[16:0]
+cpu_tb.cpu.vramPX_d[7:0]
+cpu_tb.cpu.vramPX_we
 @200
 -
 -WB

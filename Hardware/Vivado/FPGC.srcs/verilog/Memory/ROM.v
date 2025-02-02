@@ -20,7 +20,6 @@ module ROM #(
     input  wire                 fe_hold,
 
     input  wire [ADDR_BITS-1:0] mem_addr,
-    input  wire                 mem_oe,
     output reg  [    WIDTH-1:0] mem_q
 );
 
@@ -44,14 +43,8 @@ begin
         end
     end
 
-    if (mem_oe)
-    begin
-        mem_q <= rom[mem_addr];
-    end
-    else
-    begin
-        mem_q <= {WIDTH{1'b0}};
-    end
+    mem_q <= rom[mem_addr];
+
 end
 
 initial

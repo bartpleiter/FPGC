@@ -34,8 +34,25 @@ module B32P2 #(
     output wire rom_fe_hold,
 
     output wire [8:0] rom_mem_addr,
-    output wire rom_mem_oe,
-    input wire [31:0] rom_mem_q
+    input wire [31:0] rom_mem_q,
+
+    // VRAM32
+    output wire [10:0] vram32_addr,
+    output wire [31:0] vram32_d,
+    output wire vram32_we,
+    input wire [31:0] vram32_q,
+
+    // VRAM8
+    output wire [13:0] vram8_addr,
+    output wire [7:0] vram8_d,
+    output wire vram8_we,
+    input wire [7:0] vram8_q,
+
+    // VRAMPX
+    output wire [16:0] vramPX_addr,
+    output wire [7:0] vramPX_d,
+    output wire vramPX_we,
+    input wire [7:0] vramPX_q
 );
     
 // Flush and Stall signals
@@ -520,10 +537,6 @@ wire mem_sdram_EXMEM2;
 wire mem_sdcard_EXMEM2;
 wire mem_spiflash_EXMEM2;
 wire mem_io_EXMEM2;
-wire mem_rom_EXMEM2;
-wire mem_vram32_EXMEM2;
-wire mem_vram8_EXMEM2;
-wire mem_vrampx_EXMEM2;
 
 AddressDecoder addressDecoder_EXMEM2 (
     .areg_value(data_a_EXMEM2),
@@ -534,10 +547,10 @@ AddressDecoder addressDecoder_EXMEM2 (
     .mem_sdcard(mem_sdcard_EXMEM2),
     .mem_spiflash(mem_spiflash_EXMEM2),
     .mem_io(mem_io_EXMEM2),
-    .mem_rom(mem_rom_EXMEM2),
-    .mem_vram32(mem_vram32_EXMEM2),
-    .mem_vram8(mem_vram8_EXMEM2),
-    .mem_vrampx(mem_vrampx_EXMEM2),
+    .mem_rom(),
+    .mem_vram32(),
+    .mem_vram8(),
+    .mem_vrampx(),
 
     .mem_multicycle(mem_multicycle_EXMEM2),
     .mem_local_address(mem_local_address_EXMEM2)
@@ -560,7 +573,21 @@ Stack stack_EXMEM2 (
 
 // ROM
 assign rom_mem_addr = mem_local_address_EXMEM2;
-assign rom_mem_oe = mem_rom_EXMEM2;
+
+// VRAM32
+assign vram32_addr = mem_local_address_EXMEM2;
+assign vram32_we = mem_write_EXMEM2;
+assign vram32_d = data_b_EXMEM2;
+
+// VRAM8
+assign vram8_addr = mem_local_address_EXMEM2;
+assign vram8_we = mem_write_EXMEM2;
+assign vram8_d = data_b_EXMEM2;
+
+// VRAMPX
+assign vramPX_addr = mem_local_address_EXMEM2;
+assign vramPX_we = mem_write_EXMEM2;
+assign vramPX_d = data_b_EXMEM2;
 
 // TODO:
 // - data mem access on cache miss
@@ -692,6 +719,9 @@ AddressDecoder addressDecoder_WB (
 
 assign data_d_WB =  (pop_WB) ? stack_q_WB :
                     (mem_rom_WB) ? rom_mem_q :
+                    (mem_vram32_WB) ? vram32_q :
+                    (mem_vram8_WB) ? vram8_q :
+                    (mem_vrampx_WB) ? vramPX_q :
                     alu_y_WB;
 
 endmodule
