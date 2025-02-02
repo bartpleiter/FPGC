@@ -3,6 +3,7 @@
  * Contains 16 registers of 32 bit each
  * Designed to be inferred as block RAM
  * Reg0 is always 0
+ * TODO: Verify hold logic as I am 99% sure it does not work
  */
 
 module Regbank (
@@ -97,6 +98,7 @@ begin
         begin
             // Use block RAM result otherwise
             useRamResult_a <= 1'b1;
+            data_a_reg <= ramResulta;
         end
 
         if (clear)
@@ -123,6 +125,7 @@ begin
         begin
             // Use block RAM result otherwise
             useRamResult_b <= 1'b1;
+            data_b_reg <= ramResultb;
         end
     end
 end

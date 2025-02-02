@@ -14,20 +14,28 @@
  * - 32 bits, word-addressable only
  * - 32 bit address space for 16GiB of addressable memory
  *   - 27 bits jump constant for 512MiB of easily jumpable instruction memory
+ *
+ * Notes:
+ * - ROM (where the CPU starts executing from) needs to be placed on an address after RAM
+ * - Interrupts are only valid on an address before ROM
  */
 module B32P2 #(
-    parameter PC_START = 32'd0, // Initial PC value, so a bootloader can be placed at a later address
-    parameter INTERRUPT_VALID_FROM = 32'd0, // Address from which interrupts are valid/enabled
+    parameter ROM_ADDRESS = 32'h7800000, // Initial PC value, so the CPU starts executing from ROM first
     parameter INTERRUPT_JUMP_ADDR = 32'd1 // Address to jump to when an interrupt is triggered
 ) (
     // Clock and reset
     input wire clk,
     input wire reset,
 
-    // L1i cache
-    output wire [8:0] icache_addr,
-    output wire       icache_oe,
-    input wire [31:0] icache_q
+    // ROM (dual port)
+    output wire [8:0] rom_fe_addr,
+    output wire rom_fe_oe,
+    input wire [31:0] rom_fe_q,
+    output wire rom_fe_hold,
+
+    output wire [8:0] rom_mem_addr,
+    output wire rom_mem_oe,
+    input wire [31:0] rom_mem_q
 );
     
 // Flush and Stall signals
@@ -70,45 +78,59 @@ assign interrupt_valid = 1'b0; // TODO connect to interrupt controller
 reg [31:0] PC_backup = 32'd0;
 
 // Program counter updater
-reg [31:0] PC = PC_START; 
+reg [31:0] PC_FE1 = ROM_ADDRESS; 
 always @(posedge clk)
 begin
     if (reset)
     begin
-        PC <= PC_START;
+        PC_FE1 <= ROM_ADDRESS;
     end
     else
     begin
         if (interrupt_valid)
         begin
-            PC <= INTERRUPT_JUMP_ADDR;
+            PC_FE1 <= INTERRUPT_JUMP_ADDR;
         end
         else if (reti_EXMEM1)
         begin
-            PC <= PC_backup;
+            PC_FE1 <= PC_backup;
         end
         else if (jump_valid_EXMEM1)
         begin
-            PC <= jump_addr_EXMEM1;
+            PC_FE1 <= jump_addr_EXMEM1;
         end
         else if (stall_FE1)
         begin
-            PC <= PC;
+            PC_FE1 <= PC_FE1;
         end
         else
         begin
-            PC <= PC + 1'b1;
+            PC_FE1 <= PC_FE1 + 1'b1;
         end
     end
 end
 
 
 /*
- * Stage 1: Instruction Cache Fetch
+ * Stage 1: Instruction Cache Fetch (+ ROM access)
  */
 
+// Fetch address decoding
+wire mem_rom_FE1;
+wire [8:0] mem_rom_addr_FE1;
+assign mem_rom_FE1 = PC_FE1 >= ROM_ADDRESS;
+assign mem_rom_addr_FE1 = PC_FE1 - ROM_ADDRESS;
+
+// ROM access
+assign rom_fe_addr = mem_rom_addr_FE1;
+assign rom_fe_oe = mem_rom_FE1 && !flush_FE1;
+assign rom_fe_hold = stall_FE1;
+
 // Instruction Cache
-assign icache_addr = PC;
+wire [31:0] icache_addr;
+assign icache_addr = PC_FE1;
+wire icache_oe;
+assign icache_oe = !mem_rom_FE1 && !flush_FE1;
 
 // Forward to next stage
 wire [31:0] PC_FE2;
@@ -116,30 +138,37 @@ Regr #(
     .N(32)
 ) regr_PC_FE1_FE2 (
     .clk (clk),
-    .in(PC),
+    .in(PC_FE1),
     .out(PC_FE2),
     .hold(stall_FE1),
     .clear(flush_FE1)
 );
 
-assign icache_oe = !flush_FE1;
-
 /*
  * Stage 2: Instruction Cache Miss Fetch
  */
 
- wire [31:0] icache_q_FE2 = icache_q;
+// ROM access
+wire mem_rom_FE2;
+assign mem_rom_FE2 = PC_FE2 >= ROM_ADDRESS;
+wire [31:0] rom_q_FE2 = rom_fe_q;
+
+wire [31:0] icache_q_FE2 = 32'd0; // TODO: connect to instruction cache
 
 // TODO: Skipped for now, should fetch from memory (via L1i cache) on cache miss
-//  and forward either icache_q or the fetched instruction to the next stage
+//  and forward either icache_q, the fetched instruction or rom_q to the next stage
+
+
+wire [31:0] instr_result_FE2;
+assign instr_result_FE2 = (mem_rom_FE2) ? rom_q_FE2 : icache_q_FE2;
 
 // Forward to next stage
 wire [31:0] instr_REG;
 Regr #(
     .N(32)
-) regr_FE2_REG (
+) regr_instr_FE2_REG (
     .clk (clk),
-    .in(icache_q),
+    .in(instr_result_FE2),
     .out(instr_REG),
     .hold(stall_FE2),
     .clear(flush_FE2)
@@ -195,14 +224,15 @@ wire [3:0] addr_d_WB;
 wire [31:0] data_d_WB;
 wire we_WB;
 
+// Clear on stall as well to create a bubble in the pipeline
 Regbank regbank (
     .clk(clk),
     .reset(reset),
 
     .addr_a(addr_a_REG),
     .addr_b(addr_b_REG),
-    .clear(stall_REG),
-    .hold(flush_REG),
+    .clear(flush_REG || stall_REG),
+    .hold(1'b0),
     .data_a(data_a_EXMEM1),
     .data_b(data_b_EXMEM1),
 
@@ -212,6 +242,7 @@ Regbank regbank (
 );
 
 // Forward to next stage
+// Clear on stall as well to create a bubble in the pipeline
 wire [31:0] instr_EXMEM1;
 Regr #(
     .N(32)
@@ -219,8 +250,8 @@ Regr #(
     .clk (clk),
     .in(instr_REG),
     .out(instr_EXMEM1),
-    .hold(stall_REG),
-    .clear(flush_REG)
+    .hold(1'b0),
+    .clear(flush_REG || stall_REG)
 );
 
 wire [31:0] PC_EXMEM1;
@@ -230,8 +261,8 @@ Regr #(
     .clk (clk),
     .in(PC_REG),
     .out(PC_EXMEM1),
-    .hold(stall_REG),
-    .clear(flush_REG)
+    .hold(1'b0),
+    .clear(flush_REG || stall_REG)
 );
 
 /*
@@ -527,6 +558,10 @@ Stack stack_EXMEM2 (
     .q(stack_q_WB)
 );
 
+// ROM
+assign rom_mem_addr = mem_local_address_EXMEM2;
+assign rom_mem_oe = mem_rom_EXMEM2;
+
 // TODO:
 // - data mem access on cache miss
 // - multi-cycle ALU operations
@@ -565,11 +600,23 @@ Regr #(
     .clear(1'b0)
 );
 
+wire [31:0] data_a_WB;
+Regr #(
+    .N(32)
+) regr_DATA_A_EXMEM2_WB (
+    .clk (clk),
+    .in(data_a_EXMEM2),
+    .out(data_a_WB),
+    .hold(1'b0),
+    .clear(1'b0)
+);
+
 /*
  * Stage 6: Writeback Register
  */
 
 wire [3:0] instrOP_WB;
+wire [31:0] const16_WB;
 
 InstructionDecoder instrDec_WB (
     .instr(instr_WB),
@@ -580,7 +627,7 @@ InstructionDecoder instrDec_WB (
 
     .constAlu(),
     .constAluu(),
-    .const16(),
+    .const16(const16_WB),
     .const16u(),
     .const27(),
 
@@ -615,10 +662,36 @@ ControlUnit constrolUnit_WB (
     .clearCache()
 );
 
-// TODO: add mem_q_WB
-wire mem_q_WB;
+// Re-use address decoder to determine from which memory result to use in data_d
+wire mem_sdram_WB;
+wire mem_sdcard_WB;
+wire mem_spiflash_WB;
+wire mem_io_WB;
+wire mem_rom_WB;
+wire mem_vram32_WB;
+wire mem_vram8_WB;
+wire mem_vrampx_WB;
+
+AddressDecoder addressDecoder_WB (
+    .areg_value(data_a_WB),
+    .const16(const16_WB),
+    .rw(mem_read_WB),
+
+    .mem_sdram(mem_sdram_WB),
+    .mem_sdcard(mem_sdcard_WB),
+    .mem_spiflash(mem_spiflash_WB),
+    .mem_io(mem_io_WB),
+    .mem_rom(mem_rom_WB),
+    .mem_vram32(mem_vram32_WB),
+    .mem_vram8(mem_vram8_WB),
+    .mem_vrampx(mem_vrampx_WB),
+
+    .mem_multicycle(),
+    .mem_local_address()
+);
+
 assign data_d_WB =  (pop_WB) ? stack_q_WB :
-                    (mem_read_WB) ? mem_q_WB :
+                    (mem_rom_WB) ? rom_mem_q :
                     alu_y_WB;
 
 endmodule

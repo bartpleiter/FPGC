@@ -1,5 +1,9 @@
 /*
 * Internal FPGA ROM
+* Implemented as dual port rom for simultaneous
+* access by the Fetch and Memory stages of the CPU
+* Contains output enable signals for both ports
+* Additionally, it contains a hold signal for the Fetch stage
 */
 module ROM #(
     parameter WIDTH = 32,
@@ -8,25 +12,52 @@ module ROM #(
     parameter LIST = "memory/rom.list"
 ) (
     input  wire                 clk,
-    input  wire [ADDR_BITS-1:0] addr,
-    input  wire                 oe,
-    output reg  [    WIDTH-1:0] q
+    input  wire                 reset,
+
+    input  wire [ADDR_BITS-1:0] fe_addr,
+    input  wire                 fe_oe,
+    output reg  [    WIDTH-1:0] fe_q,
+    input  wire                 fe_hold,
+
+    input  wire [ADDR_BITS-1:0] mem_addr,
+    input  wire                 mem_oe,
+    output reg  [    WIDTH-1:0] mem_q
 );
 
 reg [WIDTH-1:0] rom[0:WORDS-1];
 
 always @(posedge clk) 
 begin
-    if (oe)
-        q <= rom[addr];
+    if (fe_hold)
+    begin
+        fe_q <= fe_q;
+    end
     else
-        q <= {WIDTH{1'b0}};
+    begin
+        if (fe_oe)
+        begin
+            fe_q <= rom[fe_addr];
+        end
+        else
+        begin
+            fe_q <= {WIDTH{1'b0}};
+        end
+    end
+
+    if (mem_oe)
+    begin
+        mem_q <= rom[mem_addr];
+    end
+    else
+    begin
+        mem_q <= {WIDTH{1'b0}};
+    end
 end
 
 initial
 begin
     $readmemb(LIST, rom);
-    q = {WIDTH{1'b0}};
+    mem_q = {WIDTH{1'b0}};
 end
 
 endmodule

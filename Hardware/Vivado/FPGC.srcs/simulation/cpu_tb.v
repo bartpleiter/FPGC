@@ -21,9 +21,14 @@ reg clk = 1'b0;
 reg reset = 1'b0;
 
 //-----------------------ROM-------------------------
-wire [8:0] rom_addr;
-wire [31:0] rom_q;
-wire rom_oe;
+wire [8:0] rom_fe_addr;
+wire [8:0] rom_mem_addr;
+wire rom_fe_oe;
+wire rom_fe_hold;
+wire rom_mem_oe;
+wire [31:0] rom_fe_q;
+wire [31:0] rom_mem_q;
+
 ROM #(
     .WIDTH(32),
     .WORDS(512),
@@ -31,9 +36,16 @@ ROM #(
     .LIST("/home/bart/Documents/FPGA/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/rom.list")
 ) rom (
     .clk (clk),
-    .addr(rom_addr),
-    .oe  (rom_oe),
-    .q   (rom_q)
+    .reset(reset),
+
+    .fe_addr(rom_fe_addr),
+    .fe_oe(rom_fe_oe),
+    .fe_q(rom_fe_q),
+    .fe_hold(rom_fe_hold),
+
+    .mem_addr(rom_mem_addr),
+    .mem_oe(rom_mem_oe),
+    .mem_q(rom_mem_q)
 );
 
 //-----------------------CPU-------------------------
@@ -42,10 +54,15 @@ B32P2 cpu (
     .clk(clk),
     .reset(reset),
 
-    // L1i cache
-    .icache_addr(rom_addr),
-    .icache_oe(rom_oe),
-    .icache_q(rom_q)
+    // ROM (dual port)
+    .rom_fe_addr(rom_fe_addr),
+    .rom_fe_oe(rom_fe_oe),
+    .rom_fe_q(rom_fe_q),
+    .rom_fe_hold(rom_fe_hold),
+
+    .rom_mem_addr(rom_mem_addr),
+    .rom_mem_oe(rom_mem_oe),
+    .rom_mem_q(rom_mem_q)
 );
 
 initial

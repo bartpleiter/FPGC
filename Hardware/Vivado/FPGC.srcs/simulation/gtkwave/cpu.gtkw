@@ -1,21 +1,21 @@
 [*]
 [*] GTKWave Analyzer v3.3.116 (w)1999-2023 BSI
-[*] Sat Feb  1 15:25:58 2025
+[*] Sun Feb  2 12:50:07 2025
 [*]
 [dumpfile] "/home/bart/Documents/FPGA/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd"
-[dumpfile_mtime] "Sat Feb  1 15:23:02 2025"
-[dumpfile_size] 67476
+[dumpfile_mtime] "Sun Feb  2 12:49:49 2025"
+[dumpfile_size] 87262
 [savefile] "/home/bart/Documents/FPGA/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/cpu.gtkw"
 [timestart] 0
 [size] 1920 1033
 [pos] -1 -1
-*-15.900000 99300 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-15.900000 194400 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] cpu_tb.
 [treeopen] cpu_tb.cpu.
 [sst_width] 278
-[signals_width] 473
+[signals_width] 551
 [sst_expanded] 1
-[sst_vpaned_height] 377
+[sst_vpaned_height] 426
 @28
 cpu_tb.clk
 cpu_tb.cpu.reset
@@ -24,33 +24,53 @@ cpu_tb.cpu.reset
 -FE1
 @28
 cpu_tb.cpu.clk
-@24
-cpu_tb.cpu.PC[31:0]
+@22
+cpu_tb.cpu.PC_FE1[31:0]
+@28
+cpu_tb.cpu.stall_FE1
+cpu_tb.cpu.flush_FE1
 @200
 -
-@24
-cpu_tb.cpu.icache_addr[8:0]
 @28
-cpu_tb.cpu.icache_oe
+cpu_tb.cpu.mem_rom_FE1
+@24
+cpu_tb.cpu.mem_rom_addr_FE1[8:0]
+@28
+cpu_tb.cpu.rom_fe_oe
 @200
 -
 -FE2
 @28
 cpu_tb.cpu.clk
-@24
+@22
 cpu_tb.cpu.PC_FE2[31:0]
 @28
+cpu_tb.cpu.stall_FE2
+cpu_tb.cpu.flush_FE2
+@200
+-
+@28
+cpu_tb.cpu.mem_rom_FE2
+cpu_tb.cpu.rom_q_FE2[31:0]
+@200
+-
+@29
 cpu_tb.cpu.icache_q_FE2[31:0]
 @200
 -
+@28
+cpu_tb.cpu.instr_result_FE2[31:0]
+@200
 -
 -REG
 @28
 cpu_tb.cpu.clk
-@24
+@22
 cpu_tb.cpu.PC_REG[31:0]
 @28
 cpu_tb.cpu.instr_REG[31:0]
+cpu_tb.cpu.stall_REG
+cpu_tb.cpu.flush_REG
 @200
 -
 @22
@@ -69,11 +89,49 @@ cpu_tb.cpu.addr_b_REG[3:0]
 -EXMEM1
 @28
 cpu_tb.cpu.clk
-@24
+@22
 cpu_tb.cpu.PC_EXMEM1[31:0]
-@28
+@c00028
 cpu_tb.cpu.instr_EXMEM1[31:0]
+@28
+(0)cpu_tb.cpu.instr_EXMEM1[31:0]
+(1)cpu_tb.cpu.instr_EXMEM1[31:0]
+(2)cpu_tb.cpu.instr_EXMEM1[31:0]
+(3)cpu_tb.cpu.instr_EXMEM1[31:0]
+(4)cpu_tb.cpu.instr_EXMEM1[31:0]
+(5)cpu_tb.cpu.instr_EXMEM1[31:0]
+(6)cpu_tb.cpu.instr_EXMEM1[31:0]
+(7)cpu_tb.cpu.instr_EXMEM1[31:0]
+(8)cpu_tb.cpu.instr_EXMEM1[31:0]
+(9)cpu_tb.cpu.instr_EXMEM1[31:0]
+(10)cpu_tb.cpu.instr_EXMEM1[31:0]
+(11)cpu_tb.cpu.instr_EXMEM1[31:0]
+(12)cpu_tb.cpu.instr_EXMEM1[31:0]
+(13)cpu_tb.cpu.instr_EXMEM1[31:0]
+(14)cpu_tb.cpu.instr_EXMEM1[31:0]
+(15)cpu_tb.cpu.instr_EXMEM1[31:0]
+(16)cpu_tb.cpu.instr_EXMEM1[31:0]
+(17)cpu_tb.cpu.instr_EXMEM1[31:0]
+(18)cpu_tb.cpu.instr_EXMEM1[31:0]
+(19)cpu_tb.cpu.instr_EXMEM1[31:0]
+(20)cpu_tb.cpu.instr_EXMEM1[31:0]
+(21)cpu_tb.cpu.instr_EXMEM1[31:0]
+(22)cpu_tb.cpu.instr_EXMEM1[31:0]
+(23)cpu_tb.cpu.instr_EXMEM1[31:0]
+(24)cpu_tb.cpu.instr_EXMEM1[31:0]
+(25)cpu_tb.cpu.instr_EXMEM1[31:0]
+(26)cpu_tb.cpu.instr_EXMEM1[31:0]
+(27)cpu_tb.cpu.instr_EXMEM1[31:0]
+(28)cpu_tb.cpu.instr_EXMEM1[31:0]
+(29)cpu_tb.cpu.instr_EXMEM1[31:0]
+(30)cpu_tb.cpu.instr_EXMEM1[31:0]
+(31)cpu_tb.cpu.instr_EXMEM1[31:0]
+@1401200
+-group_end
+@28
 cpu_tb.cpu.instrOP_EXMEM1[3:0]
+cpu_tb.cpu.stall_EXMEM1
+cpu_tb.cpu.flush_EXMEM1
 @200
 -
 @28
@@ -106,7 +164,7 @@ cpu_tb.cpu.forward_b[1:0]
 @200
 -
 -EXMEM1 - BranchJumpUnit
-@24
+@22
 cpu_tb.cpu.branchJumpUnit_EXMEM1.pc[31:0]
 @200
 -
@@ -147,7 +205,7 @@ cpu_tb.cpu.mem_sdram_EXMEM1
 -EXMEM2
 @28
 cpu_tb.cpu.clk
-@24
+@22
 cpu_tb.cpu.PC_EXMEM2[31:0]
 @28
 cpu_tb.cpu.instr_EXMEM2[31:0]
@@ -160,9 +218,11 @@ cpu_tb.cpu.data_b_EXMEM2[31:0]
 cpu_tb.cpu.alu_y_EXMEM2[31:0]
 @200
 -
+-EXMEM2 - Stack
 @24
-cpu_tb.cpu.pop_EXMEM2
 cpu_tb.cpu.push_EXMEM2
+cpu_tb.cpu.pop_EXMEM2
+cpu_tb.cpu.stack_EXMEM2.d[31:0]
 @200
 -
 -EXMEM2 - Memory
@@ -172,7 +232,7 @@ cpu_tb.cpu.mem_local_address_EXMEM2[31:0]
 cpu_tb.cpu.mem_read_EXMEM2
 cpu_tb.cpu.mem_write_EXMEM2
 cpu_tb.cpu.mem_multicycle_EXMEM2
-@201
+@200
 -
 @28
 cpu_tb.cpu.mem_sdram_EXMEM2
@@ -185,13 +245,35 @@ cpu_tb.cpu.mem_vram8_EXMEM2
 cpu_tb.cpu.mem_vrampx_EXMEM2
 @200
 -
+-EXMEM2 - ROM
+@28
+cpu_tb.cpu.mem_rom_EXMEM2
+@24
+cpu_tb.cpu.rom_mem_addr[8:0]
+@28
+cpu_tb.cpu.rom_mem_oe
+@200
+-
 -WB
 @28
 cpu_tb.cpu.clk
-@24
+@22
 cpu_tb.cpu.PC_WB[31:0]
 @28
 cpu_tb.cpu.instr_WB[31:0]
+@200
+-
+-WB - Memory selection
+@28
+cpu_tb.cpu.pop_WB
+cpu_tb.cpu.mem_sdram_WB
+cpu_tb.cpu.mem_sdcard_WB
+cpu_tb.cpu.mem_spiflash_WB
+cpu_tb.cpu.mem_io_WB
+cpu_tb.cpu.mem_rom_WB
+cpu_tb.cpu.mem_vram32_WB
+cpu_tb.cpu.mem_vram8_WB
+cpu_tb.cpu.mem_vrampx_WB
 @200
 -
 @22
@@ -205,5 +287,16 @@ cpu_tb.cpu.we_WB
 @24
 cpu_tb.cpu.alu_y_WB[31:0]
 cpu_tb.cpu.stack_q_WB[31:0]
+@28
+cpu_tb.cpu.rom_mem_q[31:0]
+@200
+-
+-
+-
+-
+-
+-
+-
+-
 [pattern_trace] 1
 [pattern_trace] 0

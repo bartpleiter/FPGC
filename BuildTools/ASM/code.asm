@@ -2,12 +2,15 @@
 
 Main:
     nop
-    load 3 r1
-    add r1 1 r1
+    load 7 r1
     push r1
-    load32 2 r1
     pop r1
-    add r1 9 r2
+    add r1 5 r2
+
+    nop
+    load32 0x7800001 r1
+    read 0 r1 r2
+
     halt
 
 Int:
