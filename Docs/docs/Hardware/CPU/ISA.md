@@ -91,18 +91,18 @@ Operation|Opcode|Description
 -------------------------
 MULTS     0000   A  *   B (signed)
 MULTU     0001   A  *   B (unsigned)
-XXX       0010   Reserved [potentially: DIVU]
-XXX       0011   Reserved [potentially: DIVS]
-XXX       0100   Reserved [potentially: MODU]
-XXX       0101   Reserved [potentially: MODS]
-XXX       0110   Reserved [potentially: FPDIVS]
-XXX       0111   Reserved [potentially: FPMODS]
-XXX       1000   Reserved [potentially: FPMULTS]
-XXX       1001   Reserved [potentially: FPSQRT]
-XXX       1010   Reserved [potentially: FPEXP]
-XXX       1011   Reserved [potentially: FPLOG]
-XXX       1100   Reserved [potentially: FPSIN]
-XXX       1101   Reserved [potentially: FPCOS]
-XXX       1110   Reserved [potentially: FPTAN]
+MULTFP    0010   A  *   B (signed FP)
+DIVS      0011   A  /   B (signed)
+DIVU      0100   A  /   B (unsigned)
+DIVFP     0101   A  /   B (signed FP)
+MODS      0110   A  %   B (signed)
+MODU      0111   A  %   B (unsigned)
+XXX       1000   Reserved [potentially: FPSQRT]
+XXX       1001   Reserved [potentially: FPEXP]
+XXX       1010   Reserved [potentially: FPLOG]
+XXX       1011   Reserved [potentially: FPSIN]
+XXX       1100   Reserved [potentially: FPCOS]
+XXX       1101   Reserved [potentially: FPTAN]
+XXX       1110   Reserved
 XXX       1111   Reserved
 ```

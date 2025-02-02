@@ -630,12 +630,12 @@ def compileARITH(line, opcode):
         "0101": " << ",
         "0110": " >> ",
         "0111": " ~A ",
-        "1000": " * (signed) ",
-        "1001": " * (unsigned) ",
+        "1000": " Reserved ",
+        "1001": " Reserved ",
         "1010": " SLT ",
         "1011": " SLTU ",
         "1110": " >> (signed) ",
-        "1111": " * (signed FP) ",
+        "1111": " Reserved ",
     }
 
     # create instruction
@@ -671,6 +671,102 @@ def compileARITH(line, opcode):
 
     return instruction
 
+
+# compiles ARITHM/ARITHMC instructions
+# should have 3 arguments
+# arg1 should be a valid register
+# arg2 should either be a number that is within 16 bits signed,
+# or a valid register
+# arg3 should be a valid register
+def compileARITHM(line, opcode):
+    if len(line) != 4:
+        raise Exception(
+            "Incorrect number of arguments. Expected 3, but got " + str(len(line) - 1)
+        )
+
+    const16 = ""
+    arg2Int = 0
+    constantEnable = False
+    breg = ""
+    instruction = ""
+
+    # convert arg1 to number
+    arg1Int = getReg(line[1])
+
+    # convert arg1 to binary
+    areg = format(arg1Int, "04b")
+
+    # convert arg2 to number
+    if line[2][0].lower() == "r":  # if arg2 is a register argument
+        constantEnable = False
+        arg2Int = getReg(line[2])
+    else:  # arg2 is a constant
+        constantEnable = True
+        arg2Int = getNumber(line[2])
+
+    # convert arg2 to binary
+    if constantEnable:
+        CheckFitsInBits(arg2Int, 16)
+        const16 = format(arg2Int & 0xFFFF, "016b")
+    else:
+        breg = format(arg2Int, "04b")
+
+    # convert arg3 to number
+    arg3Int = getReg(line[3])
+
+    # convert arg3 to binary
+    dreg = format(arg3Int, "04b")
+
+    # opcode to operation map
+    branchOpcodeDict = {
+        "0000": " * (signed) ",
+        "0001": " * (unsigned) ",
+        "0010": " * (signed FP) ",
+        "0011": " / (signed) ",
+        "0100": " / (unsigned) ",
+        "0101": " / (signed FP) ",
+        "0110": " % (signed) ",
+        "0111": " % (unsigned) ",
+        "1000": " Reserved ",
+        "1001": " Reserved ",
+        "1010": " Reserved ",
+        "1011": " Reserved ",
+        "1110": " Reserved ",
+        "1111": " Reserved ",
+    }
+
+    # create instruction
+    if constantEnable:
+        instruction = (
+            "0011"
+            + opcode
+            + const16
+            + areg
+            + dreg
+            + " //Compute "
+            + line[1]
+            + branchOpcodeDict[opcode]
+            + line[2]
+            + " and write result to "
+            + line[3]
+        )
+    else:
+        instruction = (
+            "0010"
+            + opcode
+            + "000000000000"
+            + areg
+            + breg
+            + dreg
+            + " //Compute "
+            + line[1]
+            + branchOpcodeDict[opcode]
+            + line[2]
+            + " and write result to "
+            + line[3]
+        )
+
+    return instruction
 
 # compiles OR instruction
 def compileOR(line):
@@ -712,21 +808,6 @@ def compileSHIFTRS(line):
     return compileARITH(line, "1110")
 
 
-# compiles MULTS instruction
-def compileMULTS(line):
-    return compileARITH(line, "1000")
-
-
-# compiles MULTU instruction
-def compileMULTU(line):
-    return compileARITH(line, "1001")
-
-
-# compiles MULTFP instruction
-def compileMULTFP(line):
-    return compileARITH(line, "1111")
-
-
 # compiles SLT instruction
 def compileSLT(line):
     return compileARITH(line, "1010")
@@ -735,6 +816,42 @@ def compileSLT(line):
 # compiles SLTU instruction
 def compileSLTU(line):
     return compileARITH(line, "1011")
+
+
+# compiles MULTS instruction
+def compileMULTS(line):
+    return compileARITHM(line, "0000")
+
+
+# compiles MULTU instruction
+def compileMULTU(line):
+    return compileARITHM(line, "0001")
+
+
+# compiles MULTFP instruction
+def compileMULTFP(line):
+    return compileARITHM(line, "0010")
+
+
+# compiles DIVS instruction
+def compileDIVS(line):
+    return compileARITHM(line, "0011")
+
+# compiles DIVU instruction
+def compileDIVU(line):
+    return compileARITHM(line, "0100")
+
+# compiles DIVFP instruction
+def compileDIVFP(line):
+    return compileARITHM(line, "0101")
+
+# compiles MODS instruction
+def compileMODS(line):
+    return compileARITHM(line, "0110")
+
+# compiles MODU instruction
+def compileMODU(line):
+    return compileARITHM(line, "0111")
 
 
 # compiles NOT instruction
