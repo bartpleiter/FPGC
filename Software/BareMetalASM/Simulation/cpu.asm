@@ -2,14 +2,15 @@
 
 Main:
     nop
-    load 7 r1
-    push r1
-    pop r1
+    load 8 r1
     add r1 5 r2
-
-    nop
-    load32 0x7800001 r1
-    read 0 r1 r2
+    jumpo 2
+    halt
+    push r2
+    load 1 r2
+    pop r2
+    add r2 5 r2
+    add r2 6 r2
 
     halt
 

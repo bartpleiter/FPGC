@@ -3,7 +3,7 @@
  * Contains 16 registers of 32 bit each
  * Designed to be inferred as block RAM
  * Reg0 is always 0
- * TODO: Verify hold logic as I am 99% sure it does not work
+ * TODO: move all logic to RAM logic
  */
 
 module Regbank (
@@ -37,8 +37,16 @@ reg [31:0] ramResultb = 32'd0;
 // RAM logic
 always @(posedge clk) 
 begin
-    ramResulta <= regs[addr_a];
-    ramResultb <= regs[addr_b];
+    if (hold)
+    begin
+        ramResulta <= data_a;
+        ramResultb <= data_b;
+    end
+    else
+    begin
+        ramResulta <= regs[addr_a];
+        ramResultb <= regs[addr_b];
+    end
 
     if (we_no_zero)
     begin
@@ -81,8 +89,8 @@ begin
         end
         else if (hold)
         begin
-            // Keep previous value on hold
-            data_a_reg <= data_a_reg;
+            // Hold is now in RAM logic
+            useRamResult_a <= 1'b1;
         end
         else if (addr_a == 4'd0)
         begin
@@ -108,8 +116,8 @@ begin
         end
         else if (hold)
         begin
-            // Keep previous value on hold
-            data_b_reg <= data_b_reg;
+            // Hold is now in RAM logic
+            useRamResult_b <= 1'b1;
         end
         else if (addr_b == 4'd0)
         begin

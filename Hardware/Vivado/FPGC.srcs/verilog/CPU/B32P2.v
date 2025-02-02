@@ -231,8 +231,8 @@ Regbank regbank (
 
     .addr_a(addr_a_REG),
     .addr_b(addr_b_REG),
-    .clear(flush_REG || stall_REG),
-    .hold(1'b0),
+    .clear(flush_REG),
+    .hold(stall_REG),
     .data_a(data_a_EXMEM1),
     .data_b(data_b_EXMEM1),
 
@@ -250,8 +250,8 @@ Regr #(
     .clk (clk),
     .in(instr_REG),
     .out(instr_EXMEM1),
-    .hold(1'b0),
-    .clear(flush_REG || stall_REG)
+    .hold(stall_REG),
+    .clear(flush_REG)
 );
 
 wire [31:0] PC_EXMEM1;
@@ -261,8 +261,8 @@ Regr #(
     .clk (clk),
     .in(PC_REG),
     .out(PC_EXMEM1),
-    .hold(1'b0),
-    .clear(flush_REG || stall_REG)
+    .hold(stall_REG),
+    .clear(flush_REG)
 );
 
 /*
