@@ -257,6 +257,8 @@ def compileLine(line):
         "divs": CompileInstruction.compileDIVS,
         "divu": CompileInstruction.compileDIVU,
         "divfp": CompileInstruction.compileDIVFP,
+        "mods": CompileInstruction.compileMODS,
+        "modu": CompileInstruction.compileMODU,
         "nop": CompileInstruction.compileNop,
         ".dw": CompileInstruction.compileDw,
         ".dd": CompileInstruction.compileDd,
