@@ -3,15 +3,10 @@
 Main:
     nop
     load 8 r1
-    add r1 5 r2
-    jumpo 2
-    halt
-    push r2
-    load 1 r2
-    pop r2
-    add r2 5 r2
-    add r2 6 r2
-
+    load 3 r2
+    mults r1 r2 r3
+    add r3 1 r3
+    mults r3 r2 r1
     halt
 
 Int:

@@ -13,6 +13,7 @@ module ControlUnit(
     output reg          dreg_we,
     output reg          mem_write,
     output reg          mem_read,
+    output reg          arithm,
     output reg          jumpc,
     output reg          jumpr,
     output reg          branch,
@@ -53,6 +54,7 @@ begin
     dreg_we         <= 1'b0;
     mem_write       <= 1'b0;
     mem_read        <= 1'b0;
+    arithm          <= 1'b0;
     jumpc           <= 1'b0;
     jumpr           <= 1'b0;
     getIntID        <= 1'b0;
@@ -132,12 +134,12 @@ begin
             clearCache <= 1'b1;
         end
 
-        OP_ARITH, OP_ARITHM:
+        OP_ARITH:
         begin
             dreg_we <= 1'b1;
         end
 
-        OP_ARITHC, OP_ARITHMC:
+        OP_ARITHC:
         begin
             alu_use_const <= 1'b1;
             if (aluOP[3:1] == 3'b110)
@@ -146,6 +148,24 @@ begin
             end
             dreg_we <= 1'b1;
         end
+
+        OP_ARITHM:
+        begin
+            arithm <= 1'b1;
+            dreg_we <= 1'b1;
+        end
+
+        OP_ARITHMC:
+        begin
+            arithm <= 1'b1;
+            alu_use_const <= 1'b1;
+            if (aluOP[3:1] == 3'b110)
+            begin
+                alu_use_constu <= 1'b1;
+            end
+            dreg_we <= 1'b1;
+        end
+        
 
     endcase
 end

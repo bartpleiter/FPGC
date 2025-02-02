@@ -60,11 +60,13 @@ wire flush_FE1;
 wire flush_FE2;
 wire flush_REG;
 wire flush_EXMEM1;
+wire flush_EXMEM2;
 
 assign flush_FE1 = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid;
 assign flush_FE2 = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid;
 assign flush_REG = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid;
 assign flush_EXMEM1 = exmem1_uses_exmem2_result;
+assign flush_EXMEM2 = multicycle_alu_stall; // Send a bubble through the pipeline until result ready
 
 wire stall_FE1;
 wire stall_FE2;
@@ -72,15 +74,21 @@ wire stall_REG;
 wire stall_EXMEM1;
 
 // TODO stall all previous stages on EXMEM2 busy or FE2 busy
-assign stall_FE1 = exmem1_uses_exmem2_result;
-assign stall_FE2 = exmem1_uses_exmem2_result;
-assign stall_REG = exmem1_uses_exmem2_result;
-assign stall_EXMEM1 = 1'b0;
+assign stall_FE1 = exmem1_uses_exmem2_result || multicycle_alu_stall;
+assign stall_FE2 = exmem1_uses_exmem2_result || multicycle_alu_stall;
+assign stall_REG = exmem1_uses_exmem2_result || multicycle_alu_stall;
+assign stall_EXMEM1 = multicycle_alu_stall;
+
+wire multicycle_alu_stall;
+assign multicycle_alu_stall = arithm_EXMEM2 && !multicycle_alu_done_EXMEM2;
 
 // Possible hazard situations:
 // - EXMEM1 uses result of non-ALU operation from EXMEM2 -> stall
+// Note: in case of multi cycle operation (cache miss or ALU), only set this signal high on the last cycle!
 wire exmem1_uses_exmem2_result;
-assign exmem1_uses_exmem2_result = (pop_EXMEM2 || mem_read_EXMEM2) && (dreg_EXMEM2 == areg_EXMEM1 || dreg_EXMEM2 == breg_EXMEM1);
+assign exmem1_uses_exmem2_result = 
+    (pop_EXMEM2 || mem_read_EXMEM2 || (arithm_EXMEM2 && multicycle_alu_done_EXMEM2)) && 
+    (dreg_EXMEM2 == areg_EXMEM1 || dreg_EXMEM2 == breg_EXMEM1);
 
 
 // Forwarding situations
@@ -347,6 +355,7 @@ ControlUnit constrolUnit_EXMEM1 (
     .dreg_we(),
     .mem_write(mem_write_EXMEM1),
     .mem_read(mem_read_EXMEM1),
+    .arithm(),
     .jumpc(jumpc_EXMEM1),
     .jumpr(jumpr_EXMEM1),
     .branch(branch_EXMEM1),
@@ -489,11 +498,14 @@ wire mem_read_EXMEM2;
 wire mem_write_EXMEM2;
 wire [31:0] const16_EXMEM2;
 
+wire arithm_EXMEM2;
+wire [3:0] aluOP_EXMEM2;
+
 InstructionDecoder instrDec_EXMEM2 (
     .instr(instr_EXMEM2),
 
     .instrOP(instrOP_EXMEM2),
-    .aluOP(),
+    .aluOP(aluOP_EXMEM2),
     .branchOP(),
 
     .constAlu(),
@@ -522,12 +534,27 @@ ControlUnit constrolUnit_EXMEM2 (
     .dreg_we(we_EXMEM2),
     .mem_write(mem_write_EXMEM2),
     .mem_read(mem_read_EXMEM2),
+    .arithm(arithm_EXMEM2),
     .jumpc(),
     .jumpr(),
     .branch(),
     .halt(),
     .reti(),
     .clearCache()
+);
+
+wire [31:0] multicycle_alu_y_EXMEM2;
+wire multicycle_alu_done_EXMEM2;
+MultiCycleALU multiCycleALU_EXMEM2 (
+    .clk(clk),
+    .reset(reset),
+
+    .start(arithm_EXMEM2),
+    .done(multicycle_alu_done_EXMEM2),
+    .a(data_a_EXMEM2),
+    .b(data_b_EXMEM2),
+    .opcode(aluOP_EXMEM2),
+    .y(multicycle_alu_y_EXMEM2)
 );
 
 wire mem_multicycle_EXMEM2;
@@ -591,7 +618,6 @@ assign vramPX_d = data_b_EXMEM2;
 
 // TODO:
 // - data mem access on cache miss
-// - multi-cycle ALU operations
 
 // Forward to next stage
 wire [31:0] instr_WB;
@@ -602,7 +628,7 @@ Regr #(
     .in(instr_EXMEM2),
     .out(instr_WB),
     .hold(1'b0),
-    .clear(1'b0)
+    .clear(flush_EXMEM2)
 );
 
 wire [31:0] alu_y_WB;
@@ -613,7 +639,7 @@ Regr #(
     .in(alu_y_EXMEM2),
     .out(alu_y_WB),
     .hold(1'b0),
-    .clear(1'b0)
+    .clear(flush_EXMEM2)
 );
 
 wire [31:0] PC_WB;
@@ -624,7 +650,7 @@ Regr #(
     .in(PC_EXMEM2),
     .out(PC_WB),
     .hold(1'b0),
-    .clear(1'b0)
+    .clear(flush_EXMEM2)
 );
 
 wire [31:0] data_a_WB;
@@ -635,7 +661,18 @@ Regr #(
     .in(data_a_EXMEM2),
     .out(data_a_WB),
     .hold(1'b0),
-    .clear(1'b0)
+    .clear(flush_EXMEM2)
+);
+
+wire [31:0] multicycle_alu_y_WB;
+Regr #(
+    .N(32)
+) regr_MULTICYCLE_ALU_EXMEM2_WB (
+    .clk (clk),
+    .in(multicycle_alu_y_EXMEM2),
+    .out(multicycle_alu_y_WB),
+    .hold(1'b0),
+    .clear(flush_EXMEM2)
 );
 
 /*
@@ -669,6 +706,7 @@ InstructionDecoder instrDec_WB (
 
 wire pop_WB;
 wire mem_read_WB;
+wire airthm_WB;
 
 ControlUnit constrolUnit_WB (
     .instrOP(instrOP_WB),
@@ -681,6 +719,7 @@ ControlUnit constrolUnit_WB (
     .dreg_we(we_WB),
     .mem_write(),
     .mem_read(mem_read_WB),
+    .arithm(airthm_WB),
     .jumpc(),
     .jumpr(),
     .branch(),
@@ -722,6 +761,7 @@ assign data_d_WB =  (pop_WB) ? stack_q_WB :
                     (mem_vram32_WB) ? vram32_q :
                     (mem_vram8_WB) ? vram8_q :
                     (mem_vrampx_WB) ? vramPX_q :
+                    (airthm_WB) ? multicycle_alu_y_WB :
                     alu_y_WB;
 
 endmodule
