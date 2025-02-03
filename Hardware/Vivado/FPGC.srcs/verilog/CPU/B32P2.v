@@ -61,9 +61,9 @@ wire flush_FE2;
 wire flush_REG;
 wire flush_EXMEM1;
 
-assign flush_FE1 = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid;
-assign flush_FE2 = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid;
-assign flush_REG = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid;
+assign flush_FE1 = jump_valid_EXMEM1 || hazard_pc1_pc2 || reti_EXMEM1 || interrupt_valid;
+assign flush_FE2 = jump_valid_EXMEM1 || hazard_pc1_pc2 || reti_EXMEM1 || interrupt_valid;
+assign flush_REG = jump_valid_EXMEM1 || hazard_pc1_pc2 || reti_EXMEM1 || interrupt_valid;
 assign flush_EXMEM1 = exmem1_uses_exmem2_result;
 
 wire stall_FE1;
@@ -88,6 +88,11 @@ assign exmem1_uses_exmem2_result =
     (pop_EXMEM2 || mem_read_EXMEM2 || (arithm_EXMEM2 && multicycle_alu_done_EXMEM2)) && 
     (dreg_EXMEM2 == areg_EXMEM1 || dreg_EXMEM2 == breg_EXMEM1);
 
+// - EXMEM1 uses result of multicycle EXMEM2 at PC-1 and dreg of PC-2 -> jump to same address to resolve
+// Note: because this is hard to describe as a variable name, we will call this situation hazard_pc1_pc2
+wire hazard_pc1_pc2;
+assign hazard_pc1_pc2 = 
+    ( (mem_read_EXMEM2 && mem_multicycle_EXMEM2) || arithm_EXMEM2) && (areg_EXMEM1 == addr_d_WB || breg_EXMEM1 == addr_d_WB);
 
 // Forwarding situations
 // EXMEM2 -> EXMEM1 (single cycle ALU operations)
@@ -121,6 +126,10 @@ begin
         else if (jump_valid_EXMEM1)
         begin
             PC_FE1 <= jump_addr_EXMEM1;
+        end
+        else if (hazard_pc1_pc2)
+        begin
+            PC_FE1 <= PC_EXMEM1;
         end
         else if (stall_FE1)
         begin
@@ -320,6 +329,7 @@ wire [3:0] breg_EXMEM1;
 
 wire mem_read_EXMEM1;
 wire mem_write_EXMEM1;
+wire arithm_EXMEM1;
 
 InstructionDecoder instrDec_EXMEM1 (
     .instr(instr_EXMEM1),
@@ -354,7 +364,7 @@ ControlUnit constrolUnit_EXMEM1 (
     .dreg_we(),
     .mem_write(mem_write_EXMEM1),
     .mem_read(mem_read_EXMEM1),
-    .arithm(),
+    .arithm(arithm_EXMEM1),
     .jumpc(jumpc_EXMEM1),
     .jumpr(jumpr_EXMEM1),
     .branch(branch_EXMEM1),
@@ -364,6 +374,7 @@ ControlUnit constrolUnit_EXMEM1 (
 );
 
 wire mem_sdram_EXMEM1;
+wire mem_multicycle_EXMEM1;
 wire [31:0] mem_local_address_EXMEM1;
 
 // TODO optimization in case address calculations are slow:
@@ -383,7 +394,7 @@ AddressDecoder addressDecoder_EXMEM1 (
     .mem_vram8(),
     .mem_vrampx(),
 
-    .mem_multicycle(),
+    .mem_multicycle(mem_multicycle_EXMEM1),
     .mem_local_address(mem_local_address_EXMEM1)
 );
 
