@@ -2,21 +2,19 @@
 
 Main:
     nop
-    load32 0x7B00000 r11
-    load32 76800 r4
-    add r11 r4 r11
-    load 0 r2
-    load32 0x7B00000 r1
-
-    Loop:
-        write 0 r1 r2
-        add r1 1 r1
-        add r2 1 r2
-
-        beq r1 r11 2
-        jump 125829129
-
-    jump 125829128
+    load 7 r1
+    load 9 r2
+    nop
+    mults r1 r2 r3
+    nop
+    nop
+    multu r1 r2 r4
+    nop
+    nop
+    shiftl r1 16 r1
+    shiftl r2 16 r2
+    multfp r1 r2 r5
+    halt
         
 
 Int:

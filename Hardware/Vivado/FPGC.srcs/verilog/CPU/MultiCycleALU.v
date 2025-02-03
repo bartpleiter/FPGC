@@ -27,40 +27,28 @@ localparam
     OP_MODS   = 4'b0110, // Modulus signed
     OP_MODU   = 4'b0111; // Modulus unsigned
 
+wire [63:0] mults_y;
+wire [63:0] multu_y;
+
 localparam
     STATE_IDLE = 3'd0,
     STATE_MULT_STAGE1 = 3'd1,
     STATE_MULT_STAGE2 = 3'd2,
     STATE_MULT_STAGE3 = 3'd3,
-    STATE_DONE = 3'd4;
+    STATE_MULT_STAGE4 = 3'd4,
+    STATE_MULT_STAGE5 = 3'd5,
+    STATE_FETCH_RESULT = 3'd6,
+    STATE_DONE = 3'd7;
 
 
 reg [2:0] state = STATE_IDLE;
-
-// Extra stages are added for DSP inference
-reg [3:0] mult_opcode_reg = 4'd0;
-reg [31:0] mult_a_reg_stage1 = 32'd0;
-reg [31:0] mult_b_reg_stage1 = 32'd0;
-// reg [31:0] mult_a_reg_stage2 = 32'd0;
-// reg [31:0] mult_b_reg_stage2 = 32'd0;
-reg [63:0] mult_result_stage1 = 64'd0;
-reg [63:0] mult_result_stage2 = 64'd0;
 
 always @ (posedge clk)
 begin
     if (reset)
     begin
         done <= 1'b0;
-        y <= 32'd0;
         state <= STATE_IDLE;
-
-        mult_opcode_reg <= 4'd0;
-        mult_a_reg_stage1 <= 32'd0;
-        mult_b_reg_stage1 <= 32'd0;
-        // mult_a_reg_stage2 <= 32'd0;
-        // mult_b_reg_stage2 <= 32'd0;
-        mult_result_stage1 <= 64'd0;
-        mult_result_stage2 <= 64'd0;
     end
     else
     begin
@@ -70,34 +58,41 @@ begin
                     done <= 1'b0;
                     if (start)
                     begin
-                        mult_a_reg_stage1 <= a;
-                        mult_b_reg_stage1 <= b;
-                        mult_opcode_reg <= opcode;
                         state <= STATE_MULT_STAGE1;
                     end
                 end
             STATE_MULT_STAGE1:
                 begin
-                    case (mult_opcode_reg)
-                        OP_MULTS:
-                            mult_result_stage1 <= $signed(mult_a_reg_stage1) * $signed(mult_b_reg_stage1);
-                        OP_MULTU:
-                            mult_result_stage1 <= mult_a_reg_stage1 * mult_b_reg_stage1;
-                        OP_MULTFP:
-                            mult_result_stage1 <= ($signed(mult_a_reg_stage1) * $signed(mult_b_reg_stage1)) >> 16;
-                        default:
-                            mult_result_stage1 <= 64'd0;
-                    endcase
                     state <= STATE_MULT_STAGE2;
                 end
             STATE_MULT_STAGE2:
                 begin
-                    mult_result_stage2 <= mult_result_stage1;
                     state <= STATE_MULT_STAGE3;
                 end
             STATE_MULT_STAGE3:
                 begin
-                    y <= mult_result_stage2[31:0];
+                    state <= STATE_MULT_STAGE4;
+                end
+            STATE_MULT_STAGE4:
+                begin
+                    state <= STATE_MULT_STAGE5;
+                end
+            STATE_MULT_STAGE5:
+                begin
+                    state <= STATE_FETCH_RESULT;
+                end
+            STATE_FETCH_RESULT:
+                begin
+                    case (opcode)
+                        OP_MULTS:
+                            y <= multu_y[31:0];
+                        OP_MULTU:
+                            y <= mults_y[31:0];
+                        OP_MULTFP:
+                            y <= mults_y[47:16];
+                        default:
+                            y <= 32'd0;
+                    endcase
                     done <= 1'b1;
                     state <= STATE_DONE;
                 end
@@ -109,5 +104,21 @@ begin
         endcase
     end
 end
+
+MultuPipelined multu (
+    .clk(clk),
+    .reset(reset),
+    .a(a),
+    .b(b),
+    .y(multu_y)
+);
+
+MultsPipelined mults (
+    .clk(clk),
+    .reset(reset),
+    .a(a),
+    .b(b),
+    .y(mults_y)
+);
 
 endmodule

@@ -10,6 +10,8 @@
 `include "Hardware/Vivado/FPGC.srcs/verilog/CPU/InstructionDecoder.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/CPU/ALU.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/CPU/MultiCycleALU.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/MultiCycleAluOps/MultuPipelined.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/MultiCycleAluOps/MultsPipelined.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/CPU/ControlUnit.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/CPU/Stack.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/CPU/BranchJumpUnit.v"
