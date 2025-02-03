@@ -35,13 +35,34 @@ reg branch_passed;
 always @(*) 
 begin
     case (branchOP)
-        BRANCH_OP_BEQ: branch_passed <= (data_a == data_b);
-        BRANCH_OP_BGT: branch_passed <= (sig ? $signed(data_a) : data_a) > (sig ? $signed(data_b) : data_b);
-        BRANCH_OP_BGE: branch_passed <= (sig ? $signed(data_a) : data_a) >= (sig ? $signed(data_b) : data_b);
-        BRANCH_OP_BNE: branch_passed <= (data_a != data_b);
-        BRANCH_OP_BLT: branch_passed <= (sig ? $signed(data_a) : data_a) < (sig ? $signed(data_b) : data_b);
-        BRANCH_OP_BLE: branch_passed <= (sig ? $signed(data_a) : data_a) <= (sig ? $signed(data_b) : data_b);
-        default: branch_passed <= 1'b0;
+        BRANCH_OP_BEQ:
+        begin
+            branch_passed <= (data_a == data_b);
+        end
+        BRANCH_OP_BGT:
+        begin
+            branch_passed <= (sig) ? ($signed(data_a) > $signed(data_b)) : (data_a > data_b);
+        end
+        BRANCH_OP_BGE:
+        begin
+            branch_passed <= (sig) ? ($signed(data_a) >= $signed(data_b)) : (data_a >= data_b);
+        end
+        BRANCH_OP_BNE:
+        begin
+            branch_passed <= (data_a != data_b);
+        end
+        BRANCH_OP_BLT:
+        begin
+            branch_passed <= (sig) ? ($signed(data_a) < $signed(data_b)) : (data_a < data_b);
+        end
+        BRANCH_OP_BLE:
+        begin
+            branch_passed <= (sig) ? ($signed(data_a) <= $signed(data_b)) : (data_a <= data_b);
+        end
+        default:
+        begin
+            branch_passed <= 1'b0;
+        end
     endcase
 end
 

@@ -353,6 +353,9 @@ InstructionDecoder instrDec_EXMEM1 (
     .sig(sig_EXMEM1)
 );
 
+wire getIntID_EXMEM1;
+wire getPC_EXMEM1;
+
 ControlUnit constrolUnit_EXMEM1 (
     .instrOP(instrOP_EXMEM1),
     .aluOP(aluOP_EXMEM1),
@@ -370,6 +373,8 @@ ControlUnit constrolUnit_EXMEM1 (
     .branch(branch_EXMEM1),
     .halt(halt_EXMEM1),
     .reti(reti_EXMEM1),
+    .getIntID(getIntID_EXMEM1),
+    .getPC(getPC_EXMEM1),
     .clearCache()
 );
 
@@ -447,6 +452,12 @@ BranchJumpUnit branchJumpUnit_EXMEM1 (
 // - in case of mem_read or mem_write, read from l1d cache using mem_local_address_EXMEM1
 //   - make sure to use forwarded inputs for address!
 
+// Result based on operation
+wire [31:0] result_EXMEM1;
+assign result_EXMEM1 =  (getPC_EXMEM1) ? PC_EXMEM1 :
+                        (getIntID_EXMEM1) ? 32'd0 : // TODO: connect to interrupt controller
+                        alu_y_EXMEM1;
+
 // Forward to next stage
 wire [31:0] instr_EXMEM2;
 Regr #(
@@ -464,7 +475,7 @@ Regr #(
     .N(32)
 ) regr_ALU_EXMEM2 (
     .clk (clk),
-    .in(alu_y_EXMEM1),
+    .in(result_EXMEM1), // Use result based on operation
     .out(alu_y_EXMEM2),
     .hold(stall_EXMEM1),
     .clear(flush_EXMEM1)
