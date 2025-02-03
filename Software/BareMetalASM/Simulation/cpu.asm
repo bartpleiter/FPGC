@@ -2,19 +2,20 @@
 
 Main:
     nop
-    load 7 r1
-    load 9 r2
-    nop
+    load 3 r1
+    load 4 r2
     mults r1 r2 r3
     nop
+    add r3 r2 r4
     nop
-    multu r1 r2 r4
     nop
     nop
-    shiftl r1 16 r1
-    shiftl r2 16 r2
-    multfp r1 r2 r5
     halt
+    load 3 r1
+    load 4 r2
+    mults r1 r2 r3
+    mults r1 r2 r4
+    add r3 r4 r5
         
 
 Int:

@@ -60,13 +60,11 @@ wire flush_FE1;
 wire flush_FE2;
 wire flush_REG;
 wire flush_EXMEM1;
-wire flush_EXMEM2;
 
 assign flush_FE1 = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid;
 assign flush_FE2 = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid;
 assign flush_REG = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid;
 assign flush_EXMEM1 = exmem1_uses_exmem2_result;
-assign flush_EXMEM2 = multicycle_alu_stall; // Send a bubble through the pipeline until result ready
 
 wire stall_FE1;
 wire stall_FE2;
@@ -263,7 +261,8 @@ Regbank regbank (
 
     .addr_d(addr_d_WB),
     .data_d(data_d_WB),
-    .we(we_WB)
+    // When EXMEM2 is stalling, we keep the data in the pipeline in case of forwarding
+    .we(we_WB && !multicycle_alu_stall) // TODO: add memory stall signal when implemented
 );
 
 // Forward to next stage
@@ -629,8 +628,8 @@ Regr #(
     .clk (clk),
     .in(instr_EXMEM2),
     .out(instr_WB),
-    .hold(1'b0),
-    .clear(flush_EXMEM2)
+    .hold(multicycle_alu_stall),
+    .clear(1'b0)
 );
 
 wire [31:0] alu_y_WB;
@@ -640,8 +639,8 @@ Regr #(
     .clk (clk),
     .in(alu_y_EXMEM2),
     .out(alu_y_WB),
-    .hold(1'b0),
-    .clear(flush_EXMEM2)
+    .hold(multicycle_alu_stall),
+    .clear(1'b0)
 );
 
 wire [31:0] PC_WB;
@@ -651,8 +650,8 @@ Regr #(
     .clk (clk),
     .in(PC_EXMEM2),
     .out(PC_WB),
-    .hold(1'b0),
-    .clear(flush_EXMEM2)
+    .hold(multicycle_alu_stall),
+    .clear(1'b0)
 );
 
 wire [31:0] data_a_WB;
@@ -662,8 +661,8 @@ Regr #(
     .clk (clk),
     .in(data_a_EXMEM2),
     .out(data_a_WB),
-    .hold(1'b0),
-    .clear(flush_EXMEM2)
+    .hold(multicycle_alu_stall),
+    .clear(1'b0)
 );
 
 wire [31:0] multicycle_alu_y_WB;
@@ -673,8 +672,8 @@ Regr #(
     .clk (clk),
     .in(multicycle_alu_y_EXMEM2),
     .out(multicycle_alu_y_WB),
-    .hold(1'b0),
-    .clear(flush_EXMEM2)
+    .hold(multicycle_alu_stall),
+    .clear(1'b0)
 );
 
 /*
