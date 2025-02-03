@@ -19,7 +19,7 @@ module FSX (
     output wire TMDS_d2_n,
 
     // VRAM32
-    output wire [13:0] vram32_addr,
+    output wire [10:0] vram32_addr,
     input wire [31:0]  vram32_q,
 
     // VRAM8
@@ -42,7 +42,6 @@ wire [11:0] h_count; // Line position in pixels including blanking
 wire [11:0] v_count; // Frame position in lines including blanking 
 wire hsync;
 wire vsync;
-wire csync;
 wire blank;
 
 TimingGenerator timingGenerator (

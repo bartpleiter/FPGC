@@ -37,7 +37,6 @@ ROM #(
     .LIST("/home/bart/Documents/FPGA/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/rom.list")
 ) rom (
     .clk (clk),
-    .reset(reset),
 
     .fe_addr(rom_fe_addr),
     .fe_oe(rom_fe_oe),
@@ -50,13 +49,11 @@ ROM #(
 
 //---------------------------VRAM32---------------------------------
 // VRAM32 I/O
-wire        vram32_gpu_clk;
 wire [10:0] vram32_gpu_addr;
 wire [31:0] vram32_gpu_d;
 wire        vram32_gpu_we;
 wire [31:0] vram32_gpu_q;
 
-wire        vram32_cpu_clk;
 wire [10:0] vram32_cpu_addr;
 wire [31:0] vram32_cpu_d;
 wire        vram32_cpu_we; 
@@ -89,13 +86,11 @@ VRAM #(
 
 //--------------------------VRAM8--------------------------------
 // VRAM8 I/O
-wire        vram8_gpu_clk;
 wire [13:0] vram8_gpu_addr;
 wire [7:0]  vram8_gpu_d;
 wire        vram8_gpu_we;
 wire [7:0]  vram8_gpu_q;
 
-wire        vram8_cpu_clk;
 wire [13:0] vram8_cpu_addr;
 wire [7:0]  vram8_cpu_d;
 wire        vram8_cpu_we;
@@ -129,13 +124,11 @@ VRAM #(
 
 //--------------------------VRAMPX--------------------------------
 // VRAMPX I/O
-wire        vramPX_gpu_clk;
 wire [16:0] vramPX_gpu_addr;
 wire [7:0]  vramPX_gpu_d;
 wire        vramPX_gpu_we;
 wire [7:0]  vramPX_gpu_q;
 
-wire        vramPX_cpu_clk;
 wire [16:0] vramPX_cpu_addr;
 wire [7:0]  vramPX_cpu_d;
 wire        vramPX_cpu_we;

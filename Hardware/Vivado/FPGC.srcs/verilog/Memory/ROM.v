@@ -12,7 +12,6 @@ module ROM #(
     parameter LIST = "memory/rom.list"
 ) (
     input  wire                 clk,
-    input  wire                 reset,
 
     input  wire [ADDR_BITS-1:0] fe_addr,
     input  wire                 fe_oe,

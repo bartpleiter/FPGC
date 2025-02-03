@@ -15,6 +15,9 @@ module FPGC (
     output wire HDMI_D2_N
 );
 
+wire reset;
+assign reset = !sys_rstn;
+
 //---------------------------Clocks---------------------------------
 wire clk;
 wire clkPixel;
@@ -28,7 +31,7 @@ clk_generator clk_gen (
     .clk_in1_p      (sys_clk_p),
     .clk_in1_n      (sys_clk_n),
     .resetn         (sys_rstn),
-    .clk            (clk_unb),       // 100 MHz
+    .clk            (clk_unb),       // 50 MHz
     .clk_gpu        (clkPixel_unb),  // 25 MHz
     .clk_tmds_half  (clkTMDShalf_unb), // 125 MHz
     .locked(locked)
@@ -50,16 +53,40 @@ BUFG bufgclkTMDShalf (
 );
 
 
+//-----------------------ROM-------------------------
+wire [8:0] rom_fe_addr;
+wire [8:0] rom_mem_addr;
+wire rom_fe_oe;
+wire rom_fe_hold;
+wire [31:0] rom_fe_q;
+wire [31:0] rom_mem_q;
+
+ROM #(
+    .WIDTH(32),
+    .WORDS(512),
+    .ADDR_BITS(9),
+    .LIST("/home/bart/Documents/FPGA/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/rom.list")
+) rom (
+    .clk (clk),
+
+    .fe_addr(rom_fe_addr),
+    .fe_oe(rom_fe_oe),
+    .fe_q(rom_fe_q),
+    .fe_hold(rom_fe_hold),
+
+    .mem_addr(rom_mem_addr),
+    .mem_q(rom_mem_q)
+);
+
+
 //---------------------------VRAM32---------------------------------
 // VRAM32 I/O
-wire        vram32_gpu_clk;
-wire [13:0] vram32_gpu_addr;
+wire [10:0] vram32_gpu_addr;
 wire [31:0] vram32_gpu_d;
 wire        vram32_gpu_we;
 wire [31:0] vram32_gpu_q;
 
-wire        vram32_cpu_clk;
-wire [13:0] vram32_cpu_addr;
+wire [10:0] vram32_cpu_addr;
 wire [31:0] vram32_cpu_d;
 wire        vram32_cpu_we; 
 wire [31:0] vram32_cpu_q;
@@ -71,7 +98,7 @@ assign vram32_gpu_d  = 32'd0;
 VRAM #(
     .WIDTH(32),
     .WORDS(1056),
-    .ADDR_BITS(14),
+    .ADDR_BITS(11),
     .LIST("/home/bart/Documents/FPGA/FPGC/Hardware/Vivado/FPGC.srcs/memory/vram32.list")
 ) vram32 (
     //CPU port
@@ -91,13 +118,11 @@ VRAM #(
 
 //--------------------------VRAM8--------------------------------
 // VRAM8 I/O
-wire        vram8_gpu_clk;
 wire [13:0] vram8_gpu_addr;
 wire [7:0]  vram8_gpu_d;
 wire        vram8_gpu_we;
 wire [7:0]  vram8_gpu_q;
 
-wire        vram8_cpu_clk;
 wire [13:0] vram8_cpu_addr;
 wire [7:0]  vram8_cpu_d;
 wire        vram8_cpu_we;
@@ -131,13 +156,11 @@ VRAM #(
 
 //--------------------------VRAMPX--------------------------------
 // VRAMPX I/O
-wire        vramPX_gpu_clk;
 wire [16:0] vramPX_gpu_addr;
 wire [7:0]  vramPX_gpu_d;
 wire        vramPX_gpu_we;
 wire [7:0]  vramPX_gpu_q;
 
-wire        vramPX_cpu_clk;
 wire [16:0] vramPX_cpu_addr;
 wire [7:0]  vramPX_cpu_d;
 wire        vramPX_cpu_we;
@@ -175,7 +198,7 @@ FSX fsx (
     // Clocks
     .clkPixel(clkPixel),
     .clkTMDShalf(clkTMDShalf),
-    .reset(!sys_rstn || !locked),
+    .reset(reset || !locked),
 
     // HDMI
     .TMDS_clk_p(HDMI_CLK_P),
@@ -205,5 +228,41 @@ FSX fsx (
     // Interrupt signal
     .frameDrawn(frameDrawn)
 );
+
+
+//-----------------------CPU-------------------------
+B32P2 cpu (
+    // Clock and reset
+    .clk(clk),
+    .reset(reset),
+
+    // ROM (dual port)
+    .rom_fe_addr(rom_fe_addr),
+    .rom_fe_oe(rom_fe_oe),
+    .rom_fe_q(rom_fe_q),
+    .rom_fe_hold(rom_fe_hold),
+
+    .rom_mem_addr(rom_mem_addr),
+    .rom_mem_q(rom_mem_q),
+
+    // VRAM32
+    .vram32_addr(vram32_cpu_addr),
+    .vram32_d(vram32_cpu_d),
+    .vram32_we(vram32_cpu_we),
+    .vram32_q(vram32_cpu_q),
+
+    // VRAM8
+    .vram8_addr(vram8_cpu_addr),
+    .vram8_d(vram8_cpu_d),
+    .vram8_we(vram8_cpu_we),
+    .vram8_q(vram8_cpu_q),
+
+    // VRAMPX
+    .vramPX_addr(vramPX_cpu_addr),
+    .vramPX_d(vramPX_cpu_d),
+    .vramPX_we(vramPX_cpu_we),
+    .vramPX_q(vramPX_cpu_q)
+);
+
 
 endmodule

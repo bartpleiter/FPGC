@@ -16,7 +16,7 @@ module BGWrenderer(
     output wire [1:0] b,
 
     // VRAM32
-    output wire [13:0] vram32_addr,
+    output wire [10:0] vram32_addr,
     input wire [31:0]  vram32_q,
 
     // VRAM8
@@ -196,10 +196,10 @@ assign vram8_addr = (h_count == 12'd0) ? 14'd8192: // Tile scroll offset
                     14'd0;
 
 assign vram32_addr = (hTilePixelCounter == fetch_pattern_bg) ? (tile_index << 2) + (vTileLineCounter >> 1): // *4 Because 4 addresses per tile
-                     (hTilePixelCounter == fetch_palette_bg) ? 14'd1024 + color_index:
+                     (hTilePixelCounter == fetch_palette_bg) ? 11'd1024 + color_index:
                      (hTilePixelCounter == fetch_pattern_wind) ? (tile_index << 2) + (vTileLineCounter >> 1): // *4 Because 4 addresses per tile
-                     (hTilePixelCounter == fetch_palette_wind) ? 14'd1024 + color_index:
-                     14'd0;
+                     (hTilePixelCounter == fetch_palette_wind) ? 11'd1024 + color_index:
+                     11'd0;
 
 
 // Pattern data for current pixel

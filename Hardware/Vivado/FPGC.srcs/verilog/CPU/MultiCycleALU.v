@@ -1,6 +1,7 @@
 /*
  * Multi cycle ALU
  * Performs ARITHM instructions that require multiple cycles
+ * TODO: multiple stages currently does not work for the DSP inference
  */
 module MultiCycleALU (
     input wire clk,
@@ -27,16 +28,23 @@ localparam
     OP_MODU   = 4'b0111; // Modulus unsigned
 
 localparam
-    STATE_IDLE = 2'b00,
-    STATE_CALC = 2'b01,
-    STATE_DONE = 2'b10;
+    STATE_IDLE = 3'd0,
+    STATE_MULT_STAGE1 = 3'd1,
+    STATE_MULT_STAGE2 = 3'd2,
+    STATE_MULT_STAGE3 = 3'd3,
+    STATE_DONE = 3'd4;
 
-reg [1:0] state = STATE_IDLE;
 
+reg [2:0] state = STATE_IDLE;
 
-reg [31:0] mult_a_reg = 32'd0;
-reg [31:0] mult_b_reg = 32'd0;
+// Extra stages are added for DSP inference
 reg [3:0] mult_opcode_reg = 4'd0;
+reg [31:0] mult_a_reg_stage1 = 32'd0;
+reg [31:0] mult_b_reg_stage1 = 32'd0;
+// reg [31:0] mult_a_reg_stage2 = 32'd0;
+// reg [31:0] mult_b_reg_stage2 = 32'd0;
+reg [63:0] mult_result_stage1 = 64'd0;
+reg [63:0] mult_result_stage2 = 64'd0;
 
 always @ (posedge clk)
 begin
@@ -46,9 +54,13 @@ begin
         y <= 32'd0;
         state <= STATE_IDLE;
 
-        mult_a_reg <= 32'd0;
-        mult_b_reg <= 32'd0;
         mult_opcode_reg <= 4'd0;
+        mult_a_reg_stage1 <= 32'd0;
+        mult_b_reg_stage1 <= 32'd0;
+        // mult_a_reg_stage2 <= 32'd0;
+        // mult_b_reg_stage2 <= 32'd0;
+        mult_result_stage1 <= 64'd0;
+        mult_result_stage2 <= 64'd0;
     end
     else
     begin
@@ -58,37 +70,36 @@ begin
                     done <= 1'b0;
                     if (start)
                     begin
-                        // Add an extra cycle for the synthesizer to optimize DSP usage
-                        mult_a_reg <= a;
-                        mult_b_reg <= b;
+                        mult_a_reg_stage1 <= a;
+                        mult_b_reg_stage1 <= b;
                         mult_opcode_reg <= opcode;
-                        state <= STATE_CALC;
+                        state <= STATE_MULT_STAGE1;
                     end
                 end
-            STATE_CALC:
+            STATE_MULT_STAGE1:
                 begin
                     case (mult_opcode_reg)
                         OP_MULTS:
-                            begin
-                                y <= $signed(mult_a_reg) * $signed(mult_b_reg);
-                                done <= 1'b1;
-                                state <= STATE_DONE;
-                            end
+                            mult_result_stage1 <= $signed(mult_a_reg_stage1) * $signed(mult_b_reg_stage1);
                         OP_MULTU:
-                            begin
-                                y <= mult_a_reg * mult_b_reg;
-                                done <= 1'b1;
-                                state <= STATE_DONE;
-                            end
+                            mult_result_stage1 <= mult_a_reg_stage1 * mult_b_reg_stage1;
                         OP_MULTFP:
-                            begin
-                                y <= ($signed(mult_a_reg) * $signed(mult_b_reg)) >> 16;
-                                done <= 1'b1;
-                                state <= STATE_DONE;
-                            end
+                            mult_result_stage1 <= ($signed(mult_a_reg_stage1) * $signed(mult_b_reg_stage1)) >> 16;
                         default:
-                            state <= STATE_DONE;
+                            mult_result_stage1 <= 64'd0;
                     endcase
+                    state <= STATE_MULT_STAGE2;
+                end
+            STATE_MULT_STAGE2:
+                begin
+                    mult_result_stage2 <= mult_result_stage1;
+                    state <= STATE_MULT_STAGE3;
+                end
+            STATE_MULT_STAGE3:
+                begin
+                    y <= mult_result_stage2[31:0];
+                    done <= 1'b1;
+                    state <= STATE_DONE;
                 end
             STATE_DONE:
                 begin

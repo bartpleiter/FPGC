@@ -492,7 +492,6 @@ wire push_EXMEM2;
 wire pop_EXMEM2;
 
 wire [3:0] dreg_EXMEM2;
-wire dreg_we_EXMEM2;
 
 wire mem_read_EXMEM2;
 wire mem_write_EXMEM2;
@@ -564,6 +563,9 @@ wire mem_sdram_EXMEM2;
 wire mem_sdcard_EXMEM2;
 wire mem_spiflash_EXMEM2;
 wire mem_io_EXMEM2;
+wire mem_vram32_EXMEM2;
+wire mem_vram8_EXMEM2;
+wire mem_vrampx_EXMEM2;
 
 AddressDecoder addressDecoder_EXMEM2 (
     .areg_value(data_a_EXMEM2),
@@ -575,9 +577,9 @@ AddressDecoder addressDecoder_EXMEM2 (
     .mem_spiflash(mem_spiflash_EXMEM2),
     .mem_io(mem_io_EXMEM2),
     .mem_rom(),
-    .mem_vram32(),
-    .mem_vram8(),
-    .mem_vrampx(),
+    .mem_vram32(mem_vram32_EXMEM2),
+    .mem_vram8(mem_vram8_EXMEM2),
+    .mem_vrampx(mem_vrampx_EXMEM2),
 
     .mem_multicycle(mem_multicycle_EXMEM2),
     .mem_local_address(mem_local_address_EXMEM2)
@@ -603,17 +605,17 @@ assign rom_mem_addr = mem_local_address_EXMEM2;
 
 // VRAM32
 assign vram32_addr = mem_local_address_EXMEM2;
-assign vram32_we = mem_write_EXMEM2;
+assign vram32_we = mem_vram32_EXMEM2;
 assign vram32_d = data_b_EXMEM2;
 
 // VRAM8
 assign vram8_addr = mem_local_address_EXMEM2;
-assign vram8_we = mem_write_EXMEM2;
+assign vram8_we = mem_vram8_EXMEM2;
 assign vram8_d = data_b_EXMEM2;
 
 // VRAMPX
 assign vramPX_addr = mem_local_address_EXMEM2;
-assign vramPX_we = mem_write_EXMEM2;
+assign vramPX_we = mem_vrampx_EXMEM2;
 assign vramPX_d = data_b_EXMEM2;
 
 // TODO:
