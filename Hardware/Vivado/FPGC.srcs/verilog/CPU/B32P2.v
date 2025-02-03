@@ -427,8 +427,8 @@ wire jump_valid_EXMEM1;
 
 BranchJumpUnit branchJumpUnit_EXMEM1 (
     .branchOP(branchOP_EXMEM1),
-    .data_a (data_a_EXMEM1),
-    .data_b (data_b_EXMEM1),
+    .data_a (alu_a_EXMEM1), // Use forwarded data
+    .data_b (alu_b_EXMEM1), // Use forwarded data
     .const16(const16_EXMEM1),
     .const27(const27_EXMEM1),
     .pc     (PC_EXMEM1),
@@ -445,6 +445,7 @@ BranchJumpUnit branchJumpUnit_EXMEM1 (
 
 // TODO:
 // - in case of mem_read or mem_write, read from l1d cache using mem_local_address_EXMEM1
+//   - make sure to use forwarded inputs for address!
 
 // Forward to next stage
 wire [31:0] instr_EXMEM2;

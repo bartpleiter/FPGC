@@ -197,10 +197,12 @@ B32P2 cpu (
 
 initial
 begin
+    `ifndef testbench
     $dumpfile("Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd");
     $dumpvars;
+    `endif
 
-    repeat(100)
+    repeat(1000)
     begin
         #10 clk = ~clk;
     end
