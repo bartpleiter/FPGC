@@ -1,22 +1,22 @@
 [*]
 [*] GTKWave Analyzer v3.3.116 (w)1999-2023 BSI
-[*] Mon Feb  3 19:17:45 2025
+[*] Mon Feb  3 19:27:29 2025
 [*]
 [dumpfile] "/home/bart/Documents/FPGA/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd"
-[dumpfile_mtime] "Mon Feb  3 19:16:52 2025"
-[dumpfile_size] 731917
+[dumpfile_mtime] "Mon Feb  3 19:26:50 2025"
+[dumpfile_size] 742763
 [savefile] "/home/bart/Documents/FPGA/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/cpu.gtkw"
 [timestart] 0
 [size] 1536 881
 [pos] -1 -1
-*-16.799999 0 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-16.799999 67800 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] cpu_tb.
 [treeopen] cpu_tb.cpu.
 [treeopen] cpu_tb.cpu.multiCycleALU_EXMEM2.
 [sst_width] 278
 [signals_width] 566
 [sst_expanded] 1
-[sst_vpaned_height] 418
+[sst_vpaned_height] 390
 @28
 cpu_tb.clk
 cpu_tb.cpu.reset
@@ -45,9 +45,8 @@ cpu_tb.cpu.rom_fe_oe
 cpu_tb.cpu.clk
 @22
 cpu_tb.cpu.PC_FE2[31:0]
-@29
-cpu_tb.cpu.stall_FE2
 @28
+cpu_tb.cpu.stall_FE2
 cpu_tb.cpu.flush_FE2
 @200
 -
@@ -203,6 +202,7 @@ cpu_tb.cpu.branchJumpUnit_EXMEM1.oe
 cpu_tb.cpu.mem_local_address_EXMEM1[31:0]
 @28
 cpu_tb.cpu.mem_read_EXMEM1
+@29
 cpu_tb.cpu.mem_write_EXMEM1
 @200
 -
