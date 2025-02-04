@@ -627,17 +627,17 @@ assign rom_mem_addr = mem_local_address_EXMEM2;
 
 // VRAM32
 assign vram32_addr = mem_local_address_EXMEM2;
-assign vram32_we = mem_vram32_EXMEM2;
+assign vram32_we = mem_vram32_EXMEM2 && mem_write_EXMEM2;
 assign vram32_d = data_b_EXMEM2;
 
 // VRAM8
 assign vram8_addr = mem_local_address_EXMEM2;
-assign vram8_we = mem_vram8_EXMEM2;
+assign vram8_we = mem_vram8_EXMEM2 && mem_write_EXMEM2;
 assign vram8_d = data_b_EXMEM2;
 
 // VRAMPX
 assign vramPX_addr = mem_local_address_EXMEM2;
-assign vramPX_we = mem_vrampx_EXMEM2;
+assign vramPX_we = mem_vrampx_EXMEM2 && mem_write_EXMEM2;
 assign vramPX_d = data_b_EXMEM2;
 
 // TODO:

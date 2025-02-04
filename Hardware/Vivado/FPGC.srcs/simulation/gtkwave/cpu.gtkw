@@ -1,15 +1,15 @@
 [*]
 [*] GTKWave Analyzer v3.3.116 (w)1999-2023 BSI
-[*] Mon Feb  3 19:27:29 2025
+[*] Tue Feb  4 18:37:07 2025
 [*]
 [dumpfile] "/home/bart/Documents/FPGA/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd"
-[dumpfile_mtime] "Mon Feb  3 19:26:50 2025"
-[dumpfile_size] 742763
+[dumpfile_mtime] "Tue Feb  4 18:35:35 2025"
+[dumpfile_size] 753895
 [savefile] "/home/bart/Documents/FPGA/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/cpu.gtkw"
 [timestart] 0
 [size] 1536 881
 [pos] -1 -1
-*-16.799999 67800 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-16.799999 150600 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] cpu_tb.
 [treeopen] cpu_tb.cpu.
 [treeopen] cpu_tb.cpu.multiCycleALU_EXMEM2.
