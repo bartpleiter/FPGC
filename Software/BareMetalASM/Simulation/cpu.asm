@@ -1,12 +1,11 @@
+; Contains a semi random mix of instructions to test hazards
 Main:
-    load 7 r1
-    load 4 r2
+    load 6 r6
+    load 4 r4
+    push r6
+    multu r6 r4 r3 ; r3=24
+    pop r6
+    multu r6 r3 r6 ; r6=144
     
-    shiftl r1 16 r1
-    shiftl r2 16 r2
 
-    multfp r1 r2 r3
-
-    shiftr r3 16 r15 ; expected=28
-    
     halt

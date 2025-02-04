@@ -61,9 +61,9 @@ wire flush_FE2;
 wire flush_REG;
 wire flush_EXMEM1;
 
-assign flush_FE1 = jump_valid_EXMEM1 || hazard_pc1_pc2 || reti_EXMEM1 || interrupt_valid;
-assign flush_FE2 = jump_valid_EXMEM1 || hazard_pc1_pc2 || reti_EXMEM1 || interrupt_valid;
-assign flush_REG = jump_valid_EXMEM1 || hazard_pc1_pc2 || reti_EXMEM1 || interrupt_valid;
+assign flush_FE1 = jump_valid_EXMEM1 || hazard_pc1_pc2 || hazard_pc2_pc1 || reti_EXMEM1 || interrupt_valid;
+assign flush_FE2 = jump_valid_EXMEM1 || hazard_pc1_pc2 || hazard_pc2_pc1 || reti_EXMEM1 || interrupt_valid;
+assign flush_REG = jump_valid_EXMEM1 || hazard_pc1_pc2 || hazard_pc2_pc1 || reti_EXMEM1 || interrupt_valid;
 assign flush_EXMEM1 = exmem1_uses_exmem2_result;
 
 wire stall_FE1;
@@ -92,7 +92,15 @@ assign exmem1_uses_exmem2_result =
 // Note: because this is hard to describe as a variable name, we will call this situation hazard_pc1_pc2
 wire hazard_pc1_pc2;
 assign hazard_pc1_pc2 = 
-    ( (mem_read_EXMEM2 && mem_multicycle_EXMEM2) || arithm_EXMEM2) && (areg_EXMEM1 == addr_d_WB || breg_EXMEM1 == addr_d_WB);
+    ( (mem_read_EXMEM2 && mem_multicycle_EXMEM2) || arithm_EXMEM2 ) &&
+    ( ( (areg_EXMEM1 == addr_d_WB) && areg_EXMEM1 != 4'd0) || ( (breg_EXMEM1 == addr_d_WB) && breg_EXMEM1 != 4'd0) );
+
+// - EXMEM1 uses result of multicycle EXMEM2 at PC-2 and dreg of PC-1 -> jump to same address to resolve
+// Note: because this is hard to describe as a variable name, we will call this situation hazard_pc2_pc1
+wire hazard_pc2_pc1;
+assign hazard_pc2_pc1 = 
+    ( (mem_read_WB && mem_multicycle_WB) || arithm_WB ) &&
+    ( ( (areg_EXMEM1 == dreg_EXMEM2) && areg_EXMEM1 != 4'd0) || ( (breg_EXMEM1 == dreg_EXMEM2) && breg_EXMEM1 != 4'd0) );
 
 // Forwarding situations
 // EXMEM2 -> EXMEM1 (single cycle ALU operations)
@@ -127,7 +135,7 @@ begin
         begin
             PC_FE1 <= jump_addr_EXMEM1;
         end
-        else if (hazard_pc1_pc2)
+        else if (hazard_pc1_pc2 || hazard_pc2_pc1)
         begin
             PC_FE1 <= PC_EXMEM1;
         end
@@ -730,7 +738,7 @@ InstructionDecoder instrDec_WB (
 
 wire pop_WB;
 wire mem_read_WB;
-wire airthm_WB;
+wire arithm_WB;
 
 ControlUnit constrolUnit_WB (
     .instrOP(instrOP_WB),
@@ -743,7 +751,7 @@ ControlUnit constrolUnit_WB (
     .dreg_we(we_WB),
     .mem_write(),
     .mem_read(mem_read_WB),
-    .arithm(airthm_WB),
+    .arithm(arithm_WB),
     .jumpc(),
     .jumpr(),
     .branch(),
@@ -762,6 +770,8 @@ wire mem_vram32_WB;
 wire mem_vram8_WB;
 wire mem_vrampx_WB;
 
+wire mem_multicycle_WB;
+
 AddressDecoder addressDecoder_WB (
     .areg_value(data_a_WB),
     .const16(const16_WB),
@@ -776,7 +786,7 @@ AddressDecoder addressDecoder_WB (
     .mem_vram8(mem_vram8_WB),
     .mem_vrampx(mem_vrampx_WB),
 
-    .mem_multicycle(),
+    .mem_multicycle(mem_multicycle_WB),
     .mem_local_address()
 );
 
@@ -785,7 +795,7 @@ assign data_d_WB =  (pop_WB) ? stack_q_WB :
                     (mem_vram32_WB) ? vram32_q :
                     (mem_vram8_WB) ? vram8_q :
                     (mem_vrampx_WB) ? vramPX_q :
-                    (airthm_WB) ? multicycle_alu_y_WB :
+                    (arithm_WB) ? multicycle_alu_y_WB :
                     alu_y_WB;
 
 endmodule

@@ -4,7 +4,7 @@ Main:
     load32 2 r3
 
     beq r2 r3 2
-    halt
+    load 3 r15 ; will return this in case of incorrect pipeline flush
 
     bne r1 r2 2
     halt
