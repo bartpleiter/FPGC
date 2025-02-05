@@ -1,11 +1,16 @@
-; Contains a semi random mix of instructions to test hazards
 Main:
-    load 6 r6
-    load 4 r4
-    push r6
-    multu r6 r4 r3 ; r3=24
-    pop r6
-    multu r6 r3 r6 ; r6=144
-    
-
+    nop
+    load32 0x7B00000 r11
+    load32 76800 r4
+    add r11 r4 r11
+    load 0 r2
+    load32 0x7B00000 r1
+    Loop:
+        write 0 r1 r2
+        add r1 1 r1
+        add r2 1 r2
+        beq r1 r11 2
+        jump 125829129
+    add r2 1 r2
+    jump 125829127
     halt

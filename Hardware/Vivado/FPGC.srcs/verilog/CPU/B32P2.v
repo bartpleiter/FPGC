@@ -569,6 +569,8 @@ ControlUnit constrolUnit_EXMEM2 (
     .branch(),
     .halt(),
     .reti(),
+    .getIntID(),
+    .getPC(),
     .clearCache()
 );
 
@@ -757,6 +759,8 @@ ControlUnit constrolUnit_WB (
     .branch(),
     .halt(),
     .reti(),
+    .getIntID(),
+    .getPC(),
     .clearCache()
 );
 

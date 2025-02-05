@@ -31,7 +31,7 @@ clk_generator clk_gen (
     .clk_in1_p      (sys_clk_p),
     .clk_in1_n      (sys_clk_n),
     .resetn         (sys_rstn),
-    .clk            (clk_unb),       // 50 MHz
+    .clk            (clk_unb),       // 100 MHz
     .clk_gpu        (clkPixel_unb),  // 25 MHz
     .clk_tmds_half  (clkTMDShalf_unb), // 125 MHz
     .locked(locked)
