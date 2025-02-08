@@ -20,7 +20,7 @@ check: ruff-format ruff-lint mypy pytest
 
 
 install:
-	pipx install .
+	pipx install . --force
 
 
 clean:

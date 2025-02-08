@@ -11,6 +11,7 @@ Steps needed for assembling:
 9. Write output to file
 """
 
+import logging
 from asmpy.models import ProgramType, Number
 
 
@@ -26,3 +27,8 @@ class Assembler:
         self.output_file_path = output_file_path
         self.offset_address = offset_address
         self.program_type = program_type
+
+        self._logger = logging.getLogger()
+
+    def assemble(self) -> None:
+        pass

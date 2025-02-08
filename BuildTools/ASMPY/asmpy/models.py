@@ -11,6 +11,8 @@ class ProgramType(Enum):
 
 
 class Number:
+    """Class to represent a number in binary, hexadecimal or decimal format"""
+
     def __init__(self, input_str: str) -> None:
         self.original = input_str.strip()
         self.value = self._parse_number(self.original)
