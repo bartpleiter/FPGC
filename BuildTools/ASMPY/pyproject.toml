@@ -1,0 +1,38 @@
+[project]
+name = "asmpy"
+version = "0.1.0"
+description = "Assembler for the B32P2 architecture"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{name = "Bart Pleiter"}]
+dependencies = [
+    "pydantic>=2.10.6",
+    "structlog>=25.1.0",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.15.0",
+    "pytest>=8.3.4",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.9.5",
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project.scripts]
+asmpy = "asmpy.asmpy:main"
+
+[tool.coverage.report]
+fail_under = 100
+show_missing = true
+skip_covered = true
+sort = "-Miss"
+
+[tool.mypy]
+#ignore_missing_imports = true
+exclude = [
+    'tests/'
+]
