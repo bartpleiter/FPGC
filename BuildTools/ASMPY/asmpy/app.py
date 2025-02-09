@@ -17,6 +17,7 @@ def main():
     assembler = Assembler(args.file, args.output)
 
     try:
+        assembler.preprocess()
         assembler.assemble()
     except Exception as e:
         logger.error(f"Assembler failed: {e}")

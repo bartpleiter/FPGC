@@ -19,6 +19,6 @@ asmpy.egg-info
 .ruff_cache
 .coverage
 
-.vscode
-
 old_ASM
+
+tmp
