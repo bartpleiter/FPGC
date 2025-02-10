@@ -13,7 +13,7 @@
             "program": "asmpy/app.py",
             "console": "integratedTerminal",
             "args": [
-                "-l", "debug", "-d", "tmp/in.asm", "tmp/out.list"
+                "-l", "debug", "-d", "../tmp/in.asm", "../tmp/out.list"
             ]
         }
     ]

@@ -1,4 +1,7 @@
 import argparse
+from pathlib import Path
+
+from asmpy.models.data_types import SourceLine
 
 
 def parse_args() -> argparse.Namespace:
@@ -21,13 +24,18 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def read_input_file(input_file_path) -> list[str]:
-    """Read input file and return list of lines."""
+def read_input_file(input_file_path: Path) -> list[SourceLine]:
+    """Read input file and return list of SourceLine objects."""
     try:
         with open(input_file_path, "r") as file:
-            input_lines = file.readlines()
-            for line in input_lines:
-                line = line.strip()
+            input_lines = [
+                SourceLine(
+                    line=line.strip(),
+                    source_line_number=i + 1,
+                    source_file_name=input_file_path,
+                )
+                for i, line in enumerate(file.readlines())
+            ]
     except FileNotFoundError as e:
         raise FileNotFoundError(f"Input file not found: {input_file_path}") from e
     return input_lines

@@ -1,7 +1,8 @@
 import logging
-import sys
+from pathlib import Path
 from asmpy.assembler import Assembler
-from asmpy.utils import parse_args
+from asmpy.preprocessor import Preprocessor
+from asmpy.utils import parse_args, read_input_file
 from asmpy.logger import CustomFormatter, configure_logging
 
 
@@ -11,17 +12,28 @@ def main():
     configure_logging(args.log_level, CustomFormatter(log_details=args.log_details))
     logger = logging.getLogger()
 
-    logger.info("Starting assembler")
+    logger.info("Starting asmpy")
     logger.debug(f"Arguments: {args}")
 
-    assembler = Assembler(args.file, args.output)
+    source_input_lines = read_input_file(args.file)
+
+    input_file_path = Path(args.file)
 
     try:
-        assembler.preprocess()
+        preprocessed_lines = Preprocessor(
+            source_input_lines=source_input_lines,
+            file_path=input_file_path,
+        ).preprocess()
+    except Exception as e:
+        logger.error(f"Preprocessor failed: {e}")
+        raise e
+
+    assembler = Assembler(preprocessed_lines, args.output)
+    try:
         assembler.assemble()
     except Exception as e:
         logger.error(f"Assembler failed: {e}")
-        sys.exit(1)
+        raise e
 
     logger.info("Assembler finished")
 
