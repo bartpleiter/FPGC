@@ -60,6 +60,9 @@ class Number:
 
     def __str__(self) -> str:
         return str(self.value)
+    
+    def __repr__(self) -> str:
+        return f"Number {self.original} -> {self.value}"
 
 
 @dataclass
