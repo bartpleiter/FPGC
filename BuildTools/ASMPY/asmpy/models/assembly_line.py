@@ -1,7 +1,23 @@
 from abc import ABC, abstractmethod
+from enum import Enum
 import logging
+from typing import Dict, Type
 
-from asmpy.models.data_types import DataInstructionType, DirectiveType, Number, SourceLine
+from asmpy.models.data_types import (
+    DataInstructionType,
+    DirectiveType,
+    Label,
+    Number,
+    Register,
+    SourceLine,
+    ControlOperation,
+    MemoryOperation,
+    SingleCycleArithmeticOperation,
+    MultiCycleArithmeticOperation,
+    BranchOperation,
+    JumpOperation,
+    StringParsableEnum,
+)
 
 
 class AssemblyLine(ABC):
@@ -30,10 +46,11 @@ class AssemblyLine(ABC):
     @staticmethod
     def _matches_data_instruction_type(x: str) -> bool:
         x = x.split()[0]
-        for instruction in DataInstructionType:
-            if x ==instruction.value:
-                return True
-        return False
+        try:
+            DataInstructionType.from_str(x)
+            return True
+        except ValueError:
+            return False
 
     @staticmethod
     def parse_line(source_line: SourceLine) -> "AssemblyLine":
@@ -100,32 +117,76 @@ class DirectiveAssemblyLine(AssemblyLine):
     def _parse_code(self):
         parts = self.code_str.split()
         if len(parts) != 1:
-            raise ValueError(f"Invalid directive: {self.code_str}")
-        
-        self.directive = DirectiveType(parts[0])
+            raise ValueError(
+                f"Unexpected amount of arguments for directive: {self.code_str}"
+            )
+
+        self.directive = DirectiveType.from_str(parts[0])
 
     def __repr__(self):
-        return f"{self.source_file_name}:{self.source_line_number} -> {self.directive}"
+        return f"{self.directive}"
 
 
 class LabelAssemblyLine(AssemblyLine):
     """Class to represent a label line of assembly code"""
 
     def _parse_code(self):
-        pass
+        parts = self.code_str.split()
+        if len(parts) != 1:
+            raise ValueError(
+                f"Unexpected amount of arguments for label: {self.code_str}"
+            )
+
+        self.label = Label(parts[0][:-1])
 
     def __repr__(self):
-        return f"{self.source_file_name}:{self.source_line_number} -> Label {self.code_str} # {self.comment}"
+        return f"{self.label}"
 
 
 class InstructionAssemblyLine(AssemblyLine):
     """Class to represent an instruction line of assembly code"""
 
+    instruction_operations: list[StringParsableEnum] = [
+        ControlOperation,
+        MemoryOperation,
+        SingleCycleArithmeticOperation,
+        MultiCycleArithmeticOperation,
+        BranchOperation,
+        JumpOperation,
+    ]
+
+    def _get_instruction_type(self) -> Enum:
+        if not self.opcode:
+            raise ValueError("Opcode not set")
+
+        for operation in self.instruction_operations:
+            try:
+                return operation.from_str(self.opcode)
+            except ValueError:
+                pass
+        raise ValueError(f"Invalid instruction: {self.opcode}")
+
+    def _parse_arguments(self, arguments: list[str]) -> list:
+        """Parse the arguments of the instruction. Arguments can be a Register, Label or Number."""
+        parsed_arguments = []
+        for argument in arguments:
+            try:
+                parsed_arguments.append(Register.from_str(argument))
+            except ValueError:
+                try:
+                    parsed_arguments.append(Number(argument))
+                except ValueError:
+                    parsed_arguments.append(Label(argument))
+
+        return parsed_arguments
+
     def _parse_code(self):
-        pass
+        self.opcode = self.code_str.split()[0]
+        self.instruction_type = self._get_instruction_type()
+        self.arguments = self._parse_arguments(self.code_str.split()[1:])
 
     def __repr__(self):
-        return f"{self.source_file_name}:{self.source_line_number} -> Instruction {self.code_str} # {self.comment}"
+        return f"{self.instruction_type} {self.arguments}"
 
 
 class DataAssemblyLine(AssemblyLine):
@@ -135,21 +196,16 @@ class DataAssemblyLine(AssemblyLine):
         self.data_instruction_values = []
         data_instruction_type_str = self.code_str.split()[0]
 
-        for instruction in DataInstructionType:
-            if data_instruction_type_str ==instruction.value:
-                self.data_instruction_type = instruction
-                break
-        
-        if not self.data_instruction_type:
-            raise ValueError(f"Invalid data instruction: {self.code_str}")
-        
+        self.data_instruction_type = DataInstructionType.from_str(
+            data_instruction_type_str
+        )
+
         data_instruction_values = self.code_str.split()[1:]
         for value in data_instruction_values:
             self.data_instruction_values.append(Number(value))
 
-
     def __repr__(self):
-        return f"{self.source_file_name}:{self.source_line_number} -> {self.data_instruction_type} {self.data_instruction_values}"
+        return f"{self.data_instruction_type} {self.data_instruction_values}"
 
 
 class CommentAssemblyLine(AssemblyLine):
@@ -159,4 +215,4 @@ class CommentAssemblyLine(AssemblyLine):
         pass
 
     def __repr__(self):
-        return f"{self.source_file_name}:{self.source_line_number} -> # {self.comment}"
+        return f"# {self.comment}"
