@@ -1,7 +1,7 @@
 import argparse
 from pathlib import Path
 
-from asmpy.models.data_types import SourceLine
+from asmpy.models.data_types import SourceLine, Number
 
 
 def parse_args() -> argparse.Namespace:
@@ -39,3 +39,16 @@ def read_input_file(input_file_path: Path) -> list[SourceLine]:
     except FileNotFoundError as e:
         raise FileNotFoundError(f"Input file not found: {input_file_path}") from e
     return input_lines
+
+
+def split_32bit_to_16bit(number: Number) -> tuple[Number, Number]:
+    """Split a 32-bit number into two 16-bit numbers, allowing signed numbers."""
+    if not (-0x80000000 <= number.value <= 0xFFFFFFFF):
+        raise ValueError("Number must fit in 32 bits")
+
+    lower_16bit = number.value & 0xFFFF
+    upper_16bit = (number.value >> 16) & 0xFFFF
+
+    return Number(value=upper_16bit, original=str(number.original) + "[31:16]"), Number(
+        value=lower_16bit, original=str(number.original) + "[15:0]"
+    )

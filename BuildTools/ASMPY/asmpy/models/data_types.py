@@ -6,7 +6,7 @@ class StringParsableEnum(Enum):
     """Base Enum class with a from_str method for easy string parsing."""
 
     @classmethod
-    def from_str(cls, value: str):
+    def from_str(cls, value: str) -> "StringParsableEnum":
         """Convert a string to the corresponding Enum value using fast lookup."""
         _lookup = {e.value: e for e in cls.__members__.values()}
         if value in _lookup:
@@ -129,7 +129,7 @@ class JumpOperation(StringParsableEnum):
     JUMP_REGISTER_OFFSET = "jumpro"
 
 
-class Register(StringParsableEnum):
+class RegisterValue(StringParsableEnum):
     """Types of registers."""
 
     R0 = "r0"
@@ -149,8 +149,23 @@ class Register(StringParsableEnum):
     R14 = "r14"
     R15 = "r15"
 
-    RSP = "rsp"
-    RBP = "rbp"
+
+class Register:
+    """Class to represent a register in assembly code."""
+
+    def __init__(self, register: RegisterValue) -> None:
+        self.register = register
+
+    def __str__(self):
+        return self.register.value
+
+    @staticmethod
+    def from_str(register_str: str) -> "Register":
+        """Parse a register from a string."""
+        return Register(RegisterValue.from_str(register_str))
+
+    def __repr__(self) -> str:
+        return f"Register {self.register}"
 
 
 class Label:
@@ -160,30 +175,39 @@ class Label:
         self.label = label
         self.target_address = target_address
 
+    def __str__(self):
+        return self.label
+
     def __repr__(self) -> str:
         target_address_str = (
             f" -> {self.target_address}" if self.target_address else " -> ?"
         )
         return f"Label {self.label}{target_address_str}"
 
+    def __eq__(self, value: "Label") -> bool:
+        return self.label == value.label
+
+    def __hash__(self) -> int:
+        return hash(self.label)
+
 
 class Number:
-    """Class to represent a number in binary, hexadecimal or decimal format."""
+    """Class to represent a number, while keeping its original string representation in binary, hexadecimal or decimal format."""
 
-    def __init__(self, input_str: str) -> None:
-        self.original = input_str
-        self.value = self._parse_number(self.original)
+    def __init__(self, value: int, original: str | None = None) -> None:
+        self.original = original
+        self.value = value
 
-    def _parse_number(self, input_str: str) -> int:
-        """Parse number from a string representing a binary, hexadecimal or decimal number.
-        TODO: Convert to a from_str method for consistency with the Enums."""
+    @staticmethod
+    def _from_str(input_str: str) -> "Number":
+        """Parse number from a string representing a binary, hexadecimal or decimal number."""
         try:
             if input_str.startswith(("0b", "0B")):
-                return int(input_str, 2)
+                return Number(value=int(input_str, 2), original=input_str)
             elif input_str.startswith(("0x", "0X")):
-                return int(input_str, 16)
+                return Number(value=int(input_str, 16), original=input_str)
             else:
-                return int(input_str)
+                return Number(value=int(input_str), original=input_str)
         except ValueError:
             raise ValueError(f"Invalid number: {input_str}")
 
