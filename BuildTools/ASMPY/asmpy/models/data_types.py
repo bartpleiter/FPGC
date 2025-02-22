@@ -129,6 +129,73 @@ class JumpOperation(StringParsableEnum):
     JUMP_REGISTER_OFFSET = "jumpro"
 
 
+class InstructionOpcode(Enum):
+    """Enum class to represent instruction opcodes."""
+
+    HALT = "1111"
+    READ = "1110"
+    WRITE = "1101"
+    INTID = "1100"
+    PUSH = "1011"
+    POP = "1010"
+    JUMP = "1001"
+    JUMPR = "1000"
+    CCACHE = "0111"
+    BRANCH = "0110"
+    SAVPC = "0101"
+    RETI = "0100"
+    ARITHM = "0011"
+    ARITHMC = "0010"
+    ARITHC = "0001"
+    ARITH = "0000"
+
+
+class BranchOpcode(Enum):
+    """Enum class to represent branch opcodes."""
+
+    BEQ = "000"
+    BGT = "001"
+    BGE = "010"
+    # Reserved
+    BNE = "100"
+    BLT = "101"
+    BLE = "110"
+
+
+class ArithOpcode(Enum):
+    """Enum class to represent single cycle arithmetic opcodes."""
+
+    OR = "0000"
+    AND = "0001"
+    XOR = "0010"
+    ADD = "0011"
+    SUB = "0100"
+    SHIFTL = "0101"
+    SHIFTR = "0110"
+    NOTA = "0111"
+    # Reserved
+    # Reserved
+    SLT = "1010"
+    SLTU = "1011"
+    LOAD = "1100"
+    LOADHI = "1101"
+    SHIFTRS = "1110"
+    # Reserved
+
+
+class ArithmOpcode(Enum):
+    """Enum class to represent multi cycle arithmetic opcodes."""
+
+    MULTS = "0000"
+    MULTU = "0001"
+    MULTFP = "0010"
+    DIVS = "0011"
+    DIVU = "0100"
+    DIVFP = "0101"
+    MODS = "0110"
+    MODU = "0111"
+
+
 class RegisterValue(StringParsableEnum):
     """Types of registers."""
 
@@ -158,6 +225,9 @@ class Register:
 
     def __str__(self):
         return self.register.value
+
+    def to_binary(self) -> str:
+        return f"{int(self.register.value[1:]):04b}"
 
     @staticmethod
     def from_str(register_str: str) -> "Register":
@@ -210,6 +280,17 @@ class Number:
                 return Number(value=int(input_str), original=input_str)
         except ValueError:
             raise ValueError(f"Invalid number: {input_str}")
+
+    def to_binary(self, bits: int) -> str:
+        """Convert the number to a binary string with a fixed number of bits."""
+
+        # Check if value fits in the number of bits
+        min_value = -(1 << (bits - 1))
+        max_value = (1 << bits) - 1
+        if not (min_value <= self.value <= max_value):
+            raise ValueError(f"Number must fit in {bits} bits")
+
+        return f"{self.value & ((1 << bits) - 1):0{bits}b}"
 
     def __int__(self) -> int:
         return self.value

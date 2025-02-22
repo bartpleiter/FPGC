@@ -152,11 +152,14 @@ class Assembler:
         self._create_label_address_mappings()
         self._apply_label_address_mappings()
 
+    def _write_output_file(self) -> None:
+        """Write the assembly lines as binary strings to the output file."""
+        with open(self.output_file_path, "w") as file:
+            for line in self._assembly_lines:
+                file.write(f"{line.to_binary_string()}\n")
+
     def assemble(self) -> None:
-        """Assemble the preprocessed input file.
-        TODO:
-            - Write output to file while verifying
-        """
+        """Assemble the preprocessed input file."""
 
         self._assembly_lines = self._parse_input_lines(self.preprocessed_input_lines)
         self._expand_instructions()
@@ -168,3 +171,5 @@ class Assembler:
 
         for line in self._assembly_lines:
             self._logger.debug(line)
+
+        self._write_output_file()

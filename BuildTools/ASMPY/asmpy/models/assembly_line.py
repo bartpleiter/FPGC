@@ -17,6 +17,10 @@ from asmpy.models.data_types import (
     BranchOperation,
     JumpOperation,
     StringParsableEnum,
+    InstructionOpcode,
+    BranchOpcode,
+    ArithmOpcode,
+    ArithmOpcode,
 )
 
 
@@ -112,6 +116,11 @@ class AssemblyLine(ABC):
         pass
 
     @abstractmethod
+    def to_binary_string(self) -> str:
+        """Convert the line into a binary string."""
+        pass
+
+    @abstractmethod
     def __repr__(self):
         pass
 
@@ -132,6 +141,9 @@ class DirectiveAssemblyLine(AssemblyLine):
         # Directives are already atomic
         return [self]
 
+    def to_binary_string(self) -> str:
+        raise NotImplementedError("Directives do not have a binary representation")
+
     def __repr__(self):
         return f"{self.directive}"
 
@@ -151,6 +163,11 @@ class LabelAssemblyLine(AssemblyLine):
     def expand(self) -> list["AssemblyLine"]:
         # Labels are already atomic
         return [self]
+
+    def to_binary_string(self) -> str:
+        raise NotImplementedError(
+            "Label definitions do not have a binary representation"
+        )
 
     def __repr__(self):
         return f"{repr(self.label)} ({self.directive})"
@@ -240,6 +257,102 @@ class InstructionAssemblyLine(AssemblyLine):
         else:
             return [self]
 
+    def _control_operation_to_binary(self) -> str:
+        if self.instruction_type == ControlOperation.HALT:
+            if self.arguments:
+                raise ValueError("HALT does not take arguments")
+            return f"{InstructionOpcode.HALT.value}{0:028b}"
+
+        if self.instruction_type == ControlOperation.SAVE_PROGRAM_COUNTER:
+            if len(self.arguments) != 1:
+                raise ValueError("SAVPC requires one argument")
+            if not isinstance(self.arguments[0], Register):
+                raise ValueError("SAVPC argument must be a register")
+            return f"{InstructionOpcode.SAVPC.value}{0:024b}{self.arguments[0].to_binary()}"
+
+        if self.instruction_type == ControlOperation.CLEAR_CACHE:
+            if self.arguments:
+                raise ValueError("CCACHE does not take arguments")
+            return f"{InstructionOpcode.CCACHE.value}{0:028b}"
+
+        if self.instruction_type == ControlOperation.NOP:
+            if self.arguments:
+                raise ValueError("NOP does not take arguments")
+            return f"{0:032b}"
+
+        if self.instruction_type == ControlOperation.RETURN_INTERRUPT:
+            if self.arguments:
+                raise ValueError("RETI does not take arguments")
+            return f"{InstructionOpcode.RETI.value}{0:028b}"
+
+        if self.instruction_type == ControlOperation.READ_INTERRUPT_ID:
+            if len(self.arguments) != 1:
+                raise ValueError("READINTID requires one argument")
+            if not isinstance(self.arguments[0], Register):
+                raise ValueError("READINTID argument must be a register")
+            return f"{InstructionOpcode.INTID.value}{0:024b}{self.arguments[0].to_binary()}"
+
+        raise ValueError("Invalid control operation")
+
+    def _memory_operation_to_binary(self) -> str:
+        if self.instruction_type == MemoryOperation.READ:
+            if len(self.arguments) != 3:
+                raise ValueError("READ requires three arguments")
+            if not isinstance(self.arguments[0], Number):
+                raise ValueError("READ first argument must be a number")
+            if not isinstance(self.arguments[1], Register):
+                raise ValueError("READ second argument must be a register")
+            if not isinstance(self.arguments[2], Register):
+                raise ValueError("READ third argument must be a register")
+            return f"{InstructionOpcode.READ.value}{self.arguments[0].to_binary(bits=16)}{self.arguments[1].to_binary()}{0:04b}{self.arguments[2].to_binary()}"
+
+        if self.instruction_type == MemoryOperation.WRITE:
+            if len(self.arguments) != 3:
+                raise ValueError("WRITE requires three arguments")
+            if not isinstance(self.arguments[0], Number):
+                raise ValueError("WRITE first argument must be a number")
+            if not isinstance(self.arguments[1], Register):
+                raise ValueError("WRITE second argument must be a register")
+            if not isinstance(self.arguments[2], Register):
+                raise ValueError("WRITE third argument must be a register")
+            return f"{InstructionOpcode.WRITE.value}{self.arguments[0].to_binary(bits=16)}{self.arguments[1].to_binary()}{self.arguments[2].to_binary()}{0:04b}"
+        raise ValueError("Invalid memory operation")
+
+    def _single_cycle_arithmetic_operation_to_binary(self) -> str:
+        pass
+
+    def _multi_cycle_arithmetic_operation_to_binary(self) -> str:
+        pass
+
+    def _branch_operation_to_binary(self) -> str:
+        pass
+
+    def _jump_operation_to_binary(self) -> str:
+        pass
+
+    def to_binary_string(self) -> str:
+        if isinstance(self.instruction_type, ControlOperation):
+            instruction_binary_string = self._control_operation_to_binary()
+        elif isinstance(self.instruction_type, MemoryOperation):
+            instruction_binary_string = self._memory_operation_to_binary()
+        elif isinstance(self.instruction_type, SingleCycleArithmeticOperation):
+            instruction_binary_string = (
+                self._single_cycle_arithmetic_operation_to_binary()
+            )
+        elif isinstance(self.instruction_type, MultiCycleArithmeticOperation):
+            instruction_binary_string = (
+                self._multi_cycle_arithmetic_operation_to_binary()
+            )
+        elif isinstance(self.instruction_type, BranchOperation):
+            instruction_binary_string = self._branch_operation_to_binary()
+        elif isinstance(self.instruction_type, JumpOperation):
+            instruction_binary_string = self._jump_operation_to_binary()
+        else:
+            raise ValueError("Invalid instruction type")
+
+        comment_string = f" // {self.comment}" if self.comment else ""
+        return f"{instruction_binary_string}{comment_string}"
+
     def __repr__(self):
         return f"{self.instruction_type} {self.arguments} ({self.directive})"
 
@@ -273,6 +386,20 @@ class DataAssemblyLine(AssemblyLine):
             )
         return expanded_lines
 
+    def to_binary_string(self) -> str:
+        if self.data_instruction_type != DataInstructionType.WORD:
+            raise NotImplementedError(
+                "Only word data instructions are currently supported"
+            )
+
+        if len(self.data_instruction_values) != 1:
+            raise ValueError(
+                "Data instructions must have exactly one value to convert to binary"
+            )
+
+        comment_string = f" // {self.comment}" if self.comment else ""
+        return f"{self.data_instruction_values[0].value:032b}{comment_string}"
+
     def __repr__(self):
         return f"{self.data_instruction_type} {self.data_instruction_values} ({self.directive})"
 
@@ -286,6 +413,9 @@ class CommentAssemblyLine(AssemblyLine):
     def expand(self) -> list["AssemblyLine"]:
         # Comments are already atomic
         return [self]
+
+    def to_binary_string(self) -> str:
+        raise NotImplementedError("Comments do not have a binary representation")
 
     def __repr__(self):
         return f"# {self.comment}"
