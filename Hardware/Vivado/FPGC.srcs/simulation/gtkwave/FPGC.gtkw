@@ -2,10 +2,10 @@
 [*] GTKWave Analyzer v3.3.116 (w)1999-2023 BSI
 [*] Sun Feb  2 18:53:07 2025
 [*]
-[dumpfile] "/home/bart/Documents/FPGA/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/fpgc.vcd"
+[dumpfile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/fpgc.vcd"
 [dumpfile_mtime] "Sun Feb  2 18:23:38 2025"
 [dumpfile_size] 1081614029
-[savefile] "/home/bart/Documents/FPGA/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/FPGC.gtkw"
+[savefile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/FPGC.gtkw"
 [timestart] 0
 [size] 1920 1033
 [pos] -1 -1

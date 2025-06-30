@@ -6,7 +6,10 @@ Hardware/Vivado/FPGC.gen
 Hardware/Vivado/FPGC.ip_user_files
 Hardware/Vivado/FPGC.runs
 Hardware/Vivado/FPGC.sim
+Hardware/Vivado/*.log
 
 Hardware/Vivado/FPGC.srcs/simulation/output
 
 __pycache__/
+
+.venv/

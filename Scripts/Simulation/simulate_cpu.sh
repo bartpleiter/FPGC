@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# TODO: Swap conda with poetry venv
+# Activate the virtual environment
+source .venv/bin/activate
 
 # Activate conda environment
 eval "$(conda shell.bash hook)"
@@ -19,6 +20,7 @@ else
 fi
 
 # Run simulation and open gtkwave (in X11 as Wayland has issues)
+mkdir -p Hardware/Vivado/FPGC.srcs/simulation/output
 iverilog -o Hardware/Vivado/FPGC.srcs/simulation/output/cpu.out Hardware/Vivado/FPGC.srcs/simulation/cpu_tb.v &&\
 vvp Hardware/Vivado/FPGC.srcs/simulation/output/cpu.out &&\
 if ! pgrep -x "gtkwave" > /dev/null
@@ -28,4 +30,5 @@ else
     echo "gtkwave is already running."
 fi
 
-conda deactivate
+# Deactivate virtual environment
+deactivate
