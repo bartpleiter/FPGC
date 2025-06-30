@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Activate conda environment
-eval "$(conda shell.bash hook)"
-conda activate FPGC
+# Activate the virtual environment
+source .venv/bin/activate
 
 cd Docs
 
 python3 -m mkdocs serve -a localhost:8088
 
-conda deactivate
+# Deactivate virtual environment
+deactivate
