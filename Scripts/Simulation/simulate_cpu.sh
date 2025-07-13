@@ -3,10 +3,6 @@
 # Activate the virtual environment
 source .venv/bin/activate
 
-# Activate conda environment
-eval "$(conda shell.bash hook)"
-conda activate FPGC
-
 # Compile code
 cp Software/BareMetalASM/Simulation/cpu.asm BuildTools/ASM/code.asm
 if (cd BuildTools/ASM && python3 Assembler.py -H > code.list)

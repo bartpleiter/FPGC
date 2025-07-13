@@ -1,6 +1,6 @@
 /*
  * Testbench for the CPU (B32P2).
- * Designed to be used with the Icarus Verilog simulator for simplicity
+ * Designed to be used with the Icarus Verilog simulator
  */
 `timescale 1ns / 1ps
 
@@ -18,6 +18,7 @@
 `include "Hardware/Vivado/FPGC.srcs/verilog/CPU/AddressDecoder.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/Memory/ROM.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/Memory/VRAM.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/Memory/DPRAM.v"
 
 module cpu_tb ();
 
@@ -161,6 +162,76 @@ VRAM #(
     .gpu_q   (vramPX_gpu_q)
 );
 
+//-----------------------L1i RAM-------------------------
+
+// DPRAM I/O signals
+wire [273:0] l1i_pipe_d;
+wire [6:0]   l1i_pipe_addr;
+wire         l1i_pipe_we;
+wire [273:0] l1i_pipe_q;
+
+wire [273:0] l1i_ctrl_d;
+wire [6:0]   l1i_ctrl_addr;
+wire         l1i_ctrl_we;
+wire [273:0] l1i_ctrl_q;
+
+// CPU pipeline will not write to L1 RAM
+assign l1i_pipe_we = 1'b0;
+assign l1i_pipe_d  = 274'd0;
+
+// DPRAM instance
+DPRAM #(
+    .WIDTH(274),
+    .WORDS(128),
+    .ADDR_BITS(7),
+    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/l1i.list")
+) l1i_ram (
+    .clk(clk),
+    .pipe_d(l1i_pipe_d),
+    .pipe_addr(l1i_pipe_addr),
+    .pipe_we(l1i_pipe_we),
+    .pipe_q(l1i_pipe_q),
+    .ctrl_d(l1i_ctrl_d),
+    .ctrl_addr(l1i_ctrl_addr),
+    .ctrl_we(l1i_ctrl_we),
+    .ctrl_q(l1i_ctrl_q)
+);
+
+//-----------------------L1d RAM-------------------------
+
+// DPRAM I/O signals
+wire [273:0] l1d_pipe_d;
+wire [6:0]   l1d_pipe_addr;
+wire         l1d_pipe_we;
+wire [273:0] l1d_pipe_q;
+
+wire [273:0] l1d_ctrl_d;
+wire [6:0]   l1d_ctrl_addr;
+wire         l1d_ctrl_we;
+wire [273:0] l1d_ctrl_q;
+
+// CPU pipeline will not write to L1 RAM
+assign l1d_pipe_we = 1'b0;
+assign l1d_pipe_d  = 274'd0;
+
+// DPRAM instance
+DPRAM #(
+    .WIDTH(274),
+    .WORDS(128),
+    .ADDR_BITS(7),
+    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/l1d.list")
+) l1d_ram (
+    .clk(clk),
+    .pipe_d(l1d_pipe_d),
+    .pipe_addr(l1d_pipe_addr),
+    .pipe_we(l1d_pipe_we),
+    .pipe_q(l1d_pipe_q),
+    .ctrl_d(l1d_ctrl_d),
+    .ctrl_addr(l1d_ctrl_addr),
+    .ctrl_we(l1d_ctrl_we),
+    .ctrl_q(l1d_ctrl_q)
+);
+
 //-----------------------CPU-------------------------
 B32P2 cpu (
     // Clock and reset
@@ -192,7 +263,15 @@ B32P2 cpu (
     .vramPX_addr(vramPX_cpu_addr),
     .vramPX_d(vramPX_cpu_d),
     .vramPX_we(vramPX_cpu_we),
-    .vramPX_q(vramPX_cpu_q)
+    .vramPX_q(vramPX_cpu_q),
+
+    // L1i cache (cpu pipeline port)
+    .l1i_pipe_addr(l1i_pipe_addr),
+    .l1i_pipe_q(l1i_pipe_q),
+
+    // L1d cache (cpu pipeline port)
+    .l1d_pipe_addr(l1d_pipe_addr),
+    .l1d_pipe_q(l1d_pipe_q)
 );
 
 initial

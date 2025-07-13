@@ -1,6 +1,6 @@
 /*
  * Testbench for the MIG 7 Mock.
- * Designed to be used with the Icarus Verilog simulator for simplicity
+ * Designed to be used with the Icarus Verilog simulator
  */
 `timescale 1ns / 1ps
 

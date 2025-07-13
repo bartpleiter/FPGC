@@ -1,16 +1,13 @@
 Main:
-    nop
-    load32 0x7B00000 r11
-    load32 76800 r4
-    add r11 r4 r11
-    load 0 r2
-    load32 0x7B00000 r1
-    Loop:
-        write 0 r1 r2
-        add r1 1 r1
-        add r2 1 r2
-        beq r1 r11 2
-        jump 125829129
-    add r2 1 r2
-    jump 125829127
+    load 7 r1
+    load 4 r2
+    add r1 r2 r3 ; 11
+    sub r3 1 r4 ; 10
+    or r4 r1 r5 ; 15
+    and r5 r2 r6 ; 4
+    xor r6 r1 r7 ; 3
+    shiftl r7 1 r8 ; 6
+    shiftr r8 2 r9 ; 1
+    
+    or r9 r0 r15 ; expected=1
     halt

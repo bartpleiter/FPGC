@@ -52,7 +52,15 @@ module B32P2 #(
     output wire [16:0] vramPX_addr,
     output wire [7:0] vramPX_d,
     output wire vramPX_we,
-    input wire [7:0] vramPX_q
+    input wire [7:0] vramPX_q,
+
+    // L1i cache (cpu pipeline port)
+    output wire [6:0] l1i_pipe_addr,
+    input wire [273:0] l1i_pipe_q,
+
+    // L1d cache (cpu pipeline port)
+    output wire [6:0] l1d_pipe_addr,
+    input wire [273:0] l1d_pipe_q
 );
     
 // Flush and Stall signals
@@ -167,6 +175,9 @@ assign rom_fe_oe = mem_rom_FE1 && !flush_FE1;
 assign rom_fe_hold = stall_FE1;
 
 // Instruction Cache
+assign l1i_pipe_addr = PC_FE1[9:3]; // Address of the cache line
+
+// TODO: remember what this was about
 wire [31:0] icache_addr;
 assign icache_addr = PC_FE1;
 wire icache_oe;
@@ -193,14 +204,23 @@ wire mem_rom_FE2;
 assign mem_rom_FE2 = PC_FE2 >= ROM_ADDRESS;
 wire [31:0] rom_q_FE2 = rom_fe_q;
 
-wire [31:0] icache_q_FE2 = 32'd0; // TODO: connect to instruction cache
+wire [15:0] l1i_tag_FE2 = PC_FE2[25:10]; // Tag for the cache line
+wire [2:0] l1i_offset_FE2 = PC_FE2[2:0]; // Offset within the cache line
+
+wire l1i_cache_hit_FE2 = 
+    (!mem_rom_FE1 && !flush_FE1) &&
+    (l1i_tag_FE2 == l1i_pipe_q[17:2]) &&
+    l1i_pipe_q[1]; // Valid bit
+
+wire [31:0] l1i_cache_hit_q_FE2 = l1i_pipe_q[32 * l1i_offset_FE2 +: 32]; // Note that the +: is used to select base +: width
+
 
 // TODO: Skipped for now, should fetch from memory (via L1i cache) on cache miss
 //  and forward either icache_q, the fetched instruction or rom_q to the next stage
 
 
 wire [31:0] instr_result_FE2;
-assign instr_result_FE2 = (mem_rom_FE2) ? rom_q_FE2 : icache_q_FE2;
+assign instr_result_FE2 = (mem_rom_FE2) ? rom_q_FE2 : 32'd0; // TODO: replace 32'd0 with cache q result if valid
 
 // Forward to next stage
 wire [31:0] instr_REG;

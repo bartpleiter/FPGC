@@ -1,25 +1,42 @@
 [*]
-[*] GTKWave Analyzer v3.3.116 (w)1999-2023 BSI
-[*] Tue Feb  4 19:29:39 2025
+[*] GTKWave Analyzer v3.3.121 (w)1999-2024 BSI
+[*] Sun Jul 13 11:50:09 2025
 [*]
 [dumpfile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd"
-[dumpfile_mtime] "Tue Feb  4 19:29:08 2025"
-[dumpfile_size] 620228
+[dumpfile_mtime] "Sun Jul 13 11:48:39 2025"
+[dumpfile_size] 731813
 [savefile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/cpu.gtkw"
 [timestart] 0
 [size] 1920 1033
 [pos] -1 -1
-*-17.400000 164300 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-15.599999 130800 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] cpu_tb.
 [treeopen] cpu_tb.cpu.
 [treeopen] cpu_tb.cpu.multiCycleALU_EXMEM2.
 [sst_width] 278
 [signals_width] 566
 [sst_expanded] 1
-[sst_vpaned_height] 472
+[sst_vpaned_height] 532
 @28
 cpu_tb.clk
 cpu_tb.cpu.reset
+@200
+-
+-L1i Cache Controller
+-
+-L1i Cache RAM
+@22
+cpu_tb.l1i_ram.ctrl_addr[6:0]
+cpu_tb.l1i_ram.ctrl_d[273:0]
+@28
+cpu_tb.l1i_ram.ctrl_we
+@22
+cpu_tb.l1i_ram.ctrl_q[273:0]
+@200
+-
+@22
+cpu_tb.l1i_ram.pipe_addr[6:0]
+cpu_tb.l1i_ram.pipe_q[273:0]
 @200
 -
 -FE1
@@ -40,6 +57,10 @@ cpu_tb.cpu.mem_rom_addr_FE1[8:0]
 cpu_tb.cpu.rom_fe_oe
 @200
 -
+@24
+cpu_tb.cpu.l1i_pipe_addr[6:0]
+@200
+-
 -FE2
 @28
 cpu_tb.cpu.clk
@@ -55,8 +76,12 @@ cpu_tb.cpu.mem_rom_FE2
 cpu_tb.cpu.rom_q_FE2[31:0]
 @200
 -
-@28
-cpu_tb.cpu.icache_q_FE2[31:0]
+@24
+cpu_tb.cpu.l1i_offset_FE2[2:0]
+cpu_tb.cpu.l1i_tag_FE2[15:0]
+cpu_tb.cpu.l1i_cache_hit_FE2
+@29
+cpu_tb.cpu.l1i_cache_hit_q_FE2[31:0]
 @200
 -
 @28
@@ -167,7 +192,6 @@ cpu_tb.cpu.forward_a[1:0]
 cpu_tb.cpu.forward_b[1:0]
 @28
 cpu_tb.cpu.hazard_pc1_pc2
-@29
 cpu_tb.cpu.hazard_pc2_pc1
 @200
 -
