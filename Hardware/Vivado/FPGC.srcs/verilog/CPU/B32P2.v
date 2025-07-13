@@ -220,7 +220,7 @@ wire [31:0] l1i_cache_hit_q_FE2 = l1i_pipe_q[32 * l1i_offset_FE2 +: 32]; // Note
 
 
 wire [31:0] instr_result_FE2;
-assign instr_result_FE2 = (mem_rom_FE2) ? rom_q_FE2 : 32'd0; // TODO: replace 32'd0 with cache q result if valid
+assign instr_result_FE2 = (mem_rom_FE2) ? rom_q_FE2 : l1i_cache_hit_q_FE2; // TODO: add cache miss result here as well
 
 // Forward to next stage
 wire [31:0] instr_REG;
