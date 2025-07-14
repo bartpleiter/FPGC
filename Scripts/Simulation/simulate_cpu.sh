@@ -3,12 +3,26 @@
 # Activate the virtual environment
 source .venv/bin/activate
 
-# Compile code
-cp Software/BareMetalASM/Simulation/cpu.asm BuildTools/ASM/code.asm
+# Compile ROM code
+cp Software/BareMetalASM/Simulation/cpu_rom.asm BuildTools/ASM/code.asm
 if (cd BuildTools/ASM && python3 Assembler.py -H > code.list)
 then
     # Move to simulation directory
     mv BuildTools/ASM/code.list Hardware/Vivado/FPGC.srcs/simulation/memory/rom.list
+else
+    # Print the error, which is in code.list
+    (cat BuildTools/ASM/code.list)
+    exit
+fi
+
+# Compile RAM code
+cp Software/BareMetalASM/Simulation/cpu_ram.asm BuildTools/ASM/code.asm
+if (cd BuildTools/ASM && python3 Assembler.py -H > code.list)
+then
+    # Move to simulation directory
+    mv BuildTools/ASM/code.list Hardware/Vivado/FPGC.srcs/simulation/memory/ram.list
+    # Convert to 256 bit lines for mig7 mock
+    python3 BuildTools/Utils/convert_to_256_bit.py Hardware/Vivado/FPGC.srcs/simulation/memory/ram.list Hardware/Vivado/FPGC.srcs/simulation/memory/mig7mock.list
 else
     # Print the error, which is in code.list
     (cat BuildTools/ASM/code.list)

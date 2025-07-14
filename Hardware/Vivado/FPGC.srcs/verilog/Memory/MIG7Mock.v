@@ -3,7 +3,8 @@ module MIG7Mock
     parameter ADDR_WIDTH = 29,
     parameter DATA_WIDTH = 256,
     parameter MASK_WIDTH = 32,
-    parameter RAM_DEPTH = 1024  // Configurable RAM depth for simulation
+    parameter RAM_DEPTH = 1024,  // Configurable RAM depth for simulation
+    parameter LIST = "memory/mig7mock.list" // Initialization file for RAM
 )
 (
     // System interface
@@ -91,12 +92,9 @@ assign app_rd_data = app_rd_data_reg;
 assign app_rd_data_valid = app_rd_data_valid_reg;
 assign app_rd_data_end = app_rd_data_end_reg;
 
-// Initialize RAM to zero
-integer i;
+// Initialize RAM from file
 initial begin
-    for (i = 0; i < RAM_DEPTH; i = i + 1) begin
-        ram_memory[i] = {DATA_WIDTH{1'b0}};
-    end
+    $readmemb(LIST, ram_memory);
 end
 
 // Main state machine

@@ -177,12 +177,6 @@ assign rom_fe_hold = stall_FE1;
 // Instruction Cache
 assign l1i_pipe_addr = PC_FE1[9:3]; // Address of the cache line
 
-// TODO: remember what this was about
-wire [31:0] icache_addr;
-assign icache_addr = PC_FE1;
-wire icache_oe;
-assign icache_oe = !mem_rom_FE1 && !flush_FE1;
-
 // Forward to next stage
 wire [31:0] PC_FE2;
 Regr #(
@@ -193,6 +187,17 @@ Regr #(
     .out(PC_FE2),
     .hold(stall_FE1),
     .clear(flush_FE1)
+);
+
+wire valid_FE2;
+Regr #(
+    .N(1)
+) regr_valid_FE1_FE2 (
+    .clk (clk),
+    .in(!mem_rom_FE1 && !flush_FE1),
+    .out(valid_FE2),
+    .hold(1'b0),
+    .clear(1'b0)
 );
 
 /*
@@ -208,15 +213,16 @@ wire [15:0] l1i_tag_FE2 = PC_FE2[25:10]; // Tag for the cache line
 wire [2:0] l1i_offset_FE2 = PC_FE2[2:0]; // Offset within the cache line
 
 wire l1i_cache_hit_FE2 = 
-    (!mem_rom_FE1 && !flush_FE1) &&
+    (valid_FE2) &&
     (l1i_tag_FE2 == l1i_pipe_q[17:2]) &&
     l1i_pipe_q[1]; // Valid bit
+
+wire l1i_cache_miss_FE2 = !l1i_cache_hit_FE2 && valid_FE2;
 
 wire [31:0] l1i_cache_hit_q_FE2 = l1i_pipe_q[32 * l1i_offset_FE2 +: 32]; // Note that the +: is used to select base +: width
 
 
-// TODO: Skipped for now, should fetch from memory (via L1i cache) on cache miss
-//  and forward either icache_q, the fetched instruction or rom_q to the next stage
+// TODO: should fetch instruction via cache controller on cache miss and integrate below
 
 
 wire [31:0] instr_result_FE2;

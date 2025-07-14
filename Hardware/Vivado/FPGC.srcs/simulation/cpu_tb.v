@@ -19,6 +19,7 @@
 `include "Hardware/Vivado/FPGC.srcs/verilog/Memory/ROM.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/Memory/VRAM.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/Memory/DPRAM.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/Memory/MIG7Mock.v"
 
 module cpu_tb ();
 
@@ -230,6 +231,69 @@ DPRAM #(
     .ctrl_addr(l1d_ctrl_addr),
     .ctrl_we(l1d_ctrl_we),
     .ctrl_q(l1d_ctrl_q)
+);
+
+//-----------------------MIG7 Mock-------------------------
+
+// MIG7Mock I/O signals
+wire mig7_init_calib_complete;
+
+wire [28:0] mig7_app_addr;
+wire [2:0]  mig7_app_cmd;
+wire        mig7_app_en;
+wire        mig7_app_rdy;
+
+wire [255:0] mig7_app_wdf_data;
+wire         mig7_app_wdf_end;
+wire [31:0]  mig7_app_wdf_mask;
+wire         mig7_app_wdf_wren;
+wire         mig7_app_wdf_rdy;
+
+wire [255:0] mig7_app_rd_data;
+wire         mig7_app_rd_data_end;
+wire         mig7_app_rd_data_valid;
+
+wire         mig7_app_sr_req = 1'b0;
+wire         mig7_app_ref_req = 1'b0;
+wire         mig7_app_zq_req = 1'b0;
+wire         mig7_app_sr_active;
+wire         mig7_app_ref_ack;
+wire         mig7_app_zq_ack;
+
+MIG7Mock #(
+    .ADDR_WIDTH(29),
+    .DATA_WIDTH(256),
+    .MASK_WIDTH(32),
+    .RAM_DEPTH(1024),
+    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/mig7mock.list")
+) mig7mock (
+    .sys_clk_i(clk),
+    .sys_rst(reset),
+    .ui_clk(), // Not used in simulation, all clocks are clk for now
+    .ui_clk_sync_rst(), // Not used in simulation
+    .init_calib_complete(mig7_init_calib_complete),
+
+    .app_addr(mig7_app_addr),
+    .app_cmd(mig7_app_cmd),
+    .app_en(mig7_app_en),
+    .app_rdy(mig7_app_rdy),
+
+    .app_wdf_data(mig7_app_wdf_data),
+    .app_wdf_end(mig7_app_wdf_end),
+    .app_wdf_mask(mig7_app_wdf_mask),
+    .app_wdf_wren(mig7_app_wdf_wren),
+    .app_wdf_rdy(mig7_app_wdf_rdy),
+
+    .app_rd_data(mig7_app_rd_data),
+    .app_rd_data_end(mig7_app_rd_data_end),
+    .app_rd_data_valid(mig7_app_rd_data_valid),
+
+    .app_sr_req(mig7_app_sr_req),
+    .app_ref_req(mig7_app_ref_req),
+    .app_zq_req(mig7_app_zq_req),
+    .app_sr_active(mig7_app_sr_active),
+    .app_ref_ack(mig7_app_ref_ack),
+    .app_zq_ack(mig7_app_zq_ack)
 );
 
 //-----------------------CPU-------------------------

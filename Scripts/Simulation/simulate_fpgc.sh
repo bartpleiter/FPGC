@@ -4,7 +4,7 @@
 source .venv/bin/activate
 
 # Compile code
-cp Software/BareMetalASM/Simulation/cpu.asm BuildTools/ASM/code.asm
+cp Software/BareMetalASM/Simulation/fpgc.asm BuildTools/ASM/code.asm
 if (cd BuildTools/ASM && python3 Assembler.py -H > code.list)
 then
     # Move to simulation directory
