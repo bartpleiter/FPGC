@@ -16,6 +16,7 @@
 `include "Hardware/Vivado/FPGC.srcs/verilog/CPU/Stack.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/CPU/BranchJumpUnit.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/CPU/AddressDecoder.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/CacheControllerL1i.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/Memory/ROM.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/Memory/VRAM.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/Memory/DPRAM.v"
@@ -296,6 +297,49 @@ MIG7Mock #(
     .app_zq_ack(mig7_app_zq_ack)
 );
 
+//-----------------------CacheControllerL1i-------------------------
+
+// CacheControllerL1i control signals
+wire        l1i_cache_controller_start;
+wire [31:0] l1i_cache_controller_addr;
+wire        l1i_cache_controller_done;
+wire        l1i_cache_controller_ready;
+wire [31:0] l1i_cache_controller_result;
+
+// Instantiate CacheControllerL1i
+CacheControllerL1i cache_controller_l1i (
+    .clk(clk),
+    .reset(reset),
+
+    // CPU pipeline interface
+    .cpu_start(l1i_cache_controller_start),
+    .cpu_addr(l1i_cache_controller_addr),
+    .cpu_done(l1i_cache_controller_done),
+    .cpu_ready(l1i_cache_controller_ready),
+    .cpu_result(l1i_cache_controller_result),
+
+    // L1 instruction cache DPRAM interface
+    .l1i_ctrl_d(l1i_ctrl_d),
+    .l1i_ctrl_addr(l1i_ctrl_addr),
+    .l1i_ctrl_we(l1i_ctrl_we),
+    .l1i_ctrl_q(l1i_ctrl_q),
+
+    // MIG7 interface
+    .init_calib_complete(mig7_init_calib_complete),
+    .app_addr(mig7_app_addr),
+    .app_cmd(mig7_app_cmd),
+    .app_en(mig7_app_en),
+    .app_rdy(mig7_app_rdy),
+    .app_wdf_data(mig7_app_wdf_data),
+    .app_wdf_end(mig7_app_wdf_end),
+    .app_wdf_mask(mig7_app_wdf_mask),
+    .app_wdf_wren(mig7_app_wdf_wren),
+    .app_wdf_rdy(mig7_app_wdf_rdy),
+    .app_rd_data(mig7_app_rd_data),
+    .app_rd_data_end(mig7_app_rd_data_end),
+    .app_rd_data_valid(mig7_app_rd_data_valid)
+);
+
 //-----------------------CPU-------------------------
 B32P2 cpu (
     // Clock and reset
@@ -335,7 +379,14 @@ B32P2 cpu (
 
     // L1d cache (cpu pipeline port)
     .l1d_pipe_addr(l1d_pipe_addr),
-    .l1d_pipe_q(l1d_pipe_q)
+    .l1d_pipe_q(l1d_pipe_q),
+
+    // L1i cache controller
+    .l1i_cache_controller_addr(l1i_cache_controller_addr),
+    .l1i_cache_controller_start(l1i_cache_controller_start),
+    .l1i_cache_controller_done(l1i_cache_controller_done),
+    .l1i_cache_controller_result(l1i_cache_controller_result),
+    .l1i_cache_controller_ready(l1i_cache_controller_ready)
 );
 
 initial

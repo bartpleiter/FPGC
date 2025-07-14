@@ -24,8 +24,7 @@ def convert_to_256_bit(input_path, output_path):
         chunk = words[i:i+chunk_size]
         if len(chunk) < chunk_size:
             chunk += [zero_word] * (chunk_size - len(chunk))
-        output_lines.append('_'.join(chunk))
-    
+        output_lines.append('_'.join(chunk[::-1]))
     with open(output_path, 'w') as outfile:
         for line in output_lines:
             outfile.write(line + '\n')

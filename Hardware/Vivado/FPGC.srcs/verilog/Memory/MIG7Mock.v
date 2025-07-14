@@ -82,7 +82,7 @@ reg [DATA_WIDTH-1:0] ram_memory [0:RAM_DEPTH-1];
 wire [9:0] ram_addr; // 10 bits for 1024 depth
 
 // Extract word address from byte address (divide by 32 since 256 bits = 32 bytes)
-assign ram_addr = app_addr[14:5]; // Use bits [14:5] for word addressing
+assign ram_addr = app_addr; // Assuming app_addr is already aligned to 256 bits
 
 // Output assignments
 assign init_calib_complete = init_complete;

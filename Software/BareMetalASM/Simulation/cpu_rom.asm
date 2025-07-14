@@ -10,4 +10,4 @@ Main:
     load 0 r6
 
     ; Jump to RAM code, which always starts at address 0
-    jump 0
+    jump 1

@@ -1,20 +1,19 @@
 [*]
 [*] GTKWave Analyzer v3.3.121 (w)1999-2024 BSI
-[*] Mon Jul 14 08:49:10 2025
+[*] Mon Jul 14 14:47:37 2025
 [*]
 [dumpfile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd"
-[dumpfile_mtime] "Mon Jul 14 08:47:43 2025"
-[dumpfile_size] 203601
+[dumpfile_mtime] "Mon Jul 14 14:47:03 2025"
+[dumpfile_size] 579888
 [savefile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/cpu.gtkw"
-[timestart] 64500
+[timestart] 911000
 [size] 1920 1033
 [pos] -1 -1
-*-15.599999 153100 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-15.900000 1065300 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] cpu_tb.
 [treeopen] cpu_tb.cpu.
-[treeopen] cpu_tb.cpu.multiCycleALU_EXMEM2.
 [sst_width] 278
-[signals_width] 566
+[signals_width] 700
 [sst_expanded] 1
 [sst_vpaned_height] 530
 @28
@@ -61,6 +60,45 @@ cpu_tb.cpu.rom_fe_oe
 cpu_tb.cpu.l1i_pipe_addr[6:0]
 @200
 -
+-CacheController L1i
+@24
+cpu_tb.cache_controller_l1i.state[7:0]
+@28
+cpu_tb.cache_controller_l1i.cpu_start
+@24
+cpu_tb.cache_controller_l1i.cpu_addr[31:0]
+@28
+cpu_tb.cache_controller_l1i.cpu_result[31:0]
+cpu_tb.cache_controller_l1i.cpu_done
+@200
+-
+@28
+cpu_tb.cache_controller_l1i.cache_line_data[255:0]
+@24
+cpu_tb.cache_controller_l1i.cache_tag[15:0]
+@28
+cpu_tb.cache_controller_l1i.l1i_ctrl_d[273:0]
+cpu_tb.cache_controller_l1i.l1i_ctrl_we
+@200
+-
+@24
+cpu_tb.cache_controller_l1i.word_offset[2:0]
+@200
+-
+-MIG7
+@28
+cpu_tb.mig7mock.app_rdy
+@24
+cpu_tb.mig7mock.app_addr[28:0]
+@28
+cpu_tb.mig7mock.app_en
+@29
+cpu_tb.mig7mock.app_rd_data_valid
+@28
+cpu_tb.mig7mock.app_rd_data[255:0]
+@200
+-
+-
 -FE2
 @28
 cpu_tb.cpu.clk
@@ -76,16 +114,35 @@ cpu_tb.cpu.mem_rom_FE2
 cpu_tb.cpu.rom_q_FE2[31:0]
 @200
 -
-@29
-cpu_tb.cpu.valid_FE2
+@28
+cpu_tb.cpu.l1i_pipe_q[273:0]
 @24
 cpu_tb.cpu.l1i_offset_FE2[2:0]
 cpu_tb.cpu.l1i_tag_FE2[15:0]
-cpu_tb.cpu.l1i_cache_hit_FE2
 @28
-cpu_tb.cpu.l1i_cache_hit_q_FE2[31:0]
-cpu_tb.cpu.l1i_cache_miss_FE2
+cpu_tb.cpu.valid_FE2
 @200
+-
+@24
+cpu_tb.cpu.l1i_cache_hit_FE2
+@200
+-
+@28
+cpu_tb.cpu.l1i_cache_miss_FE2
+cpu_tb.cpu.l1i_cache_miss_FE2_check
+cpu_tb.cpu.l1i_cache_controller_done
+@200
+-
+@28
+cpu_tb.cpu.l1i_cache_controller_ready
+cpu_tb.cpu.l1i_cache_controller_start
+@200
+-
+@28
+cpu_tb.cpu.l1i_cache_controller_result[31:0]
+cpu_tb.cpu.l1i_cache_hit_q_FE2[31:0]
+@200
+-
 -
 @28
 cpu_tb.cpu.instr_result_FE2[31:0]

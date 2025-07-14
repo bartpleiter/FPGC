@@ -1,4 +1,5 @@
 Main:
+    load 1 r1
     load 7 r1
     load 4 r2
     add r1 r2 r3 ; 11
