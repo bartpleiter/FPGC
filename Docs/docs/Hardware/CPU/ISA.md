@@ -1,7 +1,7 @@
 # B32P2 ISA
 
 The B32P2 instruction set architecture is a RISC architecture, mostly compatible with the B32P ISA from the FPGC6.
-The main differences are support for multi-cycle ARITH instructions. Multiply instructions are now 2 cycles, meaning MULTS and MULTU are the only instructions from B32P that need different binary patterns on B32P2.
+The main differences are support for multi-cycle ARITH instructions. Multiply instructions take now >1 cycles to satisfy timing constraints, meaning MULTS and MULTU are the only instructions from B32P that need different binary patterns on B32P2.
 
 Each instruction is 32 bits and can be one of the following instructions:
 ``` text

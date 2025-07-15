@@ -1,0 +1,4 @@
+nav:
+    - CPU.md
+    - ISA.md
+    - Cache.md
