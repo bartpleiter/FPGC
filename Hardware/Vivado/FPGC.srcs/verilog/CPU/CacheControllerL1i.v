@@ -97,6 +97,7 @@ begin
                     cpu_ready <= 1'b1; // Indicate that the controller is ready for a new command
                     if (cpu_start && init_calib_complete)
                     begin
+                        cpu_ready <= 1'b0;
                         // Store the CPU address and calculate derived values
                         stored_cpu_addr <= cpu_addr;
                         cache_tag <= cpu_addr[25:10];

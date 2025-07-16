@@ -17,10 +17,12 @@
 `include "Hardware/Vivado/FPGC.srcs/verilog/CPU/BranchJumpUnit.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/CPU/AddressDecoder.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/CPU/CacheControllerL1i.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/CacheControllerL1d.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/Memory/ROM.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/Memory/VRAM.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/Memory/DPRAM.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/Memory/MIG7Mock.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/Memory/MIG7Arbiter.v"
 
 module cpu_tb ();
 
@@ -234,6 +236,40 @@ DPRAM #(
     .ctrl_q(l1d_ctrl_q)
 );
 
+//-----------------------MIG7 Arbiter Signals-------------------------
+
+// L1i cache controller to arbiter signals
+wire [28:0] l1i_arb_app_addr;
+wire [2:0]  l1i_arb_app_cmd;
+wire        l1i_arb_app_en;
+wire        l1i_arb_app_rdy;
+
+wire [255:0] l1i_arb_app_wdf_data;
+wire         l1i_arb_app_wdf_end;
+wire [31:0]  l1i_arb_app_wdf_mask;
+wire         l1i_arb_app_wdf_wren;
+wire         l1i_arb_app_wdf_rdy;
+
+wire [255:0] l1i_arb_app_rd_data;
+wire         l1i_arb_app_rd_data_end;
+wire         l1i_arb_app_rd_data_valid;
+
+// L1d cache controller to arbiter signals
+wire [28:0] l1d_arb_app_addr;
+wire [2:0]  l1d_arb_app_cmd;
+wire        l1d_arb_app_en;
+wire        l1d_arb_app_rdy;
+
+wire [255:0] l1d_arb_app_wdf_data;
+wire         l1d_arb_app_wdf_end;
+wire [31:0]  l1d_arb_app_wdf_mask;
+wire         l1d_arb_app_wdf_wren;
+wire         l1d_arb_app_wdf_rdy;
+
+wire [255:0] l1d_arb_app_rd_data;
+wire         l1d_arb_app_rd_data_end;
+wire         l1d_arb_app_rd_data_valid;
+
 //-----------------------MIG7 Mock-------------------------
 
 // MIG7Mock I/O signals
@@ -297,6 +333,57 @@ MIG7Mock #(
     .app_zq_ack(mig7_app_zq_ack)
 );
 
+//-----------------------MIG7 Arbiter-------------------------
+
+// Instantiate MIG7Arbiter
+MIG7Arbiter mig7_arbiter (
+    .clk(clk),
+    .reset(reset),
+    
+    // MIG7 interface (to memory controller)
+    .init_calib_complete(mig7_init_calib_complete),
+    .app_addr(mig7_app_addr),
+    .app_cmd(mig7_app_cmd),
+    .app_en(mig7_app_en),
+    .app_rdy(mig7_app_rdy),
+    .app_wdf_data(mig7_app_wdf_data),
+    .app_wdf_end(mig7_app_wdf_end),
+    .app_wdf_mask(mig7_app_wdf_mask),
+    .app_wdf_wren(mig7_app_wdf_wren),
+    .app_wdf_rdy(mig7_app_wdf_rdy),
+    .app_rd_data(mig7_app_rd_data),
+    .app_rd_data_end(mig7_app_rd_data_end),
+    .app_rd_data_valid(mig7_app_rd_data_valid),
+    
+    // L1i cache controller interface
+    .l1i_app_addr(l1i_arb_app_addr),
+    .l1i_app_cmd(l1i_arb_app_cmd),
+    .l1i_app_en(l1i_arb_app_en),
+    .l1i_app_rdy(l1i_arb_app_rdy),
+    .l1i_app_wdf_data(l1i_arb_app_wdf_data),
+    .l1i_app_wdf_end(l1i_arb_app_wdf_end),
+    .l1i_app_wdf_mask(l1i_arb_app_wdf_mask),
+    .l1i_app_wdf_wren(l1i_arb_app_wdf_wren),
+    .l1i_app_wdf_rdy(l1i_arb_app_wdf_rdy),
+    .l1i_app_rd_data(l1i_arb_app_rd_data),
+    .l1i_app_rd_data_end(l1i_arb_app_rd_data_end),
+    .l1i_app_rd_data_valid(l1i_arb_app_rd_data_valid),
+    
+    // L1d cache controller interface
+    .l1d_app_addr(l1d_arb_app_addr),
+    .l1d_app_cmd(l1d_arb_app_cmd),
+    .l1d_app_en(l1d_arb_app_en),
+    .l1d_app_rdy(l1d_arb_app_rdy),
+    .l1d_app_wdf_data(l1d_arb_app_wdf_data),
+    .l1d_app_wdf_end(l1d_arb_app_wdf_end),
+    .l1d_app_wdf_mask(l1d_arb_app_wdf_mask),
+    .l1d_app_wdf_wren(l1d_arb_app_wdf_wren),
+    .l1d_app_wdf_rdy(l1d_arb_app_wdf_rdy),
+    .l1d_app_rd_data(l1d_arb_app_rd_data),
+    .l1d_app_rd_data_end(l1d_arb_app_rd_data_end),
+    .l1d_app_rd_data_valid(l1d_arb_app_rd_data_valid)
+);
+
 //-----------------------CacheControllerL1i-------------------------
 
 // CacheControllerL1i control signals
@@ -324,20 +411,63 @@ CacheControllerL1i cache_controller_l1i (
     .l1i_ctrl_we(l1i_ctrl_we),
     .l1i_ctrl_q(l1i_ctrl_q),
 
-    // MIG7 interface
+    // MIG7 interface (via arbiter)
     .init_calib_complete(mig7_init_calib_complete),
-    .app_addr(mig7_app_addr),
-    .app_cmd(mig7_app_cmd),
-    .app_en(mig7_app_en),
-    .app_rdy(mig7_app_rdy),
-    .app_wdf_data(mig7_app_wdf_data),
-    .app_wdf_end(mig7_app_wdf_end),
-    .app_wdf_mask(mig7_app_wdf_mask),
-    .app_wdf_wren(mig7_app_wdf_wren),
-    .app_wdf_rdy(mig7_app_wdf_rdy),
-    .app_rd_data(mig7_app_rd_data),
-    .app_rd_data_end(mig7_app_rd_data_end),
-    .app_rd_data_valid(mig7_app_rd_data_valid)
+    .app_addr(l1i_arb_app_addr),
+    .app_cmd(l1i_arb_app_cmd),
+    .app_en(l1i_arb_app_en),
+    .app_rdy(l1i_arb_app_rdy),
+    .app_wdf_data(l1i_arb_app_wdf_data),
+    .app_wdf_end(l1i_arb_app_wdf_end),
+    .app_wdf_mask(l1i_arb_app_wdf_mask),
+    .app_wdf_wren(l1i_arb_app_wdf_wren),
+    .app_wdf_rdy(l1i_arb_app_wdf_rdy),
+    .app_rd_data(l1i_arb_app_rd_data),
+    .app_rd_data_end(l1i_arb_app_rd_data_end),
+    .app_rd_data_valid(l1i_arb_app_rd_data_valid)
+);
+
+//-----------------------CacheControllerL1d-------------------------
+
+// CacheControllerL1d control signals
+wire        l1d_cache_controller_start;
+wire [31:0] l1d_cache_controller_addr;
+wire        l1d_cache_controller_done;
+wire        l1d_cache_controller_ready;
+wire [31:0] l1d_cache_controller_result;
+
+// Instantiate CacheControllerL1d
+CacheControllerL1d cache_controller_l1d (
+    .clk(clk),
+    .reset(reset),
+
+    // CPU pipeline interface
+    .cpu_start(l1d_cache_controller_start),
+    .cpu_addr(l1d_cache_controller_addr),
+    .cpu_done(l1d_cache_controller_done),
+    .cpu_ready(l1d_cache_controller_ready),
+    .cpu_result(l1d_cache_controller_result),
+
+    // L1 data cache DPRAM interface
+    .l1d_ctrl_d(l1d_ctrl_d),
+    .l1d_ctrl_addr(l1d_ctrl_addr),
+    .l1d_ctrl_we(l1d_ctrl_we),
+    .l1d_ctrl_q(l1d_ctrl_q),
+
+    // MIG7 interface (via arbiter)
+    .init_calib_complete(mig7_init_calib_complete),
+    .app_addr(l1d_arb_app_addr),
+    .app_cmd(l1d_arb_app_cmd),
+    .app_en(l1d_arb_app_en),
+    .app_rdy(l1d_arb_app_rdy),
+    .app_wdf_data(l1d_arb_app_wdf_data),
+    .app_wdf_end(l1d_arb_app_wdf_end),
+    .app_wdf_mask(l1d_arb_app_wdf_mask),
+    .app_wdf_wren(l1d_arb_app_wdf_wren),
+    .app_wdf_rdy(l1d_arb_app_wdf_rdy),
+    .app_rd_data(l1d_arb_app_rd_data),
+    .app_rd_data_end(l1d_arb_app_rd_data_end),
+    .app_rd_data_valid(l1d_arb_app_rd_data_valid)
 );
 
 //-----------------------CPU-------------------------

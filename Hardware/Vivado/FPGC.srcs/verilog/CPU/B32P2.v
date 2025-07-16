@@ -67,7 +67,16 @@ module B32P2 #(
     output wire l1i_cache_controller_start,
     input wire l1i_cache_controller_done,
     input wire l1i_cache_controller_ready,
-    input wire [31:0] l1i_cache_controller_result
+    input wire [31:0] l1i_cache_controller_result,
+
+    // L1d cache controller
+    output wire [31:0] l1d_cache_controller_addr,
+    output wire [31:0] l1d_cache_controller_data,
+    output wire l1d_cache_controller_we,
+    output wire l1d_cache_controller_start,
+    input wire l1d_cache_controller_done,
+    input wire l1d_cache_controller_ready,
+    input wire [31:0] l1d_cache_controller_result
 );
     
 // Flush and Stall signals
@@ -86,7 +95,7 @@ wire stall_FE2;
 wire stall_REG;
 wire stall_EXMEM1;
 
-// TODO stall all previous stages on EXMEM2 busy or FE2 busy
+// TODO stall all previous stages on EXMEM2 busy
 assign stall_FE1 = exmem1_uses_exmem2_result || multicycle_alu_stall || l1i_cache_miss_FE2;
 assign stall_FE2 = exmem1_uses_exmem2_result || multicycle_alu_stall;
 assign stall_REG = exmem1_uses_exmem2_result || multicycle_alu_stall;
