@@ -62,14 +62,13 @@ module B32P2 #(
     output wire [6:0] l1d_pipe_addr,
     input wire [273:0] l1d_pipe_q,
 
-    // L1i cache controller
+    // cache controller
     output wire [31:0] l1i_cache_controller_addr,
     output wire l1i_cache_controller_start,
     input wire l1i_cache_controller_done,
     input wire l1i_cache_controller_ready,
     input wire [31:0] l1i_cache_controller_result,
 
-    // L1d cache controller
     output wire [31:0] l1d_cache_controller_addr,
     output wire [31:0] l1d_cache_controller_data,
     output wire l1d_cache_controller_we,
@@ -78,7 +77,14 @@ module B32P2 #(
     input wire l1d_cache_controller_ready,
     input wire [31:0] l1d_cache_controller_result
 );
-    
+
+// TMP disable l1d cache controller signals
+// TODO: enable when l1d is integrated in pipeline
+assign l1d_cache_controller_addr = 32'b0;
+assign l1d_cache_controller_data = 32'b0;
+assign l1d_cache_controller_we = 1'b0;
+assign l1d_cache_controller_start = 1'b0;
+
 // Flush and Stall signals
 wire flush_FE1;
 wire flush_FE2;

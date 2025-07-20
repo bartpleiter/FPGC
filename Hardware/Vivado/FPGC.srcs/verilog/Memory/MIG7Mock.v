@@ -64,25 +64,25 @@ localparam READ_CMD = 3'b100;
 localparam READ_DATA = 3'b101;
 
 // Internal registers
-reg [2:0] state;
-reg [7:0] cycle_counter;
-reg init_complete;
-reg app_rdy_reg;
-reg app_wdf_rdy_reg;
-reg [DATA_WIDTH-1:0] app_rd_data_reg;
-reg app_rd_data_valid_reg;
-reg app_rd_data_end_reg;
+reg [2:0] state = 3'b000;
+reg [7:0] cycle_counter = 8'd0;
+reg init_complete = 1'b0;
+reg app_rdy_reg = 1'b0;
+reg app_wdf_rdy_reg = 1'b0;
+reg [DATA_WIDTH-1:0] app_rd_data_reg = {DATA_WIDTH{1'b0}};
+reg app_rd_data_valid_reg = 1'b0;
+reg app_rd_data_end_reg = 1'b0;
 
 // Command and address storage
-reg [ADDR_WIDTH-1:0] stored_addr;
-reg [2:0] stored_cmd;
+reg [ADDR_WIDTH-1:0] stored_addr = {ADDR_WIDTH{1'b0}};
+reg [2:0] stored_cmd = 3'b000;
 
 // RAM storage
 reg [DATA_WIDTH-1:0] ram_memory [0:RAM_DEPTH-1];
 wire [9:0] ram_addr; // 10 bits for 1024 depth
 
 // Extract word address from byte address (divide by 32 since 256 bits = 32 bytes)
-assign ram_addr = app_addr; // Assuming app_addr is already aligned to 256 bits
+assign ram_addr = stored_addr; // Use stored address instead of live app_addr
 
 // Output assignments
 assign init_calib_complete = init_complete;
@@ -165,7 +165,12 @@ always @(posedge ui_clk) begin
                         // For simplicity, we'll write the full word if any mask bit allows it
                         if (app_wdf_mask != {MASK_WIDTH{1'b1}}) begin
                             ram_memory[ram_addr] <= app_wdf_data;
+                            $display("Time %0t: MIG7Mock WRITE: addr=0x%h, data=0x%h", $time, stored_addr, app_wdf_data);
+                        end else begin
+                            $display("Time %0t: MIG7Mock WRITE MASKED: addr=0x%h, mask=0x%h (write blocked)", $time, stored_addr, app_wdf_mask);
                         end
+                    end else begin
+                        $display("Time %0t: MIG7Mock WRITE OUT-OF-BOUNDS: addr=0x%h (>= 0x%h)", $time, stored_addr, RAM_DEPTH);
                     end
                     
                     app_wdf_rdy_reg <= 1'b0;
@@ -200,9 +205,11 @@ always @(posedge ui_clk) begin
                     // Load data from RAM
                     if (ram_addr < RAM_DEPTH) begin
                         app_rd_data_reg <= ram_memory[ram_addr];
+                        $display("Time %0t: MIG7Mock READ: addr=0x%h, data=0x%h", $time, stored_addr, ram_memory[ram_addr]);
                     end
                     else begin
                         app_rd_data_reg <= {DATA_WIDTH{1'b0}}; // Return zeros for out-of-bounds
+                        $display("Time %0t: MIG7Mock READ OUT-OF-BOUNDS: addr=0x%h (>= 0x%h), returning 0x0", $time, stored_addr, RAM_DEPTH);
                     end
                     
                     state <= READ_DATA;
