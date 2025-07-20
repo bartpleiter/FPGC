@@ -66,7 +66,6 @@ module B32P2 #(
     output wire [31:0] l1i_cache_controller_addr,
     output wire l1i_cache_controller_start,
     input wire l1i_cache_controller_done,
-    input wire l1i_cache_controller_ready,
     input wire [31:0] l1i_cache_controller_result,
 
     output wire [31:0] l1d_cache_controller_addr,
@@ -74,7 +73,6 @@ module B32P2 #(
     output wire l1d_cache_controller_we,
     output wire l1d_cache_controller_start,
     input wire l1d_cache_controller_done,
-    input wire l1d_cache_controller_ready,
     input wire [31:0] l1d_cache_controller_result
 );
 
@@ -252,9 +250,8 @@ reg [1:0] l1i_cache_miss_state_FE2 = 2'b00;
 reg l1i_cache_controller_start_reg = 1'b0;
 
 localparam CACHE_IDLE = 2'b00;
-localparam CACHE_WAIT_READY = 2'b01;
-localparam CACHE_STARTED = 2'b10;
-localparam CACHE_WAIT_DONE = 2'b11;
+localparam CACHE_STARTED = 2'b01;
+localparam CACHE_WAIT_DONE = 2'b10;
 
 always @(posedge clk) begin
     if (reset || flush_FE2) begin
@@ -265,17 +262,6 @@ always @(posedge clk) begin
             CACHE_IDLE: begin
                 l1i_cache_controller_start_reg <= 1'b0;
                 if (l1i_cache_miss_FE2) begin
-                    if (l1i_cache_controller_ready) begin
-                        l1i_cache_controller_start_reg <= 1'b1;
-                        l1i_cache_miss_state_FE2 <= CACHE_STARTED;
-                    end else begin
-                        l1i_cache_miss_state_FE2 <= CACHE_WAIT_READY;
-                    end
-                end
-            end
-            
-            CACHE_WAIT_READY: begin
-                if (l1i_cache_controller_ready) begin
                     l1i_cache_controller_start_reg <= 1'b1;
                     l1i_cache_miss_state_FE2 <= CACHE_STARTED;
                 end

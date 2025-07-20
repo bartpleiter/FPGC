@@ -88,7 +88,7 @@ assign ram_addr = stored_addr; // Use stored address instead of live app_addr
 assign init_calib_complete = init_complete;
 assign app_rdy = app_rdy_reg;
 assign app_wdf_rdy = app_wdf_rdy_reg;
-assign app_rd_data = app_rd_data_reg;
+assign app_rd_data = app_rd_data_valid_reg ? app_rd_data_reg : {DATA_WIDTH{1'b0}};
 assign app_rd_data_valid = app_rd_data_valid_reg;
 assign app_rd_data_end = app_rd_data_end_reg;
 

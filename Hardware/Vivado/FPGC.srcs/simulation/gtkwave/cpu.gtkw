@@ -1,29 +1,53 @@
 [*]
 [*] GTKWave Analyzer v3.3.121 (w)1999-2024 BSI
-[*] Mon Jul 14 14:47:37 2025
+[*] Sun Jul 20 16:39:45 2025
 [*]
 [dumpfile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd"
-[dumpfile_mtime] "Mon Jul 14 14:47:03 2025"
-[dumpfile_size] 579888
+[dumpfile_mtime] "Sun Jul 20 16:36:31 2025"
+[dumpfile_size] 279276
 [savefile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/cpu.gtkw"
-[timestart] 911000
+[timestart] 233300
 [size] 1920 1033
 [pos] -1 -1
-*-15.900000 1065300 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-17.400000 754700 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] cpu_tb.
-[treeopen] cpu_tb.cpu.
 [sst_width] 278
-[signals_width] 700
+[signals_width] 531
 [sst_expanded] 1
-[sst_vpaned_height] 530
+[sst_vpaned_height] 598
 @28
 cpu_tb.clk
+cpu_tb.clk100
 cpu_tb.cpu.reset
 @200
 -
+-MIG7
+@28
+cpu_tb.clk100
+cpu_tb.mig7mock.init_calib_complete
+cpu_tb.mig7mock.app_rdy
+cpu_tb.mig7mock.app_en
+@24
+cpu_tb.mig7mock.app_addr[28:0]
+@28
+cpu_tb.mig7mock.app_rd_data_valid
+cpu_tb.mig7mock.app_rd_data[255:0]
+@200
+-
 -L1i Cache Controller
+@28
+cpu_tb.cache_controller.clk100
+@24
+cpu_tb.cache_controller.state[7:0]
+@28
+cpu_tb.cache_controller.cpu_FE2_start
+cpu_tb.cache_controller.cpu_FE2_new_request
+cpu_tb.cache_controller.cpu_FE2_done
+@200
 -
 -L1i Cache RAM
+@28
+cpu_tb.clk100
 @22
 cpu_tb.l1i_ram.ctrl_addr[6:0]
 cpu_tb.l1i_ram.ctrl_d[273:0]
@@ -48,56 +72,13 @@ cpu_tb.cpu.stall_FE1
 cpu_tb.cpu.flush_FE1
 @200
 -
-@28
+@29
 cpu_tb.cpu.mem_rom_FE1
 @24
 cpu_tb.cpu.mem_rom_addr_FE1[8:0]
 @28
 cpu_tb.cpu.rom_fe_oe
 @200
--
-@24
-cpu_tb.cpu.l1i_pipe_addr[6:0]
-@200
--
--CacheController L1i
-@24
-cpu_tb.cache_controller_l1i.state[7:0]
-@28
-cpu_tb.cache_controller_l1i.cpu_start
-@24
-cpu_tb.cache_controller_l1i.cpu_addr[31:0]
-@28
-cpu_tb.cache_controller_l1i.cpu_result[31:0]
-cpu_tb.cache_controller_l1i.cpu_done
-@200
--
-@28
-cpu_tb.cache_controller_l1i.cache_line_data[255:0]
-@24
-cpu_tb.cache_controller_l1i.cache_tag[15:0]
-@28
-cpu_tb.cache_controller_l1i.l1i_ctrl_d[273:0]
-cpu_tb.cache_controller_l1i.l1i_ctrl_we
-@200
--
-@24
-cpu_tb.cache_controller_l1i.word_offset[2:0]
-@200
--
--MIG7
-@28
-cpu_tb.mig7mock.app_rdy
-@24
-cpu_tb.mig7mock.app_addr[28:0]
-@28
-cpu_tb.mig7mock.app_en
-@29
-cpu_tb.mig7mock.app_rd_data_valid
-@28
-cpu_tb.mig7mock.app_rd_data[255:0]
-@200
--
 -
 -FE2
 @28
@@ -134,7 +115,6 @@ cpu_tb.cpu.l1i_cache_controller_done
 @200
 -
 @28
-cpu_tb.cpu.l1i_cache_controller_ready
 cpu_tb.cpu.l1i_cache_controller_start
 @200
 -

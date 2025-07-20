@@ -304,7 +304,6 @@ MIG7Mock #(
 wire [31:0] l1i_cache_controller_addr;
 wire        l1i_cache_controller_start;
 wire        l1i_cache_controller_done;
-wire        l1i_cache_controller_ready;
 wire [31:0] l1i_cache_controller_result;
 
 // Not used in this testbench, but define for completeness
@@ -313,11 +312,14 @@ wire [31:0] l1d_cache_controller_data;
 wire        l1d_cache_controller_we;
 wire        l1d_cache_controller_start;
 wire        l1d_cache_controller_done;
-wire        l1d_cache_controller_ready;
 wire [31:0] l1d_cache_controller_result;
 
-// Instantiate CacheControllerL1i
-CacheControllerL1i cache_controller (
+// Instantiate CacheController
+CacheController #(
+    .ADDR_WIDTH(29),
+    .DATA_WIDTH(256),
+    .MASK_WIDTH(32)
+) cache_controller (
     .clk100(clk100),
     .reset(reset),
 
@@ -326,7 +328,6 @@ CacheControllerL1i cache_controller (
     .cpu_FE2_addr(l1i_cache_controller_addr),
     .cpu_FE2_done(l1i_cache_controller_done),
     .cpu_FE2_result(l1i_cache_controller_result),
-    .cpu_FE2_ready(l1i_cache_controller_ready),
 
     .cpu_EXMEM2_start(l1d_cache_controller_start),
     .cpu_EXMEM2_addr(l1d_cache_controller_addr),
@@ -334,7 +335,6 @@ CacheControllerL1i cache_controller (
     .cpu_EXMEM2_we(l1d_cache_controller_we),
     .cpu_EXMEM2_done(l1d_cache_controller_done),
     .cpu_EXMEM2_result(l1d_cache_controller_result),
-    .cpu_EXMEM2_ready(l1d_cache_controller_ready),
 
     // L1i RAM ctrl port
     .l1i_ctrl_d(l1i_ctrl_d),
@@ -409,7 +409,6 @@ B32P2 cpu (
     .l1i_cache_controller_addr(l1i_cache_controller_addr),
     .l1i_cache_controller_start(l1i_cache_controller_start),
     .l1i_cache_controller_done(l1i_cache_controller_done),
-    .l1i_cache_controller_ready(l1i_cache_controller_ready),
     .l1i_cache_controller_result(l1i_cache_controller_result),
 
     .l1d_cache_controller_addr(l1d_cache_controller_addr),
@@ -417,7 +416,6 @@ B32P2 cpu (
     .l1d_cache_controller_we(l1d_cache_controller_we),
     .l1d_cache_controller_start(l1d_cache_controller_start),
     .l1d_cache_controller_done(l1d_cache_controller_done),
-    .l1d_cache_controller_ready(l1d_cache_controller_ready),
     .l1d_cache_controller_result(l1d_cache_controller_result)
 );
 
