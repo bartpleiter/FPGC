@@ -106,11 +106,13 @@ reg [7:0] state = STATE_IDLE;
 
 
 // Storing requests from CPU pipeline when they arrive, to process them when state machine is ready for new requests
+reg cpu_FE2_start_prev = 1'b0; // For edge detection as the start signal will be at 50 MHz
 reg cpu_FE2_new_request = 1'b0;
 reg [31:0] cpu_FE2_addr_stored = 32'd0;
 // For reference: cpu_FE2_cache_tag = cpu_FE2_addr_stored[25:10]
 // For reference: cpu_FE2_cache_index = cpu_FE2_addr_stored[2:0]
 
+reg cpu_EXMEM2_start_prev = 1'b0; // For edge detection as the start signal will be at 50 MHz
 reg cpu_EXMEM2_new_request = 1'b0;
 reg [31:0] cpu_EXMEM2_addr_stored = 32'd0;
 reg [31:0] cpu_EXMEM2_data_stored = 32'd0;
@@ -145,8 +147,10 @@ begin
 
         state <= STATE_IDLE;
 
+        cpu_FE2_start_prev <= 1'b0;
         cpu_FE2_new_request <= 1'b0;
         cpu_FE2_addr_stored <= 32'd0;
+        cpu_EXMEM2_start_prev <= 1'b0;
         cpu_EXMEM2_new_request <= 1'b0;
         cpu_EXMEM2_addr_stored <= 32'd0;
         cpu_EXMEM2_data_stored <= 32'd0;
@@ -156,15 +160,19 @@ begin
     end
     else
     begin
+        // Edge detection on CPU start signals
+        cpu_FE2_start_prev <= cpu_FE2_start;
+        cpu_EXMEM2_start_prev <= cpu_EXMEM2_start;
+
         // Check for CPU FE2 request
-        if (cpu_FE2_start && !cpu_FE2_flush)
+        if (cpu_FE2_start && !cpu_FE2_start_prev && !cpu_FE2_flush)
         begin
             cpu_FE2_new_request <= 1'b1;
             cpu_FE2_addr_stored <= cpu_FE2_addr;
         end
 
         // Check for CPU EXMEM2 request
-        if (cpu_EXMEM2_start)
+        if (cpu_EXMEM2_start && !cpu_EXMEM2_start_prev)
         begin
             cpu_EXMEM2_new_request <= 1'b1;
             cpu_EXMEM2_addr_stored <= cpu_EXMEM2_addr;

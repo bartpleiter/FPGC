@@ -25,7 +25,7 @@
 module cpu_tb ();
 
 reg clk = 1'b0;
-reg clk100 = 1'b0;
+reg clk100 = 1'b1; // To align rising edge with clk
 reg reset = 1'b0;
 
 //-----------------------ROM-------------------------
@@ -165,7 +165,7 @@ VRAM #(
     .gpu_q   (vramPX_gpu_q)
 );
 
-//-----------------------L1i RAM (100MHz)-------------------------
+//-----------------------L1i RAM (100&50MHz)-------------------------
 
 // DPRAM I/O signals
 wire [273:0] l1i_pipe_d;
@@ -189,18 +189,19 @@ DPRAM #(
     .ADDR_BITS(7),
     .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/l1i.list")
 ) l1i_ram (
-    .clk(clk100),
+    .clk_pipe(clk),
     .pipe_d(l1i_pipe_d),
     .pipe_addr(l1i_pipe_addr),
     .pipe_we(l1i_pipe_we),
     .pipe_q(l1i_pipe_q),
+    .clk_ctrl(clk100),
     .ctrl_d(l1i_ctrl_d),
     .ctrl_addr(l1i_ctrl_addr),
     .ctrl_we(l1i_ctrl_we),
     .ctrl_q(l1i_ctrl_q)
 );
 
-//-----------------------L1d RAM (100MHz)------------------------
+//-----------------------L1d RAM (100&50MHz)------------------------
 
 // DPRAM I/O signals
 wire [273:0] l1d_pipe_d;
@@ -224,11 +225,12 @@ DPRAM #(
     .ADDR_BITS(7),
     .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/l1d.list")
 ) l1d_ram (
-    .clk(clk100),
+    .clk_pipe(clk),
     .pipe_d(l1d_pipe_d),
     .pipe_addr(l1d_pipe_addr),
     .pipe_we(l1d_pipe_we),
     .pipe_q(l1d_pipe_q),
+    .clk_ctrl(clk100),
     .ctrl_d(l1d_ctrl_d),
     .ctrl_addr(l1d_ctrl_addr),
     .ctrl_we(l1d_ctrl_we),

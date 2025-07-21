@@ -1,5 +1,5 @@
 /*
-* Dual port, single clock RAM implementation (for L1 cache)
+* Dual port, dual clock RAM implementation (for L1 cache)
 * One port for CPU pipeline and one port for cache controller
 */
 module DPRAM #(
@@ -8,12 +8,13 @@ module DPRAM #(
     parameter ADDR_BITS = 7, // 128 cache lines require 7 address bits
     parameter LIST = "memory/l1i.list"
 ) (
-    input  wire                 clk,
+    input  wire                 clk_pipe,
     input  wire [    WIDTH-1:0] pipe_d,
     input  wire [ADDR_BITS-1:0] pipe_addr,
     input  wire                 pipe_we,
     output reg  [    WIDTH-1:0] pipe_q,
 
+    input  wire                 clk_ctrl,
     input  wire [    WIDTH-1:0] ctrl_d,
     input  wire [ADDR_BITS-1:0] ctrl_addr,
     input  wire                 ctrl_we,
@@ -23,7 +24,7 @@ module DPRAM #(
 reg [WIDTH-1:0] ram[0:WORDS-1];
 
 // CPU pipeline port
-always @(posedge clk)
+always @(posedge clk_pipe)
 begin
     pipe_q <= ram[pipe_addr];
     if (pipe_we)
@@ -34,7 +35,7 @@ begin
 end
 
 // Cache controller port
-always @(posedge clk)
+always @(posedge clk_ctrl)
 begin
     ctrl_q <= ram[ctrl_addr];
     if (ctrl_we)
