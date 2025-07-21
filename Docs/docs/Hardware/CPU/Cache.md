@@ -1,4 +1,4 @@
-# Cache (WIP)
+# Cache
 
 As the main performance bottleneck slowing down the CPU (even at 50MHz) is RAM, a cache is needed to keep the CPU fed with instructions and avoid stalls. Specifically, the FPGC contains an L1 instruction (L1i) and L1 data (L1d) cache. This is even more needed for newer types of memory like DDR3, which require a burst length of 8. Instead of trying to write a single word and ignoring the other seven words, using a cache line of 8 words is much more efficient, especially since DRAM is very fast sequentially.
 
@@ -11,9 +11,33 @@ The L1i and L1d cache each contain:
 
 - 128 lines of 8 words (256 bits) for 4KiB or 1024 words of memory for data
 - Direct-mapped structure for simplicity
+- Write-back policy using dirty bit tracking (unused in L1i cache)
 - 16 bits per line for tag
 - 1 valid bit per line
-- 1 dirty bit per line (unused in L1i cache)
+- Dual port access for CPU pipeline and cache controller
+
+### Cache line format (274 bits total)
+```
+[273:18] - Cache line data (256 bits)
+[17:2]   - Tag (16 bits)
+[1]      - Valid bit
+[0]      - Dirty bit
+```
+
+## Address Mapping
+
+The cache is hard-coded to work with 256 MiB (64 MiW) of RAM, meaning that the CPU/word addresses are 26 bit.
+With 8 words (256 bits) per line, we then get 23 bit line addresses.
+
+### CPU address breakdown (32 bits)
+- `[31:26]`: High-order bits (out of bounds)
+- `[25:10]`: Cache Tag (16 bits)
+- `[9:3]`: Cache Index (7 bits) - selects the cache line from the 128 cache lines
+- `[2:0]`: Word Offset (3 bits) - selects word from the 8 words in the cache line
+
+### Memory Address Mapping
+- MIG7 addresses are aligned to 256-bit boundaries, meaning the addresses here are 23 bit cache line addresses
+- CPU addresses are truncated to remove the word offset: `cpu_addr[31:3]`
 
 ## Cache strategy
 
@@ -25,7 +49,9 @@ Within the CPU pipeline, there are two stages for each memory type. For L1i, the
 
 ### Cache controller
 
-During a cache miss on the L1i cache, or a write on the L1d cache, the cache controller is requested. The cache controller also has direct access to the cache SRAM as it is dual port, and is also connected to the SDRAM controller (MIG 7 for DDR3 on the Artix 7 board I am currently using). For the L1i cache, in case of a cache miss the cache controller fetches the new cache line with the requested instruction from the SDRAM controller, then writes the new cache line with the valid bit set to the cache SRAM, after which it returns the requested instruction to the CPU pipeline. For a L1d there is an extra step, where the evicted cache line is first written back to SDRAM if the dirty bit is set. For writes on a cache hit, the cache line is read, updated and written back with the dirty bit set (which does mean there is an extra read as the line already has been read during the EXE stage, but this is a lot simpler and only costs a cycle during a write hit).
+During a cache miss on the L1i cache, a read miss on the L1d cache, or any write, the cache controller is requested. The cache controller has direct access to the cache SRAM as it is dual port, and is also connected to the SDRAM controller (MIG 7 for DDR3 on the Artix 7 board I am currently using). For the L1i cache, in case of a cache miss the cache controller fetches the new cache line with the requested instruction from the SDRAM controller, then writes the new cache line with the valid bit set to the cache SRAM, after which it returns the requested instruction to the CPU pipeline. For a L1d there is an extra step, where the evicted cache line is first written back to SDRAM if the dirty bit is set. For writes on a cache hit, the cache line is read, updated and written back with the dirty bit set (which does mean there is an extra read as the line already has been read during the EXE stage, but this is a lot simpler and only costs a cycle during a write hit), and more steps in between for a cache miss, espcially when the line was dirty. See below for the full state machine of the cache controller. Note that requests from the CPU can happen during any state, so they are stored (up to one). For a pipeline flush, a L1d request could be ignored. To prevent mixing up a potentially new request, the CPU can indicate if it wants to ignore the previous request, resulting in an extra (not drawn below) arrow between each l1i state directly to idle. This can only happen for the L1d cache. Finally, the EXMEM2 requests have priority over the FE2 requests.
+
+![cache_arch](../../images/cachecontroller_statemachine.png)
 
 ### Connection to the SDRAM controller
 

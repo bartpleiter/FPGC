@@ -303,6 +303,7 @@ MIG7Mock #(
 // Cache controller <-> CPU pipeline interface signals
 wire [31:0] l1i_cache_controller_addr;
 wire        l1i_cache_controller_start;
+wire        l1i_cache_controller_flush;
 wire        l1i_cache_controller_done;
 wire [31:0] l1i_cache_controller_result;
 
@@ -326,6 +327,7 @@ CacheController #(
     // CPU pipeline interface (50 MHz domain)
     .cpu_FE2_start(l1i_cache_controller_start),
     .cpu_FE2_addr(l1i_cache_controller_addr),
+    .cpu_FE2_flush(l1i_cache_controller_flush),
     .cpu_FE2_done(l1i_cache_controller_done),
     .cpu_FE2_result(l1i_cache_controller_result),
 
@@ -408,6 +410,7 @@ B32P2 cpu (
     // cache controller connections
     .l1i_cache_controller_addr(l1i_cache_controller_addr),
     .l1i_cache_controller_start(l1i_cache_controller_start),
+    .l1i_cache_controller_flush(l1i_cache_controller_flush),
     .l1i_cache_controller_done(l1i_cache_controller_done),
     .l1i_cache_controller_result(l1i_cache_controller_result),
 

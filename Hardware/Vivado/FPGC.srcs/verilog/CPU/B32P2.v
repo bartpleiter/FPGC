@@ -65,6 +65,7 @@ module B32P2 #(
     // cache controller
     output wire [31:0] l1i_cache_controller_addr,
     output wire l1i_cache_controller_start,
+    output wire l1i_cache_controller_flush,
     input wire l1i_cache_controller_done,
     input wire [31:0] l1i_cache_controller_result,
 
@@ -93,6 +94,8 @@ assign flush_FE1 = jump_valid_EXMEM1 || hazard_pc1_pc2 || hazard_pc2_pc1 || reti
 assign flush_FE2 = jump_valid_EXMEM1 || hazard_pc1_pc2 || hazard_pc2_pc1 || reti_EXMEM1 || interrupt_valid;
 assign flush_REG = jump_valid_EXMEM1 || hazard_pc1_pc2 || hazard_pc2_pc1 || reti_EXMEM1 || interrupt_valid;
 assign flush_EXMEM1 = exmem1_uses_exmem2_result;
+
+assign l1i_cache_controller_flush = flush_FE2; // Notify cache controller when FE2 is flushed
 
 wire stall_FE1;
 wire stall_FE2;

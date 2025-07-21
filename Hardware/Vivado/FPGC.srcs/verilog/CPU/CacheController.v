@@ -10,7 +10,7 @@
  */
 module CacheController
 #(
-    parameter ADDR_WIDTH = 29,
+    parameter ADDR_WIDTH = 29, // -> I actually think this should be 23 bits, as we have 23 bit line addresses, although this is for 256MiB
     parameter DATA_WIDTH = 256,
     parameter MASK_WIDTH = 32
 )
@@ -27,6 +27,7 @@ module CacheController
     // FE2 stage
     input  wire                      cpu_FE2_start,
     input  wire [31:0]               cpu_FE2_addr, // Address in CPU words for instruction fetch
+    input  wire                      cpu_FE2_flush, // CPU is flushed, ignore the current request and go back to IDLE
     output reg                       cpu_FE2_done      = 1'b0,
     output reg [31:0]                cpu_FE2_result    = 32'd0, // Result of the instruction fetch
     // EXMEM2 stage
@@ -72,11 +73,34 @@ module CacheController
 );
 
 localparam
-    STATE_IDLE = 3'd0,
-    STATE_L1I_READ_CMD = 3'd1,
-    STATE_L1I_READ_WAIT = 3'd2,
-    STATE_L1I_WAIT_CACHE_WRITE = 3'd3,
-    STATE_L1I_WAIT_CPU_DONE_50 = 3'd4;
+    STATE_IDLE = 8'd0,
+
+    // L1 Instruction Cache States
+    STATE_L1I_SEND_READ_CMD      = 8'd1,
+    STATE_L1I_WAIT_READ_DATA     = 8'd2,
+    STATE_L1I_WRITE_TO_CACHE     = 8'd3,
+    STATE_L1I_SIGNAL_CPU_DONE    = 8'd4,
+
+    // L1 Data Cache Read States
+    STATE_L1D_READ_CHECK_CACHE           = 8'd5,
+    STATE_L1D_READ_EVICT_DIRTY_WAIT_READY= 8'd6,
+    STATE_L1D_READ_EVICT_DIRTY_SEND_CMD  = 8'd7,
+    STATE_L1D_READ_SEND_CMD              = 8'd8,
+    STATE_L1D_READ_WAIT_READY            = 8'd9,
+    STATE_L1D_READ_WAIT_DATA             = 8'd10,
+    STATE_L1D_READ_WRITE_TO_CACHE        = 8'd11,
+    STATE_L1D_READ_SIGNAL_CPU_DONE       = 8'd12,
+
+    // L1 Data Cache Write States
+    STATE_L1D_WRITE_CHECK_CACHE              = 8'd13,
+    STATE_L1D_WRITE_MISS_EVICT_DIRTY_WAIT_READY = 8'd14,
+    STATE_L1D_WRITE_MISS_EVICT_DIRTY_SEND_CMD   = 8'd15,
+    STATE_L1D_WRITE_MISS_FETCH_SEND_CMD         = 8'd16,
+    STATE_L1D_WRITE_MISS_FETCH_WAIT_READY       = 8'd17,
+    STATE_L1D_WRITE_MISS_FETCH_WAIT_DATA        = 8'd18,
+    STATE_L1D_WRITE_WRITE_TO_CACHE              = 8'd19,
+    STATE_L1D_WRITE_SIGNAL_CPU_DONE             = 8'd20;
+
 
 reg [7:0] state = STATE_IDLE;
 
@@ -133,7 +157,7 @@ begin
     else
     begin
         // Check for CPU FE2 request
-        if (cpu_FE2_start)
+        if (cpu_FE2_start && !cpu_FE2_flush)
         begin
             cpu_FE2_new_request <= 1'b1;
             cpu_FE2_addr_stored <= cpu_FE2_addr;
@@ -153,81 +177,516 @@ begin
             STATE_IDLE: begin
                 // Disassert signals on idle
                 cpu_FE2_done <= 1'b0;
+                cpu_EXMEM2_done <= 1'b0;
+                
 
                 // Check if there is a new EXMEM2 request (priority over FE2)
                 if ((cpu_EXMEM2_new_request || cpu_EXMEM2_start) && init_calib_complete) // Also check for start to skip a cycle after idle
                 begin
+                    // Request can be either a read after cache miss, or a write which can be either a hit or a miss
                     cpu_EXMEM2_new_request <= 1'b0; // Clear the request flag
 
-                    // TODO: Handle EXMEM2 requests
+                    // Handle write request
+                    if ((cpu_EXMEM2_new_request && cpu_EXMEM2_we_stored) || (cpu_EXMEM2_start && cpu_EXMEM2_we))
+                    begin
+                        // Read cache line first to determine a hit or miss
+                        l1d_ctrl_addr <= cpu_EXMEM2_start ? cpu_EXMEM2_addr[9:3] : cpu_EXMEM2_addr_stored[9:3]; // DPRAM index, aligned on cache line size (8 words = 256 bits)
+                        l1d_ctrl_we <= 1'b0; // Read operation
+                        state <= STATE_L1D_WRITE_CHECK_CACHE; // Wait for DPRAM to respond with the cache line
+                    end
+
+                    // Handle read request
+                    else if ((cpu_EXMEM2_new_request && !cpu_EXMEM2_we_stored) || (cpu_EXMEM2_start && !cpu_EXMEM2_we))
+                    begin
+                        // Read cache line first to determine if it needs to be eviced to memory
+                        l1d_ctrl_addr <= cpu_EXMEM2_start ? cpu_EXMEM2_addr[9:3] : cpu_EXMEM2_addr_stored[9:3]; // DPRAM index, aligned on cache line size (8 words = 256 bits)
+                        l1d_ctrl_we <= 1'b0; // Read operation
+                        state <= STATE_L1D_READ_CHECK_CACHE; // Wait for DPRAM to respond with the cache line
+                    end
                 end
 
                 // Check if there is a new FE2 request (lower priority than EXMEM2)
                 else if ((cpu_FE2_new_request || cpu_FE2_start) && init_calib_complete) // Also check for start to skip a cycle after idle
                 begin
-                    // FE2 requests are only READ operations
-                    // Setup MIG7 read command with arguments depending on the availability in the _stored registers
-                    app_cmd <= 3'b001; // READ command
-                    app_en <= 1'b1;
-                    app_addr <= cpu_FE2_start ? {4'd0, cpu_FE2_addr[31:3]} : {4'd0, cpu_FE2_addr_stored[31:3]}; // Align to 256 bits (8 words)
+                    if (cpu_FE2_flush)
+                    begin
+                        // If a flush is requested, go back to IDLE state
+                        cpu_FE2_new_request <= 1'b0; // Clear the request flag
+                        state <= STATE_IDLE;
+                    end
+                    else
+                    begin
+                        // FE2 requests are only READ operations
+                        // Setup MIG7 read command with arguments depending on the availability in the _stored registers
+                        app_cmd <= 3'b001; // READ command
+                        app_en <= 1'b1;
+                        app_addr <= cpu_FE2_start ? {4'd0, cpu_FE2_addr[31:3]} : {4'd0, cpu_FE2_addr_stored[31:3]}; // Align to 256 bits (8 words)
 
-                    cpu_FE2_new_request <= 1'b0; // Clear the request flag
+                        cpu_FE2_new_request <= 1'b0; // Clear the request flag
 
-                    state <= STATE_L1I_READ_CMD; // Wait for MIG7 to accept the read command
+                        state <= STATE_L1I_SEND_READ_CMD; // Wait for MIG7 to accept the read command
+                    end
                 end
             end
 
-            STATE_L1I_READ_CMD: begin
-                // Wait for MIG7 to assert ready, indicating the read command is accepted
-                // At this point the address is stored, so we should use it in case cpu does not set the signals anymore
-                app_addr <= {4'd0, cpu_FE2_addr_stored[31:3]}; // Align to 256 bits (8 words)
+            // ------------------------
+            // L1 Instruction Cache Read States
+            // ------------------------
+
+            STATE_L1I_SEND_READ_CMD: begin
+                if (cpu_FE2_flush)
+                begin
+                    // If a flush is requested, go back to IDLE state
+                    cpu_FE2_new_request <= 1'b0; // Clear the request flag
+                    app_en <= 1'b0;
+                    state <= STATE_IDLE;
+                end
+                else
+                begin
+                    // Wait for MIG7 to assert ready, indicating the read command is accepted
+                    // At this point the address is stored, so we should use it in case cpu does not set the signals anymore
+                    app_addr <= {4'd0, cpu_FE2_addr_stored[31:3]}; // Align to 256 bits (8 words)
+                    if (app_rdy)
+                    begin
+                        // MIG7 is ready, we can proceed with the read operation
+                        app_en <= 1'b0; // Disassert app_en to prevent sending another command
+                        state <= STATE_L1I_WAIT_READ_DATA; // Wait until the data is ready
+                    end
+                end
+            end
+
+            STATE_L1I_WAIT_READ_DATA: begin
+                if (cpu_FE2_flush)
+                begin
+                    // If a flush is requested, go back to IDLE state
+                    cpu_FE2_new_request <= 1'b0; // Clear the request flag
+                    state <= STATE_IDLE;
+                end
+                else
+                begin
+                    // Wait for MIG7 to provide the read data
+                    if (app_rd_data_valid && app_rd_data_end)
+                    begin
+                        // Extract the requested 32-bit word based on offset for the CPU return value
+                        case (cpu_FE2_addr_stored[2:0])
+                            3'd0: cpu_FE2_result <= app_rd_data[31:0];
+                            3'd1: cpu_FE2_result <= app_rd_data[63:32];
+                            3'd2: cpu_FE2_result <= app_rd_data[95:64];
+                            3'd3: cpu_FE2_result <= app_rd_data[127:96];
+                            3'd4: cpu_FE2_result <= app_rd_data[159:128];
+                            3'd5: cpu_FE2_result <= app_rd_data[191:160];
+                            3'd6: cpu_FE2_result <= app_rd_data[223:192];
+                            3'd7: cpu_FE2_result <= app_rd_data[255:224];
+                        endcase
+
+                        // Write the retrieved cache line directly to DPRAM
+                        // Format: {256bit_data, 16bit_tag, 1'b1(valid), 1'b0(dirty)}
+                        l1i_ctrl_d <= {app_rd_data, cpu_FE2_addr_stored[25:10], 1'b1, 1'b0};
+                        l1i_ctrl_addr <= cpu_FE2_addr_stored[9:3]; // DPRAM index, aligned on cache line size (8 words = 256 bits)
+                        l1i_ctrl_we <= 1'b1;
+
+                        state <= STATE_L1I_WRITE_TO_CACHE; // Wait until the data is written so that the fetch of the next instruction can use the cache
+                    end
+                end
+            end
+
+            STATE_L1I_WRITE_TO_CACHE: begin
+                if (cpu_FE2_flush)
+                begin
+                    // If a flush is requested, go back to IDLE state
+                    cpu_FE2_new_request <= 1'b0; // Clear the request flag
+                    l1i_ctrl_we <= 1'b0; // Disassert write enable
+                    state <= STATE_IDLE;
+                end
+                else
+                begin
+                    // Start by disasserting the write enable
+                    l1i_ctrl_we <= 1'b0;
+
+                    // Set cpu_done
+                    cpu_FE2_done <= 1'b1;
+                    state <= STATE_L1I_SIGNAL_CPU_DONE; // Extra stage for the 50 MHz CPU to see the results
+                end
+
+            end
+
+            STATE_L1I_SIGNAL_CPU_DONE: begin
+                if (cpu_FE2_flush)
+                begin
+                    // If a flush is requested, go back to IDLE state
+                    cpu_FE2_new_request <= 1'b0; // Clear the request flag
+                    cpu_FE2_done <= 1'b0; // Disassert done signal
+                    state <= STATE_IDLE;
+                end
+                else
+                begin
+                    state <= STATE_IDLE; // After this stage, we can return to IDLE state
+                end
+            end
+
+            // ------------------------
+            // L1 Data Cache Read States
+            // ------------------------
+
+
+            STATE_L1D_READ_CHECK_CACHE: begin
+                // Cache line is in l1d_ctrl_q
+                // valid = l1d_ctrl_q[1]
+                // dirty = l1d_ctrl_q[0]
+                // tag = l1d_ctrl_q[17:2]
+                // data = l1d_ctrl_q[273:18]
+
+                // Store the l1d_ctrl_q data in case it is needed in the next state
+                cache_line_data <= l1d_ctrl_q[273:18]; // Store the cache line data
+
+                // We already know it is a cache miss, otherwise the CPU would not have requested the read, so we only need to check for the dirty bit
+                if (l1d_ctrl_q[0])
+                begin
+                    // If dirty, we need to write to MIG7 before reading the new cache line
+                    if (app_rdy && app_wdf_rdy)
+                    begin
+                        app_cmd <= 3'b000; // WRITE command
+                        app_en <= 1'b1;
+                        // We need to write the address of the old cache line, so we need to use:
+                        // the tag l1d_ctrl_q[17:2]
+                        // the index of the cache line cpu_EXMEM2_addr_stored[9:3], which is aligned to 256 bits (8 words)
+                        app_addr <= {l1d_ctrl_q[17:2], cpu_EXMEM2_addr_stored[9:3]}; // Align to 256 bits (8 words)
+                        app_wdf_wren <= 1'b1; // Enable write data
+                        app_wdf_data <= l1d_ctrl_q[273:18]; // Data to write, which is the cache line data
+                        app_wdf_end <= 1'b1; // End of write data
+
+                        state <= STATE_L1D_READ_EVICT_DIRTY_SEND_CMD; // Wait for MIG7 to accept the write command
+                    end
+                    else
+                    begin
+                        // Go to state where we wait for MIG7 to be ready
+                        state <= STATE_L1D_READ_EVICT_DIRTY_WAIT_READY;
+                    end
+                end
+                else
+                begin
+                    // If not dirty, we can directly read the new cache line
+                    app_cmd <= 3'b001; // READ command
+                    app_en <= 1'b1;
+                    app_addr <= cpu_EXMEM2_addr_stored[31:3]; // Align to 256 bits (8 words)
+
+                    state <= STATE_L1D_READ_WAIT_READY; // Wait for MIG7 to accept the read command
+                end
+            end
+
+            STATE_L1D_READ_EVICT_DIRTY_WAIT_READY: begin
+                // Wait for the MIG7 to be ready, so we can proceed with the write operation
+                if (app_rdy && app_wdf_rdy)
+                begin
+                    app_cmd <= 3'b000; // WRITE command
+                    app_en <= 1'b1;
+                    // We need to write the address of the old cache line, so we need to use:
+                    // the tag l1d_ctrl_q[17:2]
+                    // the index of the cache line cpu_EXMEM2_addr_stored[9:3], which is aligned to 256 bits (8 words)
+                    app_addr <= {l1d_ctrl_q[17:2], cpu_EXMEM2_addr_stored[9:3]}; // Align to 256 bits (8 words) 
+                    app_wdf_wren <= 1'b1; // Enable write data
+                    app_wdf_data <= cache_line_data; // Data to write, which is the cache line data
+                    app_wdf_end <= 1'b1; // End of write data
+                    state <= STATE_L1D_READ_EVICT_DIRTY_SEND_CMD; // Wait for MIG7 to accept the write command
+                end
+            end
+
+            STATE_L1D_READ_EVICT_DIRTY_SEND_CMD: begin
+                // No matter if app_rdy, we can disassert app_wdf signals as it was ready the previous cycle, and I do not expect it to change
+                app_wdf_wren <= 1'b0; // Disable write data
+                app_wdf_end <= 1'b0; // End of write data
+                // Wait for MIG7 to assert ready, indicating the write command is accepted
                 if (app_rdy)
                 begin
                     // MIG7 is ready, we can proceed with the read operation
                     app_en <= 1'b0; // Disassert app_en to prevent sending another command
-                    state <= STATE_L1I_READ_WAIT; // Wait until the data is ready
+                    state <= STATE_L1D_READ_SEND_CMD; // The cache line is now written to MIG7, we can start a read the next cycle
                 end
             end
 
-            STATE_L1I_READ_WAIT: begin
-                // Wait for MIG7 to provide the read data
+            STATE_L1D_READ_SEND_CMD: begin
+                // Set the MIG7 read command for the new cache line
+                app_cmd <= 3'b001; // READ command
+                app_en <= 1'b1;
+                app_addr <= cpu_EXMEM2_addr_stored[31:3]; // Align to 256 bits (8 words)
+
+                state <= STATE_L1D_READ_WAIT_READY; // Wait for MIG7 to accept the read command
+            end
+
+            STATE_L1D_READ_WAIT_READY: begin
+                // Wait for MIG7 to assert ready, indicating the read command is accepted
+                if (app_rdy)
+                begin
+                    // MIG7 is ready, we can proceed with the read operation
+                    app_en <= 1'b0; // Disassert app_en to prevent sending another command
+                    state <= STATE_L1D_READ_WAIT_DATA; // Wait until the data is ready
+                end
+            end
+
+            STATE_L1D_READ_WAIT_DATA: begin
+                // Wait until data is ready, and write it to DPRAM of L1D cache
                 if (app_rd_data_valid && app_rd_data_end)
                 begin
                     // Extract the requested 32-bit word based on offset for the CPU return value
-                    case (cpu_FE2_addr_stored[2:0])
-                        3'd0: cpu_FE2_result <= app_rd_data[31:0];
-                        3'd1: cpu_FE2_result <= app_rd_data[63:32];
-                        3'd2: cpu_FE2_result <= app_rd_data[95:64];
-                        3'd3: cpu_FE2_result <= app_rd_data[127:96];
-                        3'd4: cpu_FE2_result <= app_rd_data[159:128];
-                        3'd5: cpu_FE2_result <= app_rd_data[191:160];
-                        3'd6: cpu_FE2_result <= app_rd_data[223:192];
-                        3'd7: cpu_FE2_result <= app_rd_data[255:224];
+                    case (cpu_EXMEM2_addr_stored[2:0])
+                        3'd0: cpu_EXMEM2_result <= app_rd_data[31:0];
+                        3'd1: cpu_EXMEM2_result <= app_rd_data[63:32];
+                        3'd2: cpu_EXMEM2_result <= app_rd_data[95:64];
+                        3'd3: cpu_EXMEM2_result <= app_rd_data[127:96];
+                        3'd4: cpu_EXMEM2_result <= app_rd_data[159:128];
+                        3'd5: cpu_EXMEM2_result <= app_rd_data[191:160];
+                        3'd6: cpu_EXMEM2_result <= app_rd_data[223:192];
+                        3'd7: cpu_EXMEM2_result <= app_rd_data[255:224];
                     endcase
 
                     // Write the retrieved cache line directly to DPRAM
                     // Format: {256bit_data, 16bit_tag, 1'b1(valid), 1'b0(dirty)}
-                    l1i_ctrl_d <= {app_rd_data, cpu_FE2_addr_stored[25:10], 1'b1, 1'b0};
-                    l1i_ctrl_addr <= cpu_FE2_addr_stored[9:3]; // DPRAM index, aligned on cache line size (8 words = 256 bits)
-                    l1i_ctrl_we <= 1'b1;
+                    l1d_ctrl_d <= {app_rd_data, cpu_EXMEM2_addr_stored[25:10], 1'b1, 1'b0};
+                    l1d_ctrl_addr <= cpu_EXMEM2_addr_stored[9:3]; // DPRAM index, aligned on cache line size (8 words = 256 bits)
+                    l1d_ctrl_we <= 1'b1;
 
-                    state <= STATE_L1I_WAIT_CACHE_WRITE; // Wait until the data is written so that the fetch of the next instruction can use the cache
+                    state <= STATE_L1D_READ_WRITE_TO_CACHE; // Wait until the data is written so that the fetch of the next instruction can use the cache
                 end
             end
 
-            STATE_L1I_WAIT_CACHE_WRITE: begin
+            STATE_L1D_READ_WRITE_TO_CACHE: begin
                 // Start by disasserting the write enable
-                l1i_ctrl_we <= 1'b0;
+                l1d_ctrl_we <= 1'b0;
 
                 // Set cpu_done
-                cpu_FE2_done <= 1'b1;
-                state <= STATE_L1I_WAIT_CPU_DONE_50; // Extra stage for the 50 MHz CPU to see the results
+                cpu_EXMEM2_done <= 1'b1;
+                state <= STATE_L1D_READ_SIGNAL_CPU_DONE; // Extra stage for the 50 MHz CPU to see the results
 
             end
 
-            STATE_L1I_WAIT_CPU_DONE_50: begin
+            STATE_L1D_READ_SIGNAL_CPU_DONE: begin
                 state <= STATE_IDLE; // After this stage, we can return to IDLE state
             end
+
+            // ------------------------
+            // L1 Data Cache Write States
+            // ------------------------
+
+            STATE_L1D_WRITE_CHECK_CACHE: begin
+                // Cache line is in l1d_ctrl_q
+                // valid = l1d_ctrl_q[1]
+                // dirty = l1d_ctrl_q[0]
+                // tag = l1d_ctrl_q[17:2]
+                // data = l1d_ctrl_q[273:18]
+
+                // Store the l1d_ctrl_q data in case it is needed in the next state
+                cache_line_data <= l1d_ctrl_q[273:18]; // Store the cache line data
+
+                // Check for cache hit: valid bit is set and tag matches
+                if (l1d_ctrl_q[1] && (l1d_ctrl_q[17:2] == cpu_EXMEM2_addr_stored[25:10]))
+                begin
+                    // Cache hit: immediately write back to DPRAM with the new instruction and the dirty bit set
+                    l1d_ctrl_d[1:0] <= {1'b1, 1'b1};
+                    l1d_ctrl_addr <= cpu_EXMEM2_addr_stored[9:3]; // DPRAM index, aligned on cache line size (8 words = 256 bits)
+                    l1d_ctrl_we <= 1'b1;
+
+                    // Update the cache line data at the correct offset
+                    case (cpu_EXMEM2_addr_stored[2:0])
+                        3'd0: begin
+                            l1d_ctrl_d[49:18]    <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[273:50]   <= l1d_ctrl_q[273:50];
+                        end
+                        3'd1: begin
+                            l1d_ctrl_d[81:50]    <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[49:18]    <= l1d_ctrl_q[49:18];
+                            l1d_ctrl_d[273:82]   <= l1d_ctrl_q[273:82];
+                        end
+                        3'd2: begin
+                            l1d_ctrl_d[113:82]   <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[81:18]    <= l1d_ctrl_q[81:18];
+                            l1d_ctrl_d[273:114]  <= l1d_ctrl_q[273:114];
+                        end
+                        3'd3: begin
+                            l1d_ctrl_d[145:114]  <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[113:18]   <= l1d_ctrl_q[113:18];
+                            l1d_ctrl_d[273:146]  <= l1d_ctrl_q[273:146];
+                        end
+                        3'd4: begin
+                            l1d_ctrl_d[177:146]  <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[145:18]   <= l1d_ctrl_q[145:18];
+                            l1d_ctrl_d[273:178]  <= l1d_ctrl_q[273:178];
+                        end
+                        3'd5: begin
+                            l1d_ctrl_d[209:178]  <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[177:18]   <= l1d_ctrl_q[177:18];
+                            l1d_ctrl_d[273:210]  <= l1d_ctrl_q[273:210];
+                        end
+                        3'd6: begin
+                            l1d_ctrl_d[241:210]  <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[209:18]   <= l1d_ctrl_q[209:18];
+                            l1d_ctrl_d[273:242]  <= l1d_ctrl_q[273:242];
+                        end
+                        3'd7: begin
+                            l1d_ctrl_d[273:242]  <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[241:18]   <= l1d_ctrl_q[241:18];
+                        end
+                    endcase
+
+                    state <= STATE_L1D_WRITE_WRITE_TO_CACHE;
+                end
+                else
+                begin
+                    // Cache miss
+                    // If current line is dirty and needs to be evicted
+                    if (l1d_ctrl_q[0])
+                    begin
+                        // Current cache line is dirty, need to write it back to memory first
+                        if (app_rdy && app_wdf_rdy)
+                        begin
+                            app_cmd <= 3'b000; // WRITE command
+                            app_en <= 1'b1;
+                            // We need to write the address of the old cache line, so we need to use:
+                            // the tag l1d_ctrl_q[17:2]
+                            // the index of the cache line cpu_EXMEM2_addr_stored[9:3], which is aligned to 256 bits (8 words)
+                            app_addr <= {l1d_ctrl_q[17:2], cpu_EXMEM2_addr_stored[9:3]}; // Align to 256 bits (8 words)
+                            app_wdf_wren <= 1'b1; // Enable write data
+                            app_wdf_data <= l1d_ctrl_q[273:18]; // Data to write, which is the cache line data
+                            app_wdf_end <= 1'b1; // End of write data
+
+                            state <= STATE_L1D_WRITE_MISS_EVICT_DIRTY_SEND_CMD; // Wait for MIG7 to accept the write command
+                        end
+                        else
+                        begin
+                            // Go to state where we wait for MIG7 to be ready
+                            state <= STATE_L1D_WRITE_MISS_EVICT_DIRTY_WAIT_READY;
+                        end
+                    end
+                    // If current line not dirty and therefore can be safely overwritten
+                    else
+                    begin
+                        // Current cache line is not dirty, can directly fetch new cache line
+                        app_cmd <= 3'b001; // READ command
+                        app_en <= 1'b1;
+                        app_addr <= {4'd0, cpu_EXMEM2_addr_stored[31:3]}; // Align to 256 bits (8 words)
+
+                        state <= STATE_L1D_WRITE_MISS_FETCH_WAIT_READY; // Wait for MIG7 to accept the read command
+                    end
+                end
+            end
+
+            STATE_L1D_WRITE_MISS_EVICT_DIRTY_WAIT_READY: begin
+                // Wait for the MIG7 to be ready, so we can proceed with the write operation
+                if (app_rdy && app_wdf_rdy)
+                begin
+                    app_cmd <= 3'b000; // WRITE command
+                    app_en <= 1'b1;
+                    // We need to write the address of the old cache line, so we need to use:
+                    // the tag l1d_ctrl_q[17:2]
+                    // the index of the cache line cpu_EXMEM2_addr_stored[9:3], which is aligned to 256 bits (8 words)
+                    app_addr <= {l1d_ctrl_q[17:2], cpu_EXMEM2_addr_stored[9:3]}; // Align to 256 bits (8 words)
+                    app_wdf_wren <= 1'b1; // Enable write data
+                    app_wdf_data <= cache_line_data; // Data to write, which is the cache line data
+                    app_wdf_end <= 1'b1; // End of write data
+                    state <= STATE_L1D_WRITE_MISS_EVICT_DIRTY_SEND_CMD; // Wait for MIG7 to accept the write command
+                end
+            end
+
+            STATE_L1D_WRITE_MISS_EVICT_DIRTY_SEND_CMD: begin
+                // No matter if app_rdy, we can disassert app_wdf signals as it was ready the previous cycle
+                app_wdf_wren <= 1'b0; // Disable write data
+                app_wdf_end <= 1'b0; // End of write data
+                // Wait for MIG7 to assert ready, indicating the write command is accepted
+                if (app_rdy)
+                begin
+                    // MIG7 is ready, we can proceed with the read operation
+                    app_en <= 1'b0; // Disassert app_en to prevent sending another command
+                    state <= STATE_L1D_WRITE_MISS_FETCH_SEND_CMD; // The cache line is now written to MIG7, we can start a read the next cycle
+                end
+            end
+
+            STATE_L1D_WRITE_MISS_FETCH_SEND_CMD: begin
+                // Set the MIG7 read command for the new cache line
+                app_cmd <= 3'b001; // READ command
+                app_en <= 1'b1;
+                app_addr <= {4'd0, cpu_EXMEM2_addr_stored[31:3]}; // Align to 256 bits (8 words)
+
+                state <= STATE_L1D_WRITE_MISS_FETCH_WAIT_READY; // Wait for MIG7 to accept the read command
+            end
+
+            STATE_L1D_WRITE_MISS_FETCH_WAIT_READY: begin
+                // Wait for MIG7 to assert ready, indicating the read command is accepted
+                if (app_rdy)
+                begin
+                    // MIG7 is ready, we can proceed with the read operation
+                    app_en <= 1'b0; // Disassert app_en to prevent sending another command
+                    state <= STATE_L1D_WRITE_MISS_FETCH_WAIT_DATA; // Wait until the data is ready
+                end
+            end
+
+            STATE_L1D_WRITE_MISS_FETCH_WAIT_DATA: begin
+                // Wait until data is ready, then update it with the write data and write it to DPRAM of L1D cache with dirty and valid bit set
+                if (app_rd_data_valid && app_rd_data_end)
+                begin
+                    
+                    l1d_ctrl_d[1:0] <= {1'b1, 1'b1};
+                    l1d_ctrl_addr <= cpu_EXMEM2_addr_stored[9:3]; // DPRAM index, aligned on cache line size (8 words = 256 bits)
+                    l1d_ctrl_we <= 1'b1;
+
+                    // Update the cache line data at the correct offset
+                    case (cpu_EXMEM2_addr_stored[2:0])
+                        3'd0: begin
+                            l1d_ctrl_d[49:18]    <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[273:50]   <= app_rd_data[255:32];
+                        end
+                        3'd1: begin
+                            l1d_ctrl_d[81:50]    <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[49:18]    <= app_rd_data[31:0];
+                            l1d_ctrl_d[273:82]   <= app_rd_data[255:64];
+                        end
+                        3'd2: begin
+                            l1d_ctrl_d[113:82]   <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[81:18]    <= app_rd_data[63:0];
+                            l1d_ctrl_d[273:114]  <= app_rd_data[255:96];
+                        end
+                        3'd3: begin
+                            l1d_ctrl_d[145:114]  <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[113:18]   <= app_rd_data[95:0];
+                            l1d_ctrl_d[273:146]  <= app_rd_data[255:128];
+                        end
+                        3'd4: begin
+                            l1d_ctrl_d[177:146]  <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[145:18]   <= app_rd_data[127:0];
+                            l1d_ctrl_d[273:178]  <= app_rd_data[255:160];
+                        end
+                        3'd5: begin
+                            l1d_ctrl_d[209:178]  <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[177:18]   <= app_rd_data[159:0];
+                            l1d_ctrl_d[273:210]  <= app_rd_data[255:192];
+                        end
+                        3'd6: begin
+                            l1d_ctrl_d[241:210]  <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[209:18]   <= app_rd_data[191:0];
+                            l1d_ctrl_d[273:242]  <= app_rd_data[255:224];
+                        end
+                        3'd7: begin
+                            l1d_ctrl_d[273:242]  <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[241:18]   <= app_rd_data[223:0];
+                        end
+                    endcase
+
+                    state <= STATE_L1D_WRITE_WRITE_TO_CACHE;
+                end
+            end
+
+            // TODO: Note that these two states are the same as for read atm. Might want to remove duplication if it stays this way
+            STATE_L1D_WRITE_WRITE_TO_CACHE: begin
+                // Start by disasserting the write enable
+                l1d_ctrl_we <= 1'b0;
+
+                // Set cpu_done
+                cpu_EXMEM2_done <= 1'b1;
+                state <= STATE_L1D_WRITE_SIGNAL_CPU_DONE; // Extra stage for the 50 MHz CPU to see the results
+            end
+
+            STATE_L1D_WRITE_SIGNAL_CPU_DONE: begin                
+                state <= STATE_IDLE; // After this stage, we can return to IDLE state
+            end
+
         endcase
     end
 end

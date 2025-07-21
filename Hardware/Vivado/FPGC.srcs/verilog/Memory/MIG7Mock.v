@@ -159,16 +159,10 @@ always @(posedge ui_clk) begin
                 app_rdy_reg <= 1'b0;
                 
                 if (app_wdf_wren && app_wdf_rdy_reg && app_wdf_end) begin
-                    // Write data to RAM (apply mask if needed)
+                    // Write data to RAM (skip mask handling as it will not be used by the design)
                     if (ram_addr < RAM_DEPTH) begin
-                        // Simple implementation: if mask bit is 0, write the byte
-                        // For simplicity, we'll write the full word if any mask bit allows it
-                        if (app_wdf_mask != {MASK_WIDTH{1'b1}}) begin
-                            ram_memory[ram_addr] <= app_wdf_data;
-                            $display("Time %0t: MIG7Mock WRITE: addr=0x%h, data=0x%h", $time, stored_addr, app_wdf_data);
-                        end else begin
-                            $display("Time %0t: MIG7Mock WRITE MASKED: addr=0x%h, mask=0x%h (write blocked)", $time, stored_addr, app_wdf_mask);
-                        end
+                        ram_memory[ram_addr] <= app_wdf_data;
+                        $display("Time %0t: MIG7Mock WRITE: addr=0x%h, data=0x%h", $time, stored_addr, app_wdf_data);
                     end else begin
                         $display("Time %0t: MIG7Mock WRITE OUT-OF-BOUNDS: addr=0x%h (>= 0x%h)", $time, stored_addr, RAM_DEPTH);
                     end
