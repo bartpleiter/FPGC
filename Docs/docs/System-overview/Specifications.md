@@ -12,7 +12,7 @@
 - L1i and L1d cache (direct mapped, 128 cache lines of 8 instructions per line)
 - 32 Bit program counter for 4 GiW (or 16 GiB) of addressable instruction memory
 - Shared instruction and data memory
-- ? MHz (currently 50 to 75 MHz)
+- 50 MHz, with some memory related components running at 100 MHz
 - Extendable amount of hardware interrupts
 
 ## GPU
@@ -32,11 +32,11 @@
 !!! note
     This section does not include video memory or cache, just the external memory the device can interface with
 
-These amounts are mainly chosen to fit within a 27 bit address, as the static jump instruction can directly set the PC to any 27 bit address. If needed in the future, much more could be enabled by using the JUMPR instruction that jumps to a 32 register value.
+These amounts are mainly chosen to fit within a 27 bit address, as the static jump instruction can directly set the PC to any 27 bit address. If needed in the future, much more could be enabled by using the JUMPR instruction that jumps to a 32 register value. However, given the performance of the device, this amount of memory should be plenty for a while.
 
 - 64 MiW (256 MiB) DDR3 SDRAM (although twice is physically available if needed)
 - 32 MiW (128 MiB) micro sd flash (more available if needed)
-- 2x 8 MiW (32 MiB) spi flash
+- 2x 8 MiW (2x 32 MiB) spi flash
 
 ## I/O (WIP)
 
