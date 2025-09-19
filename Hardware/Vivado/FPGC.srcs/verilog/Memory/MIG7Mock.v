@@ -162,9 +162,9 @@ always @(posedge ui_clk) begin
                     // Write data to RAM (skip mask handling as it will not be used by the design)
                     if (ram_addr < RAM_DEPTH) begin
                         ram_memory[ram_addr] <= app_wdf_data;
-                        $display("Time %0t: MIG7Mock WRITE: addr=0x%h, data=0x%h", $time, stored_addr, app_wdf_data);
+                        $display("%d: MIG7Mock WRITE: addr=0x%h, data=0x%h", $time, stored_addr, app_wdf_data);
                     end else begin
-                        $display("Time %0t: MIG7Mock WRITE OUT-OF-BOUNDS: addr=0x%h (>= 0x%h)", $time, stored_addr, RAM_DEPTH);
+                        $display("%d: MIG7Mock WRITE OUT-OF-BOUNDS: addr=0x%h (>= 0x%h)", $time, stored_addr, RAM_DEPTH);
                     end
                     
                     app_wdf_rdy_reg <= 1'b0;
@@ -199,11 +199,11 @@ always @(posedge ui_clk) begin
                     // Load data from RAM
                     if (ram_addr < RAM_DEPTH) begin
                         app_rd_data_reg <= ram_memory[ram_addr];
-                        $display("Time %0t: MIG7Mock READ: addr=0x%h, data=0x%h", $time, stored_addr, ram_memory[ram_addr]);
+                        $display("%d: MIG7Mock READ: addr=0x%h, data=0x%h", $time, stored_addr, ram_memory[ram_addr]);
                     end
                     else begin
                         app_rd_data_reg <= {DATA_WIDTH{1'b0}}; // Return zeros for out-of-bounds
-                        $display("Time %0t: MIG7Mock READ OUT-OF-BOUNDS: addr=0x%h (>= 0x%h), returning 0x0", $time, stored_addr, RAM_DEPTH);
+                        $display("%d: MIG7Mock READ OUT-OF-BOUNDS: addr=0x%h (>= 0x%h), returning 0x0", $time, stored_addr, RAM_DEPTH);
                     end
                     
                     state <= READ_DATA;

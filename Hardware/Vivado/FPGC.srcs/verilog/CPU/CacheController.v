@@ -82,24 +82,26 @@ localparam
     STATE_L1I_SIGNAL_CPU_DONE    = 8'd4,
 
     // L1 Data Cache Read States
-    STATE_L1D_READ_CHECK_CACHE           = 8'd5,
-    STATE_L1D_READ_EVICT_DIRTY_WAIT_READY= 8'd6,
-    STATE_L1D_READ_EVICT_DIRTY_SEND_CMD  = 8'd7,
-    STATE_L1D_READ_SEND_CMD              = 8'd8,
-    STATE_L1D_READ_WAIT_READY            = 8'd9,
-    STATE_L1D_READ_WAIT_DATA             = 8'd10,
-    STATE_L1D_READ_WRITE_TO_CACHE        = 8'd11,
-    STATE_L1D_READ_SIGNAL_CPU_DONE       = 8'd12,
+    STATE_L1D_READ_WAIT_CACHE_READ       = 8'd5,
+    STATE_L1D_READ_CHECK_CACHE           = 8'd6,
+    STATE_L1D_READ_EVICT_DIRTY_WAIT_READY= 8'd7,
+    STATE_L1D_READ_EVICT_DIRTY_SEND_CMD  = 8'd8,
+    STATE_L1D_READ_SEND_CMD              = 8'd9,
+    STATE_L1D_READ_WAIT_READY            = 8'd10,
+    STATE_L1D_READ_WAIT_DATA             = 8'd11,
+    STATE_L1D_READ_WRITE_TO_CACHE        = 8'd12,
+    STATE_L1D_READ_SIGNAL_CPU_DONE       = 8'd13,
 
     // L1 Data Cache Write States
-    STATE_L1D_WRITE_CHECK_CACHE              = 8'd13,
-    STATE_L1D_WRITE_MISS_EVICT_DIRTY_WAIT_READY = 8'd14,
-    STATE_L1D_WRITE_MISS_EVICT_DIRTY_SEND_CMD   = 8'd15,
-    STATE_L1D_WRITE_MISS_FETCH_SEND_CMD         = 8'd16,
-    STATE_L1D_WRITE_MISS_FETCH_WAIT_READY       = 8'd17,
-    STATE_L1D_WRITE_MISS_FETCH_WAIT_DATA        = 8'd18,
-    STATE_L1D_WRITE_WRITE_TO_CACHE              = 8'd19,
-    STATE_L1D_WRITE_SIGNAL_CPU_DONE             = 8'd20;
+    STATE_L1D_WRITE_WAIT_CACHE_READ          = 8'd14,
+    STATE_L1D_WRITE_CHECK_CACHE              = 8'd15,
+    STATE_L1D_WRITE_MISS_EVICT_DIRTY_WAIT_READY = 8'd16,
+    STATE_L1D_WRITE_MISS_EVICT_DIRTY_SEND_CMD   = 8'd17,
+    STATE_L1D_WRITE_MISS_FETCH_SEND_CMD         = 8'd18,
+    STATE_L1D_WRITE_MISS_FETCH_WAIT_READY       = 8'd19,
+    STATE_L1D_WRITE_MISS_FETCH_WAIT_DATA        = 8'd20,
+    STATE_L1D_WRITE_WRITE_TO_CACHE              = 8'd21,
+    STATE_L1D_WRITE_SIGNAL_CPU_DONE             = 8'd22;
 
 
 reg [7:0] state = STATE_IDLE;
@@ -200,7 +202,7 @@ begin
                         // Read cache line first to determine a hit or miss
                         l1d_ctrl_addr <= cpu_EXMEM2_start ? cpu_EXMEM2_addr[9:3] : cpu_EXMEM2_addr_stored[9:3]; // DPRAM index, aligned on cache line size (8 words = 256 bits)
                         l1d_ctrl_we <= 1'b0; // Read operation
-                        state <= STATE_L1D_WRITE_CHECK_CACHE; // Wait for DPRAM to respond with the cache line
+                        state <= STATE_L1D_WRITE_WAIT_CACHE_READ; // Wait for DPRAM read to complete
                     end
 
                     // Handle read request
@@ -209,7 +211,7 @@ begin
                         // Read cache line first to determine if it needs to be eviced to memory
                         l1d_ctrl_addr <= cpu_EXMEM2_start ? cpu_EXMEM2_addr[9:3] : cpu_EXMEM2_addr_stored[9:3]; // DPRAM index, aligned on cache line size (8 words = 256 bits)
                         l1d_ctrl_we <= 1'b0; // Read operation
-                        state <= STATE_L1D_READ_CHECK_CACHE; // Wait for DPRAM to respond with the cache line
+                        state <= STATE_L1D_READ_WAIT_CACHE_READ; // Wait for DPRAM read to complete
                     end
                 end
 
@@ -336,6 +338,11 @@ begin
             // L1 Data Cache Read States
             // ------------------------
 
+
+            STATE_L1D_READ_WAIT_CACHE_READ: begin
+                // Wait one cycle for DPRAM read to complete
+                state <= STATE_L1D_READ_CHECK_CACHE;
+            end
 
             STATE_L1D_READ_CHECK_CACHE: begin
                 // Cache line is in l1d_ctrl_q
@@ -474,6 +481,11 @@ begin
             // ------------------------
             // L1 Data Cache Write States
             // ------------------------
+
+            STATE_L1D_WRITE_WAIT_CACHE_READ: begin
+                // Wait one cycle for DPRAM read to complete
+                state <= STATE_L1D_WRITE_CHECK_CACHE;
+            end
 
             STATE_L1D_WRITE_CHECK_CACHE: begin
                 // Cache line is in l1d_ctrl_q

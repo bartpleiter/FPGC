@@ -1,20 +1,20 @@
 [*]
 [*] GTKWave Analyzer v3.3.121 (w)1999-2024 BSI
-[*] Mon Jul 21 12:50:53 2025
+[*] Fri Sep 19 08:59:47 2025
 [*]
 [dumpfile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd"
-[dumpfile_mtime] "Mon Jul 21 12:50:10 2025"
-[dumpfile_size] 1198472
+[dumpfile_mtime] "Fri Sep 19 08:59:02 2025"
+[dumpfile_size] 1348127
 [savefile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/cpu.gtkw"
-[timestart] 558600
+[timestart] 0
 [size] 1920 1033
 [pos] -1 -1
-*-16.648666 922800 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-17.248667 560600 560600 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] cpu_tb.
-[sst_width] 278
-[signals_width] 531
+[sst_width] 321
+[signals_width] 508
 [sst_expanded] 1
-[sst_vpaned_height] 598
+[sst_vpaned_height] 596
 @28
 cpu_tb.clk
 cpu_tb.clk100
@@ -41,12 +41,12 @@ cpu_tb.cache_controller.clk100
 -
 @28
 cpu_tb.cache_controller.cpu_FE2_start
+cpu_tb.cache_controller.cpu_FE2_done
 cpu_tb.cache_controller.cpu_FE2_flush
 @24
 cpu_tb.cache_controller.cpu_FE2_addr[31:0]
 @28
 cpu_tb.cache_controller.cpu_FE2_new_request
-cpu_tb.cache_controller.cpu_FE2_done
 @200
 -
 @24
@@ -89,7 +89,7 @@ cpu_tb.cpu.rom_fe_oe
 @200
 -
 -FE2
-@29
+@28
 cpu_tb.cpu.clk
 @24
 cpu_tb.cpu.PC_FE2[31:0]
@@ -120,6 +120,12 @@ cpu_tb.cpu.l1i_cache_hit_FE2
 cpu_tb.cpu.l1i_cache_miss_FE2
 cpu_tb.cpu.l1i_cache_miss_FE2_check
 cpu_tb.cpu.l1i_cache_controller_done
+@200
+-
+@24
+cpu_tb.cpu.l1i_cache_miss_state_FE2[1:0]
+@28
+cpu_tb.cpu.l1i_cache_controller_start_reg
 @200
 -
 @28
@@ -286,6 +292,32 @@ cpu_tb.cpu.mem_write_EXMEM1
 cpu_tb.cpu.mem_sdram_EXMEM1
 @200
 -
+-L1D Cache Controller
+@28
+cpu_tb.cache_controller.clk100
+@200
+-
+@22
+cpu_tb.cache_controller.l1d_ctrl_addr[6:0]
+cpu_tb.cache_controller.l1d_ctrl_q[273:0]
+cpu_tb.cpu.l1d_pipe_addr[6:0]
+cpu_tb.cpu.l1d_pipe_q[273:0]
+@200
+-
+@24
+cpu_tb.cache_controller.cpu_EXMEM2_addr[31:0]
+@22
+cpu_tb.cache_controller.cpu_EXMEM2_data[31:0]
+@28
+cpu_tb.cache_controller.cpu_EXMEM2_done
+cpu_tb.cache_controller.cpu_EXMEM2_new_request
+cpu_tb.cache_controller.cpu_EXMEM2_result[31:0]
+cpu_tb.cache_controller.cpu_EXMEM2_start
+cpu_tb.cache_controller.cpu_EXMEM2_we
+@24
+cpu_tb.cache_controller.state[7:0]
+@200
+-
 -EXMEM2
 @28
 cpu_tb.cpu.clk
@@ -300,6 +332,29 @@ cpu_tb.cpu.instrOP_EXMEM2[3:0]
 cpu_tb.cpu.data_a_EXMEM2[31:0]
 cpu_tb.cpu.data_b_EXMEM2[31:0]
 cpu_tb.cpu.alu_y_EXMEM2[31:0]
+@200
+-
+-EXMEM2 - SDRAM
+@28
+cpu_tb.cpu.l1d_cache_wait_EXMEM2
+cpu_tb.cpu.mem_sdram_EXMEM2
+cpu_tb.cpu.l1d_cache_miss_state_EXMEM2[1:0]
+@200
+-
+@28
+cpu_tb.cpu.l1d_cache_controller_done
+@22
+cpu_tb.cpu.l1d_cache_hit_q_EXMEM2[31:0]
+@200
+-
+@28
+cpu_tb.cpu.l1d_cache_wait_EXMEM2
+cpu_tb.cpu.mem_write_EXMEM2
+cpu_tb.cpu.mem_sdram_EXMEM2
+cpu_tb.cpu.was_cache_miss_EXMEM2
+cpu_tb.cpu.l1d_cache_miss_EXMEM2
+cpu_tb.cpu.mem_read_EXMEM2
+cpu_tb.cpu.l1d_cache_hit_EXMEM2
 @200
 -
 -EXMEM2 - Stack
@@ -387,6 +442,7 @@ cpu_tb.cpu.PC_WB[31:0]
 cpu_tb.cpu.instr_WB[31:0]
 @200
 -
+-
 -WB - Memory selection
 @28
 cpu_tb.cpu.pop_WB
@@ -400,14 +456,21 @@ cpu_tb.cpu.mem_vram8_WB
 cpu_tb.cpu.mem_vrampx_WB
 @200
 -
-@22
-cpu_tb.cpu.addr_d_WB[3:0]
 @24
+cpu_tb.cpu.addr_d_WB[3:0]
 cpu_tb.cpu.data_d_WB[31:0]
 @28
 cpu_tb.cpu.we_WB
 cpu_tb.cpu.multicycle_alu_stall
 cpu_tb.cpu.exmem1_uses_exmem2_result
+@200
+-
+@22
+cpu_tb.cpu.l1d_cache_hit_q_WB[31:0]
+@28
+cpu_tb.cpu.was_cache_miss_WB
+@22
+cpu_tb.cpu.l1d_cache_controller_result[31:0]
 @200
 -
 @24
