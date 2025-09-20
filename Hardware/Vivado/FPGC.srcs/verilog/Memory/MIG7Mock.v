@@ -144,8 +144,23 @@ always @(posedge ui_clk) begin
                     cycle_counter <= 8'd0;
                     
                     if (app_cmd == 3'b000) begin // Write command
-                        state <= WRITE_CMD;
-                        app_wdf_rdy_reg <= 1'b1; // Keep write data ready high initially
+                        // Check if write data is provided in the same cycle
+                        if (app_wdf_wren && app_wdf_rdy_reg && app_wdf_end) begin
+                            // Single-cycle write: data is available immediately
+                            if (app_addr < RAM_DEPTH) begin
+                                ram_memory[app_addr] <= app_wdf_data;
+                                $display("%d: MIG7Mock WRITE: addr=0x%h, data=0x%h", $time, app_addr, app_wdf_data);
+                            end else begin
+                                $display("%d: MIG7Mock WRITE OUT-OF-BOUNDS: addr=0x%h (>= 0x%h)", $time, app_addr, RAM_DEPTH);
+                            end
+                            // Go directly to write processing delay
+                            app_wdf_rdy_reg <= 1'b0;
+                            state <= WRITE_DATA;
+                        end else begin
+                            // Multi-cycle write: wait for data in next state
+                            state <= WRITE_CMD;
+                            app_wdf_rdy_reg <= 1'b1;
+                        end
                     end
                     else if (app_cmd == 3'b001) begin // Read command
                         state <= READ_CMD;

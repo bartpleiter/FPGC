@@ -171,6 +171,7 @@ begin
         begin
             cpu_FE2_new_request <= 1'b1;
             cpu_FE2_addr_stored <= cpu_FE2_addr;
+            $display("%d: CacheController NEW FE2 REQUEST: addr=0x%h", $time, cpu_FE2_addr);
         end
 
         // Check for CPU EXMEM2 request
@@ -180,6 +181,7 @@ begin
             cpu_EXMEM2_addr_stored <= cpu_EXMEM2_addr;
             cpu_EXMEM2_data_stored <= cpu_EXMEM2_data;
             cpu_EXMEM2_we_stored <= cpu_EXMEM2_we;
+            $display("%d: CacheController NEW EXMEM2 REQUEST: addr=0x%h, data=0x%h, we=%b", $time, cpu_EXMEM2_addr, cpu_EXMEM2_data, cpu_EXMEM2_we);
         end
 
         // State machine to handle requests
@@ -195,46 +197,56 @@ begin
                 begin
                     // Request can be either a read after cache miss, or a write which can be either a hit or a miss
                     cpu_EXMEM2_new_request <= 1'b0; // Clear the request flag
+                    $display("%d: CacheController PROCESSING EXMEM2 REQUEST: addr=0x%h, we=%b", $time, cpu_EXMEM2_start ? cpu_EXMEM2_addr : cpu_EXMEM2_addr_stored, cpu_EXMEM2_start ? cpu_EXMEM2_we : cpu_EXMEM2_we_stored);
 
                     // Handle write request
                     if ((cpu_EXMEM2_new_request && cpu_EXMEM2_we_stored) || (cpu_EXMEM2_start && cpu_EXMEM2_we))
                     begin
+                        $display("%d: CacheController EXMEM2 WRITE REQUEST", $time);
                         // Read cache line first to determine a hit or miss
                         l1d_ctrl_addr <= cpu_EXMEM2_start ? cpu_EXMEM2_addr[9:3] : cpu_EXMEM2_addr_stored[9:3]; // DPRAM index, aligned on cache line size (8 words = 256 bits)
                         l1d_ctrl_we <= 1'b0; // Read operation
                         state <= STATE_L1D_WRITE_WAIT_CACHE_READ; // Wait for DPRAM read to complete
+                        $display("%d: CacheController IDLE -> STATE_L1D_WRITE_WAIT_CACHE_READ", $time);
                     end
 
                     // Handle read request
                     else if ((cpu_EXMEM2_new_request && !cpu_EXMEM2_we_stored) || (cpu_EXMEM2_start && !cpu_EXMEM2_we))
                     begin
+                        $display("%d: CacheController EXMEM2 READ REQUEST", $time);
                         // Read cache line first to determine if it needs to be eviced to memory
                         l1d_ctrl_addr <= cpu_EXMEM2_start ? cpu_EXMEM2_addr[9:3] : cpu_EXMEM2_addr_stored[9:3]; // DPRAM index, aligned on cache line size (8 words = 256 bits)
                         l1d_ctrl_we <= 1'b0; // Read operation
                         state <= STATE_L1D_READ_WAIT_CACHE_READ; // Wait for DPRAM read to complete
+                        $display("%d: CacheController IDLE -> STATE_L1D_READ_WAIT_CACHE_READ", $time);
                     end
                 end
 
                 // Check if there is a new FE2 request (lower priority than EXMEM2)
                 else if ((cpu_FE2_new_request || cpu_FE2_start) && init_calib_complete) // Also check for start to skip a cycle after idle
                 begin
+                    $display("%d: CacheController PROCESSING FE2 REQUEST: addr=0x%h", $time, cpu_FE2_start ? cpu_FE2_addr : cpu_FE2_addr_stored);
                     if (cpu_FE2_flush)
                     begin
                         // If a flush is requested, go back to IDLE state
+                        $display("%d: CacheController FE2 FLUSH REQUESTED", $time);
                         cpu_FE2_new_request <= 1'b0; // Clear the request flag
                         state <= STATE_IDLE;
                     end
                     else
                     begin
+                        $display("%d: CacheController FE2 READ REQUEST", $time);
                         // FE2 requests are only READ operations
                         // Setup MIG7 read command with arguments depending on the availability in the _stored registers
                         app_cmd <= 3'b001; // READ command
                         app_en <= 1'b1;
                         app_addr <= cpu_FE2_start ? {4'd0, cpu_FE2_addr[31:3]} : {4'd0, cpu_FE2_addr_stored[31:3]}; // Align to 256 bits (8 words)
+                        $display("%d: CacheController MIG7 FE2 READ CMD: addr=0x%h", $time, cpu_FE2_start ? {4'd0, cpu_FE2_addr[31:3]} : {4'd0, cpu_FE2_addr_stored[31:3]});
 
                         cpu_FE2_new_request <= 1'b0; // Clear the request flag
 
                         state <= STATE_L1I_SEND_READ_CMD; // Wait for MIG7 to accept the read command
+                        $display("%d: CacheController IDLE -> STATE_L1I_SEND_READ_CMD", $time);
                     end
                 end
             end
@@ -315,6 +327,7 @@ begin
 
                     // Set cpu_done
                     cpu_FE2_done <= 1'b1;
+                    $display("%d: CacheController FE2 OPERATION COMPLETE: addr=0x%h, result=0x%h", $time, cpu_FE2_addr_stored, cpu_FE2_result);
                     state <= STATE_L1I_SIGNAL_CPU_DONE; // Extra stage for the 50 MHz CPU to see the results
                 end
 
@@ -355,8 +368,10 @@ begin
                 cache_line_data <= l1d_ctrl_q[273:18]; // Store the cache line data
 
                 // We already know it is a cache miss, otherwise the CPU would not have requested the read, so we only need to check for the dirty bit
+                $display("%d: CacheController L1D READ cache miss: addr=0x%h, cache_line_valid=%b, cache_line_dirty=%b, cache_line_tag=0x%h", $time, cpu_EXMEM2_addr_stored, l1d_ctrl_q[1], l1d_ctrl_q[0], l1d_ctrl_q[17:2]);
                 if (l1d_ctrl_q[0])
                 begin
+                    $display("%d: CacheController L1D cache line is dirty, need to evict first", $time);
                     // If dirty, we need to write to MIG7 before reading the new cache line
                     if (app_rdy && app_wdf_rdy)
                     begin
@@ -369,6 +384,7 @@ begin
                         app_wdf_wren <= 1'b1; // Enable write data
                         app_wdf_data <= l1d_ctrl_q[273:18]; // Data to write, which is the cache line data
                         app_wdf_end <= 1'b1; // End of write data
+                        $display("%d: CacheController MIG7 L1D EVICT WRITE CMD: addr=0x%h, data=0x%h", $time, {l1d_ctrl_q[17:2], cpu_EXMEM2_addr_stored[9:3]}, l1d_ctrl_q[273:18]);
 
                         state <= STATE_L1D_READ_EVICT_DIRTY_SEND_CMD; // Wait for MIG7 to accept the write command
                     end
@@ -380,10 +396,12 @@ begin
                 end
                 else
                 begin
+                    $display("%d: CacheController L1D cache line is clean, can read new line directly", $time);
                     // If not dirty, we can directly read the new cache line
                     app_cmd <= 3'b001; // READ command
                     app_en <= 1'b1;
                     app_addr <= cpu_EXMEM2_addr_stored[31:3]; // Align to 256 bits (8 words)
+                    $display("%d: CacheController MIG7 L1D READ CMD: addr=0x%h", $time, cpu_EXMEM2_addr_stored[31:3]);
 
                     state <= STATE_L1D_READ_WAIT_READY; // Wait for MIG7 to accept the read command
                 end
@@ -424,6 +442,7 @@ begin
                 app_cmd <= 3'b001; // READ command
                 app_en <= 1'b1;
                 app_addr <= cpu_EXMEM2_addr_stored[31:3]; // Align to 256 bits (8 words)
+                $display("%d: CacheController MIG7 L1D READ CMD after evict: addr=0x%h", $time, cpu_EXMEM2_addr_stored[31:3]);
 
                 state <= STATE_L1D_READ_WAIT_READY; // Wait for MIG7 to accept the read command
             end
@@ -470,6 +489,7 @@ begin
 
                 // Set cpu_done
                 cpu_EXMEM2_done <= 1'b1;
+                $display("%d: CacheController EXMEM2 READ OPERATION COMPLETE: addr=0x%h, result=0x%h", $time, cpu_EXMEM2_addr_stored, cpu_EXMEM2_result);
                 state <= STATE_L1D_READ_SIGNAL_CPU_DONE; // Extra stage for the 50 MHz CPU to see the results
 
             end
@@ -498,10 +518,12 @@ begin
                 cache_line_data <= l1d_ctrl_q[273:18]; // Store the cache line data
 
                 // Check for cache hit: valid bit is set and tag matches
+                $display("%d: CacheController L1D WRITE check cache: addr=0x%h, cache_line_valid=%b, cache_line_dirty=%b, cache_line_tag=0x%h, expected_tag=0x%h", $time, cpu_EXMEM2_addr_stored, l1d_ctrl_q[1], l1d_ctrl_q[0], l1d_ctrl_q[17:2], cpu_EXMEM2_addr_stored[25:10]);
                 if (l1d_ctrl_q[1] && (l1d_ctrl_q[17:2] == cpu_EXMEM2_addr_stored[25:10]))
                 begin
+                    $display("%d: CacheController L1D WRITE CACHE HIT", $time);
                     // Cache hit: immediately write back to DPRAM with the new instruction and the dirty bit set
-                    l1d_ctrl_d[1:0] <= {1'b1, 1'b1};
+                    l1d_ctrl_d[17:0] <= {cpu_EXMEM2_addr_stored[25:10], 1'b1, 1'b1};
                     l1d_ctrl_addr <= cpu_EXMEM2_addr_stored[9:3]; // DPRAM index, aligned on cache line size (8 words = 256 bits)
                     l1d_ctrl_we <= 1'b1;
 
@@ -551,10 +573,12 @@ begin
                 end
                 else
                 begin
+                    $display("%d: CacheController L1D WRITE CACHE MISS", $time);
                     // Cache miss
                     // If current line is dirty and needs to be evicted
                     if (l1d_ctrl_q[0])
                     begin
+                        $display("%d: CacheController L1D write miss: current line is dirty, need to evict first", $time);
                         // Current cache line is dirty, need to write it back to memory first
                         if (app_rdy && app_wdf_rdy)
                         begin
@@ -579,10 +603,12 @@ begin
                     // If current line not dirty and therefore can be safely overwritten
                     else
                     begin
+                        $display("%d: CacheController L1D write miss: current line is clean, can fetch new line directly", $time);
                         // Current cache line is not dirty, can directly fetch new cache line
                         app_cmd <= 3'b001; // READ command
                         app_en <= 1'b1;
                         app_addr <= {4'd0, cpu_EXMEM2_addr_stored[31:3]}; // Align to 256 bits (8 words)
+                        $display("%d: CacheController MIG7 L1D write miss read CMD: addr=0x%h", $time, {4'd0, cpu_EXMEM2_addr_stored[31:3]});
 
                         state <= STATE_L1D_WRITE_MISS_FETCH_WAIT_READY; // Wait for MIG7 to accept the read command
                     end
@@ -602,6 +628,7 @@ begin
                     app_wdf_wren <= 1'b1; // Enable write data
                     app_wdf_data <= cache_line_data; // Data to write, which is the cache line data
                     app_wdf_end <= 1'b1; // End of write data
+                    $display("%d: CacheController MIG7 L1D write miss evict CMD: addr=0x%h, data=0x%h", $time, {l1d_ctrl_q[17:2], cpu_EXMEM2_addr_stored[9:3]}, cache_line_data);
                     state <= STATE_L1D_WRITE_MISS_EVICT_DIRTY_SEND_CMD; // Wait for MIG7 to accept the write command
                 end
             end
@@ -624,6 +651,7 @@ begin
                 app_cmd <= 3'b001; // READ command
                 app_en <= 1'b1;
                 app_addr <= {4'd0, cpu_EXMEM2_addr_stored[31:3]}; // Align to 256 bits (8 words)
+                $display("%d: CacheController MIG7 L1D write miss fetch CMD: addr=0x%h", $time, {4'd0, cpu_EXMEM2_addr_stored[31:3]});
 
                 state <= STATE_L1D_WRITE_MISS_FETCH_WAIT_READY; // Wait for MIG7 to accept the read command
             end
@@ -643,7 +671,7 @@ begin
                 if (app_rd_data_valid && app_rd_data_end)
                 begin
                     
-                    l1d_ctrl_d[1:0] <= {1'b1, 1'b1};
+                    l1d_ctrl_d[17:0] <= {cpu_EXMEM2_addr_stored[25:10], 1'b1, 1'b1};
                     l1d_ctrl_addr <= cpu_EXMEM2_addr_stored[9:3]; // DPRAM index, aligned on cache line size (8 words = 256 bits)
                     l1d_ctrl_we <= 1'b1;
 
@@ -700,10 +728,11 @@ begin
 
                 // Set cpu_done
                 cpu_EXMEM2_done <= 1'b1;
+                $display("%d: CacheController EXMEM2 WRITE OPERATION COMPLETE: addr=0x%h, data=0x%h", $time, cpu_EXMEM2_addr_stored, cpu_EXMEM2_data_stored);
                 state <= STATE_L1D_WRITE_SIGNAL_CPU_DONE; // Extra stage for the 50 MHz CPU to see the results
             end
 
-            STATE_L1D_WRITE_SIGNAL_CPU_DONE: begin                
+            STATE_L1D_WRITE_SIGNAL_CPU_DONE: begin
                 state <= STATE_IDLE; // After this stage, we can return to IDLE state
             end
 

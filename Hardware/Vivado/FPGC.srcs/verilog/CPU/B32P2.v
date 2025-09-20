@@ -105,6 +105,8 @@ wire multicycle_alu_stall;
 assign multicycle_alu_stall = arithm_EXMEM2 && !multicycle_alu_done_EXMEM2;
 
 // Possible hazard situations:
+// TODO: detect case where the results of two consecutive multicycle EXMEM2 operations are being used in EXMEM1
+
 // - EXMEM1 uses result of non-ALU operation from EXMEM2 -> stall
 // Note: in case of multi cycle operation (cache miss or ALU), only set this signal high on the last cycle!
 wire exmem1_uses_exmem2_result;
@@ -167,7 +169,7 @@ begin
         begin
             PC_FE1 <= PC_FE1;
         end
-        else
+        else // TODO: possibly move interrupt_valid check here to make sure interrupts are only handled when there is no complex situation
         begin
             PC_FE1 <= PC_FE1 + 1'b1;
         end
@@ -818,8 +820,8 @@ Regr #(
     .clk (clk),
     .in(instr_EXMEM2),
     .out(instr_WB),
-    .hold(multicycle_alu_stall),
-    .clear(l1d_cache_wait_EXMEM2)
+    .hold(),
+    .clear(l1d_cache_wait_EXMEM2 || multicycle_alu_stall) // Insert bubble if EXMEM2 is stalling
 );
 
 wire [31:0] alu_y_WB;
@@ -829,7 +831,7 @@ Regr #(
     .clk (clk),
     .in(alu_y_EXMEM2),
     .out(alu_y_WB),
-    .hold(multicycle_alu_stall),
+    .hold(),
     .clear(1'b0)
 );
 
@@ -840,7 +842,7 @@ Regr #(
     .clk (clk),
     .in(PC_EXMEM2),
     .out(PC_WB),
-    .hold(multicycle_alu_stall),
+    .hold(),
     .clear(1'b0)
 );
 
@@ -851,7 +853,7 @@ Regr #(
     .clk (clk),
     .in(data_a_EXMEM2),
     .out(data_a_WB),
-    .hold(multicycle_alu_stall),
+    .hold(),
     .clear(1'b0)
 );
 
@@ -862,7 +864,7 @@ Regr #(
     .clk (clk),
     .in(multicycle_alu_y_EXMEM2),
     .out(multicycle_alu_y_WB),
-    .hold(multicycle_alu_stall),
+    .hold(),
     .clear(1'b0)
 );
 
@@ -873,7 +875,7 @@ Regr #(
     .clk (clk),
     .in(l1d_cache_hit_q_EXMEM2),
     .out(l1d_cache_hit_q_WB),
-    .hold(multicycle_alu_stall),
+    .hold(),
     .clear(1'b0)
 );
 
@@ -884,7 +886,7 @@ Regr #(
     .clk (clk),
     .in(!l1d_cache_hit_EXMEM2),
     .out(was_cache_miss_WB),
-    .hold(multicycle_alu_stall),
+    .hold(),
     .clear(1'b0)
 );
 

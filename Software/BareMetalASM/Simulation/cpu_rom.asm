@@ -1,20 +1,26 @@
+; Tests specific edge case hazard that is triggered when two multicycle EXMEM2 instruction results are both used without arguments in between, e.g.
+; - two memory read results are used as arguments without instructions in between, both reads being cache misses
+; - two multiply results are used as arguments without instructions in between, both multiplies being multicycle
 Main:
-    ; Semi random read/writes with the goal to create difficult situations
 
-    load 7 r1 ; r1 = 7
-    load 8 r2 ; r2 = 8
+    ; Setup test data
+    load 1 r1          ; Test data 1
+    load 2 r2          ; Test data 2
 
-    write 0 r2 r1 ; mem[8] = 7
-    write 1 r2 r2 ; mem[9] = 8
-    read 0 r2 r3 ; r3 = mem[8] = 7
-    add r1 r3 r2 ; r2 = 7+7=14
-    write 3 r2 r2 ; mem[17] = 14
-    read 9 r0 r4 ; r4 = mem[9] = 8
-    multu r2 r4 r5 ; r5 = 14*8=112
-    write 0 r1 r5 ; mem[7] = 112
+    load 3 r3
+    load 4 r4
+
+    multu r3 r3 r10    ; r10 = 9
+    multu r4 r4 r11    ; r11 = 16
+    add r10 r11 r12    ; r12 = 25
     
-    read 7 r0 r6 ; r6 = mem[7] = 112
-    read 17 r0 r7 ; r7 = mem[17] = 14
-    add r6 r7 r15 ; expected=126
+    write 0 r0 r1
+    write 1024 r0 r2
+    
+    read 0 r0 r5
+    read 1024 r0 r6
 
+    add r5 r6 r13       ; r13 = 3
+    add r12 r13 r15     ; expected=28
+    
     halt

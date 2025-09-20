@@ -1,18 +1,18 @@
 [*]
 [*] GTKWave Analyzer v3.3.121 (w)1999-2024 BSI
-[*] Sat Sep 20 11:04:46 2025
+[*] Sat Sep 20 16:39:07 2025
 [*]
 [dumpfile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd"
-[dumpfile_mtime] "Sat Sep 20 11:04:16 2025"
-[dumpfile_size] 1602003
+[dumpfile_mtime] "Sat Sep 20 16:38:05 2025"
+[dumpfile_size] 1586281
 [savefile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/cpu.gtkw"
 [timestart] 0
 [size] 1920 1033
 [pos] -1 -1
-*-18.448666 829000 829000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-19.851830 1097000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] cpu_tb.
 [sst_width] 321
-[signals_width] 508
+[signals_width] 507
 [sst_expanded] 1
 [sst_vpaned_height] 667
 @28
@@ -32,6 +32,15 @@ cpu_tb.mig7mock.app_addr[28:0]
 @28
 cpu_tb.mig7mock.app_rd_data_valid
 cpu_tb.mig7mock.app_rd_data[255:0]
+@200
+-
+@28
+cpu_tb.mig7mock.state[2:0]
+cpu_tb.mig7mock.app_wdf_wren
+cpu_tb.mig7mock.app_wdf_rdy_reg
+cpu_tb.mig7mock.app_wdf_end
+@22
+cpu_tb.mig7mock.app_wdf_data[255:0]
 @200
 -
 -L1i Cache Controller
@@ -355,6 +364,12 @@ cpu_tb.cpu.was_cache_miss_EXMEM2
 cpu_tb.cpu.l1d_cache_miss_EXMEM2
 cpu_tb.cpu.mem_read_EXMEM2
 cpu_tb.cpu.l1d_cache_hit_EXMEM2
+@200
+-
+@22
+cpu_tb.cpu.l1d_tag_EXMEM2[15:0]
+@23
+cpu_tb.cpu.l1d_pipe_q[273:0]
 @200
 -
 -EXMEM2 - Stack
