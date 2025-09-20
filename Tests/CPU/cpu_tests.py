@@ -61,7 +61,7 @@ def get_tests():
     for file in os.listdir(TESTS_DIRECTORY):
         if file.endswith(".asm"):
             tests.append(file)
-    return tests
+    return sorted(tests)
 
 def main():
     failed_tests = []

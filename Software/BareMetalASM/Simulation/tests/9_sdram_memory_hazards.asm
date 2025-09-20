@@ -1,3 +1,5 @@
+; Tests SDRAM memory read/write operations with l1d cache
+; Assumes cache line size of 8 words (32 bytes), meaning that address 8 is on the 2nd cache line
 Main:
     ; Semi random read/writes with the goal to create difficult situations
 

@@ -116,14 +116,14 @@ assign exmem1_uses_exmem2_result =
 // Note: because this is hard to describe as a variable name, we will call this situation hazard_pc1_pc2
 wire hazard_pc1_pc2;
 assign hazard_pc1_pc2 = 
-    ( (mem_read_EXMEM2 && mem_multicycle_EXMEM2) || arithm_EXMEM2 ) &&
+    ( (mem_read_EXMEM2 && mem_multicycle_EXMEM2) || arithm_EXMEM2 || l1d_cache_wait_EXMEM2 ) &&
     ( ( (areg_EXMEM1 == addr_d_WB) && areg_EXMEM1 != 4'd0) || ( (breg_EXMEM1 == addr_d_WB) && breg_EXMEM1 != 4'd0) );
 
 // - EXMEM1 uses result of multicycle EXMEM2 at PC-2 and dreg of PC-1 -> jump to same address to resolve
 // Note: because this is hard to describe as a variable name, we will call this situation hazard_pc2_pc1
 wire hazard_pc2_pc1;
 assign hazard_pc2_pc1 = 
-    ( (mem_read_WB && mem_multicycle_WB) || arithm_WB ) &&
+    ( (mem_read_WB && mem_multicycle_WB) || arithm_WB || l1d_cache_wait_EXMEM2 ) &&
     ( ( (areg_EXMEM1 == dreg_EXMEM2) && areg_EXMEM1 != 4'd0) || ( (breg_EXMEM1 == dreg_EXMEM2) && breg_EXMEM1 != 4'd0) );
 
 // Forwarding situations
