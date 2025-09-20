@@ -4,21 +4,21 @@
 Main:
 
     ; Setup test data
-    load 1 r1          ; Test data 1
-    load 2 r2          ; Test data 2
+    load 1 r1           ; Test data 1
+    load 2 r2           ; Test data 2
 
     load 3 r3
     load 4 r4
 
-    multu r3 r3 r10    ; r10 = 9
-    multu r4 r4 r11    ; r11 = 16
-    add r10 r11 r12    ; r12 = 25
+    multu r3 r3 r10     ; r10 = 9
+    multu r4 r4 r11     ; r11 = 16
+    add r10 r11 r12     ; r12 = 25
     
     write 0 r0 r1
     write 1024 r0 r2
     
-    read 0 r0 r5
-    read 1024 r0 r6
+    read 0 r0 r5        ; r5 = 1
+    read 1024 r0 r6     ; r6 = 2
 
     add r5 r6 r13       ; r13 = 3
     add r12 r13 r15     ; expected=28
