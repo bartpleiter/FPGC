@@ -83,9 +83,9 @@ wire flush_FE2;
 wire flush_REG;
 wire flush_EXMEM1;
 
-assign flush_FE1 = jump_valid_EXMEM1 || hazard_pc1_pc2 || hazard_pc2_pc1 || reti_EXMEM1 || interrupt_valid;
-assign flush_FE2 = jump_valid_EXMEM1 || hazard_pc1_pc2 || hazard_pc2_pc1 || reti_EXMEM1 || interrupt_valid;
-assign flush_REG = jump_valid_EXMEM1 || hazard_pc1_pc2 || hazard_pc2_pc1 || reti_EXMEM1 || interrupt_valid;
+assign flush_FE1 = jump_valid_EXMEM1 || hazard_pc1_pc2 || hazard_pc2_pc1 || reti_EXMEM1 || interrupt_valid || consecutive_multicycle_hazard;
+assign flush_FE2 = jump_valid_EXMEM1 || hazard_pc1_pc2 || hazard_pc2_pc1 || reti_EXMEM1 || interrupt_valid || consecutive_multicycle_hazard;
+assign flush_REG = jump_valid_EXMEM1 || hazard_pc1_pc2 || hazard_pc2_pc1 || reti_EXMEM1 || interrupt_valid || consecutive_multicycle_hazard;
 assign flush_EXMEM1 = exmem1_uses_exmem2_result;
 
 assign l1i_cache_controller_flush = flush_FE2; // Notify cache controller when FE2 is flushed
@@ -105,7 +105,10 @@ wire multicycle_alu_stall;
 assign multicycle_alu_stall = arithm_EXMEM2 && !multicycle_alu_done_EXMEM2;
 
 // Possible hazard situations:
+
 // TODO: detect case where the results of two consecutive multicycle EXMEM2 operations are being used in EXMEM1
+wire consecutive_multicycle_hazard;
+assign consecutive_multicycle_hazard = 1'b0;
 
 // - EXMEM1 uses result of non-ALU operation from EXMEM2 -> stall
 // Note: in case of multi cycle operation (cache miss or ALU), only set this signal high on the last cycle!
@@ -161,7 +164,7 @@ begin
         begin
             PC_FE1 <= jump_addr_EXMEM1;
         end
-        else if (hazard_pc1_pc2 || hazard_pc2_pc1)
+        else if (hazard_pc1_pc2 || hazard_pc2_pc1 || consecutive_multicycle_hazard)
         begin
             PC_FE1 <= PC_EXMEM1;
         end
@@ -376,7 +379,7 @@ Regbank regbank (
     .addr_d(addr_d_WB),
     .data_d(data_d_WB),
     // When EXMEM2 is stalling, we keep the data in the pipeline in case of forwarding
-    .we(we_WB && !multicycle_alu_stall) // TODO: add memory stall signal when implemented
+    .we(we_WB)
 );
 
 // Forward to next stage

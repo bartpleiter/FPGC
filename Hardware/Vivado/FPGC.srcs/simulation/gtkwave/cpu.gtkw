@@ -1,16 +1,17 @@
 [*]
 [*] GTKWave Analyzer v3.3.121 (w)1999-2024 BSI
-[*] Sat Sep 20 16:39:07 2025
+[*] Sat Sep 20 18:11:11 2025
 [*]
 [dumpfile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd"
-[dumpfile_mtime] "Sat Sep 20 16:38:05 2025"
-[dumpfile_size] 1586281
+[dumpfile_mtime] "Sat Sep 20 18:09:26 2025"
+[dumpfile_size] 1605782
 [savefile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/cpu.gtkw"
 [timestart] 0
 [size] 1920 1033
 [pos] -1 -1
-*-19.851830 1097000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-17.151831 223500 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] cpu_tb.
+[treeopen] cpu_tb.cpu.
 [sst_width] 321
 [signals_width] 507
 [sst_expanded] 1
@@ -256,6 +257,7 @@ cpu_tb.cpu.forward_b[1:0]
 @28
 cpu_tb.cpu.hazard_pc1_pc2
 cpu_tb.cpu.hazard_pc2_pc1
+cpu_tb.cpu.consecutive_multicycle_hazard
 @200
 -
 -EXMEM1 - BranchJumpUnit
@@ -368,7 +370,6 @@ cpu_tb.cpu.l1d_cache_hit_EXMEM2
 -
 @22
 cpu_tb.cpu.l1d_tag_EXMEM2[15:0]
-@23
 cpu_tb.cpu.l1d_pipe_q[273:0]
 @200
 -
@@ -494,6 +495,15 @@ cpu_tb.cpu.stack_q_WB[31:0]
 cpu_tb.cpu.rom_mem_q[31:0]
 @200
 -
+-Regbank
+@28
+cpu_tb.cpu.regbank.clear
+@29
+cpu_tb.cpu.regbank.we
+@24
+cpu_tb.cpu.regbank.addr_d[3:0]
+cpu_tb.cpu.regbank.data_d[31:0]
+@200
 -
 -
 -

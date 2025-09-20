@@ -1,4 +1,4 @@
-; Tests specific edge case hazard that is triggered when two multicycle EXMEM2 instruction results are both used without arguments in between, e.g.
+; Tests specific edge case hazards that are triggered when two multicycle EXMEM2 instruction results are both used without arguments in between, e.g.
 ; - two memory read results are used as arguments without instructions in between, both reads being cache misses
 ; - two multiply results are used as arguments without instructions in between, both multiplies being multicycle
 Main:
