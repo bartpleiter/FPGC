@@ -1,11 +1,21 @@
 [project]
-name = "asmpy"
+name = "fpgc"
 version = "0.1.0"
-description = "Assembler for the B32P2 architecture"
+description = "Environment for running FPGC tools and scripts"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 authors = [{name = "Bart Pleiter"}]
-dependencies = []
+dependencies = [
+    "bitstring>=4.3.1",
+    "mkdocs>=1.6.1",
+    "mkdocs-awesome-pages-plugin>=2.10.1",
+    "mkdocs-material>=9.6.14",
+    "numpy>=2.3.1",
+    "pillow>=11.2.1",
+    "pyserial>=3.5",
+    "ruff>=0.12.1",
+    "tqdm>=4.67.1",
+]
 
 [dependency-groups]
 dev = [
@@ -18,6 +28,9 @@ dev = [
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["BuildTools/ASMPY"]
 
 [project.scripts]
 asmpy = "asmpy.app:main"

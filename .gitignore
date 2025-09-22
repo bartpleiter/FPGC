@@ -13,7 +13,7 @@ __pycache__
 
 .venv
 BuildTools/ASMPY/build
-asmpy.egg-info
+*.egg-info
 .mypy_cache
 .pytest_cache
 .ruff_cache
