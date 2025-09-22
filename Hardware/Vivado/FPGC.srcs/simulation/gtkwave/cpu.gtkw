@@ -1,21 +1,21 @@
 [*]
 [*] GTKWave Analyzer v3.3.121 (w)1999-2024 BSI
-[*] Sat Sep 20 18:44:31 2025
+[*] Mon Sep 22 07:32:08 2025
 [*]
 [dumpfile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd"
-[dumpfile_mtime] "Sat Sep 20 18:42:34 2025"
-[dumpfile_size] 1548798
+[dumpfile_mtime] "Mon Sep 22 07:30:58 2025"
+[dumpfile_size] 2082932
 [savefile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/cpu.gtkw"
-[timestart] 900500
-[size] 1920 1033
+[timestart] 0
+[size] 1920 1080
 [pos] -1 -1
-*-17.151831 1239000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-17.751831 228000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] cpu_tb.
 [treeopen] cpu_tb.cpu.
 [sst_width] 321
 [signals_width] 507
 [sst_expanded] 1
-[sst_vpaned_height] 667
+[sst_vpaned_height] 703
 @28
 cpu_tb.clk
 cpu_tb.clk100
@@ -118,17 +118,16 @@ cpu_tb.cpu.l1i_pipe_q[273:0]
 @24
 cpu_tb.cpu.l1i_offset_FE2[2:0]
 cpu_tb.cpu.l1i_tag_FE2[15:0]
-@28
-cpu_tb.cpu.valid_FE2
 @200
 -
+@29
+cpu_tb.cpu.valid_mem_access_FE2
 @24
 cpu_tb.cpu.l1i_cache_hit_FE2
 @200
 -
 @28
 cpu_tb.cpu.l1i_cache_miss_FE2
-cpu_tb.cpu.l1i_cache_miss_FE2_check
 cpu_tb.cpu.l1i_cache_controller_done
 @200
 -
@@ -497,7 +496,6 @@ cpu_tb.cpu.rom_mem_q[31:0]
 -Regbank
 @28
 cpu_tb.cpu.regbank.clear
-@29
 cpu_tb.cpu.regbank.we
 @24
 cpu_tb.cpu.regbank.addr_d[3:0]

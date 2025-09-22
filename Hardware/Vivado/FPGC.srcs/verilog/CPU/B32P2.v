@@ -169,7 +169,7 @@ begin
         begin
             PC_FE1 <= PC_FE1;
         end
-        else // TODO: possibly move interrupt_valid check here to make sure interrupts are only handled when there is no complex situation
+        else
         begin
             PC_FE1 <= PC_FE1 + 1'b1;
         end
@@ -207,13 +207,14 @@ Regr #(
     .clear(flush_FE1)
 );
 
-wire valid_FE2; // To make sure we do not detect cache misses on pipeline bubbles
+// Signal to make sure we do not detect cache misses on invalid memory accesses (e.g. during pipeline bubbles for address 0)
+wire valid_mem_access_FE2;
 Regr #(
     .N(1)
-) regr_valid_FE1_FE2 (
+) regr_valid_mem_access_FE1_FE2 (
     .clk (clk),
     .in(!mem_rom_FE1 && !flush_FE1),
-    .out(valid_FE2),
+    .out(valid_mem_access_FE2),
     .hold(1'b0),
     .clear(1'b0)
 );
@@ -233,15 +234,16 @@ wire [15:0] l1i_tag_FE2 = PC_FE2[25:10]; // Tag for the cache line
 wire [2:0] l1i_offset_FE2 = PC_FE2[2:0]; // Offset within the cache line
 
 wire l1i_cache_hit_FE2 = 
-    (valid_FE2) &&
+    (valid_mem_access_FE2) &&
     (l1i_tag_FE2 == l1i_pipe_q[17:2]) &&
-    l1i_pipe_q[1]; // Valid bit
+    l1i_pipe_q[1] && // Valid bit
+    l1i_cache_miss_state_FE2 == CACHE_IDLE; // Make sure we are not currently handling a cache miss
 
 wire [31:0] l1i_cache_hit_q_FE2 = l1i_pipe_q[32 * l1i_offset_FE2 + 18 +: 32]; // Note that the +: is used to select base +: width
 
 // L1i cache miss handling
 wire l1i_cache_miss_FE2;
-assign l1i_cache_miss_FE2 = (valid_FE2) && !mem_rom_FE2 && !l1i_cache_hit_FE2;
+assign l1i_cache_miss_FE2 = l1i_cache_miss_state_FE2 != CACHE_RESULT_READY && (valid_mem_access_FE2) && !(l1i_tag_FE2 == l1i_pipe_q[17:2] && l1i_pipe_q[1]);
 
 // Cache miss state machine
 reg [1:0] l1i_cache_miss_state_FE2 = 2'b00;
@@ -250,9 +252,17 @@ reg l1i_cache_controller_start_reg = 1'b0;
 localparam CACHE_IDLE = 2'b00;
 localparam CACHE_STARTED = 2'b01;
 localparam CACHE_WAIT_DONE = 2'b10;
+localparam CACHE_RESULT_READY = 2'b11;
 
+reg [31:0] saved_cache_result_FE2 = 32'd0; // To save the result from the cache controller on cache miss
+
+// TODO: update this state machine to not reset on flush, but handle the flush properly instead
+// Also note, flush is the only way for the PC to change, so we can make use of this to handle stalls as follows:
+// - Contine on stall until l1i_cache_controller_done
+// - If stall still active while this happens, save result is register and move to new state (actually can do this within current state)
+// - New state waits until stall is done, and only then forwards saved result to next stage
 always @(posedge clk) begin
-    if (reset || flush_FE2) begin // TODO: on flush, send signal to cache controller to abort current operation / do not set done high
+    if (reset) begin // TODO: on flush, send signal to cache controller to abort current operation / do not set done high
         l1i_cache_miss_state_FE2 <= CACHE_IDLE;
         l1i_cache_controller_start_reg <= 1'b0;
     end else begin
@@ -272,12 +282,17 @@ always @(posedge clk) begin
             
             CACHE_WAIT_DONE: begin
                 if (l1i_cache_controller_done) begin
-                    l1i_cache_miss_state_FE2 <= CACHE_IDLE;
+                    saved_cache_result_FE2 <= l1i_cache_controller_result;
+                    l1i_cache_miss_state_FE2 <= CACHE_RESULT_READY;
                     // TODO: if stall_FE2 is set, we should:
                     // - Save the result in a register
                     // - Set a flag to indicate this situation had occurred
                     // - Update instr_result_FE2, most likely by also unsetting hold .hold(stall_FE2 && !flag),
                 end
+            end
+
+            CACHE_RESULT_READY: begin
+                l1i_cache_miss_state_FE2 <= CACHE_IDLE;
             end
         endcase
     end
@@ -287,15 +302,12 @@ end
 assign l1i_cache_controller_addr = PC_FE2;
 assign l1i_cache_controller_start = l1i_cache_controller_start_reg;
 
-// Wire to check if the current instruction was a cache miss
-wire l1i_cache_miss_FE2_check = l1i_cache_miss_FE2 || l1i_cache_controller_done;
-
 
 // Result selection for next stage
 wire [31:0] instr_result_FE2;
 assign instr_result_FE2 =   (mem_rom_FE2) ? rom_q_FE2 :
+                            (l1i_cache_miss_state_FE2 == CACHE_RESULT_READY) ? saved_cache_result_FE2 : // Cache miss result is ready
                             (l1i_cache_miss_FE2) ? 32'b0 : // Forward bubbles when still handling cache miss
-                            (l1i_cache_controller_done) ? l1i_cache_controller_result :
                             (l1i_cache_hit_FE2) ? l1i_cache_hit_q_FE2 : // Must be below cache miss checks
                             32'b0;
 
