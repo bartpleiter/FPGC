@@ -1,15 +1,15 @@
 [*]
 [*] GTKWave Analyzer v3.3.121 (w)1999-2024 BSI
-[*] Mon Sep 22 07:32:08 2025
+[*] Mon Sep 22 08:49:24 2025
 [*]
 [dumpfile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd"
-[dumpfile_mtime] "Mon Sep 22 07:30:58 2025"
-[dumpfile_size] 2082932
+[dumpfile_mtime] "Mon Sep 22 08:45:28 2025"
+[dumpfile_size] 1214631
 [savefile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/cpu.gtkw"
 [timestart] 0
 [size] 1920 1080
 [pos] -1 -1
-*-17.751831 228000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-19.052370 1060000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] cpu_tb.
 [treeopen] cpu_tb.cpu.
 [sst_width] 321
@@ -103,8 +103,9 @@ cpu_tb.cpu.rom_fe_oe
 cpu_tb.cpu.clk
 @24
 cpu_tb.cpu.PC_FE2[31:0]
-@28
+@29
 cpu_tb.cpu.stall_FE2
+@28
 cpu_tb.cpu.flush_FE2
 @200
 -
@@ -120,7 +121,7 @@ cpu_tb.cpu.l1i_offset_FE2[2:0]
 cpu_tb.cpu.l1i_tag_FE2[15:0]
 @200
 -
-@29
+@28
 cpu_tb.cpu.valid_mem_access_FE2
 @24
 cpu_tb.cpu.l1i_cache_hit_FE2

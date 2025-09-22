@@ -27,7 +27,7 @@ module CacheController
     // FE2 stage
     input  wire                      cpu_FE2_start,
     input  wire [31:0]               cpu_FE2_addr, // Address in CPU words for instruction fetch
-    input  wire                      cpu_FE2_flush, // CPU is flushed, ignore the current request and go back to IDLE
+    input  wire                      cpu_FE2_flush, // CPU is flushed, do not set the done signal when the fetch completes
     output reg                       cpu_FE2_done      = 1'b0,
     output reg [31:0]                cpu_FE2_result    = 32'd0, // Result of the instruction fetch
     // EXMEM2 stage
@@ -124,6 +124,7 @@ reg cpu_EXMEM2_we_stored = 1'b0;
 
 reg [255:0] cache_line_data = 256'b0;
 
+reg ignore_fe2_result = 1'b0; // If a flush is received while processing a FE2 request, we need to ignore the result when it is done
 
 always @ (posedge clk100)
 begin
@@ -159,6 +160,8 @@ begin
         cpu_EXMEM2_we_stored <= 1'b0;
 
         cache_line_data <= 256'b0;
+
+        ignore_fe2_result <= 1'b0;
     end
     else
     begin
@@ -167,7 +170,7 @@ begin
         cpu_EXMEM2_start_prev <= cpu_EXMEM2_start;
 
         // Check for CPU FE2 request
-        if (cpu_FE2_start && !cpu_FE2_start_prev && !cpu_FE2_flush)
+        if (cpu_FE2_start && !cpu_FE2_start_prev)
         begin
             cpu_FE2_new_request <= 1'b1;
             cpu_FE2_addr_stored <= cpu_FE2_addr;
@@ -182,6 +185,20 @@ begin
             cpu_EXMEM2_data_stored <= cpu_EXMEM2_data;
             cpu_EXMEM2_we_stored <= cpu_EXMEM2_we;
             $display("%d: CacheController NEW EXMEM2 REQUEST: addr=0x%h, data=0x%h, we=%b", $time, cpu_EXMEM2_addr, cpu_EXMEM2_data, cpu_EXMEM2_we);
+        end
+
+        // Flush handling for FE2
+        if (cpu_FE2_flush)
+        begin
+            cpu_FE2_new_request <= 1'b0; // Clear any pending request
+
+            // If state machine is in the middle of processing a FE2 request, we need to set a flag to ignore the result when it is done
+            if (state == STATE_L1I_SEND_READ_CMD ||
+                state == STATE_L1I_WAIT_READ_DATA)
+            begin
+                ignore_fe2_result <= 1'b1;
+                $display("%d: CacheController FE2 FLUSH RECEIVED, will ignore result when done", $time);
+            end
         end
 
         // State machine to handle requests
@@ -226,28 +243,19 @@ begin
                 else if ((cpu_FE2_new_request || cpu_FE2_start) && init_calib_complete) // Also check for start to skip a cycle after idle
                 begin
                     $display("%d: CacheController PROCESSING FE2 REQUEST: addr=0x%h", $time, cpu_FE2_start ? cpu_FE2_addr : cpu_FE2_addr_stored);
-                    if (cpu_FE2_flush)
-                    begin
-                        // If a flush is requested, go back to IDLE state
-                        $display("%d: CacheController FE2 FLUSH REQUESTED", $time);
-                        cpu_FE2_new_request <= 1'b0; // Clear the request flag
-                        state <= STATE_IDLE;
-                    end
-                    else
-                    begin
-                        $display("%d: CacheController FE2 READ REQUEST", $time);
-                        // FE2 requests are only READ operations
-                        // Setup MIG7 read command with arguments depending on the availability in the _stored registers
-                        app_cmd <= 3'b001; // READ command
-                        app_en <= 1'b1;
-                        app_addr <= cpu_FE2_start ? {4'd0, cpu_FE2_addr[31:3]} : {4'd0, cpu_FE2_addr_stored[31:3]}; // Align to 256 bits (8 words)
-                        $display("%d: CacheController MIG7 FE2 READ CMD: addr=0x%h", $time, cpu_FE2_start ? {4'd0, cpu_FE2_addr[31:3]} : {4'd0, cpu_FE2_addr_stored[31:3]});
 
-                        cpu_FE2_new_request <= 1'b0; // Clear the request flag
+                    // FE2 requests are only READ operations
+                    // Setup MIG7 read command with arguments depending on the availability in the _stored registers
+                    app_cmd <= 3'b001; // READ command
+                    app_en <= 1'b1;
+                    app_addr <= cpu_FE2_start ? {4'd0, cpu_FE2_addr[31:3]} : {4'd0, cpu_FE2_addr_stored[31:3]}; // Align to 256 bits (8 words)
+                    $display("%d: CacheController MIG7 FE2 READ CMD: addr=0x%h", $time, cpu_FE2_start ? {4'd0, cpu_FE2_addr[31:3]} : {4'd0, cpu_FE2_addr_stored[31:3]});
 
-                        state <= STATE_L1I_SEND_READ_CMD; // Wait for MIG7 to accept the read command
-                        $display("%d: CacheController IDLE -> STATE_L1I_SEND_READ_CMD", $time);
-                    end
+                    cpu_FE2_new_request <= 1'b0; // Clear the request flag
+
+                    state <= STATE_L1I_SEND_READ_CMD; // Wait for MIG7 to accept the read command
+                    $display("%d: CacheController IDLE -> STATE_L1I_SEND_READ_CMD", $time);
+
                 end
             end
 
@@ -256,95 +264,63 @@ begin
             // ------------------------
 
             STATE_L1I_SEND_READ_CMD: begin
-                if (cpu_FE2_flush)
+                // Wait for MIG7 to assert ready, indicating the read command is accepted
+                // At this point the address is stored, so we should use it in case cpu does not set the signals anymore
+                app_addr <= {4'd0, cpu_FE2_addr_stored[31:3]}; // Align to 256 bits (8 words)
+                if (app_rdy)
                 begin
-                    // If a flush is requested, go back to IDLE state
-                    cpu_FE2_new_request <= 1'b0; // Clear the request flag
-                    app_en <= 1'b0;
-                    state <= STATE_IDLE;
-                end
-                else
-                begin
-                    // Wait for MIG7 to assert ready, indicating the read command is accepted
-                    // At this point the address is stored, so we should use it in case cpu does not set the signals anymore
-                    app_addr <= {4'd0, cpu_FE2_addr_stored[31:3]}; // Align to 256 bits (8 words)
-                    if (app_rdy)
-                    begin
-                        // MIG7 is ready, we can proceed with the read operation
-                        app_en <= 1'b0; // Disassert app_en to prevent sending another command
-                        state <= STATE_L1I_WAIT_READ_DATA; // Wait until the data is ready
-                    end
+                    // MIG7 is ready, we can proceed with the read operation
+                    app_en <= 1'b0; // Disassert app_en to prevent sending another command
+                    state <= STATE_L1I_WAIT_READ_DATA; // Wait until the data is ready
                 end
             end
 
             STATE_L1I_WAIT_READ_DATA: begin
-                if (cpu_FE2_flush)
+                // Wait for MIG7 to provide the read data
+                if (app_rd_data_valid && app_rd_data_end)
                 begin
-                    // If a flush is requested, go back to IDLE state
-                    cpu_FE2_new_request <= 1'b0; // Clear the request flag
-                    state <= STATE_IDLE;
-                end
-                else
-                begin
-                    // Wait for MIG7 to provide the read data
-                    if (app_rd_data_valid && app_rd_data_end)
-                    begin
-                        // Extract the requested 32-bit word based on offset for the CPU return value
-                        case (cpu_FE2_addr_stored[2:0])
-                            3'd0: cpu_FE2_result <= app_rd_data[31:0];
-                            3'd1: cpu_FE2_result <= app_rd_data[63:32];
-                            3'd2: cpu_FE2_result <= app_rd_data[95:64];
-                            3'd3: cpu_FE2_result <= app_rd_data[127:96];
-                            3'd4: cpu_FE2_result <= app_rd_data[159:128];
-                            3'd5: cpu_FE2_result <= app_rd_data[191:160];
-                            3'd6: cpu_FE2_result <= app_rd_data[223:192];
-                            3'd7: cpu_FE2_result <= app_rd_data[255:224];
-                        endcase
+                    // Extract the requested 32-bit word based on offset for the CPU return value
+                    case (cpu_FE2_addr_stored[2:0])
+                        3'd0: cpu_FE2_result <= app_rd_data[31:0];
+                        3'd1: cpu_FE2_result <= app_rd_data[63:32];
+                        3'd2: cpu_FE2_result <= app_rd_data[95:64];
+                        3'd3: cpu_FE2_result <= app_rd_data[127:96];
+                        3'd4: cpu_FE2_result <= app_rd_data[159:128];
+                        3'd5: cpu_FE2_result <= app_rd_data[191:160];
+                        3'd6: cpu_FE2_result <= app_rd_data[223:192];
+                        3'd7: cpu_FE2_result <= app_rd_data[255:224];
+                    endcase
 
-                        // Write the retrieved cache line directly to DPRAM
-                        // Format: {256bit_data, 16bit_tag, 1'b1(valid), 1'b0(dirty)}
-                        l1i_ctrl_d <= {app_rd_data, cpu_FE2_addr_stored[25:10], 1'b1, 1'b0};
-                        l1i_ctrl_addr <= cpu_FE2_addr_stored[9:3]; // DPRAM index, aligned on cache line size (8 words = 256 bits)
-                        l1i_ctrl_we <= 1'b1;
+                    // Write the retrieved cache line directly to DPRAM
+                    // Format: {256bit_data, 16bit_tag, 1'b1(valid), 1'b0(dirty)}
+                    l1i_ctrl_d <= {app_rd_data, cpu_FE2_addr_stored[25:10], 1'b1, 1'b0};
+                    l1i_ctrl_addr <= cpu_FE2_addr_stored[9:3]; // DPRAM index, aligned on cache line size (8 words = 256 bits)
+                    l1i_ctrl_we <= 1'b1;
 
-                        state <= STATE_L1I_WRITE_TO_CACHE; // Wait until the data is written so that the fetch of the next instruction can use the cache
-                    end
+                    state <= STATE_L1I_WRITE_TO_CACHE; // Wait until the data is written so that the fetch of the next instruction can use the cache
                 end
             end
 
             STATE_L1I_WRITE_TO_CACHE: begin
-                if (cpu_FE2_flush)
+                // Start by disasserting the write enable
+                l1i_ctrl_we <= 1'b0;
+
+                // Set cpu_done
+                if (!ignore_fe2_result && !cpu_FE2_flush)
                 begin
-                    // If a flush is requested, go back to IDLE state
-                    cpu_FE2_new_request <= 1'b0; // Clear the request flag
-                    l1i_ctrl_we <= 1'b0; // Disassert write enable
-                    state <= STATE_IDLE;
+                    cpu_FE2_done <= 1'b1;
+                    $display("%d: CacheController FE2 OPERATION COMPLETE: addr=0x%h, result=0x%h", $time, cpu_FE2_addr_stored, cpu_FE2_result);
                 end
                 else
                 begin
-                    // Start by disasserting the write enable
-                    l1i_ctrl_we <= 1'b0;
-
-                    // Set cpu_done
-                    cpu_FE2_done <= 1'b1;
-                    $display("%d: CacheController FE2 OPERATION COMPLETE: addr=0x%h, result=0x%h", $time, cpu_FE2_addr_stored, cpu_FE2_result);
-                    state <= STATE_L1I_SIGNAL_CPU_DONE; // Extra stage for the 50 MHz CPU to see the results
+                    $display("%d: CacheController FE2 OPERATION COMPLETE: addr=0x%h, result=0x%h -- BUT IGNORED DUE TO FLUSH", $time, cpu_FE2_addr_stored, cpu_FE2_result);
+                    ignore_fe2_result <= 1'b0; // Clear the ignore flag
                 end
-
+                state <= STATE_L1I_SIGNAL_CPU_DONE; // Extra stage for the 50 MHz CPU to see the results
             end
 
             STATE_L1I_SIGNAL_CPU_DONE: begin
-                if (cpu_FE2_flush)
-                begin
-                    // If a flush is requested, go back to IDLE state
-                    cpu_FE2_new_request <= 1'b0; // Clear the request flag
-                    cpu_FE2_done <= 1'b0; // Disassert done signal
-                    state <= STATE_IDLE;
-                end
-                else
-                begin
-                    state <= STATE_IDLE; // After this stage, we can return to IDLE state
-                end
+                state <= STATE_IDLE;
             end
 
             // ------------------------

@@ -1,79 +1,78 @@
-; Simple test program for implementation purposes
-
-Main:
-    load 1 r1
-    load 2 r2
-    load 3 r3
-    load 4 r4
-    load 5 r5
-    load 6 r6
-    load 7 r7
-    load 8 r8
-    load 9 r9
-    load 10 r10
-    load 11 r11
-    load 12 r12
-    load 13 r13
-    load 14 r14
-
-    add r1 r1 r1
-    add r2 r2 r2
-    add r3 r3 r3
-    add r4 r4 r4
-    add r5 r5 r5
-    add r6 r6 r6
-    add r7 r7 r7
-    bne r1 r2 -21
-    add r8 r8 r8
-    add r9 r9 r9
-    add r10 r10 r10
-    add r11 r11 r11
-    add r12 r12 r12
-    add r13 r13 r13
-    add r14 r14 r14
-
-    halt
-    
-
-
-
-
 ; When used as instruction memory, this causes fetch issues because of stalling
 
+Main:
+    load 3 r3 ; r3=3
+    load 4 r4 ; r4=4
+
+    load 1 r1 ; r1=1
+    load 2 r2 ; r2=2
+    add r1 r2 r5 ; r5=3
+    beq r3 r5 2
+    halt
+
+    multu r2 r2 r6 ; r6=4
+    beq r4 r6 2
+    halt
+    add r1 r6 r6 ; r6=5
+    multu r6 r2 r6 ; r6=10
+    multu r6 r2 r6 ; r6=20
+    sub r6 r2 r6 ; r6=18
+    multu r6 r2 r1 ; r1=36
+    load 35 r2 ; r2=35
+
+    sub r1 r2 r6 ; r6=1
+    push r6
+    multu r6 r4 r3 ; r3=4
+    pop r6
+    multu r6 r3 r6 ; r6=4
+    push r6
+    load 9 r6 ; r6=9
+    pop r6
+    add r6 2 r6 ; r6=6
+    bge r6 r3 2
+    halt
+    or r6 r0 r15 ; expected=6
+
+    halt
+
+
+; Simple test program for implementation purposes
+
 ; Main:
-;     load 3 r3 ; r3=3
-;     load 4 r4 ; r4=4
+;     load 1 r1
+;     load 2 r2
+;     load 3 r3
+;     load 4 r4
+;     load 5 r5
+;     load 6 r6
+;     load 7 r7
+;     load 8 r8
+;     load 9 r9
+;     load 10 r10
+;     load 11 r11
+;     load 12 r12
+;     load 13 r13
+;     load 14 r14
 
-;     load 1 r1 ; r1=1
-;     load 2 r2 ; r2=2
-;     add r1 r2 r5 ; r5=3
-;     beq r3 r5 2
-;     halt
-
-;     multu r2 r2 r6 ; r6=4
-;     beq r4 r6 2
-;     halt
-;     add r1 r6 r6 ; r6=5
-;     multu r6 r2 r6 ; r6=10
-;     multu r6 r2 r6 ; r6=20
-;     sub r6 r2 r6 ; r6=18
-;     multu r6 r2 r1 ; r1=36
-;     load 35 r2 ; r2=35
-
-;     sub r1 r2 r6 ; r6=1
-;     push r6
-;     multu r6 r4 r3 ; r3=4
-;     pop r6
-;     multu r6 r3 r6 ; r6=4
-;     push r6
-;     load 9 r6 ; r6=9
-;     pop r6
-;     add r6 2 r6 ; r6=6
-;     bge r6 r3 2
-;     halt
-;     or r6 r0 r15 ; expected=6
+    
+;     add r2 r2 r2
+;     add r3 r3 r3
+;     multu r1 r1 r1
+    
+;     add r4 r4 r4
+;     add r5 r5 r5
+;     add r6 r6 r6
+;     add r7 r7 r7
+;     add r8 r8 r8
+;     add r9 r9 r9
+;     add r10 r10 r10
+;     add r11 r11 r11
+;     add r12 r12 r12
+;     add r13 r13 r13
+;     add r14 r14 r14
 
 ;     halt
+    
 
 
 

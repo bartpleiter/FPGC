@@ -88,7 +88,7 @@ assign flush_FE2 = jump_valid_EXMEM1 || hazard_pc1_pc2 || hazard_pc2_pc1 || reti
 assign flush_REG = jump_valid_EXMEM1 || hazard_pc1_pc2 || hazard_pc2_pc1 || reti_EXMEM1 || interrupt_valid;
 assign flush_EXMEM1 = exmem1_uses_exmem2_result;
 
-assign l1i_cache_controller_flush = flush_FE2; // Notify cache controller when FE2 is flushed
+assign l1i_cache_controller_flush = l1i_cache_controller_flush_reg;
 
 wire stall_FE1;
 wire stall_FE2;
@@ -237,62 +237,75 @@ wire l1i_cache_hit_FE2 =
     (valid_mem_access_FE2) &&
     (l1i_tag_FE2 == l1i_pipe_q[17:2]) &&
     l1i_pipe_q[1] && // Valid bit
-    l1i_cache_miss_state_FE2 == CACHE_IDLE; // Make sure we are not currently handling a cache miss
+    l1i_cache_miss_state_FE2 == L1I_CACHE_IDLE; // Make sure we are not currently handling a cache miss
 
 wire [31:0] l1i_cache_hit_q_FE2 = l1i_pipe_q[32 * l1i_offset_FE2 + 18 +: 32]; // Note that the +: is used to select base +: width
 
 // L1i cache miss handling
 wire l1i_cache_miss_FE2;
-assign l1i_cache_miss_FE2 = l1i_cache_miss_state_FE2 != CACHE_RESULT_READY && (valid_mem_access_FE2) && !(l1i_tag_FE2 == l1i_pipe_q[17:2] && l1i_pipe_q[1]);
+assign l1i_cache_miss_FE2 = l1i_cache_miss_state_FE2 != L1I_CACHE_RESULT_READY && (valid_mem_access_FE2) && !(l1i_tag_FE2 == l1i_pipe_q[17:2] && l1i_pipe_q[1]);
 
 // Cache miss state machine
 reg [1:0] l1i_cache_miss_state_FE2 = 2'b00;
 reg l1i_cache_controller_start_reg = 1'b0;
+reg l1i_cache_controller_flush_reg = 1'b0;
 
-localparam CACHE_IDLE = 2'b00;
-localparam CACHE_STARTED = 2'b01;
-localparam CACHE_WAIT_DONE = 2'b10;
-localparam CACHE_RESULT_READY = 2'b11;
+localparam L1I_CACHE_IDLE = 2'b00;
+localparam L1I_CACHE_STARTED = 2'b01;
+localparam L1I_CACHE_WAIT_DONE = 2'b10;
+localparam L1I_CACHE_RESULT_READY = 2'b11;
 
 reg [31:0] saved_cache_result_FE2 = 32'd0; // To save the result from the cache controller on cache miss
 
-// TODO: update this state machine to not reset on flush, but handle the flush properly instead
-// Also note, flush is the only way for the PC to change, so we can make use of this to handle stalls as follows:
-// - Contine on stall until l1i_cache_controller_done
-// - If stall still active while this happens, save result is register and move to new state (actually can do this within current state)
-// - New state waits until stall is done, and only then forwards saved result to next stage
 always @(posedge clk) begin
-    if (reset) begin // TODO: on flush, send signal to cache controller to abort current operation / do not set done high
-        l1i_cache_miss_state_FE2 <= CACHE_IDLE;
+    if (reset) begin
+        l1i_cache_miss_state_FE2 <= L1I_CACHE_IDLE;
         l1i_cache_controller_start_reg <= 1'b0;
+        l1i_cache_controller_flush_reg <= 1'b0;
     end else begin
         case (l1i_cache_miss_state_FE2)
-            CACHE_IDLE: begin
+            L1I_CACHE_IDLE: begin
                 l1i_cache_controller_start_reg <= 1'b0;
-                if (l1i_cache_miss_FE2) begin
+                l1i_cache_controller_flush_reg <= 1'b0;
+                // Do not start on flush
+                if (l1i_cache_miss_FE2 && !flush_FE2) begin
                     l1i_cache_controller_start_reg <= 1'b1;
-                    l1i_cache_miss_state_FE2 <= CACHE_STARTED;
+                    l1i_cache_miss_state_FE2 <= L1I_CACHE_STARTED;
                 end
             end
             
-            CACHE_STARTED: begin
+            L1I_CACHE_STARTED: begin
+                // Request has been started, so if there is a flush we need to abort it
+                if (flush_FE2) begin
+                    l1i_cache_miss_state_FE2 <= L1I_CACHE_IDLE;
+                    l1i_cache_controller_start_reg <= 1'b0;
+                    l1i_cache_controller_flush_reg <= 1'b1;
+                end
+
                 l1i_cache_controller_start_reg <= 1'b0;
-                l1i_cache_miss_state_FE2 <= CACHE_WAIT_DONE;
+                l1i_cache_miss_state_FE2 <= L1I_CACHE_WAIT_DONE;
             end
             
-            CACHE_WAIT_DONE: begin
+            L1I_CACHE_WAIT_DONE: begin
+                // Request has been started, so if there is a flush we need to abort it
+                if (flush_FE2) begin
+                    l1i_cache_miss_state_FE2 <= L1I_CACHE_IDLE;
+                    l1i_cache_controller_flush_reg <= 1'b1;
+                end
+
                 if (l1i_cache_controller_done) begin
                     saved_cache_result_FE2 <= l1i_cache_controller_result;
-                    l1i_cache_miss_state_FE2 <= CACHE_RESULT_READY;
-                    // TODO: if stall_FE2 is set, we should:
-                    // - Save the result in a register
-                    // - Set a flag to indicate this situation had occurred
-                    // - Update instr_result_FE2, most likely by also unsetting hold .hold(stall_FE2 && !flag),
+                    l1i_cache_miss_state_FE2 <= L1I_CACHE_RESULT_READY;
                 end
             end
 
-            CACHE_RESULT_READY: begin
-                l1i_cache_miss_state_FE2 <= CACHE_IDLE;
+            L1I_CACHE_RESULT_READY: begin
+                // If there is a stall active, wait until it is gone before going back to idle to prevent double requests
+                // On flush we always go back to idle
+                if (!stall_FE2 || flush_FE2)
+                begin
+                    l1i_cache_miss_state_FE2 <= L1I_CACHE_IDLE;
+                end
             end
         endcase
     end
@@ -306,7 +319,7 @@ assign l1i_cache_controller_start = l1i_cache_controller_start_reg;
 // Result selection for next stage
 wire [31:0] instr_result_FE2;
 assign instr_result_FE2 =   (mem_rom_FE2) ? rom_q_FE2 :
-                            (l1i_cache_miss_state_FE2 == CACHE_RESULT_READY) ? saved_cache_result_FE2 : // Cache miss result is ready
+                            (l1i_cache_miss_state_FE2 == L1I_CACHE_RESULT_READY) ? saved_cache_result_FE2 : // Cache miss result is ready
                             (l1i_cache_miss_FE2) ? 32'b0 : // Forward bubbles when still handling cache miss
                             (l1i_cache_hit_FE2) ? l1i_cache_hit_q_FE2 : // Must be below cache miss checks
                             32'b0;
@@ -769,7 +782,7 @@ wire l1d_cache_hit_EXMEM2 =
     (mem_sdram_EXMEM2) &&
     (l1d_tag_EXMEM2 == l1d_pipe_q[17:2]) &&
     l1d_pipe_q[1] && // Valid bit
-    l1d_cache_miss_state_EXMEM2 == CACHE_IDLE; // Make sure we are not currently handling a cache miss
+    l1d_cache_miss_state_EXMEM2 == L1D_CACHE_IDLE; // Make sure we are not currently handling a cache miss
 
 wire [31:0] l1d_cache_hit_q_EXMEM2 = l1d_pipe_q[32 * l1d_offset_EXMEM2 + 18 +: 32]; // Note that the +: is used to select base +: width
 
@@ -783,30 +796,34 @@ reg l1d_cache_controller_start_reg = 1'b0;
 
 reg was_cache_miss_EXMEM2 = 1'b0;
 
+localparam L1D_CACHE_IDLE = 2'b00;
+localparam L1D_CACHE_STARTED = 2'b01;
+localparam L1D_CACHE_WAIT_DONE = 2'b10;
+
 always @(posedge clk) begin
     if (reset) begin
-        l1d_cache_miss_state_EXMEM2 <= CACHE_IDLE;
+        l1d_cache_miss_state_EXMEM2 <= L1D_CACHE_IDLE;
         l1d_cache_controller_start_reg <= 1'b0;
         was_cache_miss_EXMEM2 <= 1'b0;
     end else begin
         case (l1d_cache_miss_state_EXMEM2)
-            CACHE_IDLE: begin
+            L1D_CACHE_IDLE: begin
                 l1d_cache_controller_start_reg <= 1'b0;
                 was_cache_miss_EXMEM2 <= 1'b0;
                 if (l1d_cache_miss_EXMEM2 || (mem_write_EXMEM2 && mem_sdram_EXMEM2 && !was_cache_miss_EXMEM2)) begin
                     l1d_cache_controller_start_reg <= 1'b1;
-                    l1d_cache_miss_state_EXMEM2 <= CACHE_STARTED;
+                    l1d_cache_miss_state_EXMEM2 <= L1D_CACHE_STARTED;
                 end
             end
             
-            CACHE_STARTED: begin
+            L1D_CACHE_STARTED: begin
                 l1d_cache_controller_start_reg <= 1'b0;
-                l1d_cache_miss_state_EXMEM2 <= CACHE_WAIT_DONE;
+                l1d_cache_miss_state_EXMEM2 <= L1D_CACHE_WAIT_DONE;
             end
             
-            CACHE_WAIT_DONE: begin
+            L1D_CACHE_WAIT_DONE: begin
                 if (l1d_cache_controller_done) begin
-                    l1d_cache_miss_state_EXMEM2 <= CACHE_IDLE;
+                    l1d_cache_miss_state_EXMEM2 <= L1D_CACHE_IDLE;
                     was_cache_miss_EXMEM2 <= 1'b1;
                 end
             end
