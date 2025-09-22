@@ -1,0 +1,7 @@
+nav:
+    - CPU (B32P2)
+    - GPU.md
+    - Memory
+    - IO
+    - FPGA.md
+    - PCB

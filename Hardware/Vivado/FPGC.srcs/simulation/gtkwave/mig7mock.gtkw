@@ -1,0 +1,60 @@
+[*]
+[*] GTKWave Analyzer v3.3.121 (w)1999-2024 BSI
+[*] Sat Jul  5 08:57:43 2025
+[*]
+[dumpfile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/mig7.vcd"
+[dumpfile_mtime] "Fri Jul  4 21:13:43 2025"
+[dumpfile_size] 10250
+[savefile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/mig7mock.gtkw"
+[timestart] 543900
+[size] 1536 881
+[pos] -269 -141
+*-15.000000 605000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] mig7mock_tb.
+[sst_width] 278
+[signals_width] 234
+[sst_expanded] 1
+[sst_vpaned_height] 255
+@28
+mig7mock_tb.sys_clk
+mig7mock_tb.sys_rst
+mig7mock_tb.ui_clk
+mig7mock_tb.ui_clk_sync_rst
+@200
+-
+@28
+mig7mock_tb.init_calib_complete
+mig7mock_tb.app_rdy
+@200
+-
+@28
+mig7mock_tb.app_en
+mig7mock_tb.app_cmd[2:0]
+@22
+mig7mock_tb.app_addr[28:0]
+@200
+-
+@22
+mig7mock_tb.app_rd_data[255:0]
+@28
+mig7mock_tb.app_rd_data_end
+mig7mock_tb.app_rd_data_valid
+@200
+-
+@22
+mig7mock_tb.app_wdf_data[255:0]
+@28
+mig7mock_tb.app_wdf_end
+mig7mock_tb.app_wdf_wren
+@22
+mig7mock_tb.app_wdf_mask[31:0]
+@28
+mig7mock_tb.app_wdf_rdy
+@201
+-
+@28
+mig7mock_tb.test_complete
+mig7mock_tb.test_fail
+mig7mock_tb.test_pass
+[pattern_trace] 1
+[pattern_trace] 0

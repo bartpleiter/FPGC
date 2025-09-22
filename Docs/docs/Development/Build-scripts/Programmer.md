@@ -1,3 +1,3 @@
 # Programmer
 
-TODO
+TODO when arrived at software level again.

@@ -69,11 +69,11 @@ The PixelPlane Engine is a very simple rendering engine to allow changing indivi
 Because the PixelPlane Engine is very simplistic, the CPU has to do more work for generating graphics. For example, for drawing a line, every pixel has to be calculated and set by the CPU.
 
 !!! info
-    Note that bitmap rendering needs relatively many BRAM resources in the FPGA. This means that most lower-end FPGA's like the Cyclone IV EP4CE15 cannot fit the required 320x240x8 bits. If you do want to run the FPGC on such FPGA, it should be quite easy to remove this renderer from the design (or reduce the color depth to monochrome).
+    Note that bitmap rendering needs relatively many BRAM resources in the FPGA. This means that most lower-end FPGA's like the Cyclone IV EP4CE15 cannot fit the required 320x240x8 bits. If you do want to run the FPGC on such FPGA, it should be quite easy to remove this renderer from the design (or reduce the color depth to monochrome). External SRAM is not a solution either, unless you create an arbiter between the CPU and GPU that can handle clock domain crossing.
 
 ## Output encoder (HDMI)
 
-To output the video signal, which is in parallel RGBHV + blank format, it needs to be encoded. For VGA this would be very easy, as you only need a DAC to make an analog signal from you R, G and B signals. HDMI, which is smaller, digital, more common nowadays and can be converted externally to VGA, needs some extra work before you can output it.
+To output the video signal, which is in parallel RGBHV + blank format, it needs to be encoded. For VGA this would be very easy, as you only need a DAC to make an analog signal from you R, G and B signals. HDMI, which is smaller, digital, more common nowadays and can be converted externally to VGA, needs some extra work before you can output it. Alternatively, you could use an external digital RGBHV to HDMI/DVI encoder ic. While this is actually a quite viable solution for FPGA's without the TMDS IO standard (like Altera FPGAs), this does cost quite some IO pins depending on the solution.
 
 ### Converting from R3G3B2 to R8B8G8
 
@@ -87,4 +87,4 @@ To output a HDMI signal, the timing signals and R8G8B8 color output have to be T
 
 After generating the TMDS registers for the clock, R, G and B (+sync) signals, it is required to serialize them and create differential signals. This is relatively easy using most Xilix FPGA's, since they contain serializers, differential output buffers and hardware outputs for TMDS signals at 3.3V. As I changed the FPGA for this project from an Altera Cyclone V FPGA to a Xilinx Artix 7 FPGA, the FPGC currently uses these to output the TMDS signal.
 
-The Cyclone IV and V FPGA's I used before, however, do not support the TMDS IO standard. Adding an HDMI encoder IC is expensive, difficult to solder, increases PCB complexity and costs more I/O pins. Luckily there is a workaround for these devices, at the cost of reduced compatibility with monitors. 3.3V LVDS (by selecting 2.5V LVDS with a 3.3V IO bank voltage, which is somehow allowed by Quartus) can also be used to output something close enough that most devices accept it as a valid HDMI signal, after putting the TMDS registers through some DDR modules and LVDS encoder.
+The Cyclone IV and V FPGA's I used before, however, do not support the TMDS IO standard. Adding an HDMI encoder IC is expensive, more difficult to solder, increases PCB complexity and costs more I/O pins. Luckily there is a workaround for these devices, at the cost of reduced compatibility with monitors. 3.3V LVDS (by selecting 2.5V LVDS with a 3.3V IO bank voltage, which is somehow allowed by Quartus) can also be used to output something close enough that most devices accept it as a valid HDMI signal, after putting the TMDS registers through some DDR modules and LVDS encoder. There probably is a way to electrically convert LVDS to TMDS, but I have not looked that deep into it.

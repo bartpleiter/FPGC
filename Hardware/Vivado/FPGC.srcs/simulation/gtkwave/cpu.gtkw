@@ -1,31 +1,92 @@
 [*]
-[*] GTKWave Analyzer v3.3.116 (w)1999-2023 BSI
-[*] Tue Feb  4 19:29:39 2025
+[*] GTKWave Analyzer v3.3.121 (w)1999-2024 BSI
+[*] Mon Sep 22 17:45:08 2025
 [*]
-[dumpfile] "/home/bart/Documents/FPGA/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd"
-[dumpfile_mtime] "Tue Feb  4 19:29:08 2025"
-[dumpfile_size] 620228
-[savefile] "/home/bart/Documents/FPGA/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/cpu.gtkw"
-[timestart] 0
-[size] 1920 1033
+[dumpfile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd"
+[dumpfile_mtime] "Mon Sep 22 17:44:22 2025"
+[dumpfile_size] 1596648
+[savefile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/cpu.gtkw"
+[timestart] 428000
+[size] 1920 1080
 [pos] -1 -1
-*-17.400000 164300 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-17.252371 760500 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] cpu_tb.
 [treeopen] cpu_tb.cpu.
-[treeopen] cpu_tb.cpu.multiCycleALU_EXMEM2.
-[sst_width] 278
-[signals_width] 566
+[sst_width] 321
+[signals_width] 393
 [sst_expanded] 1
-[sst_vpaned_height] 472
+[sst_vpaned_height] 702
 @28
 cpu_tb.clk
+cpu_tb.clk100
 cpu_tb.cpu.reset
+@200
+-
+-MIG7
+@28
+cpu_tb.clk100
+cpu_tb.mig7mock.init_calib_complete
+cpu_tb.mig7mock.app_rdy
+cpu_tb.mig7mock.app_en
+@24
+cpu_tb.mig7mock.app_addr[28:0]
+@28
+cpu_tb.mig7mock.app_rd_data_valid
+cpu_tb.mig7mock.app_rd_data[255:0]
+@200
+-
+@28
+cpu_tb.mig7mock.state[2:0]
+cpu_tb.mig7mock.app_wdf_wren
+cpu_tb.mig7mock.app_wdf_rdy_reg
+cpu_tb.mig7mock.app_wdf_end
+@22
+cpu_tb.mig7mock.app_wdf_data[255:0]
+@200
+-
+-L1i Cache Controller
+@28
+cpu_tb.cache_controller.clk100
+@200
+-
+@28
+cpu_tb.cache_controller.cpu_FE2_start
+cpu_tb.cache_controller.cpu_FE2_done
+cpu_tb.cache_controller.cpu_FE2_flush
+@24
+cpu_tb.cache_controller.cpu_FE2_addr[31:0]
+@28
+cpu_tb.cache_controller.cpu_FE2_new_request
+@200
+-
+@24
+cpu_tb.cache_controller.state[7:0]
+@28
+cpu_tb.cache_controller.cpu_FE2_flush
+cpu_tb.cache_controller.ignore_fe2_result
+@200
+-
+-L1i Cache RAM
+@28
+cpu_tb.clk100
+@22
+cpu_tb.l1i_ram.ctrl_addr[6:0]
+cpu_tb.l1i_ram.ctrl_d[273:0]
+@28
+cpu_tb.l1i_ram.ctrl_we
+@22
+cpu_tb.l1i_ram.ctrl_q[273:0]
+@200
+-
+@22
+cpu_tb.l1i_ram.pipe_addr[6:0]
+cpu_tb.l1i_ram.pipe_q[273:0]
 @200
 -
 -FE1
 @28
 cpu_tb.cpu.clk
-@22
+@24
 cpu_tb.cpu.PC_FE1[31:0]
 @28
 cpu_tb.cpu.stall_FE1
@@ -43,11 +104,12 @@ cpu_tb.cpu.rom_fe_oe
 -FE2
 @28
 cpu_tb.cpu.clk
-@22
+@24
 cpu_tb.cpu.PC_FE2[31:0]
 @28
 cpu_tb.cpu.stall_FE2
 cpu_tb.cpu.flush_FE2
+cpu_tb.cpu.bubble_FE2
 @200
 -
 @28
@@ -56,7 +118,37 @@ cpu_tb.cpu.rom_q_FE2[31:0]
 @200
 -
 @28
-cpu_tb.cpu.icache_q_FE2[31:0]
+cpu_tb.cpu.l1i_pipe_q[273:0]
+@24
+cpu_tb.cpu.l1i_offset_FE2[2:0]
+cpu_tb.cpu.l1i_tag_FE2[15:0]
+@200
+-
+@28
+cpu_tb.cpu.valid_mem_access_FE2
+@24
+cpu_tb.cpu.l1i_cache_hit_FE2
+@200
+-
+@28
+cpu_tb.cpu.l1i_cache_miss_FE2
+cpu_tb.cpu.l1i_cache_controller_done
+@200
+-
+@25
+cpu_tb.cpu.l1i_cache_miss_state_FE2[1:0]
+@28
+cpu_tb.cpu.l1i_cache_controller_start_reg
+@200
+-
+@28
+cpu_tb.cpu.l1i_cache_controller_start
+@200
+-
+@28
+cpu_tb.cpu.l1i_cache_controller_result[31:0]
+cpu_tb.cpu.l1i_cache_hit_q_FE2[31:0]
+cpu_tb.cpu.saved_cache_result_FE2[31:0]
 @200
 -
 @28
@@ -167,7 +259,6 @@ cpu_tb.cpu.forward_a[1:0]
 cpu_tb.cpu.forward_b[1:0]
 @28
 cpu_tb.cpu.hazard_pc1_pc2
-@29
 cpu_tb.cpu.hazard_pc2_pc1
 @200
 -
@@ -214,6 +305,32 @@ cpu_tb.cpu.mem_write_EXMEM1
 cpu_tb.cpu.mem_sdram_EXMEM1
 @200
 -
+-L1D Cache Controller
+@28
+cpu_tb.cache_controller.clk100
+@200
+-
+@22
+cpu_tb.cache_controller.l1d_ctrl_addr[6:0]
+cpu_tb.cache_controller.l1d_ctrl_q[273:0]
+cpu_tb.cpu.l1d_pipe_addr[6:0]
+cpu_tb.cpu.l1d_pipe_q[273:0]
+@200
+-
+@24
+cpu_tb.cache_controller.cpu_EXMEM2_addr[31:0]
+@22
+cpu_tb.cache_controller.cpu_EXMEM2_data[31:0]
+@28
+cpu_tb.cache_controller.cpu_EXMEM2_done
+cpu_tb.cache_controller.cpu_EXMEM2_new_request
+cpu_tb.cache_controller.cpu_EXMEM2_result[31:0]
+cpu_tb.cache_controller.cpu_EXMEM2_start
+cpu_tb.cache_controller.cpu_EXMEM2_we
+@24
+cpu_tb.cache_controller.state[7:0]
+@200
+-
 -EXMEM2
 @28
 cpu_tb.cpu.clk
@@ -228,6 +345,34 @@ cpu_tb.cpu.instrOP_EXMEM2[3:0]
 cpu_tb.cpu.data_a_EXMEM2[31:0]
 cpu_tb.cpu.data_b_EXMEM2[31:0]
 cpu_tb.cpu.alu_y_EXMEM2[31:0]
+@200
+-
+-EXMEM2 - SDRAM
+@28
+cpu_tb.cpu.l1d_cache_wait_EXMEM2
+cpu_tb.cpu.mem_sdram_EXMEM2
+cpu_tb.cpu.l1d_cache_miss_state_EXMEM2[1:0]
+@200
+-
+@28
+cpu_tb.cpu.l1d_cache_controller_done
+@22
+cpu_tb.cpu.l1d_cache_hit_q_EXMEM2[31:0]
+@200
+-
+@28
+cpu_tb.cpu.l1d_cache_wait_EXMEM2
+cpu_tb.cpu.mem_write_EXMEM2
+cpu_tb.cpu.mem_sdram_EXMEM2
+cpu_tb.cpu.was_cache_miss_EXMEM2
+cpu_tb.cpu.l1d_cache_miss_EXMEM2
+cpu_tb.cpu.mem_read_EXMEM2
+cpu_tb.cpu.l1d_cache_hit_EXMEM2
+@200
+-
+@22
+cpu_tb.cpu.l1d_tag_EXMEM2[15:0]
+cpu_tb.cpu.l1d_pipe_q[273:0]
 @200
 -
 -EXMEM2 - Stack
@@ -315,6 +460,7 @@ cpu_tb.cpu.PC_WB[31:0]
 cpu_tb.cpu.instr_WB[31:0]
 @200
 -
+-
 -WB - Memory selection
 @28
 cpu_tb.cpu.pop_WB
@@ -328,14 +474,20 @@ cpu_tb.cpu.mem_vram8_WB
 cpu_tb.cpu.mem_vrampx_WB
 @200
 -
-@22
-cpu_tb.cpu.addr_d_WB[3:0]
 @24
+cpu_tb.cpu.addr_d_WB[3:0]
 cpu_tb.cpu.data_d_WB[31:0]
 @28
 cpu_tb.cpu.we_WB
-cpu_tb.cpu.multicycle_alu_stall
 cpu_tb.cpu.exmem1_uses_exmem2_result
+@200
+-
+@22
+cpu_tb.cpu.l1d_cache_hit_q_WB[31:0]
+@28
+cpu_tb.cpu.was_cache_miss_WB
+@22
+cpu_tb.cpu.l1d_cache_controller_result[31:0]
 @200
 -
 @24
@@ -345,6 +497,14 @@ cpu_tb.cpu.stack_q_WB[31:0]
 cpu_tb.cpu.rom_mem_q[31:0]
 @200
 -
+-Regbank
+@28
+cpu_tb.cpu.regbank.clear
+cpu_tb.cpu.regbank.we
+@24
+cpu_tb.cpu.regbank.addr_d[3:0]
+cpu_tb.cpu.regbank.data_d[31:0]
+@200
 -
 -
 -

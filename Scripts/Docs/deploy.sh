@@ -1,16 +1,16 @@
 #!/bin/bash
 
-# Activate conda environment
-eval "$(conda shell.bash hook)"
-conda activate FPGC
+# Activate the virtual environment
+source .venv/bin/activate
 
 cd Docs
 
 python3 -m mkdocs build --clean
 
 # Obviously this will only work on my personal server
-ssh -p 2222 b4rt.nl 'rm -rf /home/bart/PV/fpgc/'
-rsync -r -e 'ssh -p 2222' site/ b4rt.nl:/home/bart/PV/fpgc/
-ssh -p 2222 b4rt.nl 'chown $USER:$USER -R /home/bart/PV/fpgc/'
+ssh 192.168.0.240 'rm -rf /home/bart/NFS/fpgc/*'
+rsync -r site/ 192.168.0.240:/home/bart/NFS/fpgc/
+ssh 192.168.0.240 'chown $USER:$USER -R /home/bart/NFS/fpgc/*'
 
-conda deactivate
+# Deactivate virtual environment
+deactivate

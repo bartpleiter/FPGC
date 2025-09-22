@@ -1,6 +1,6 @@
 site_name: FPGC Wiki
 
-copyright: Copyright &copy; 2024 Bart Pleiter
+copyright: Copyright &copy; 2025 Bart Pleiter
 
 theme:
     name: material
@@ -43,7 +43,7 @@ markdown_extensions:
 repo_name: bartpleiter/FPGC
 repo_url: https://github.com/bartpleiter/fpgc
 
-site_url: https://www.b4rt.nl/fpgc
+site_url: https://www.bartpleiter.com/fpgc
 
 edit_uri: edit/master/Documentation/docs/
 

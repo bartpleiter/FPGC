@@ -52,9 +52,31 @@ module B32P2 #(
     output wire [16:0] vramPX_addr,
     output wire [7:0] vramPX_d,
     output wire vramPX_we,
-    input wire [7:0] vramPX_q
+    input wire [7:0] vramPX_q,
+
+    // L1i cache (cpu pipeline port)
+    output wire [6:0] l1i_pipe_addr,
+    input wire [273:0] l1i_pipe_q,
+
+    // L1d cache (cpu pipeline port)
+    output wire [6:0] l1d_pipe_addr,
+    input wire [273:0] l1d_pipe_q,
+
+    // cache controller
+    output wire [31:0] l1i_cache_controller_addr,
+    output wire l1i_cache_controller_start,
+    output wire l1i_cache_controller_flush,
+    input wire l1i_cache_controller_done,
+    input wire [31:0] l1i_cache_controller_result,
+
+    output wire [31:0] l1d_cache_controller_addr,
+    output wire [31:0] l1d_cache_controller_data,
+    output wire l1d_cache_controller_we,
+    output wire l1d_cache_controller_start,
+    input wire l1d_cache_controller_done,
+    input wire [31:0] l1d_cache_controller_result
 );
-    
+
 // Flush and Stall signals
 wire flush_FE1;
 wire flush_FE2;
@@ -66,40 +88,44 @@ assign flush_FE2 = jump_valid_EXMEM1 || hazard_pc1_pc2 || hazard_pc2_pc1 || reti
 assign flush_REG = jump_valid_EXMEM1 || hazard_pc1_pc2 || hazard_pc2_pc1 || reti_EXMEM1 || interrupt_valid;
 assign flush_EXMEM1 = exmem1_uses_exmem2_result;
 
+assign l1i_cache_controller_flush = l1i_cache_controller_flush_reg;
+
 wire stall_FE1;
 wire stall_FE2;
 wire stall_REG;
 wire stall_EXMEM1;
 
-// TODO stall all previous stages on EXMEM2 busy or FE2 busy
-assign stall_FE1 = exmem1_uses_exmem2_result || multicycle_alu_stall;
-assign stall_FE2 = exmem1_uses_exmem2_result || multicycle_alu_stall;
-assign stall_REG = exmem1_uses_exmem2_result || multicycle_alu_stall;
-assign stall_EXMEM1 = multicycle_alu_stall;
+// TODO stall all previous stages on EXMEM2 busy
+assign stall_FE1 = exmem1_uses_exmem2_result || multicycle_alu_stall || l1i_cache_miss_FE2 || l1d_cache_wait_EXMEM2;
+assign stall_FE2 = exmem1_uses_exmem2_result || multicycle_alu_stall || l1d_cache_wait_EXMEM2;
+assign stall_REG = exmem1_uses_exmem2_result || multicycle_alu_stall || l1d_cache_wait_EXMEM2;
+assign stall_EXMEM1 = multicycle_alu_stall || l1d_cache_wait_EXMEM2;
 
 wire multicycle_alu_stall;
 assign multicycle_alu_stall = arithm_EXMEM2 && !multicycle_alu_done_EXMEM2;
 
 // Possible hazard situations:
+
 // - EXMEM1 uses result of non-ALU operation from EXMEM2 -> stall
 // Note: in case of multi cycle operation (cache miss or ALU), only set this signal high on the last cycle!
+// TODO: when adding support for more multicycle memory, add here as well!
 wire exmem1_uses_exmem2_result;
 assign exmem1_uses_exmem2_result = 
-    (pop_EXMEM2 || mem_read_EXMEM2 || (arithm_EXMEM2 && multicycle_alu_done_EXMEM2)) && 
+    (pop_EXMEM2 || (mem_read_EXMEM2 && (l1d_cache_hit_EXMEM2 || !mem_multicycle_EXMEM2)) || was_cache_miss_EXMEM2 || (arithm_EXMEM2 && multicycle_alu_done_EXMEM2)) && 
     (dreg_EXMEM2 == areg_EXMEM1 || dreg_EXMEM2 == breg_EXMEM1);
 
 // - EXMEM1 uses result of multicycle EXMEM2 at PC-1 and dreg of PC-2 -> jump to same address to resolve
 // Note: because this is hard to describe as a variable name, we will call this situation hazard_pc1_pc2
 wire hazard_pc1_pc2;
 assign hazard_pc1_pc2 = 
-    ( (mem_read_EXMEM2 && mem_multicycle_EXMEM2) || arithm_EXMEM2 ) &&
+    ( (mem_read_EXMEM2 && mem_multicycle_EXMEM2) || arithm_EXMEM2 || l1d_cache_wait_EXMEM2 ) &&
     ( ( (areg_EXMEM1 == addr_d_WB) && areg_EXMEM1 != 4'd0) || ( (breg_EXMEM1 == addr_d_WB) && breg_EXMEM1 != 4'd0) );
 
 // - EXMEM1 uses result of multicycle EXMEM2 at PC-2 and dreg of PC-1 -> jump to same address to resolve
 // Note: because this is hard to describe as a variable name, we will call this situation hazard_pc2_pc1
 wire hazard_pc2_pc1;
 assign hazard_pc2_pc1 = 
-    ( (mem_read_WB && mem_multicycle_WB) || arithm_WB ) &&
+    ( (mem_read_WB && mem_multicycle_WB) || arithm_WB || l1d_cache_wait_EXMEM2 ) &&
     ( ( (areg_EXMEM1 == dreg_EXMEM2) && areg_EXMEM1 != 4'd0) || ( (breg_EXMEM1 == dreg_EXMEM2) && breg_EXMEM1 != 4'd0) );
 
 // Forwarding situations
@@ -167,10 +193,7 @@ assign rom_fe_oe = mem_rom_FE1 && !flush_FE1;
 assign rom_fe_hold = stall_FE1;
 
 // Instruction Cache
-wire [31:0] icache_addr;
-assign icache_addr = PC_FE1;
-wire icache_oe;
-assign icache_oe = !mem_rom_FE1 && !flush_FE1;
+assign l1i_pipe_addr = PC_FE1[9:3]; // Address of the cache line
 
 // Forward to next stage
 wire [31:0] PC_FE2;
@@ -184,6 +207,31 @@ Regr #(
     .clear(flush_FE1)
 );
 
+// Signal to make sure we do not detect cache misses on invalid memory accesses (e.g. during pipeline bubbles for address 0)
+wire valid_mem_access_FE2;
+Regr #(
+    .N(1)
+) regr_valid_mem_access_FE1_FE2 (
+    .clk (clk),
+    .in(!mem_rom_FE1 && !flush_FE1),
+    .out(valid_mem_access_FE2),
+    .hold(1'b0),
+    .clear(1'b0)
+);
+
+// Signal to tag bubbles for FE2 to ignore
+wire n_bubble_FE2;
+Regr #(
+    .N(1)
+) regr_bubble_FE1_FE2 (
+    .clk (clk),
+    .in(1'b1),
+    .out(n_bubble_FE2),
+    .hold(stall_FE1),
+    .clear(flush_FE1)
+);
+wire bubble_FE2 = !n_bubble_FE2;
+
 /*
  * Stage 2: Instruction Cache Miss Fetch
  */
@@ -193,14 +241,104 @@ wire mem_rom_FE2;
 assign mem_rom_FE2 = PC_FE2 >= ROM_ADDRESS;
 wire [31:0] rom_q_FE2 = rom_fe_q;
 
-wire [31:0] icache_q_FE2 = 32'd0; // TODO: connect to instruction cache
+// L1i cache hit decoding
 
-// TODO: Skipped for now, should fetch from memory (via L1i cache) on cache miss
-//  and forward either icache_q, the fetched instruction or rom_q to the next stage
+wire [15:0] l1i_tag_FE2 = PC_FE2[25:10]; // Tag for the cache line
+wire [2:0] l1i_offset_FE2 = PC_FE2[2:0]; // Offset within the cache line
+
+wire l1i_cache_hit_FE2 = 
+    valid_mem_access_FE2 &&
+    !bubble_FE2 &&
+    (l1i_tag_FE2 == l1i_pipe_q[17:2]) &&
+    l1i_pipe_q[1] && // Valid bit
+    l1i_cache_miss_state_FE2 == L1I_CACHE_IDLE; // Make sure we are not currently handling a cache miss
+
+wire [31:0] l1i_cache_hit_q_FE2 = l1i_pipe_q[32 * l1i_offset_FE2 + 18 +: 32]; // Note that the +: is used to select base +: width
+
+// L1i cache miss handling
+wire l1i_cache_miss_FE2;
+assign l1i_cache_miss_FE2 = l1i_cache_miss_state_FE2 != L1I_CACHE_RESULT_READY && !bubble_FE2 && valid_mem_access_FE2 && !(l1i_tag_FE2 == l1i_pipe_q[17:2] && l1i_pipe_q[1]);
+
+// Cache miss state machine
+reg [1:0] l1i_cache_miss_state_FE2 = 2'b00;
+reg l1i_cache_controller_start_reg = 1'b0;
+reg l1i_cache_controller_flush_reg = 1'b0;
+
+localparam L1I_CACHE_IDLE = 2'b00;
+localparam L1I_CACHE_STARTED = 2'b01;
+localparam L1I_CACHE_WAIT_DONE = 2'b10;
+localparam L1I_CACHE_RESULT_READY = 2'b11;
+
+reg [31:0] saved_cache_result_FE2 = 32'd0; // To save the result from the cache controller on cache miss
+
+always @(posedge clk) begin
+    if (reset) begin
+        l1i_cache_miss_state_FE2 <= L1I_CACHE_IDLE;
+        l1i_cache_controller_start_reg <= 1'b0;
+        l1i_cache_controller_flush_reg <= 1'b0;
+        saved_cache_result_FE2 <= 32'd0;
+    end else begin
+        case (l1i_cache_miss_state_FE2)
+            L1I_CACHE_IDLE: begin
+                l1i_cache_controller_start_reg <= 1'b0;
+                l1i_cache_controller_flush_reg <= 1'b0;
+                // Do not start on flush
+                if (l1i_cache_miss_FE2 && !flush_FE2) begin
+                    l1i_cache_controller_start_reg <= 1'b1;
+                    l1i_cache_miss_state_FE2 <= L1I_CACHE_STARTED;
+                end
+            end
+            
+            L1I_CACHE_STARTED: begin
+                // Request has been started, so if there is a flush we need to abort it
+                if (flush_FE2) begin
+                    l1i_cache_miss_state_FE2 <= L1I_CACHE_IDLE;
+                    l1i_cache_controller_start_reg <= 1'b0;
+                    l1i_cache_controller_flush_reg <= 1'b1;
+                end
+                else begin
+                    l1i_cache_controller_start_reg <= 1'b0;
+                    l1i_cache_miss_state_FE2 <= L1I_CACHE_WAIT_DONE;
+                end
+            end
+            
+            L1I_CACHE_WAIT_DONE: begin
+                // Request has been started, so if there is a flush we need to abort it
+                if (flush_FE2) begin
+                    l1i_cache_miss_state_FE2 <= L1I_CACHE_IDLE;
+                    l1i_cache_controller_flush_reg <= 1'b1;
+                end
+                else if (l1i_cache_controller_done) begin
+                    saved_cache_result_FE2 <= l1i_cache_controller_result;
+                    l1i_cache_miss_state_FE2 <= L1I_CACHE_RESULT_READY;
+                end
+            end
+
+            L1I_CACHE_RESULT_READY: begin
+                // If there is a stall active, wait until it is gone before going back to idle to prevent double requests
+                // On flush we always go back to idle
+                if (!stall_FE2 || flush_FE2)
+                begin
+                    l1i_cache_miss_state_FE2 <= L1I_CACHE_IDLE;
+                    saved_cache_result_FE2 <= 32'd0;
+                end
+            end
+        endcase
+    end
+end
+
+// Cache controller interface
+assign l1i_cache_controller_addr = PC_FE2;
+assign l1i_cache_controller_start = l1i_cache_controller_start_reg;
 
 
+// Result selection for next stage
 wire [31:0] instr_result_FE2;
-assign instr_result_FE2 = (mem_rom_FE2) ? rom_q_FE2 : icache_q_FE2;
+assign instr_result_FE2 =   (mem_rom_FE2) ? rom_q_FE2 :
+                            (l1i_cache_miss_state_FE2 == L1I_CACHE_RESULT_READY) ? saved_cache_result_FE2 : // Cache miss result is ready
+                            (l1i_cache_miss_FE2) ? 32'b0 : // Forward bubbles when still handling cache miss
+                            (l1i_cache_hit_FE2 && !stall_FE2 && !flush_FE2) ? l1i_cache_hit_q_FE2 : // Must be below cache miss checks
+                            32'b0;
 
 // Forward to next stage
 wire [31:0] instr_REG;
@@ -279,7 +417,7 @@ Regbank regbank (
     .addr_d(addr_d_WB),
     .data_d(data_d_WB),
     // When EXMEM2 is stalling, we keep the data in the pipeline in case of forwarding
-    .we(we_WB && !multicycle_alu_stall) // TODO: add memory stall signal when implemented
+    .we(we_WB)
 );
 
 // Forward to next stage
@@ -456,9 +594,7 @@ BranchJumpUnit branchJumpUnit_EXMEM1 (
     .jump_valid(jump_valid_EXMEM1)
 );
 
-// TODO:
-// - in case of mem_read or mem_write, read from l1d cache using mem_local_address_EXMEM1
-//   - make sure to use forwarded inputs for address!
+assign l1d_pipe_addr = mem_local_address_EXMEM1[9:3]; // Address of the cache line
 
 // Result based on operation
 wire [31:0] result_EXMEM1;
@@ -650,8 +786,76 @@ assign vramPX_addr = mem_local_address_EXMEM2;
 assign vramPX_we = mem_vrampx_EXMEM2 && mem_write_EXMEM2;
 assign vramPX_d = data_b_EXMEM2;
 
-// TODO:
-// - data mem access on cache miss
+
+
+// L1d cache hit decoding
+
+wire [15:0] l1d_tag_EXMEM2 = mem_local_address_EXMEM2[25:10]; // Tag for the cache line
+wire [2:0] l1d_offset_EXMEM2 = mem_local_address_EXMEM2[2:0]; // Offset within the cache line
+
+wire l1d_cache_hit_EXMEM2 = 
+    (mem_read_EXMEM2) &&
+    (mem_sdram_EXMEM2) &&
+    (l1d_tag_EXMEM2 == l1d_pipe_q[17:2]) &&
+    l1d_pipe_q[1] && // Valid bit
+    l1d_cache_miss_state_EXMEM2 == L1D_CACHE_IDLE; // Make sure we are not currently handling a cache miss
+
+wire [31:0] l1d_cache_hit_q_EXMEM2 = l1d_pipe_q[32 * l1d_offset_EXMEM2 + 18 +: 32]; // Note that the +: is used to select base +: width
+
+// L1d cache miss handling
+wire l1d_cache_miss_EXMEM2;
+assign l1d_cache_miss_EXMEM2 = mem_read_EXMEM2 && mem_sdram_EXMEM2 && !l1d_cache_hit_EXMEM2;
+
+// Cache miss state machine
+reg [1:0] l1d_cache_miss_state_EXMEM2 = 2'b00;
+reg l1d_cache_controller_start_reg = 1'b0;
+
+reg was_cache_miss_EXMEM2 = 1'b0;
+
+localparam L1D_CACHE_IDLE = 2'b00;
+localparam L1D_CACHE_STARTED = 2'b01;
+localparam L1D_CACHE_WAIT_DONE = 2'b10;
+
+always @(posedge clk) begin
+    if (reset) begin
+        l1d_cache_miss_state_EXMEM2 <= L1D_CACHE_IDLE;
+        l1d_cache_controller_start_reg <= 1'b0;
+        was_cache_miss_EXMEM2 <= 1'b0;
+    end else begin
+        case (l1d_cache_miss_state_EXMEM2)
+            L1D_CACHE_IDLE: begin
+                l1d_cache_controller_start_reg <= 1'b0;
+                was_cache_miss_EXMEM2 <= 1'b0;
+                if (l1d_cache_miss_EXMEM2 || (mem_write_EXMEM2 && mem_sdram_EXMEM2 && !was_cache_miss_EXMEM2)) begin
+                    l1d_cache_controller_start_reg <= 1'b1;
+                    l1d_cache_miss_state_EXMEM2 <= L1D_CACHE_STARTED;
+                end
+            end
+            
+            L1D_CACHE_STARTED: begin
+                l1d_cache_controller_start_reg <= 1'b0;
+                l1d_cache_miss_state_EXMEM2 <= L1D_CACHE_WAIT_DONE;
+            end
+            
+            L1D_CACHE_WAIT_DONE: begin
+                if (l1d_cache_controller_done) begin
+                    l1d_cache_miss_state_EXMEM2 <= L1D_CACHE_IDLE;
+                    was_cache_miss_EXMEM2 <= 1'b1;
+                end
+            end
+        endcase
+    end
+end
+
+// Cache controller interface
+assign l1d_cache_controller_addr = mem_local_address_EXMEM2;
+assign l1d_cache_controller_data = data_b_EXMEM2;
+assign l1d_cache_controller_start = l1d_cache_controller_start_reg;
+assign l1d_cache_controller_we = mem_write_EXMEM2;
+
+// Wire to check if the current instruction was a cache miss
+wire l1d_cache_wait_EXMEM2 = (l1d_cache_miss_EXMEM2 || (mem_write_EXMEM2 && mem_sdram_EXMEM2)) && !was_cache_miss_EXMEM2;
+
 
 // Forward to next stage
 wire [31:0] instr_WB;
@@ -661,8 +865,8 @@ Regr #(
     .clk (clk),
     .in(instr_EXMEM2),
     .out(instr_WB),
-    .hold(multicycle_alu_stall),
-    .clear(1'b0)
+    .hold(),
+    .clear(l1d_cache_wait_EXMEM2 || multicycle_alu_stall) // Insert bubble if EXMEM2 is stalling
 );
 
 wire [31:0] alu_y_WB;
@@ -672,7 +876,7 @@ Regr #(
     .clk (clk),
     .in(alu_y_EXMEM2),
     .out(alu_y_WB),
-    .hold(multicycle_alu_stall),
+    .hold(),
     .clear(1'b0)
 );
 
@@ -683,7 +887,7 @@ Regr #(
     .clk (clk),
     .in(PC_EXMEM2),
     .out(PC_WB),
-    .hold(multicycle_alu_stall),
+    .hold(),
     .clear(1'b0)
 );
 
@@ -694,7 +898,7 @@ Regr #(
     .clk (clk),
     .in(data_a_EXMEM2),
     .out(data_a_WB),
-    .hold(multicycle_alu_stall),
+    .hold(),
     .clear(1'b0)
 );
 
@@ -705,9 +909,32 @@ Regr #(
     .clk (clk),
     .in(multicycle_alu_y_EXMEM2),
     .out(multicycle_alu_y_WB),
-    .hold(multicycle_alu_stall),
+    .hold(),
     .clear(1'b0)
 );
+
+wire [31:0] l1d_cache_hit_q_WB;
+Regr #(
+    .N(32)
+) regr_L1D_CACHE_HIT_EXMEM2_WB (
+    .clk (clk),
+    .in(l1d_cache_hit_q_EXMEM2),
+    .out(l1d_cache_hit_q_WB),
+    .hold(),
+    .clear(1'b0)
+);
+
+wire was_cache_miss_WB;
+Regr #(
+    .N(1)
+) regr_L1D_CACHE_MISS_EXMEM2_WB (
+    .clk (clk),
+    .in(!l1d_cache_hit_EXMEM2),
+    .out(was_cache_miss_WB),
+    .hold(),
+    .clear(1'b0)
+);
+
 
 /*
  * Stage 6: Writeback Register
@@ -795,6 +1022,8 @@ AddressDecoder addressDecoder_WB (
 );
 
 assign data_d_WB =  (pop_WB) ? stack_q_WB :
+                    (mem_sdram_WB && was_cache_miss_WB) ? l1d_cache_controller_result :
+                    (mem_sdram_WB && !was_cache_miss_WB) ? l1d_cache_hit_q_WB :
                     (mem_rom_WB) ? rom_mem_q :
                     (mem_vram32_WB) ? vram32_q :
                     (mem_vram8_WB) ? vram8_q :

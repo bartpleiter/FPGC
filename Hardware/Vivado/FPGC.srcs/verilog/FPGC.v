@@ -65,7 +65,7 @@ ROM #(
     .WIDTH(32),
     .WORDS(512),
     .ADDR_BITS(9),
-    .LIST("/home/bart/Documents/FPGA/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/rom.list")
+    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/rom.list")
 ) rom (
     .clk (clk),
 
@@ -99,7 +99,7 @@ VRAM #(
     .WIDTH(32),
     .WORDS(1056),
     .ADDR_BITS(11),
-    .LIST("/home/bart/Documents/FPGA/FPGC/Hardware/Vivado/FPGC.srcs/memory/vram32.list")
+    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/memory/vram32.list")
 ) vram32 (
     //CPU port
     .cpu_clk (clk),
@@ -136,7 +136,7 @@ VRAM #(
     .WIDTH(8),
     .WORDS(8194),
     .ADDR_BITS(14),
-    .LIST("/home/bart/Documents/FPGA/FPGC/Hardware/Vivado/FPGC.srcs/memory/vram8.list")
+    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/memory/vram8.list")
 ) vram8 (
     // CPU port
     .cpu_clk (clk),
@@ -174,7 +174,7 @@ VRAM #(
     .WIDTH(8),
     .WORDS(76800),
     .ADDR_BITS(17),
-    .LIST("/home/bart/Documents/FPGA/FPGC/Hardware/Vivado/FPGC.srcs/memory/vramPX.list")
+    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/memory/vramPX.list")
 ) vramPX (
     // CPU port
     .cpu_clk (clk),

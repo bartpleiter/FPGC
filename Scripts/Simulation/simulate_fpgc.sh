@@ -1,13 +1,10 @@
 #!/bin/bash
 
-# TODO: Swap conda with poetry venv
-
-# Activate conda environment
-eval "$(conda shell.bash hook)"
-conda activate FPGC
+# Activate the virtual environment
+source .venv/bin/activate
 
 # Compile code
-cp Software/BareMetalASM/Simulation/cpu.asm BuildTools/ASM/code.asm
+cp Software/BareMetalASM/Simulation/fpgc.asm BuildTools/ASM/code.asm
 if (cd BuildTools/ASM && python3 Assembler.py -H > code.list)
 then
     # Move to simulation directory
@@ -19,6 +16,7 @@ else
 fi
 
 # Run simulation and open gtkwave (in X11 as Wayland has issues)
+mkdir -p Hardware/Vivado/FPGC.srcs/simulation/output
 iverilog -o Hardware/Vivado/FPGC.srcs/simulation/output/fpgc.out Hardware/Vivado/FPGC.srcs/simulation/FPGC_tb.v &&\
 vvp Hardware/Vivado/FPGC.srcs/simulation/output/fpgc.out &&\
 if ! pgrep -x "gtkwave" > /dev/null
@@ -28,4 +26,5 @@ else
     echo "gtkwave is already running."
 fi
 
-conda deactivate
+# Deactivate virtual environment
+deactivate

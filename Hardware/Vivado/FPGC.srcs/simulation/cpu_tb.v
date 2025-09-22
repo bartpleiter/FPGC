@@ -1,6 +1,6 @@
 /*
  * Testbench for the CPU (B32P2).
- * Designed to be used with the Icarus Verilog simulator for simplicity
+ * Designed to be used with the Icarus Verilog simulator
  */
 `timescale 1ns / 1ps
 
@@ -16,12 +16,16 @@
 `include "Hardware/Vivado/FPGC.srcs/verilog/CPU/Stack.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/CPU/BranchJumpUnit.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/CPU/AddressDecoder.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/CacheController.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/Memory/ROM.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/Memory/VRAM.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/Memory/DPRAM.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/Memory/MIG7Mock.v"
 
 module cpu_tb ();
 
 reg clk = 1'b0;
+reg clk100 = 1'b1; // To align rising edge with clk
 reg reset = 1'b0;
 
 //-----------------------ROM-------------------------
@@ -36,7 +40,7 @@ ROM #(
     .WIDTH(32),
     .WORDS(512),
     .ADDR_BITS(9),
-    .LIST("/home/bart/Documents/FPGA/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/rom.list")
+    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/rom.list")
 ) rom (
     .clk (clk),
 
@@ -69,7 +73,7 @@ VRAM #(
     .WIDTH(32),
     .WORDS(1056),
     .ADDR_BITS(11),
-    .LIST("/home/bart/Documents/FPGA/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/vram32.list")
+    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/vram32.list")
 ) vram32 (
     //CPU port
     .cpu_clk (clk),
@@ -106,7 +110,7 @@ VRAM #(
     .WIDTH(8),
     .WORDS(8194),
     .ADDR_BITS(14),
-    .LIST("/home/bart/Documents/FPGA/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/vram8.list")
+    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/vram8.list")
 ) vram8 (
     // CPU port
     .cpu_clk (clk),
@@ -144,7 +148,7 @@ VRAM #(
     .WIDTH(8),
     .WORDS(76800),
     .ADDR_BITS(17),
-    .LIST("/home/bart/Documents/FPGA/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/vramPX.list")
+    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/vramPX.list")
 ) vramPX (
     // CPU port
     .cpu_clk (clk),
@@ -159,6 +163,209 @@ VRAM #(
     .gpu_addr(vramPX_gpu_addr),
     .gpu_we  (vramPX_gpu_we),
     .gpu_q   (vramPX_gpu_q)
+);
+
+//-----------------------L1i RAM (100&50MHz)-------------------------
+
+// DPRAM I/O signals
+wire [273:0] l1i_pipe_d;
+wire [6:0]   l1i_pipe_addr;
+wire         l1i_pipe_we;
+wire [273:0] l1i_pipe_q;
+
+wire [273:0] l1i_ctrl_d;
+wire [6:0]   l1i_ctrl_addr;
+wire         l1i_ctrl_we;
+wire [273:0] l1i_ctrl_q;
+
+// CPU pipeline will not write to L1 RAM
+assign l1i_pipe_we = 1'b0;
+assign l1i_pipe_d  = 274'd0;
+
+// DPRAM instance
+DPRAM #(
+    .WIDTH(274),
+    .WORDS(128),
+    .ADDR_BITS(7),
+    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/l1i.list")
+) l1i_ram (
+    .clk_pipe(clk),
+    .pipe_d(l1i_pipe_d),
+    .pipe_addr(l1i_pipe_addr),
+    .pipe_we(l1i_pipe_we),
+    .pipe_q(l1i_pipe_q),
+    .clk_ctrl(clk100),
+    .ctrl_d(l1i_ctrl_d),
+    .ctrl_addr(l1i_ctrl_addr),
+    .ctrl_we(l1i_ctrl_we),
+    .ctrl_q(l1i_ctrl_q)
+);
+
+//-----------------------L1d RAM (100&50MHz)------------------------
+
+// DPRAM I/O signals
+wire [273:0] l1d_pipe_d;
+wire [6:0]   l1d_pipe_addr;
+wire         l1d_pipe_we;
+wire [273:0] l1d_pipe_q;
+
+wire [273:0] l1d_ctrl_d;
+wire [6:0]   l1d_ctrl_addr;
+wire         l1d_ctrl_we;
+wire [273:0] l1d_ctrl_q;
+
+// CPU pipeline will not write to L1 RAM
+assign l1d_pipe_we = 1'b0;
+assign l1d_pipe_d  = 274'd0;
+
+// DPRAM instance
+DPRAM #(
+    .WIDTH(274),
+    .WORDS(128),
+    .ADDR_BITS(7),
+    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/l1d.list")
+) l1d_ram (
+    .clk_pipe(clk),
+    .pipe_d(l1d_pipe_d),
+    .pipe_addr(l1d_pipe_addr),
+    .pipe_we(l1d_pipe_we),
+    .pipe_q(l1d_pipe_q),
+    .clk_ctrl(clk100),
+    .ctrl_d(l1d_ctrl_d),
+    .ctrl_addr(l1d_ctrl_addr),
+    .ctrl_we(l1d_ctrl_we),
+    .ctrl_q(l1d_ctrl_q)
+);
+
+//-----------------------MIG7 Mock (100MHz)-------------------------
+
+// MIG7Mock I/O signals
+wire mig7_init_calib_complete;
+
+wire [28:0] mig7_app_addr;
+wire [2:0]  mig7_app_cmd;
+wire        mig7_app_en;
+wire        mig7_app_rdy;
+
+wire [255:0] mig7_app_wdf_data;
+wire         mig7_app_wdf_end;
+wire [31:0]  mig7_app_wdf_mask;
+wire         mig7_app_wdf_wren;
+wire         mig7_app_wdf_rdy;
+
+wire [255:0] mig7_app_rd_data;
+wire         mig7_app_rd_data_end;
+wire         mig7_app_rd_data_valid;
+
+wire         mig7_app_sr_req = 1'b0;
+wire         mig7_app_ref_req = 1'b0;
+wire         mig7_app_zq_req = 1'b0;
+wire         mig7_app_sr_active;
+wire         mig7_app_ref_ack;
+wire         mig7_app_zq_ack;
+
+MIG7Mock #(
+    .ADDR_WIDTH(29),
+    .DATA_WIDTH(256),
+    .MASK_WIDTH(32),
+    .RAM_DEPTH(1024),
+    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/mig7mock.list")
+) mig7mock (
+    .sys_clk_i(clk100),
+    .sys_rst(reset),
+    .ui_clk(), // Not used in simulation
+    .ui_clk_sync_rst(), // Not used in simulation
+    .init_calib_complete(mig7_init_calib_complete),
+
+    .app_addr(mig7_app_addr),
+    .app_cmd(mig7_app_cmd),
+    .app_en(mig7_app_en),
+    .app_rdy(mig7_app_rdy),
+
+    .app_wdf_data(mig7_app_wdf_data),
+    .app_wdf_end(mig7_app_wdf_end),
+    .app_wdf_mask(mig7_app_wdf_mask),
+    .app_wdf_wren(mig7_app_wdf_wren),
+    .app_wdf_rdy(mig7_app_wdf_rdy),
+
+    .app_rd_data(mig7_app_rd_data),
+    .app_rd_data_end(mig7_app_rd_data_end),
+    .app_rd_data_valid(mig7_app_rd_data_valid),
+
+    .app_sr_req(mig7_app_sr_req),
+    .app_ref_req(mig7_app_ref_req),
+    .app_zq_req(mig7_app_zq_req),
+    .app_sr_active(mig7_app_sr_active),
+    .app_ref_ack(mig7_app_ref_ack),
+    .app_zq_ack(mig7_app_zq_ack)
+);
+
+//-----------------------CacheController (100MHz)-------------------------
+
+// Cache controller <-> CPU pipeline interface signals
+wire [31:0] l1i_cache_controller_addr;
+wire        l1i_cache_controller_start;
+wire        l1i_cache_controller_flush;
+wire        l1i_cache_controller_done;
+wire [31:0] l1i_cache_controller_result;
+
+// Not used in this testbench, but define for completeness
+wire [31:0] l1d_cache_controller_addr;
+wire [31:0] l1d_cache_controller_data;
+wire        l1d_cache_controller_we;
+wire        l1d_cache_controller_start;
+wire        l1d_cache_controller_done;
+wire [31:0] l1d_cache_controller_result;
+
+// Instantiate CacheController
+CacheController #(
+    .ADDR_WIDTH(29),
+    .DATA_WIDTH(256),
+    .MASK_WIDTH(32)
+) cache_controller (
+    .clk100(clk100),
+    .reset(reset),
+
+    // CPU pipeline interface (50 MHz domain)
+    .cpu_FE2_start(l1i_cache_controller_start),
+    .cpu_FE2_addr(l1i_cache_controller_addr),
+    .cpu_FE2_flush(l1i_cache_controller_flush),
+    .cpu_FE2_done(l1i_cache_controller_done),
+    .cpu_FE2_result(l1i_cache_controller_result),
+
+    .cpu_EXMEM2_start(l1d_cache_controller_start),
+    .cpu_EXMEM2_addr(l1d_cache_controller_addr),
+    .cpu_EXMEM2_data(l1d_cache_controller_data),
+    .cpu_EXMEM2_we(l1d_cache_controller_we),
+    .cpu_EXMEM2_done(l1d_cache_controller_done),
+    .cpu_EXMEM2_result(l1d_cache_controller_result),
+
+    // L1i RAM ctrl port
+    .l1i_ctrl_d(l1i_ctrl_d),
+    .l1i_ctrl_addr(l1i_ctrl_addr),
+    .l1i_ctrl_we(l1i_ctrl_we),
+    .l1i_ctrl_q(l1i_ctrl_q),
+
+    // L1d RAM ctrl port
+    .l1d_ctrl_d(l1d_ctrl_d),
+    .l1d_ctrl_addr(l1d_ctrl_addr),
+    .l1d_ctrl_we(l1d_ctrl_we),
+    .l1d_ctrl_q(l1d_ctrl_q),
+
+    // MIG7 interface: use MIG7Mock signals directly
+    .init_calib_complete(mig7_init_calib_complete),
+    .app_addr(mig7_app_addr),
+    .app_cmd(mig7_app_cmd),
+    .app_en(mig7_app_en),
+    .app_rdy(mig7_app_rdy),
+    .app_wdf_data(mig7_app_wdf_data),
+    .app_wdf_end(mig7_app_wdf_end),
+    .app_wdf_mask(mig7_app_wdf_mask),
+    .app_wdf_wren(mig7_app_wdf_wren),
+    .app_wdf_rdy(mig7_app_wdf_rdy),
+    .app_rd_data(mig7_app_rd_data),
+    .app_rd_data_end(mig7_app_rd_data_end),
+    .app_rd_data_valid(mig7_app_rd_data_valid)
 );
 
 //-----------------------CPU-------------------------
@@ -192,8 +399,49 @@ B32P2 cpu (
     .vramPX_addr(vramPX_cpu_addr),
     .vramPX_d(vramPX_cpu_d),
     .vramPX_we(vramPX_cpu_we),
-    .vramPX_q(vramPX_cpu_q)
+    .vramPX_q(vramPX_cpu_q),
+
+    // L1i cache (cpu pipeline port)
+    .l1i_pipe_addr(l1i_pipe_addr),
+    .l1i_pipe_q(l1i_pipe_q),
+
+    // L1d cache (cpu pipeline port)
+    .l1d_pipe_addr(l1d_pipe_addr),
+    .l1d_pipe_q(l1d_pipe_q),
+
+    // cache controller connections
+    .l1i_cache_controller_addr(l1i_cache_controller_addr),
+    .l1i_cache_controller_start(l1i_cache_controller_start),
+    .l1i_cache_controller_flush(l1i_cache_controller_flush),
+    .l1i_cache_controller_done(l1i_cache_controller_done),
+    .l1i_cache_controller_result(l1i_cache_controller_result),
+
+    .l1d_cache_controller_addr(l1d_cache_controller_addr),
+    .l1d_cache_controller_data(l1d_cache_controller_data),
+    .l1d_cache_controller_we(l1d_cache_controller_we),
+    .l1d_cache_controller_start(l1d_cache_controller_start),
+    .l1d_cache_controller_done(l1d_cache_controller_done),
+    .l1d_cache_controller_result(l1d_cache_controller_result)
 );
+
+// 100 MHz clock
+always begin
+    #5 clk100 = ~clk100;
+end
+
+// 50 MHz clock
+always begin
+    #10 clk = ~clk;
+end
+
+integer clk_counter = 0;
+always @(posedge clk) begin
+    clk_counter = clk_counter + 1;
+    if (clk_counter == 1000) begin
+        $display("Simulation finished.");
+        $finish;
+    end
+end
 
 initial
 begin
@@ -202,10 +450,6 @@ begin
     $dumpvars;
     `endif
 
-    repeat(1000)
-    begin
-        #10 clk = ~clk;
-    end
 end
 
 endmodule

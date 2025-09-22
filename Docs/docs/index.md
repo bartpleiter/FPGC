@@ -14,7 +14,7 @@ Furthermore, this project also covers other parts needed to create a fully funct
 
 - FPGA Logic Design: A custom CPU, GPU, Memory Unit and I/O, all written in Verilog.
 - Hardware: PCB design with I/O and memory, and a 3D-printed case plus monitor for a complete, although small, physical computer.
-- Software: Bootloaders, assembler, C compiler (only part that is a modified existing design instead of built from scratch), custom filesystem and operating system designed specifically for FPGC, with the compiler and assembler being able to run on the FPGC itself.
+- Software: Bootloaders, assembler, C compiler (by modifying an existing compiler instead of building one from scratch), custom filesystem and operating system designed specifically for FPGC, with the compiler and assembler being able to run on the FPGC itself.
 - Programming Tools: A full toolchain with development tools to program and interact with the system, via UART or network.
 
 See the System Overview subpages for more details on specs and achitecture.
@@ -26,7 +26,7 @@ This project is considered finished when:
 - [ ] The FPGC can be used as a fully portable standalone PC that can be used to write, compile and run software without the need for an external PC or programmer.
 - [ ] The FPGC can run its own web server.
 - [ ] The FPGC can run DOOM, either the original or a simplified but similar version, compiled and assembled into machine code for my own instruction set architecture, to use system calls of a self designed operating system, running from a self designed file system. 
-    - Preferably with a playable framerate, and if not then the CPU of the FPGC should run the code in <2 cycles per instruction, which should only be possible with a proper CPU pipeline design and caching.
+    - Preferably with a playable framerate, and if not then the CPU of the FPGC should run the code on average in <2 cycles per instruction, which should only be possible with a proper CPU pipeline design and caching.
 - [ ] The project is properly documented
 
 !!! note
