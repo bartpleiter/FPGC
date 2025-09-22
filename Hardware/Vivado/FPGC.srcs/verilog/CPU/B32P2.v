@@ -219,6 +219,19 @@ Regr #(
     .clear(1'b0)
 );
 
+// Signal to tag bubbles for FE2 to ignore
+wire n_bubble_FE2;
+Regr #(
+    .N(1)
+) regr_bubble_FE1_FE2 (
+    .clk (clk),
+    .in(1'b1),
+    .out(n_bubble_FE2),
+    .hold(stall_FE1),
+    .clear(flush_FE1)
+);
+wire bubble_FE2 = !n_bubble_FE2;
+
 /*
  * Stage 2: Instruction Cache Miss Fetch
  */
@@ -234,7 +247,8 @@ wire [15:0] l1i_tag_FE2 = PC_FE2[25:10]; // Tag for the cache line
 wire [2:0] l1i_offset_FE2 = PC_FE2[2:0]; // Offset within the cache line
 
 wire l1i_cache_hit_FE2 = 
-    (valid_mem_access_FE2) &&
+    valid_mem_access_FE2 &&
+    !bubble_FE2 &&
     (l1i_tag_FE2 == l1i_pipe_q[17:2]) &&
     l1i_pipe_q[1] && // Valid bit
     l1i_cache_miss_state_FE2 == L1I_CACHE_IDLE; // Make sure we are not currently handling a cache miss
@@ -243,7 +257,7 @@ wire [31:0] l1i_cache_hit_q_FE2 = l1i_pipe_q[32 * l1i_offset_FE2 + 18 +: 32]; //
 
 // L1i cache miss handling
 wire l1i_cache_miss_FE2;
-assign l1i_cache_miss_FE2 = l1i_cache_miss_state_FE2 != L1I_CACHE_RESULT_READY && (valid_mem_access_FE2) && !(l1i_tag_FE2 == l1i_pipe_q[17:2] && l1i_pipe_q[1]);
+assign l1i_cache_miss_FE2 = l1i_cache_miss_state_FE2 != L1I_CACHE_RESULT_READY && !bubble_FE2 && valid_mem_access_FE2 && !(l1i_tag_FE2 == l1i_pipe_q[17:2] && l1i_pipe_q[1]);
 
 // Cache miss state machine
 reg [1:0] l1i_cache_miss_state_FE2 = 2'b00;
@@ -262,6 +276,7 @@ always @(posedge clk) begin
         l1i_cache_miss_state_FE2 <= L1I_CACHE_IDLE;
         l1i_cache_controller_start_reg <= 1'b0;
         l1i_cache_controller_flush_reg <= 1'b0;
+        saved_cache_result_FE2 <= 32'd0;
     end else begin
         case (l1i_cache_miss_state_FE2)
             L1I_CACHE_IDLE: begin
@@ -305,6 +320,7 @@ always @(posedge clk) begin
                 if (!stall_FE2 || flush_FE2)
                 begin
                     l1i_cache_miss_state_FE2 <= L1I_CACHE_IDLE;
+                    saved_cache_result_FE2 <= 32'd0;
                 end
             end
         endcase
@@ -321,7 +337,7 @@ wire [31:0] instr_result_FE2;
 assign instr_result_FE2 =   (mem_rom_FE2) ? rom_q_FE2 :
                             (l1i_cache_miss_state_FE2 == L1I_CACHE_RESULT_READY) ? saved_cache_result_FE2 : // Cache miss result is ready
                             (l1i_cache_miss_FE2) ? 32'b0 : // Forward bubbles when still handling cache miss
-                            (l1i_cache_hit_FE2) ? l1i_cache_hit_q_FE2 : // Must be below cache miss checks
+                            (l1i_cache_hit_FE2 && !stall_FE2 && !flush_FE2) ? l1i_cache_hit_q_FE2 : // Must be below cache miss checks
                             32'b0;
 
 // Forward to next stage

@@ -112,14 +112,20 @@ class CPUTestRunner:
             ResultParsingError: If no result is found
         """
         lines = result.split("\n")
+        last_reg15_line = None
+        
+        # Find the last occurrence of "reg15 :="
         for line in lines:
             if "reg15 :=" in line:
-                try:
-                    return int(line.split("reg15 :=")[1].strip())
-                except (ValueError, IndexError) as e:
-                    raise ResultParsingError(f"Failed to parse register value from line: {line}") from e
+                last_reg15_line = line
         
-        raise ResultParsingError("No result found in simulation output")
+        if last_reg15_line is None:
+            raise ResultParsingError("No result found in simulation output")
+        
+        try:
+            return int(last_reg15_line.split("reg15 :=")[1].strip())
+        except (ValueError, IndexError) as e:
+            raise ResultParsingError(f"Failed to parse register value from line: {last_reg15_line}") from e
     
     def _run_simulation(self) -> str:
         """
