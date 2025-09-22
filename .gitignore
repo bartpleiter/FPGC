@@ -1,4 +1,4 @@
-Docs/site/
+Docs/site
 
 Hardware/Vivado/FPGC.cache
 Hardware/Vivado/FPGC.hw
@@ -10,6 +10,14 @@ Hardware/Vivado/*.log
 
 Hardware/Vivado/FPGC.srcs/simulation/output
 
-__pycache__/
+__pycache__
 
-.venv/
+.venv
+BuildTools/ASMPY/build
+*.egg-info
+.mypy_cache
+.pytest_cache
+.ruff_cache
+.coverage
+
+tmp

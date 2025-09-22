@@ -1,0 +1,12 @@
+{
+    "python.testing.pytestArgs": [
+        "BuildTools/ASMPY/tests"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
+    "cSpell.words": [
+        "asmpy",
+        "bdos",
+        "userbdos"
+    ]
+}

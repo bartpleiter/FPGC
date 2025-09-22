@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Environment for running FPGC tools and scripts"
 readme = "README.md"
 requires-python = ">=3.13"
+authors = [{name = "Bart Pleiter"}]
 dependencies = [
     "bitstring>=4.3.1",
     "mkdocs>=1.6.1",
@@ -14,4 +15,34 @@ dependencies = [
     "pyserial>=3.5",
     "ruff>=0.12.1",
     "tqdm>=4.67.1",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.15.0",
+    "pytest>=8.3.4",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.9.5",
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["BuildTools/ASMPY"]
+
+[project.scripts]
+asmpy = "asmpy.app:main"
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+skip_covered = true
+sort = "-Miss"
+
+[tool.mypy]
+#ignore_missing_imports = true
+exclude = [
+    'tests/'
 ]
