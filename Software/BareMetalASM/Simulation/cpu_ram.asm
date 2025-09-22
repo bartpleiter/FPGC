@@ -1,13 +1,15 @@
-; Tests hazard where a flush because of a jump in EXMEM1, and long duration stall because of multicycle alu in EXMEM2 happen at the same time
-; If not handled correctly, this will cause FE2 to handle the bubble as a valid instruction, executing the first instruction again
 Main:
+    load 7 r1                   ; pc0
+    savpc r2                    ; pc1
+    jumpo 5                     ; pc2
+    load 999 r9                        ; pc3
+    load 7 r15 ; expected=7     ; pc4
+    halt                        ; pc5
+    load 999 r9                        ; pc6
+    jumpr 3 r2                  ; pc7
 
-    load 37 r15
-    load 43 r15
+    load 999 r9                        ; pc8
+    halt                               ; pc9
 
-    multu r15 r15 r10     ; r10 = dont care
-    jumpo 2
-    nop
-
-    or r0 r15 r15 ; expected=43
-    halt
+; Expected execution order:
+; pc0 -> pc1 -> pc2 -> pc7 -> pc4 -> pc5 -> pc5 -> pc5...

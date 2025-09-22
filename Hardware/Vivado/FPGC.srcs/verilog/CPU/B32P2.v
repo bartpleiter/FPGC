@@ -296,9 +296,10 @@ always @(posedge clk) begin
                     l1i_cache_controller_start_reg <= 1'b0;
                     l1i_cache_controller_flush_reg <= 1'b1;
                 end
-
-                l1i_cache_controller_start_reg <= 1'b0;
-                l1i_cache_miss_state_FE2 <= L1I_CACHE_WAIT_DONE;
+                else begin
+                    l1i_cache_controller_start_reg <= 1'b0;
+                    l1i_cache_miss_state_FE2 <= L1I_CACHE_WAIT_DONE;
+                end
             end
             
             L1I_CACHE_WAIT_DONE: begin
@@ -307,8 +308,7 @@ always @(posedge clk) begin
                     l1i_cache_miss_state_FE2 <= L1I_CACHE_IDLE;
                     l1i_cache_controller_flush_reg <= 1'b1;
                 end
-
-                if (l1i_cache_controller_done) begin
+                else if (l1i_cache_controller_done) begin
                     saved_cache_result_FE2 <= l1i_cache_controller_result;
                     l1i_cache_miss_state_FE2 <= L1I_CACHE_RESULT_READY;
                 end

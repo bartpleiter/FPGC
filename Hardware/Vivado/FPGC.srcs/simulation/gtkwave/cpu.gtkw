@@ -1,21 +1,21 @@
 [*]
 [*] GTKWave Analyzer v3.3.121 (w)1999-2024 BSI
-[*] Mon Sep 22 08:49:24 2025
+[*] Mon Sep 22 17:45:08 2025
 [*]
 [dumpfile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd"
-[dumpfile_mtime] "Mon Sep 22 08:45:28 2025"
-[dumpfile_size] 1214631
+[dumpfile_mtime] "Mon Sep 22 17:44:22 2025"
+[dumpfile_size] 1596648
 [savefile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/cpu.gtkw"
-[timestart] 0
+[timestart] 428000
 [size] 1920 1080
 [pos] -1 -1
-*-19.052370 1060000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-17.252371 760500 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] cpu_tb.
 [treeopen] cpu_tb.cpu.
 [sst_width] 321
-[signals_width] 507
+[signals_width] 393
 [sst_expanded] 1
-[sst_vpaned_height] 703
+[sst_vpaned_height] 702
 @28
 cpu_tb.clk
 cpu_tb.clk100
@@ -61,6 +61,9 @@ cpu_tb.cache_controller.cpu_FE2_new_request
 -
 @24
 cpu_tb.cache_controller.state[7:0]
+@28
+cpu_tb.cache_controller.cpu_FE2_flush
+cpu_tb.cache_controller.ignore_fe2_result
 @200
 -
 -L1i Cache RAM
@@ -103,10 +106,10 @@ cpu_tb.cpu.rom_fe_oe
 cpu_tb.cpu.clk
 @24
 cpu_tb.cpu.PC_FE2[31:0]
-@29
-cpu_tb.cpu.stall_FE2
 @28
+cpu_tb.cpu.stall_FE2
 cpu_tb.cpu.flush_FE2
+cpu_tb.cpu.bubble_FE2
 @200
 -
 @28
@@ -132,7 +135,7 @@ cpu_tb.cpu.l1i_cache_miss_FE2
 cpu_tb.cpu.l1i_cache_controller_done
 @200
 -
-@24
+@25
 cpu_tb.cpu.l1i_cache_miss_state_FE2[1:0]
 @28
 cpu_tb.cpu.l1i_cache_controller_start_reg
@@ -145,8 +148,8 @@ cpu_tb.cpu.l1i_cache_controller_start
 @28
 cpu_tb.cpu.l1i_cache_controller_result[31:0]
 cpu_tb.cpu.l1i_cache_hit_q_FE2[31:0]
+cpu_tb.cpu.saved_cache_result_FE2[31:0]
 @200
--
 -
 @28
 cpu_tb.cpu.instr_result_FE2[31:0]
