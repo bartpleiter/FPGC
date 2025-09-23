@@ -1,4 +1,5 @@
 import logging
+import sys
 from pathlib import Path
 from asmpy.assembler import Assembler
 from asmpy.preprocessor import Preprocessor
@@ -15,9 +16,8 @@ def main():
     logger.info("Starting asmpy")
     logger.debug(f"Arguments: {args}")
 
-    source_input_lines = read_input_file(args.file)
-
     input_file_path = Path(args.file)
+    source_input_lines = read_input_file(input_file_path)
 
     try:
         preprocessed_lines = Preprocessor(
@@ -26,14 +26,14 @@ def main():
         ).preprocess()
     except Exception as e:
         logger.error(f"Preprocessor failed: {e}")
-        raise e
+        sys.exit(1)
 
     assembler = Assembler(preprocessed_lines, args.output)
     try:
         assembler.assemble()
     except Exception as e:
         logger.error(f"Assembler failed: {e}")
-        raise e
+        sys.exit(1)
 
     logger.info("Assembler finished")
 

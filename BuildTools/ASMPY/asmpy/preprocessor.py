@@ -10,7 +10,7 @@ from asmpy.models.data_types import SourceLine
 
 class Preprocessor:
     """Class to preprocess an assembly file.
-    Allows for recursive preprocessing of inclusion files."""
+    Allows for recursive preprocessing of include files."""
 
     def __init__(
         self,

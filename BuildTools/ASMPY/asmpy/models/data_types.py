@@ -52,7 +52,7 @@ class ControlOperation(StringParsableEnum):
     """Types of control operations."""
 
     HALT = "halt"
-    SAVE_PROGRAM_COUNTER = "savepc"
+    SAVE_PROGRAM_COUNTER = "savpc"
     CLEAR_CACHE = "ccache"
     NOP = "nop"
     ADDRESS_TO_REGISTER = "addr2reg"
@@ -264,9 +264,16 @@ class Label:
 class Number:
     """Class to represent a number, while keeping its original string representation in binary, hexadecimal or decimal format."""
 
-    def __init__(self, value: int, original: str | None = None) -> None:
-        self.original = original
-        self.value = value
+    def __init__(self, value: int | str, original: str | None = None) -> None:
+        if isinstance(value, str):
+            # Parse from string
+            parsed = self._from_str(value)
+            self.value = parsed.value
+            self.original = parsed.original
+        else:
+            # Use provided int and original
+            self.value = value
+            self.original = original
 
     @staticmethod
     def _from_str(input_str: str) -> "Number":
@@ -283,13 +290,11 @@ class Number:
 
     def to_binary(self, bits: int) -> str:
         """Convert the number to a binary string with a fixed number of bits."""
-
-        # Check if value fits in the number of bits
-        min_value = -(1 << (bits - 1))
-        max_value = (1 << bits) - 1
-        if not (min_value <= self.value <= max_value):
-            raise ValueError(f"Number must fit in {bits} bits")
-
+        # Treat numbers as signed two's complement for range checking
+        signed_min = -(1 << (bits - 1))
+        signed_max = (1 << (bits - 1)) - 1
+        if not (signed_min <= self.value <= signed_max):
+            raise ValueError(f"Number must fit (signed) in {bits} bits")
         return f"{self.value & ((1 << bits) - 1):0{bits}b}"
 
     def __int__(self) -> int:
