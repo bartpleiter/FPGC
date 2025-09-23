@@ -1,8 +1,6 @@
 from abc import ABC, abstractmethod
 import logging
-from pathlib import Path
 from asmpy.models.data_types import SourceLine
-from asmpy.utils import read_input_file
 
 
 class Define:

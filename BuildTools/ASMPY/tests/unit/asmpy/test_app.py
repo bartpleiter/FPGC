@@ -8,7 +8,11 @@ from asmpy.app import main
 @patch("asmpy.app.CustomFormatter")
 @patch("asmpy.app.Assembler")
 def test_main_logging(
-    MockAssembler, MockCustomFormatter, mock_configure_logging, mock_parse_args, mock_read_input
+    MockAssembler,
+    MockCustomFormatter,
+    mock_configure_logging,
+    mock_parse_args,
+    mock_read_input,
 ):
     # Arrange
     mock_parse_args.return_value = MagicMock(

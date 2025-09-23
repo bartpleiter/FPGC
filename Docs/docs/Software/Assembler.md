@@ -1,4 +1,4 @@
-# ASMPY Assembler
+# Assembler (ASMPY)
 
 ASMPY is an assembler for the B32P2 ISA written in Python and allows the user to write and assemble code for the FPGC. While the main focus of the assembler is to assemble the output of the C compiler (BCC), and therefore might not be great for large hand-written assembly projects, it can still be used for small assembly programs like bootloaders, or to create functional tests for the CPU/FPGC.
 

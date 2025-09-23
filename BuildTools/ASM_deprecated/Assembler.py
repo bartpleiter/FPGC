@@ -69,7 +69,6 @@ def removeUnreachebleCode(parsedLines):
     jumps = []
 
     for x in asm:
-
         if len(x) > 0:
             if x[0][-1] == ":":
                 if "Label_" not in x[0]:
@@ -340,7 +339,6 @@ def obtainDefines(content):
     # seperate defines from other lines
     for line in content:
         if line[1][0].lower() == "define":
-
             # do error checking
             if len(line[1]) != 4 or line[1][2] != "=":
                 print("Error in line " + str(line[0]) + ": " + " ".join(line[1]))
@@ -412,7 +410,6 @@ def moveLabels(parsedLines):
         line = parsedLines[idx]
         if line[1].lower().split()[0] == "label":
             if idx < len(parsedLines) - 1:
-
                 if parsedLines[idx + 1][1].lower().split()[0] == "label":
                     # (OLD) if we have a label directly below, insert a nop as a quick fix
                     # parsedLines.insert(idx+1, (0, "$*" + line[1].split()[1] + "*$ " +"00000000000000000000000000000000 //NOP to quickfix double labels"))

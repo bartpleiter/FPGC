@@ -35,7 +35,6 @@ def getNumber(word, allowNeg=True, returnABS=False):
         raise ValueError(str(word) + " is a negative number (which are not allowed)")
 
     if allowNeg and returnABS:
-
         if value < 0:
             return abs(value), True
         else:
@@ -283,7 +282,6 @@ def compileJump(line):
 
     # if no label is given
     if not ARG1isAlabel:
-
         # convert arg1 to number
         arg1Int = getNumber(line[1], False)
 
@@ -768,6 +766,7 @@ def compileARITHM(line, opcode):
 
     return instruction
 
+
 # compiles OR instruction
 def compileOR(line):
     return compileARITH(line, "0000")
@@ -837,17 +836,21 @@ def compileMULTFP(line):
 def compileDIVS(line):
     return compileARITHM(line, "0011")
 
+
 # compiles DIVU instruction
 def compileDIVU(line):
     return compileARITHM(line, "0100")
+
 
 # compiles DIVFP instruction
 def compileDIVFP(line):
     return compileARITHM(line, "0101")
 
+
 # compiles MODS instruction
 def compileMODS(line):
     return compileARITHM(line, "0110")
+
 
 # compiles MODU instruction
 def compileMODU(line):
@@ -1250,7 +1253,6 @@ def compileDl(line):
 
     # if no label is given
     if not ARG1isAlabel:
-
         # convert arg1 to number
         arg1Int = getNumber(line[1], False)
 

@@ -227,7 +227,7 @@ class InstructionAssemblyLine(AssemblyLine):
                 source_line_number=self.source_line_number,
                 source_file_name=self.source_file_name,
             )
-            
+
             # Only add loadhi instruction if the high 16 bits are non-zero
             # Since load clears the upper 16 bits, loadhi is unnecessary when high bits are 0
             if high_16_bits.value != 0:
@@ -343,39 +343,50 @@ class InstructionAssemblyLine(AssemblyLine):
 
     def _single_cycle_arithmetic_operation_to_binary(self) -> str:
         # Load and loadhi operations have different handling
-        if self.instruction_type in (SingleCycleArithmeticOperation.LOAD_LOW, SingleCycleArithmeticOperation.LOAD_HIGH):
+        if self.instruction_type in (
+            SingleCycleArithmeticOperation.LOAD_LOW,
+            SingleCycleArithmeticOperation.LOAD_HIGH,
+        ):
             if len(self.arguments) != 2:
-                raise ValueError(f"{self.instruction_type.value.upper()} requires two arguments")
-            
+                raise ValueError(
+                    f"{self.instruction_type.value.upper()} requires two arguments"
+                )
+
             # Argument can be either a Number or a Label
             if isinstance(self.arguments[0], Number):
                 const16_value = self.arguments[0].value
             elif isinstance(self.arguments[0], Label):
                 if self.arguments[0].target_address is None:
                     raise ValueError(f"Label {self.arguments[0]} has no target address")
-                # For LOAD_LOW, use lower 16 bits; for LOAD_HIGH, use upper 16 bits  
+                # For LOAD_LOW, use lower 16 bits; for LOAD_HIGH, use upper 16 bits
                 if self.instruction_type == SingleCycleArithmeticOperation.LOAD_LOW:
                     const16_value = self.arguments[0].target_address & 0xFFFF
                 else:  # LOAD_HIGH
                     const16_value = (self.arguments[0].target_address >> 16) & 0xFFFF
             else:
-                raise ValueError(f"{self.instruction_type.value.upper()} first argument must be a number or label")
-            
+                raise ValueError(
+                    f"{self.instruction_type.value.upper()} first argument must be a number or label"
+                )
+
             if not isinstance(self.arguments[1], Register):
-                raise ValueError(f"{self.instruction_type.value.upper()} second argument must be a register")
-            
+                raise ValueError(
+                    f"{self.instruction_type.value.upper()} second argument must be a register"
+                )
+
             # Check if value fits in 16 bits unsigned
             if not (0 <= const16_value <= 0xFFFF):
-                raise ValueError(f"Value {const16_value} does not fit in 16 bits unsigned")
-            
+                raise ValueError(
+                    f"Value {const16_value} does not fit in 16 bits unsigned"
+                )
+
             const16 = f"{const16_value:016b}"
             dreg = self.arguments[1].to_binary()
-            
+
             if self.instruction_type == SingleCycleArithmeticOperation.LOAD_LOW:
                 return f"{InstructionOpcode.ARITHC.value}{ArithOpcode.LOAD.value}{const16}{dreg}{dreg}"
             else:  # LOAD_HIGH
                 return f"{InstructionOpcode.ARITHC.value}{ArithOpcode.LOADHI.value}{const16}{dreg}{dreg}"
-        
+
         # NOT operation has only 2 arguments (source and destination registers)
         elif self.instruction_type == SingleCycleArithmeticOperation.NOT:
             if len(self.arguments) != 2:
@@ -384,25 +395,31 @@ class InstructionAssemblyLine(AssemblyLine):
                 raise ValueError("NOT first argument must be a register")
             if not isinstance(self.arguments[1], Register):
                 raise ValueError("NOT second argument must be a register")
-            
+
             areg = self.arguments[0].to_binary()
             dreg = self.arguments[1].to_binary()
-            
+
             return f"{InstructionOpcode.ARITH.value}{ArithOpcode.NOTA.value}000000000000{areg}{0:04b}{dreg}"
-        
+
         # All other arithmetic operations have 3 arguments
         else:
             if len(self.arguments) != 3:
-                raise ValueError(f"{self.instruction_type.value.upper()} requires three arguments")
-            
+                raise ValueError(
+                    f"{self.instruction_type.value.upper()} requires three arguments"
+                )
+
             if not isinstance(self.arguments[0], Register):
-                raise ValueError(f"{self.instruction_type.value.upper()} first argument must be a register")
+                raise ValueError(
+                    f"{self.instruction_type.value.upper()} first argument must be a register"
+                )
             if not isinstance(self.arguments[2], Register):
-                raise ValueError(f"{self.instruction_type.value.upper()} third argument must be a register")
-            
+                raise ValueError(
+                    f"{self.instruction_type.value.upper()} third argument must be a register"
+                )
+
             areg = self.arguments[0].to_binary()
             dreg = self.arguments[2].to_binary()
-            
+
             # Map instruction to arithmetic opcode
             opcode_map = {
                 SingleCycleArithmeticOperation.OR: ArithOpcode.OR,
@@ -416,12 +433,14 @@ class InstructionAssemblyLine(AssemblyLine):
                 SingleCycleArithmeticOperation.SET_LESS_THAN: ArithOpcode.SLT,
                 SingleCycleArithmeticOperation.SET_LESS_THAN_UNSIGNED: ArithOpcode.SLTU,
             }
-            
+
             if self.instruction_type not in opcode_map:
-                raise ValueError(f"Unsupported arithmetic operation: {self.instruction_type}")
-            
+                raise ValueError(
+                    f"Unsupported arithmetic operation: {self.instruction_type}"
+                )
+
             arith_opcode = opcode_map[self.instruction_type].value
-            
+
             # Check if second argument is register or constant
             if isinstance(self.arguments[1], Register):
                 breg = self.arguments[1].to_binary()
@@ -429,14 +448,20 @@ class InstructionAssemblyLine(AssemblyLine):
             if isinstance(self.arguments[1], Number):
                 const_value = self.arguments[1].value
                 if not (-32768 <= const_value <= 32767):
-                    raise ValueError(f"Constant {const_value} does not fit in 16 bits signed")
+                    raise ValueError(
+                        f"Constant {const_value} does not fit in 16 bits signed"
+                    )
                 const16 = f"{const_value & 0xFFFF:016b}"
                 return f"{InstructionOpcode.ARITHC.value}{arith_opcode}{const16}{areg}{dreg}"
-            raise ValueError(f"{self.instruction_type.value.upper()} second argument must be a register or number")
+            raise ValueError(
+                f"{self.instruction_type.value.upper()} second argument must be a register or number"
+            )
 
     def _multi_cycle_arithmetic_operation_to_binary(self) -> str:
         if len(self.arguments) != 3:
-            raise ValueError(f"{self.instruction_type.value.upper()} requires three arguments")
+            raise ValueError(
+                f"{self.instruction_type.value.upper()} requires three arguments"
+            )
         if not isinstance(self.arguments[0], Register):
             raise ValueError("First argument must be register")
         if not isinstance(self.arguments[2], Register):
@@ -461,19 +486,31 @@ class InstructionAssemblyLine(AssemblyLine):
         if isinstance(self.arguments[1], Number):
             const_value = self.arguments[1].value
             if not (-32768 <= const_value <= 32767):
-                raise ValueError(f"Constant {const_value} does not fit in 16 bits signed")
+                raise ValueError(
+                    f"Constant {const_value} does not fit in 16 bits signed"
+                )
             const16 = f"{const_value & 0xFFFF:016b}"
             # Constant form should use ARITHM (0011)
-            return f"{InstructionOpcode.ARITHM.value}{arithm_opcode}{const16}{areg}{dreg}"
+            return (
+                f"{InstructionOpcode.ARITHM.value}{arithm_opcode}{const16}{areg}{dreg}"
+            )
         raise ValueError("Second argument must be register or number")
 
     def _branch_operation_to_binary(self) -> str:
         if len(self.arguments) != 3:
-            raise ValueError(f"{self.instruction_type.value.upper()} requires three arguments")
-        if not isinstance(self.arguments[0], Register) or not isinstance(self.arguments[1], Register):
+            raise ValueError(
+                f"{self.instruction_type.value.upper()} requires three arguments"
+            )
+        if not isinstance(self.arguments[0], Register) or not isinstance(
+            self.arguments[1], Register
+        ):
             raise ValueError("First two arguments must be registers")
-        if not isinstance(self.arguments[2], Number) and not isinstance(self.arguments[2], Label):
-            raise ValueError("Third argument must be a number or label (resolved to number)")
+        if not isinstance(self.arguments[2], Number) and not isinstance(
+            self.arguments[2], Label
+        ):
+            raise ValueError(
+                "Third argument must be a number or label (resolved to number)"
+            )
         # If label, we expect assembler to have resolved target_address
         offset_value: int
         if isinstance(self.arguments[2], Label):
@@ -531,9 +568,14 @@ class InstructionAssemblyLine(AssemblyLine):
                 raise ValueError("Jump offset must fit in 27 bits unsigned")
             const27 = f"{offset.value:027b}"
             return f"{InstructionOpcode.JUMP.value}{const27}1"
-        if self.instruction_type in (JumpOperation.JUMP_REGISTER, JumpOperation.JUMP_REGISTER_OFFSET):
+        if self.instruction_type in (
+            JumpOperation.JUMP_REGISTER,
+            JumpOperation.JUMP_REGISTER_OFFSET,
+        ):
             if len(self.arguments) != 2:
-                raise ValueError("JUMPR/JUMPRO require two arguments (offset, register)")
+                raise ValueError(
+                    "JUMPR/JUMPRO require two arguments (offset, register)"
+                )
             if not isinstance(self.arguments[0], Number):
                 raise ValueError("First argument must be number (offset)")
             if not isinstance(self.arguments[1], Register):
@@ -543,7 +585,11 @@ class InstructionAssemblyLine(AssemblyLine):
                 raise ValueError("Offset must fit in 16 bits signed")
             const16 = f"{offset & 0xFFFF:016b}"
             breg = self.arguments[1].to_binary()
-            offset_flag = "1" if self.instruction_type == JumpOperation.JUMP_REGISTER_OFFSET else "0"
+            offset_flag = (
+                "1"
+                if self.instruction_type == JumpOperation.JUMP_REGISTER_OFFSET
+                else "0"
+            )
             return f"{InstructionOpcode.JUMPR.value}{const16}{0:04b}{breg}{BranchOpcode.BEQ.value}{offset_flag}"
         raise ValueError("Invalid jump operation")
 

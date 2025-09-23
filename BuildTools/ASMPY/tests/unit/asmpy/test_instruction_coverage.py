@@ -99,7 +99,7 @@ def test_load32_expansion_no_high_bits():
     assert isinstance(expanded[0], InstructionAssemblyLine)
     # Must produce 32-bit binary
     assert len(expanded[0].to_binary_string().split()[0]) == 32
-    
+
     # Test with smaller value that clearly has no high bits
     line = AssemblyLine.parse_line(src("load32 0x1234 r1"))
     expanded = line.expand()
@@ -117,7 +117,9 @@ def test_addr2reg_expansion_label_resolution():
     out_fd, out_path = tempfile.mkstemp()
     os.close(out_fd)
     try:
-        assembler = Assembler(preprocessed_input_lines=code_lines, output_file_path=out_path)
+        assembler = Assembler(
+            preprocessed_input_lines=code_lines, output_file_path=out_path
+        )
         assembler.assemble()
         # Output should contain two lines for load/loadhi
         with open(out_path) as f:

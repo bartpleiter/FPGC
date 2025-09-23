@@ -3,6 +3,7 @@ from asmpy.models.data_types import SourceLine
 
 # Helper to parse an instruction line quickly
 
+
 def parse(code: str) -> InstructionAssemblyLine:
     src = SourceLine(line=code, source_line_number=1, source_file_name="test.asm")
     inst = InstructionAssemblyLine.parse_line(src)  # type: ignore
@@ -45,7 +46,7 @@ def test_branch_field_layout_signed_flag():
     beq = bits(parse("beq r1 r2 1").to_binary_string())
     assert beq[:4] == "0110"
     assert beq[-4:-1] == "000"  # branch opcode
-    assert beq[-1] == "0"        # unsigned
+    assert beq[-1] == "0"  # unsigned
     # bgts signed -> opcode 001, signed bit 1
     bgts = bits(parse("bgts r1 r2 1").to_binary_string())
     assert bgts[-4:-1] == "001"

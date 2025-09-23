@@ -3,15 +3,22 @@
 # Activate the virtual environment
 source .venv/bin/activate
 
-# Compile code
-cp Software/BareMetalASM/Simulation/fpgc.asm BuildTools/ASM/code.asm
-if (cd BuildTools/ASM && python3 Assembler.py -H > code.list)
+# Compile ROM code
+if asmpy Software/BareMetalASM/Simulation/cpu_rom.asm Hardware/Vivado/FPGC.srcs/simulation/memory/rom.list
 then
-    # Move to simulation directory
-    mv BuildTools/ASM/code.list Hardware/Vivado/FPGC.srcs/simulation/memory/rom.list
+    echo "ROM code compiled successfully"
 else
-    # Print the error, which is in code.list
-    (cat BuildTools/ASM/code.list)
+    echo "ROM compilation failed"
+    exit
+fi
+
+# Compile RAM code
+if asmpy Software/BareMetalASM/Simulation/cpu_ram.asm Hardware/Vivado/FPGC.srcs/simulation/memory/ram.list
+then
+    # Convert to 256 bit lines for mig7 mock
+    python3 BuildTools/Utils/convert_to_256_bit.py Hardware/Vivado/FPGC.srcs/simulation/memory/ram.list Hardware/Vivado/FPGC.srcs/simulation/memory/mig7mock.list
+else
+    echo "RAM compilation failed"
     exit
 fi
 

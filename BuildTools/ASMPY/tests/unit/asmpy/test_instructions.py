@@ -1,6 +1,7 @@
 from asmpy.models.assembly_line import InstructionAssemblyLine
 from asmpy.models.data_types import SourceLine
 
+
 def make_line(code: str) -> InstructionAssemblyLine:
     src = SourceLine(line=code, source_line_number=1, source_file_name="test.asm")
     line = InstructionAssemblyLine.parse_line(src)  # type: ignore
