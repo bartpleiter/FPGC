@@ -320,13 +320,14 @@ wire        l1i_cache_controller_flush;
 wire        l1i_cache_controller_done;
 wire [31:0] l1i_cache_controller_result;
 
-// Not used in this testbench, but define for completeness
 wire [31:0] l1d_cache_controller_addr;
 wire [31:0] l1d_cache_controller_data;
 wire        l1d_cache_controller_we;
 wire        l1d_cache_controller_start;
 wire        l1d_cache_controller_done;
 wire [31:0] l1d_cache_controller_result;
+
+wire l1_clear_cache;
 
 // Instantiate CacheController
 CacheController #(
@@ -350,6 +351,8 @@ CacheController #(
     .cpu_EXMEM2_we(l1d_cache_controller_we),
     .cpu_EXMEM2_done(l1d_cache_controller_done),
     .cpu_EXMEM2_result(l1d_cache_controller_result),
+
+    .cpu_clear_cache(l1_clear_cache),
 
     // L1i RAM ctrl port
     .l1i_ctrl_d(l1i_ctrl_d),
@@ -469,7 +472,9 @@ B32P2 cpu (
     .l1d_cache_controller_we(l1d_cache_controller_we),
     .l1d_cache_controller_start(l1d_cache_controller_start),
     .l1d_cache_controller_done(l1d_cache_controller_done),
-    .l1d_cache_controller_result(l1d_cache_controller_result)
+    .l1d_cache_controller_result(l1d_cache_controller_result),
+
+    .l1_clear_cache(l1_clear_cache)
 );
 
 // 100 MHz clock

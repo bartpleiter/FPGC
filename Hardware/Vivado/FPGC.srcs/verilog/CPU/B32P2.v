@@ -74,7 +74,9 @@ module B32P2 #(
     output wire l1d_cache_controller_we,
     output wire l1d_cache_controller_start,
     input wire l1d_cache_controller_done,
-    input wire [31:0] l1d_cache_controller_result
+    input wire [31:0] l1d_cache_controller_result, 
+
+    output wire l1_clear_cache
 );
 
 // Flush and Stall signals
@@ -521,7 +523,7 @@ ControlUnit controlUnit_EXMEM1 (
     .reti(reti_EXMEM1),
     .getIntID(getIntID_EXMEM1),
     .getPC(getPC_EXMEM1),
-    .clearCache()
+    .clearCache(l1_clear_cache) // We set l1_clear_cache in the EXMEM1 stage to be consistent with the other control signals
 );
 
 wire mem_sdram_EXMEM1;

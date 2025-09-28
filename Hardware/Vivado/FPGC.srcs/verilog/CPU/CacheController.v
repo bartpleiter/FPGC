@@ -37,6 +37,8 @@ module CacheController
     input  wire                      cpu_EXMEM2_we,
     output reg                       cpu_EXMEM2_done   = 1'b0,
     output reg [31:0]                cpu_EXMEM2_result = 32'd0, // Result of the data access
+    // Cache clear interface
+    input  wire                      cpu_clear_cache,
 
     //========================
     // L1 cache DPRAM interface
@@ -101,7 +103,10 @@ localparam
     STATE_L1D_WRITE_MISS_FETCH_WAIT_READY       = 8'd19,
     STATE_L1D_WRITE_MISS_FETCH_WAIT_DATA        = 8'd20,
     STATE_L1D_WRITE_WRITE_TO_CACHE              = 8'd21,
-    STATE_L1D_WRITE_SIGNAL_CPU_DONE             = 8'd22;
+    STATE_L1D_WRITE_SIGNAL_CPU_DONE             = 8'd22,
+
+    // Cache Clear States
+    STATE_CLEARCACHE_REQUESTED                  = 8'd23;
 
 
 reg [7:0] state = STATE_IDLE;
@@ -121,6 +126,8 @@ reg [31:0] cpu_EXMEM2_data_stored = 32'd0;
 reg cpu_EXMEM2_we_stored = 1'b0;
 // For reference: cpu_EXMEM2_cache_tag = cpu_EXMEM2_addr_stored[25:10]
 // For reference: cpu_EXMEM2_cache_index = cpu_EXMEM2_addr_stored[2:0]
+
+reg cpu_clear_cache_new_request = 1'b0;
 
 reg [255:0] cache_line_data = 256'b0;
 
@@ -159,6 +166,8 @@ begin
         cpu_EXMEM2_data_stored <= 32'd0;
         cpu_EXMEM2_we_stored <= 1'b0;
 
+        cpu_clear_cache_new_request <= 1'b0;
+
         cache_line_data <= 256'b0;
 
         ignore_fe2_result <= 1'b0;
@@ -187,6 +196,13 @@ begin
             //$display("%d: CacheController NEW EXMEM2 REQUEST: addr=0x%h, data=0x%h, we=%b", $time, cpu_EXMEM2_addr, cpu_EXMEM2_data, cpu_EXMEM2_we);
         end
 
+        // Check for CPU cache clear request
+        if (cpu_clear_cache)
+        begin
+            cpu_clear_cache_new_request <= 1'b1;
+            //$display("%d: CacheController NEW CLEARCACHE REQUEST", $time);
+        end
+
         // Flush handling for FE2
         if (cpu_FE2_flush)
         begin
@@ -209,8 +225,17 @@ begin
                 cpu_EXMEM2_done <= 1'b0;
                 
 
+                // Check if there is a cache clear request (highest priority)
+                if (cpu_clear_cache_new_request && init_calib_complete)
+                begin
+                    // We clear the flag at the end of the clear cache process
+                    //$display("%d: CacheController PROCESSING CLEARCACHE REQUEST", $time);
+                    state <= STATE_CLEARCACHE_REQUESTED;
+                    //$display("%d: CacheController IDLE -> STATE_CLEARCACHE_REQUESTED", $time);
+                end
+
                 // Check if there is a new EXMEM2 request (priority over FE2)
-                if ((cpu_EXMEM2_new_request || cpu_EXMEM2_start) && init_calib_complete) // Also check for start to skip a cycle after idle
+                else if ((cpu_EXMEM2_new_request || cpu_EXMEM2_start) && init_calib_complete) // Also check for start to skip a cycle after idle
                 begin
                     // Request can be either a read after cache miss, or a write which can be either a hit or a miss
                     cpu_EXMEM2_new_request <= 1'b0; // Clear the request flag
@@ -712,6 +737,16 @@ begin
 
             STATE_L1D_WRITE_SIGNAL_CPU_DONE: begin
                 state <= STATE_IDLE; // After this stage, we can return to IDLE state
+            end
+
+            // ------------------------
+            // Cache Clear States
+            // ------------------------
+
+            STATE_CLEARCACHE_REQUESTED: begin
+                // TODO: implement clearcache process
+                cpu_clear_cache_new_request <= 1'b0; // Clear the request flag for now, but move to the end of the process when implemented
+                state <= STATE_IDLE; // Temporary return to idle until implementation is complete
             end
 
         endcase
