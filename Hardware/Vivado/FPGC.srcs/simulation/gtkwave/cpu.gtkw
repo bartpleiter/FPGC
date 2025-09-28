@@ -1,21 +1,21 @@
 [*]
 [*] GTKWave Analyzer v3.3.121 (w)1999-2024 BSI
-[*] Mon Sep 22 17:45:08 2025
+[*] Sun Sep 28 18:16:38 2025
 [*]
 [dumpfile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd"
-[dumpfile_mtime] "Mon Sep 22 17:44:22 2025"
-[dumpfile_size] 1596648
+[dumpfile_mtime] "Sun Sep 28 18:16:18 2025"
+[dumpfile_size] 2839682
 [savefile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/cpu.gtkw"
-[timestart] 428000
-[size] 1920 1080
+[timestart] 0
+[size] 1536 881
 [pos] -1 -1
-*-17.252371 760500 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-17.252371 3070000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] cpu_tb.
 [treeopen] cpu_tb.cpu.
 [sst_width] 321
-[signals_width] 393
+[signals_width] 445
 [sst_expanded] 1
-[sst_vpaned_height] 702
+[sst_vpaned_height] 552
 @28
 cpu_tb.clk
 cpu_tb.clk100
@@ -23,8 +23,9 @@ cpu_tb.cpu.reset
 @200
 -
 -MIG7
-@28
+@29
 cpu_tb.clk100
+@28
 cpu_tb.mig7mock.init_calib_complete
 cpu_tb.mig7mock.app_rdy
 cpu_tb.mig7mock.app_en
@@ -135,7 +136,7 @@ cpu_tb.cpu.l1i_cache_miss_FE2
 cpu_tb.cpu.l1i_cache_controller_done
 @200
 -
-@25
+@24
 cpu_tb.cpu.l1i_cache_miss_state_FE2[1:0]
 @28
 cpu_tb.cpu.l1i_cache_controller_start_reg
@@ -507,7 +508,41 @@ cpu_tb.cpu.regbank.data_d[31:0]
 @200
 -
 -
+-ClearCache
+@28
+cpu_tb.cache_controller.clk100
+@24
+cpu_tb.cache_controller.state[7:0]
+cpu_tb.cache_controller.clear_cache_index[6:0]
+@200
 -
+@28
+cpu_tb.cache_controller.app_en
+@24
+cpu_tb.cache_controller.app_addr[28:0]
+@22
+cpu_tb.cache_controller.app_wdf_data[255:0]
+@28
+cpu_tb.cache_controller.app_wdf_end
+cpu_tb.cache_controller.app_wdf_wren
+@200
+-
+@24
+cpu_tb.cache_controller.l1i_ctrl_addr[6:0]
+@28
+cpu_tb.cache_controller.l1i_ctrl_we
+@22
+cpu_tb.cache_controller.l1i_ctrl_d[273:0]
+@200
+-
+@24
+cpu_tb.cache_controller.l1d_ctrl_addr[6:0]
+@28
+cpu_tb.cache_controller.l1d_ctrl_we
+@22
+cpu_tb.cache_controller.l1d_ctrl_d[273:0]
+cpu_tb.cache_controller.l1d_ctrl_q[273:0]
+@200
 -
 -
 -

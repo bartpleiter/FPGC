@@ -106,7 +106,15 @@ localparam
     STATE_L1D_WRITE_SIGNAL_CPU_DONE             = 8'd22,
 
     // Cache Clear States
-    STATE_CLEARCACHE_REQUESTED                  = 8'd23;
+    STATE_CLEARCACHE_REQUESTED                  = 8'd23,
+    STATE_CLEARCACHE_L1I_CLEAR                  = 8'd24,
+    STATE_CLEARCACHE_L1D_READ                   = 8'd25,
+    STATE_CLEARCACHE_L1D_WAIT_READ              = 8'd26,
+    STATE_CLEARCACHE_L1D_CHECK                  = 8'd27,
+    STATE_CLEARCACHE_L1D_EVICT_WAIT_READY       = 8'd28,
+    STATE_CLEARCACHE_L1D_EVICT_SEND_CMD         = 8'd29,
+    STATE_CLEARCACHE_L1D_CLEAR                  = 8'd30,
+    STATE_CLEARCACHE_L1D_CLEAR_FINISH           = 8'd31;
 
 
 reg [7:0] state = STATE_IDLE;
@@ -130,6 +138,9 @@ reg cpu_EXMEM2_we_stored = 1'b0;
 reg cpu_clear_cache_new_request = 1'b0;
 
 reg [255:0] cache_line_data = 256'b0;
+
+// Cache clearing control registers
+reg [6:0] clear_cache_index = 7'd0; // Index for iterating through cache lines (0-127)
 
 reg ignore_fe2_result = 1'b0; // If a flush is received while processing a FE2 request, we need to ignore the result when it is done
 
@@ -169,6 +180,8 @@ begin
         cpu_clear_cache_new_request <= 1'b0;
 
         cache_line_data <= 256'b0;
+
+        clear_cache_index <= 7'd0;
 
         ignore_fe2_result <= 1'b0;
     end
@@ -427,14 +440,21 @@ begin
             end
 
             STATE_L1D_READ_EVICT_DIRTY_SEND_CMD: begin
-                // No matter if app_rdy, we can disassert app_wdf signals as it was ready the previous cycle, and I do not expect it to change
-                app_wdf_wren <= 1'b0; // Disable write data
-                app_wdf_end <= 1'b0; // End of write data
-                // Wait for MIG7 to assert ready, indicating the write command is accepted
-                if (app_rdy)
+                // Properly handle write signal disabling with synchronization
+                if (app_rdy && app_en)
                 begin
-                    // MIG7 is ready, we can proceed with the read operation
-                    app_en <= 1'b0; // Disassert app_en to prevent sending another command
+                    app_en <= 1'b0; // Disable command enable
+                end
+                
+                if (app_wdf_rdy && app_wdf_wren)
+                begin
+                    app_wdf_wren <= 1'b0; // Disable write data enable
+                    app_wdf_end <= 1'b0; // End of write data
+                end
+                
+                // Wait for both signals to be properly disabled before proceeding
+                if (~app_en && ~app_wdf_wren)
+                begin
                     state <= STATE_L1D_READ_SEND_CMD; // The cache line is now written to MIG7, we can start a read the next cycle
                 end
             end
@@ -637,14 +657,21 @@ begin
             end
 
             STATE_L1D_WRITE_MISS_EVICT_DIRTY_SEND_CMD: begin
-                // No matter if app_rdy, we can disassert app_wdf signals as it was ready the previous cycle
-                app_wdf_wren <= 1'b0; // Disable write data
-                app_wdf_end <= 1'b0; // End of write data
-                // Wait for MIG7 to assert ready, indicating the write command is accepted
-                if (app_rdy)
+                // Properly handle write signal disabling with synchronization
+                if (app_rdy && app_en)
                 begin
-                    // MIG7 is ready, we can proceed with the read operation
-                    app_en <= 1'b0; // Disassert app_en to prevent sending another command
+                    app_en <= 1'b0; // Disable command enable
+                end
+                
+                if (app_wdf_rdy && app_wdf_wren)
+                begin
+                    app_wdf_wren <= 1'b0; // Disable write data enable
+                    app_wdf_end <= 1'b0; // End of write data
+                end
+                
+                // Wait for both signals to be properly disabled before proceeding
+                if (~app_en && ~app_wdf_wren)
+                begin
                     state <= STATE_L1D_WRITE_MISS_FETCH_SEND_CMD; // The cache line is now written to MIG7, we can start a read the next cycle
                 end
             end
@@ -744,9 +771,178 @@ begin
             // ------------------------
 
             STATE_CLEARCACHE_REQUESTED: begin
-                // TODO: implement clearcache process
-                cpu_clear_cache_new_request <= 1'b0; // Clear the request flag for now, but move to the end of the process when implemented
-                state <= STATE_IDLE; // Temporary return to idle until implementation is complete
+                // Start clearing process by initializing the index and starting with L1i cache
+                clear_cache_index <= 7'd0;
+                //$display("%d: CacheController Starting cache clear process", $time);
+                state <= STATE_CLEARCACHE_L1I_CLEAR;
+            end
+
+            STATE_CLEARCACHE_L1I_CLEAR: begin
+                // Write zeros to L1i cache line at current index
+                l1i_ctrl_d <= 274'b0; // All zeros: no data, no tag, not valid, not dirty
+                l1i_ctrl_addr <= clear_cache_index;
+                l1i_ctrl_we <= 1'b1;
+                
+                // Check if we've cleared all L1i cache lines (0-127)
+                if (clear_cache_index == 7'd127)
+                begin
+                    // Finished L1i cache, start with L1d cache
+                    clear_cache_index <= 7'd0;
+                    // We do not disable write here to not skip the last write
+                    state <= STATE_CLEARCACHE_L1D_READ;
+                    //$display("%d: CacheController L1i cache cleared, starting L1d cache", $time);
+                end
+                else
+                begin
+                    // Move to next L1i cache line
+                    clear_cache_index <= clear_cache_index + 1'b1;
+                end
+            end
+
+            STATE_CLEARCACHE_L1D_READ: begin
+                // Disable L1i write if it was still enabled
+                l1i_ctrl_we <= 1'b0;
+                
+                // Read L1d cache line at current index to check if it's dirty
+                l1d_ctrl_addr <= clear_cache_index;
+                l1d_ctrl_we <= 1'b0; // Read operation
+                state <= STATE_CLEARCACHE_L1D_WAIT_READ;
+            end
+
+            STATE_CLEARCACHE_L1D_WAIT_READ: begin
+                // Wait one cycle for DPRAM read to complete
+                state <= STATE_CLEARCACHE_L1D_CHECK;
+            end
+
+            STATE_CLEARCACHE_L1D_CHECK: begin
+                // Check if the cache line is dirty (needs to be evicted)
+                // valid = l1d_ctrl_q[1]
+                // dirty = l1d_ctrl_q[0]
+                // tag = l1d_ctrl_q[17:2]
+                // data = l1d_ctrl_q[273:18]
+                
+                if (l1d_ctrl_q[1] && l1d_ctrl_q[0]) // Valid and dirty
+                begin
+                    //$display("%d: CacheController L1d cache line %d is dirty, evicting", $time, clear_cache_index);
+                    // Store the cache line data for eviction
+                    cache_line_data <= l1d_ctrl_q[273:18];
+                    
+                    // Check if MIG7 is ready for write operation
+                    if (app_rdy && app_wdf_rdy)
+                    begin
+                        app_cmd <= 3'b000; // WRITE command
+                        app_en <= 1'b1;
+                        // Construct address from tag and index
+                        app_addr <= {l1d_ctrl_q[17:2], clear_cache_index, 5'b00000}; // Convert to byte address
+                        
+                        app_wdf_wren <= 1'b1; // Enable write data
+                        app_wdf_data <= l1d_ctrl_q[273:18]; // Data to write
+                        app_wdf_end <= 1'b1; // End of write data
+                        
+                        state <= STATE_CLEARCACHE_L1D_EVICT_SEND_CMD;
+                    end
+                    else
+                    begin
+                        // Wait for MIG7 to be ready
+                        state <= STATE_CLEARCACHE_L1D_EVICT_WAIT_READY;
+                    end
+                end
+                else
+                begin
+                    // Cache line is not dirty (or not valid), move to next line
+                    if (clear_cache_index == 7'd127)
+                    begin
+                        // Finished checking all L1d cache lines, start clearing them
+                        clear_cache_index <= 7'd0;
+                        state <= STATE_CLEARCACHE_L1D_CLEAR;
+                        //$display("%d: CacheController All dirty L1d lines evicted, starting L1d clear", $time);
+                    end
+                    else
+                    begin
+                        clear_cache_index <= clear_cache_index + 1'b1;
+                        state <= STATE_CLEARCACHE_L1D_READ;
+                    end
+                end
+            end
+
+            STATE_CLEARCACHE_L1D_EVICT_WAIT_READY: begin
+                // Wait for MIG7 to be ready for write operation
+                if (app_rdy && app_wdf_rdy)
+                begin
+                    app_cmd <= 3'b000; // WRITE command
+                    app_en <= 1'b1;
+                    // Use stored data from previous state
+                    app_addr <= {l1d_ctrl_q[17:2], clear_cache_index, 5'b00000}; // Convert to byte address
+                    
+                    app_wdf_wren <= 1'b1; // Enable write data
+                    app_wdf_data <= cache_line_data; // Data to write
+                    app_wdf_end <= 1'b1; // End of write data
+                    
+                    state <= STATE_CLEARCACHE_L1D_EVICT_SEND_CMD;
+                end
+            end
+
+            STATE_CLEARCACHE_L1D_EVICT_SEND_CMD: begin
+                // Properly handle write signal disabling with synchronization
+                if (app_rdy && app_en)
+                begin
+                    app_en <= 1'b0; // Disable command enable
+                end
+                
+                if (app_wdf_rdy && app_wdf_wren)
+                begin
+                    app_wdf_wren <= 1'b0; // Disable write data enable
+                    app_wdf_end <= 1'b0; // End of write data
+                end
+                
+                // Wait for both signals to be properly disabled before proceeding
+                if (~app_en && ~app_wdf_wren)
+                begin
+                    // Move to next cache line
+                    if (clear_cache_index == 7'd127)
+                    begin
+                        // Finished evicting all dirty L1d lines, start clearing
+                        clear_cache_index <= 7'd0;
+                        state <= STATE_CLEARCACHE_L1D_CLEAR;
+                        //$display("%d: CacheController All dirty L1d lines evicted, starting L1d clear", $time);
+                    end
+                    else
+                    begin
+                        clear_cache_index <= clear_cache_index + 1'b1;
+                        state <= STATE_CLEARCACHE_L1D_READ;
+                    end
+                end
+            end
+
+            STATE_CLEARCACHE_L1D_CLEAR: begin
+                // Write zeros to L1d cache line at current index
+                l1d_ctrl_d <= 274'b0; // All zeros: no data, no tag, not valid, not dirty
+                l1d_ctrl_addr <= clear_cache_index;
+                l1d_ctrl_we <= 1'b1;
+                
+                // Check if we've cleared all L1d cache lines (0-127)
+                if (clear_cache_index == 7'd127)
+                begin
+                    // Finished clearing L1d cache, go to finish state to disable write enable
+                    state <= STATE_CLEARCACHE_L1D_CLEAR_FINISH;
+                    //$display("%d: CacheController L1d cache cleared, going to finish state", $time);
+                end
+                else
+                begin
+                    // Move to next L1d cache line
+                    clear_cache_index <= clear_cache_index + 1'b1;
+                end
+            end
+
+            STATE_CLEARCACHE_L1D_CLEAR_FINISH: begin
+                // Disable write enable to ensure the last write completes properly
+                l1d_ctrl_we <= 1'b0;
+                
+                // Clear the cache clear request flag and return to idle
+                cpu_clear_cache_new_request <= 1'b0;
+                clear_cache_index <= 7'd0;
+                state <= STATE_IDLE;
+                //$display("%d: CacheController Cache clear process completed", $time);
             end
 
         endcase

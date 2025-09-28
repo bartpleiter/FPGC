@@ -256,7 +256,6 @@ DPRAM #(
 );
 
 //-----------------------L1d RAM (100&50MHz)------------------------
-
 // DPRAM I/O signals
 wire [273:0] l1d_pipe_d;
 wire [6:0]   l1d_pipe_addr;
@@ -293,7 +292,6 @@ DPRAM #(
 
 
 //-----------------------MIG7 (200/100MHz)-------------------------
-
 // MIG7 I/O signals
 wire mig7_init_calib_complete;
 
@@ -370,7 +368,6 @@ mig_7series_0 mig7_ddr3
 
 
 //-----------------------CacheController (100MHz)-------------------------
-
 // Cache controller <-> CPU pipeline interface signals
 wire [31:0] l1i_cache_controller_addr;
 wire        l1i_cache_controller_start;
