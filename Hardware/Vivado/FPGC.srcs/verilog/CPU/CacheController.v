@@ -268,7 +268,7 @@ begin
                     // Handle read request
                     else if ((cpu_EXMEM2_new_request && !cpu_EXMEM2_we_stored) || (cpu_EXMEM2_start && !cpu_EXMEM2_we))
                     begin
-                        $display("%d: CacheController EXMEM2 READ REQUEST", $time);
+                        //$display("%d: CacheController EXMEM2 READ REQUEST", $time);
                         // Read cache line first to determine if it needs to be eviced to memory
                         l1d_ctrl_addr <= cpu_EXMEM2_start ? cpu_EXMEM2_addr[9:3] : cpu_EXMEM2_addr_stored[9:3]; // DPRAM index, aligned on cache line size (8 words = 256 bits)
                         l1d_ctrl_we <= 1'b0; // Read operation

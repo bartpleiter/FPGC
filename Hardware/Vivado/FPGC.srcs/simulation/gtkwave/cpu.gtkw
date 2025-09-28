@@ -1,21 +1,21 @@
 [*]
 [*] GTKWave Analyzer v3.3.121 (w)1999-2024 BSI
-[*] Sun Sep 28 18:16:38 2025
+[*] Sun Sep 28 21:13:05 2025
 [*]
 [dumpfile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd"
-[dumpfile_mtime] "Sun Sep 28 18:16:18 2025"
-[dumpfile_size] 2839682
+[dumpfile_mtime] "Sun Sep 28 21:12:11 2025"
+[dumpfile_size] 1390488
 [savefile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/cpu.gtkw"
-[timestart] 0
+[timestart] 7049200
 [size] 1536 881
 [pos] -1 -1
-*-17.252371 3070000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-17.252371 7460500 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] cpu_tb.
 [treeopen] cpu_tb.cpu.
 [sst_width] 321
 [signals_width] 445
 [sst_expanded] 1
-[sst_vpaned_height] 552
+[sst_vpaned_height] 515
 @28
 cpu_tb.clk
 cpu_tb.clk100
@@ -23,9 +23,8 @@ cpu_tb.cpu.reset
 @200
 -
 -MIG7
-@29
-cpu_tb.clk100
 @28
+cpu_tb.clk100
 cpu_tb.mig7mock.init_calib_complete
 cpu_tb.mig7mock.app_rdy
 cpu_tb.mig7mock.app_en
@@ -33,6 +32,7 @@ cpu_tb.mig7mock.app_en
 cpu_tb.mig7mock.app_addr[28:0]
 @28
 cpu_tb.mig7mock.app_rd_data_valid
+@22
 cpu_tb.mig7mock.app_rd_data[255:0]
 @200
 -
@@ -368,7 +368,12 @@ cpu_tb.cpu.mem_sdram_EXMEM2
 cpu_tb.cpu.was_cache_miss_EXMEM2
 cpu_tb.cpu.l1d_cache_miss_EXMEM2
 cpu_tb.cpu.mem_read_EXMEM2
+@29
 cpu_tb.cpu.l1d_cache_hit_EXMEM2
+@200
+-
+@28
+cpu_tb.cpu.was_cache_miss_EXMEM2
 @200
 -
 @22

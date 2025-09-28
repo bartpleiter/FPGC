@@ -931,7 +931,7 @@ Regr #(
     .N(1)
 ) regr_L1D_CACHE_MISS_EXMEM2_WB (
     .clk (clk),
-    .in(!l1d_cache_hit_EXMEM2),
+    .in(was_cache_miss_EXMEM2),
     .out(was_cache_miss_WB),
     .hold(1'b0),
     .clear(1'b0)
