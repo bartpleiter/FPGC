@@ -31,8 +31,8 @@ begin
     begin
         pipe_q        <= pipe_d;
         ram[pipe_addr] <= pipe_d;
-        $display("%d: DPRAM WRITE (pipe): addr=0x%h, data=0x%h, tag=0x%h, valid=%b, dirty=%b", 
-                 $time, pipe_addr, pipe_d[273:18], pipe_d[17:2], pipe_d[1], pipe_d[0]);
+        //$display("%d: DPRAM WRITE (pipe): addr=0x%h, data=0x%h, tag=0x%h, valid=%b, dirty=%b", 
+        //         $time, pipe_addr, pipe_d[273:18], pipe_d[17:2], pipe_d[1], pipe_d[0]);
     end
 end
 
@@ -44,8 +44,8 @@ begin
     begin
         ctrl_q        <= ctrl_d;
         ram[ctrl_addr] <= ctrl_d;
-        $display("%d: DPRAM WRITE (ctrl): addr=0x%h, data=0x%h, tag=0x%h, valid=%b, dirty=%b", 
-                 $time, ctrl_addr, ctrl_d[273:18], ctrl_d[17:2], ctrl_d[1], ctrl_d[0]);
+        //$display("%d: DPRAM WRITE (ctrl): addr=0x%h, data=0x%h, tag=0x%h, valid=%b, dirty=%b", 
+        //         $time, ctrl_addr, ctrl_d[273:18], ctrl_d[17:2], ctrl_d[1], ctrl_d[0]);
     end
 end
 

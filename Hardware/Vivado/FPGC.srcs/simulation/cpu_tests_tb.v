@@ -1,89 +1,45 @@
-module FPGC (
-    // Clocks and reset
-    input wire sys_clk_p,
-    input wire sys_clk_n,
-    input wire sys_rstn,
+/*
+ * Testbench for the CPU (B32P2).
+ * Designed to be used with the Icarus Verilog simulator
+ */
+`timescale 1ns / 1ps
 
-    // HDMI
-    output wire HDMI_CLK_P,
-    output wire HDMI_CLK_N,
-    output wire HDMI_D0_P,
-    output wire HDMI_D0_N,
-    output wire HDMI_D1_P,
-    output wire HDMI_D1_N,
-    output wire HDMI_D2_P,
-    output wire HDMI_D2_N,
-    
-    // DDR3
-    inout  wire [31:0] ddr3_dq,        // ddr3 data
-    inout  wire [3:0]  ddr3_dqs_n,     // ddr3 dqs negative
-    inout  wire [3:0]  ddr3_dqs_p,     // ddr3 dqs positive
-    output wire [14:0] ddr3_addr,      // ddr3 address
-    output wire [2:0]  ddr3_ba,        // ddr3 bank
-    output wire        ddr3_ras_n,     // ddr3 ras_n
-    output wire        ddr3_cas_n,     // ddr3 cas_n
-    output wire        ddr3_we_n,      // ddr3 write enable 
-    output wire        ddr3_reset_n,   // ddr3 reset
-    output wire [0:0]  ddr3_ck_p,      // ddr3 clock positive
-    output wire [0:0]  ddr3_ck_n,      // ddr3 clock negative
-    output wire [0:0]  ddr3_cke,       // ddr3_cke
-    output wire [0:0]  ddr3_cs_n,      // ddr3 negated chip select
-    output wire [3:0]  ddr3_dm,        // ddr3_dm
-    output wire [0:0]  ddr3_odt        // ddr3_odt
-);
+`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/B32P2.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/Regr.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/Regbank.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/InstructionDecoder.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/ALU.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/MultiCycleALU.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/MultiCycleAluOps/MultuPipelined.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/MultiCycleAluOps/MultsPipelined.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/ControlUnit.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/Stack.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/BranchJumpUnit.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/AddressDecoder.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/CacheController.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/Memory/ROM.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/Memory/VRAM.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/Memory/DPRAM.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/Memory/MIG7Mock.v"
 
-//---------------------------Clocks and reset---------------------------------
-// CPU/Memory clocks and reset
-wire reset;  // From MIG7
-wire clk50_unb;  // From user MMCM
-wire clk50; // Buffered version of clk50_unb
-wire clk100; // From MIG7
-wire clk200; // To MIG7
+`include "Hardware/Vivado/FPGC.srcs/verilog/GPU/FSX.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/GPU/BGWrenderer.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/GPU/PixelEngine.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/GPU/TimingGenerator.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/GPU/HDMI/RGB8toRGB24.v"
 
-IBUFDS ibufclk200 (
-    .O  (clk200),
-    .I  (sys_clk_p),
-    .IB (sys_clk_n)
-);
+module cpu_tb ();
 
-clk_gen_cpu cpu_clockgen (
-    .clk_ui_in      (clk100),
-    .resetn         (sys_rstn),
-    .clk_out_50     (clk50_unb),
-    .locked()
-);
+reg clk = 1'b0;
+reg clk100 = 1'b1; // To align rising edge with clk
+reg reset = 1'b0;
 
-BUFG bufgclk50 (
-    .I (clk50_unb),
-    .O (clk50)
-);
+// Inaccurate but good enough for simulation
+wire clkPixel = clk;
+wire clkTMDShalf = clk100;
 
-// GPU clocks
-wire clkPixel;
-wire clkTMDShalf;
-wire clkPixel_unb;
-wire clkTMDShalf_unb;
-
-clk_generator clk_gen (
-    .clk_sys_in     (clk200),
-    .resetn         (sys_rstn),
-    .clk_gpu        (clkPixel_unb),  // 25 MHz
-    .clk_tmds_half  (clkTMDShalf_unb), // 125 MHz
-    .locked()
-);
-
-BUFG bufgclkPixel (
-    .I(clkPixel_unb),
-    .O(clkPixel)
-);
-
-BUFG bufgclkTMDShalf (
-    .I(clkTMDShalf_unb),
-    .O(clkTMDShalf)
-);
 
 //-----------------------ROM-------------------------
-// ROM I/O
 wire [8:0] rom_fe_addr;
 wire [8:0] rom_mem_addr;
 wire rom_fe_oe;
@@ -97,7 +53,7 @@ ROM #(
     .ADDR_BITS(9),
     .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/rom.list")
 ) rom (
-    .clk (clk50),
+    .clk (clk),
 
     .fe_addr(rom_fe_addr),
     .fe_oe(rom_fe_oe),
@@ -128,10 +84,10 @@ VRAM #(
     .WIDTH(32),
     .WORDS(1056),
     .ADDR_BITS(11),
-    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/memory/vram32.list")
+    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/vram32.list")
 ) vram32 (
     //CPU port
-    .cpu_clk (clk50),
+    .cpu_clk (clk),
     .cpu_d   (vram32_cpu_d),
     .cpu_addr(vram32_cpu_addr),
     .cpu_we  (vram32_cpu_we),
@@ -165,10 +121,10 @@ VRAM #(
     .WIDTH(8),
     .WORDS(8194),
     .ADDR_BITS(14),
-    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/memory/vram8.list")
+    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/vram8.list")
 ) vram8 (
     // CPU port
-    .cpu_clk (clk50),
+    .cpu_clk (clk),
     .cpu_d   (vram8_cpu_d),
     .cpu_addr(vram8_cpu_addr),
     .cpu_we  (vram8_cpu_we),
@@ -203,10 +159,10 @@ VRAM #(
     .WIDTH(8),
     .WORDS(76800),
     .ADDR_BITS(17),
-    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/memory/vramPX.list")
+    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/vramPX.list")
 ) vramPX (
     // CPU port
-    .cpu_clk (clk50),
+    .cpu_clk (clk),
     .cpu_d   (vramPX_cpu_d),
     .cpu_addr(vramPX_cpu_addr),
     .cpu_we  (vramPX_cpu_we),
@@ -221,6 +177,7 @@ VRAM #(
 );
 
 //-----------------------L1i RAM (100&50MHz)-------------------------
+
 // DPRAM I/O signals
 wire [273:0] l1i_pipe_d;
 wire [6:0]   l1i_pipe_addr;
@@ -243,7 +200,7 @@ DPRAM #(
     .ADDR_BITS(7),
     .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/l1i.list")
 ) l1i_ram (
-    .clk_pipe(clk50),
+    .clk_pipe(clk),
     .pipe_d(l1i_pipe_d),
     .pipe_addr(l1i_pipe_addr),
     .pipe_we(l1i_pipe_we),
@@ -279,7 +236,7 @@ DPRAM #(
     .ADDR_BITS(7),
     .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/l1d.list")
 ) l1d_ram (
-    .clk_pipe(clk50),
+    .clk_pipe(clk),
     .pipe_d(l1d_pipe_d),
     .pipe_addr(l1d_pipe_addr),
     .pipe_we(l1d_pipe_we),
@@ -291,10 +248,9 @@ DPRAM #(
     .ctrl_q(l1d_ctrl_q)
 );
 
+//-----------------------MIG7 Mock (100MHz)-------------------------
 
-//-----------------------MIG7 (200/100MHz)-------------------------
-
-// MIG7 I/O signals
+// MIG7Mock I/O signals
 wire mig7_init_calib_complete;
 
 wire [28:0] mig7_app_addr;
@@ -319,55 +275,41 @@ wire         mig7_app_sr_active;
 wire         mig7_app_ref_ack;
 wire         mig7_app_zq_ack;
 
-mig_7series_0 mig7_ddr3
-(
-// Memory interface ports
-.ddr3_addr                      (ddr3_addr              ),
-.ddr3_ba                        (ddr3_ba                ),
-.ddr3_cas_n                     (ddr3_cas_n             ),
-.ddr3_ck_n                      (ddr3_ck_n              ),
-.ddr3_ck_p                      (ddr3_ck_p              ),
-.ddr3_cke                       (ddr3_cke               ),
-.ddr3_ras_n                     (ddr3_ras_n             ),
-.ddr3_we_n                      (ddr3_we_n              ),
-.ddr3_dq                        (ddr3_dq                ),
-.ddr3_dqs_n                     (ddr3_dqs_n             ),
-.ddr3_dqs_p                     (ddr3_dqs_p             ),
-.ddr3_reset_n                   (ddr3_reset_n           ),
-.ddr3_cs_n                      (ddr3_cs_n              ),
-.ddr3_dm                        (ddr3_dm                ),
-.ddr3_odt                       (ddr3_odt               ),
+MIG7Mock #(
+    .ADDR_WIDTH(29),
+    .DATA_WIDTH(256),
+    .MASK_WIDTH(32),
+    .RAM_DEPTH(4194304),
+    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/mig7mock.list")
+) mig7mock (
+    .sys_clk_i(clk100),
+    .sys_rst(reset),
+    .ui_clk(), // Not used in simulation
+    .ui_clk_sync_rst(), // Not used in simulation
+    .init_calib_complete(mig7_init_calib_complete),
 
-// Application interface ports
-.app_addr                       (mig7_app_addr               ),
-.app_cmd                        (mig7_app_cmd                ),
-.app_en                         (mig7_app_en                 ),
-.app_wdf_data                   (mig7_app_wdf_data           ),
-.app_wdf_end                    (mig7_app_wdf_end            ),
-.app_wdf_wren                   (mig7_app_wdf_wren           ),
-.app_rd_data                    (mig7_app_rd_data            ),
-.app_rd_data_end                (mig7_app_rd_data_end        ),
-.app_rd_data_valid              (mig7_app_rd_data_valid      ),
-.app_rdy                        (mig7_app_rdy                ),
-.app_wdf_rdy                    (mig7_app_wdf_rdy            ),
-.app_sr_req                     (mig7_app_sr_req             ),
-.app_ref_req                    (mig7_app_ref_req            ),
-.app_zq_req                     (mig7_app_zq_req             ),
-.app_sr_active                  (mig7_app_sr_active          ),
-.app_ref_ack                    (mig7_app_ref_ack            ),
-.app_zq_ack                     (mig7_app_zq_ack             ),
-.app_wdf_mask                   (mig7_app_wdf_mask           ),
+    .app_addr(mig7_app_addr),
+    .app_cmd(mig7_app_cmd),
+    .app_en(mig7_app_en),
+    .app_rdy(mig7_app_rdy),
 
-.init_calib_complete            (mig7_init_calib_complete),
+    .app_wdf_data(mig7_app_wdf_data),
+    .app_wdf_end(mig7_app_wdf_end),
+    .app_wdf_mask(mig7_app_wdf_mask),
+    .app_wdf_wren(mig7_app_wdf_wren),
+    .app_wdf_rdy(mig7_app_wdf_rdy),
 
-// Clock ports
-.ui_clk                         (clk100),
-.ui_clk_sync_rst                (reset),   // Active high reset
+    .app_rd_data(mig7_app_rd_data),
+    .app_rd_data_end(mig7_app_rd_data_end),
+    .app_rd_data_valid(mig7_app_rd_data_valid),
 
-.sys_clk_i                      (clk200),  
-.sys_rst                        (sys_rstn) // Active low reset
+    .app_sr_req(mig7_app_sr_req),
+    .app_ref_req(mig7_app_ref_req),
+    .app_zq_req(mig7_app_zq_req),
+    .app_sr_active(mig7_app_sr_active),
+    .app_ref_ack(mig7_app_ref_ack),
+    .app_zq_ack(mig7_app_zq_ack)
 );
-
 
 //-----------------------CacheController (100MHz)-------------------------
 
@@ -421,7 +363,7 @@ CacheController #(
     .l1d_ctrl_we(l1d_ctrl_we),
     .l1d_ctrl_q(l1d_ctrl_q),
 
-    // MIG7 interface
+    // MIG7 interface: use MIG7Mock signals directly
     .init_calib_complete(mig7_init_calib_complete),
     .app_addr(mig7_app_addr),
     .app_cmd(mig7_app_cmd),
@@ -440,10 +382,10 @@ CacheController #(
 //-----------------------FSX-------------------------
 wire frameDrawn;
 FSX fsx (
-    // Clocks
+    // Clocks and reset
     .clkPixel(clkPixel),
     .clkTMDShalf(clkTMDShalf),
-    .reset(reset),
+    .reset(1'b0),
 
     // HDMI
     .TMDS_clk_p(HDMI_CLK_P),
@@ -477,7 +419,7 @@ FSX fsx (
 //-----------------------CPU-------------------------
 B32P2 cpu (
     // Clock and reset
-    .clk(clk50),
+    .clk(clk),
     .reset(reset),
 
     // ROM (dual port)
@@ -506,7 +448,7 @@ B32P2 cpu (
     .vramPX_d(vramPX_cpu_d),
     .vramPX_we(vramPX_cpu_we),
     .vramPX_q(vramPX_cpu_q),
-    
+
     // L1i cache (cpu pipeline port)
     .l1i_pipe_addr(l1i_pipe_addr),
     .l1i_pipe_q(l1i_pipe_q),
@@ -529,5 +471,33 @@ B32P2 cpu (
     .l1d_cache_controller_done(l1d_cache_controller_done),
     .l1d_cache_controller_result(l1d_cache_controller_result)
 );
+
+// 100 MHz clock
+always begin
+    #5 clk100 = ~clk100;
+end
+
+// 50 MHz clock
+always begin
+    #10 clk = ~clk;
+end
+
+integer clk_counter = 0;
+always @(posedge clk) begin
+    clk_counter = clk_counter + 1;
+    if (clk_counter == 1000) begin
+        $display("Simulation finished.");
+        $finish;
+    end
+end
+
+initial
+begin
+    `ifndef testbench
+    $dumpfile("Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd");
+    $dumpvars;
+    `endif
+
+end
 
 endmodule

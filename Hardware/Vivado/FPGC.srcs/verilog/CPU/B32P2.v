@@ -502,7 +502,7 @@ InstructionDecoder instrDec_EXMEM1 (
 wire getIntID_EXMEM1;
 wire getPC_EXMEM1;
 
-ControlUnit constrolUnit_EXMEM1 (
+ControlUnit controlUnit_EXMEM1 (
     .instrOP(instrOP_EXMEM1),
     .aluOP(aluOP_EXMEM1),
 
@@ -688,9 +688,9 @@ InstructionDecoder instrDec_EXMEM2 (
     .sig()
 );
 
-ControlUnit constrolUnit_EXMEM2 (
+ControlUnit controlUnit_EXMEM2 (
     .instrOP(instrOP_EXMEM2),
-    .aluOP(),
+    .aluOP(4'd0),
 
     .alu_use_const(),
     .alu_use_constu(),
@@ -865,7 +865,7 @@ Regr #(
     .clk (clk),
     .in(instr_EXMEM2),
     .out(instr_WB),
-    .hold(),
+    .hold(1'b0),
     .clear(l1d_cache_wait_EXMEM2 || multicycle_alu_stall) // Insert bubble if EXMEM2 is stalling
 );
 
@@ -876,7 +876,7 @@ Regr #(
     .clk (clk),
     .in(alu_y_EXMEM2),
     .out(alu_y_WB),
-    .hold(),
+    .hold(1'b0),
     .clear(1'b0)
 );
 
@@ -887,7 +887,7 @@ Regr #(
     .clk (clk),
     .in(PC_EXMEM2),
     .out(PC_WB),
-    .hold(),
+    .hold(1'b0),
     .clear(1'b0)
 );
 
@@ -898,7 +898,7 @@ Regr #(
     .clk (clk),
     .in(data_a_EXMEM2),
     .out(data_a_WB),
-    .hold(),
+    .hold(1'b0),
     .clear(1'b0)
 );
 
@@ -909,7 +909,7 @@ Regr #(
     .clk (clk),
     .in(multicycle_alu_y_EXMEM2),
     .out(multicycle_alu_y_WB),
-    .hold(),
+    .hold(1'b0),
     .clear(1'b0)
 );
 
@@ -920,7 +920,7 @@ Regr #(
     .clk (clk),
     .in(l1d_cache_hit_q_EXMEM2),
     .out(l1d_cache_hit_q_WB),
-    .hold(),
+    .hold(1'b0),
     .clear(1'b0)
 );
 
@@ -931,7 +931,7 @@ Regr #(
     .clk (clk),
     .in(!l1d_cache_hit_EXMEM2),
     .out(was_cache_miss_WB),
-    .hold(),
+    .hold(1'b0),
     .clear(1'b0)
 );
 
@@ -969,9 +969,9 @@ wire pop_WB;
 wire mem_read_WB;
 wire arithm_WB;
 
-ControlUnit constrolUnit_WB (
+ControlUnit controlUnit_WB (
     .instrOP(instrOP_WB),
-    .aluOP(),
+    .aluOP(4'd0),
 
     .alu_use_const(),
     .alu_use_constu(),

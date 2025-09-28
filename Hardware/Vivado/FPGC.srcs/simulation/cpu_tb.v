@@ -22,11 +22,22 @@
 `include "Hardware/Vivado/FPGC.srcs/verilog/Memory/DPRAM.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/Memory/MIG7Mock.v"
 
+`include "Hardware/Vivado/FPGC.srcs/verilog/GPU/FSX.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/GPU/BGWrenderer.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/GPU/PixelEngine.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/GPU/TimingGenerator.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/GPU/HDMI/RGB8toRGB24.v"
+
 module cpu_tb ();
 
 reg clk = 1'b0;
 reg clk100 = 1'b1; // To align rising edge with clk
 reg reset = 1'b0;
+
+// Inaccurate but good enough for simulation
+wire clkPixel = clk;
+wire clkTMDShalf = clk100;
+
 
 //-----------------------ROM-------------------------
 wire [8:0] rom_fe_addr;
@@ -268,7 +279,7 @@ MIG7Mock #(
     .ADDR_WIDTH(29),
     .DATA_WIDTH(256),
     .MASK_WIDTH(32),
-    .RAM_DEPTH(1024),
+    .RAM_DEPTH(4194304),
     .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/mig7mock.list")
 ) mig7mock (
     .sys_clk_i(clk100),
@@ -368,6 +379,43 @@ CacheController #(
     .app_rd_data_valid(mig7_app_rd_data_valid)
 );
 
+//-----------------------FSX-------------------------
+wire frameDrawn;
+FSX fsx (
+    // Clocks and reset
+    .clkPixel(clkPixel),
+    .clkTMDShalf(clkTMDShalf),
+    .reset(1'b0),
+
+    // HDMI
+    .TMDS_clk_p(HDMI_CLK_P),
+    .TMDS_clk_n(HDMI_CLK_N),
+    .TMDS_d0_p (HDMI_D0_P),
+    .TMDS_d0_n (HDMI_D0_N),
+    .TMDS_d1_p (HDMI_D1_P),
+    .TMDS_d1_n (HDMI_D1_N),
+    .TMDS_d2_p (HDMI_D2_P),
+    .TMDS_d2_n (HDMI_D2_N),
+
+    // VRAM32
+    .vram32_addr(vram32_gpu_addr),
+    .vram32_q   (vram32_gpu_q),
+
+    // VRAM8
+    .vram8_addr(vram8_gpu_addr),
+    .vram8_q   (vram8_gpu_q),
+
+    // VRAMPX
+    .vramPX_addr(vramPX_gpu_addr),
+    .vramPX_q   (vramPX_gpu_q),
+    
+    // Parameters
+    .halfRes(1'b0),
+
+    // Interrupt signal
+    .frameDrawn(frameDrawn)
+);
+
 //-----------------------CPU-------------------------
 B32P2 cpu (
     // Clock and reset
@@ -437,7 +485,7 @@ end
 integer clk_counter = 0;
 always @(posedge clk) begin
     clk_counter = clk_counter + 1;
-    if (clk_counter == 1000) begin
+    if (clk_counter == 100000) begin
         $display("Simulation finished.");
         $finish;
     end

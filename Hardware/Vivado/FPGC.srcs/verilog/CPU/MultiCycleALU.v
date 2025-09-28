@@ -49,6 +49,7 @@ begin
     begin
         done <= 1'b0;
         state <= STATE_IDLE;
+        y <= 32'd0;
     end
     else
     begin

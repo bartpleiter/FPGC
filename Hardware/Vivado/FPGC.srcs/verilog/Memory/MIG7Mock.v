@@ -1,9 +1,9 @@
 module MIG7Mock
 #(
-    parameter ADDR_WIDTH = 29,
-    parameter DATA_WIDTH = 256,
+    parameter ADDR_WIDTH = 29, // Address width is in bytes -> 2^29 = 512MB
+    parameter DATA_WIDTH = 256, // Data width is 256 bits = 32 bytes -> 8 words
     parameter MASK_WIDTH = 32,
-    parameter RAM_DEPTH = 1024,  // Configurable RAM depth for simulation
+    parameter RAM_DEPTH = 33554432,  // Configurable RAM depth in bytes for simulation (32MB for now)
     parameter LIST = "memory/mig7mock.list" // Initialization file for RAM
 )
 (
@@ -77,12 +77,17 @@ reg app_rd_data_end_reg = 1'b0;
 reg [ADDR_WIDTH-1:0] stored_addr = {ADDR_WIDTH{1'b0}};
 reg [2:0] stored_cmd = 3'b000;
 
-// RAM storage
-reg [DATA_WIDTH-1:0] ram_memory [0:RAM_DEPTH-1];
-wire [9:0] ram_addr; // 10 bits for 1024 depth
+// RAM storage - depth is in 256-bit words, so divide byte depth by 32
+localparam RAM_WORD_DEPTH = RAM_DEPTH / 32; // Convert byte depth to word depth
+reg [DATA_WIDTH-1:0] ram_memory [0:RAM_WORD_DEPTH-1];
 
-// Extract word address from byte address (divide by 32 since 256 bits = 32 bytes)
-assign ram_addr = stored_addr; // Use stored address instead of live app_addr
+// Calculate bit width needed for word address
+localparam WORD_ADDR_BITS = $clog2(RAM_WORD_DEPTH);
+wire [WORD_ADDR_BITS-1:0] ram_word_addr;
+
+// Convert byte address to word address (divide by 32 since 256 bits = 32 bytes)
+// We use stored_addr[ADDR_WIDTH-1:5] because dividing by 32 = right shift by 5 bits
+assign ram_word_addr = stored_addr[ADDR_WIDTH-1:5];
 
 // Output assignments
 assign init_calib_complete = init_complete;
@@ -147,11 +152,17 @@ always @(posedge ui_clk) begin
                         // Check if write data is provided in the same cycle
                         if (app_wdf_wren && app_wdf_rdy_reg && app_wdf_end) begin
                             // Single-cycle write: data is available immediately
-                            if (app_addr < RAM_DEPTH) begin
-                                ram_memory[app_addr] <= app_wdf_data;
-                                $display("%d: MIG7Mock WRITE: addr=0x%h, data=0x%h", $time, app_addr, app_wdf_data);
+                            // Convert byte address to word address for bounds checking
+                            if (app_addr < RAM_DEPTH && (app_addr[4:0] == 5'b00000)) begin // Check alignment
+                                ram_memory[app_addr[ADDR_WIDTH-1:5]] <= app_wdf_data;
+                                $display("%d: MIG7Mock_v2 WRITE: byte_addr=0x%h, word_addr=0x%h, data=0x%h", 
+                                    $time, app_addr, app_addr[ADDR_WIDTH-1:5], app_wdf_data);
+                            end else if (app_addr >= RAM_DEPTH) begin
+                                $display("%d: MIG7Mock_v2 WRITE OUT-OF-BOUNDS: byte_addr=0x%h (>= 0x%h)", 
+                                    $time, app_addr, RAM_DEPTH);
                             end else begin
-                                $display("%d: MIG7Mock WRITE OUT-OF-BOUNDS: addr=0x%h (>= 0x%h)", $time, app_addr, RAM_DEPTH);
+                                $display("%d: MIG7Mock_v2 WRITE UNALIGNED: byte_addr=0x%h (not 32-byte aligned)", 
+                                    $time, app_addr);
                             end
                             // Go directly to write processing delay
                             app_wdf_rdy_reg <= 1'b0;
@@ -175,11 +186,17 @@ always @(posedge ui_clk) begin
                 
                 if (app_wdf_wren && app_wdf_rdy_reg && app_wdf_end) begin
                     // Write data to RAM (skip mask handling as it will not be used by the design)
-                    if (ram_addr < RAM_DEPTH) begin
-                        ram_memory[ram_addr] <= app_wdf_data;
-                        $display("%d: MIG7Mock WRITE: addr=0x%h, data=0x%h", $time, stored_addr, app_wdf_data);
+                    // Check bounds using byte address and alignment
+                    if (stored_addr < RAM_DEPTH && (stored_addr[4:0] == 5'b00000)) begin // Check alignment
+                        ram_memory[ram_word_addr] <= app_wdf_data;
+                        $display("%d: MIG7Mock_v2 WRITE: byte_addr=0x%h, word_addr=0x%h, data=0x%h", 
+                            $time, stored_addr, ram_word_addr, app_wdf_data);
+                    end else if (stored_addr >= RAM_DEPTH) begin
+                        $display("%d: MIG7Mock_v2 WRITE OUT-OF-BOUNDS: byte_addr=0x%h (>= 0x%h)", 
+                            $time, stored_addr, RAM_DEPTH);
                     end else begin
-                        $display("%d: MIG7Mock WRITE OUT-OF-BOUNDS: addr=0x%h (>= 0x%h)", $time, stored_addr, RAM_DEPTH);
+                        $display("%d: MIG7Mock_v2 WRITE UNALIGNED: byte_addr=0x%h (not 32-byte aligned)", 
+                            $time, stored_addr);
                     end
                     
                     app_wdf_rdy_reg <= 1'b0;
@@ -212,13 +229,20 @@ always @(posedge ui_clk) begin
                 end
                 else begin
                     // Load data from RAM
-                    if (ram_addr < RAM_DEPTH) begin
-                        app_rd_data_reg <= ram_memory[ram_addr];
-                        $display("%d: MIG7Mock READ: addr=0x%h, data=0x%h", $time, stored_addr, ram_memory[ram_addr]);
+                    // Check bounds using byte address and alignment
+                    if (stored_addr < RAM_DEPTH && (stored_addr[4:0] == 5'b00000)) begin // Check alignment
+                        app_rd_data_reg <= ram_memory[ram_word_addr];
+                        $display("%d: MIG7Mock_v2 READ: byte_addr=0x%h, word_addr=0x%h, data=0x%h", 
+                            $time, stored_addr, ram_word_addr, ram_memory[ram_word_addr]);
                     end
-                    else begin
+                    else if (stored_addr >= RAM_DEPTH) begin
                         app_rd_data_reg <= {DATA_WIDTH{1'b0}}; // Return zeros for out-of-bounds
-                        $display("%d: MIG7Mock READ OUT-OF-BOUNDS: addr=0x%h (>= 0x%h), returning 0x0", $time, stored_addr, RAM_DEPTH);
+                        $display("%d: MIG7Mock_v2 READ OUT-OF-BOUNDS: byte_addr=0x%h (>= 0x%h), returning 0x0", 
+                            $time, stored_addr, RAM_DEPTH);
+                    end else begin
+                        app_rd_data_reg <= {DATA_WIDTH{1'b0}}; // Return zeros for unaligned
+                        $display("%d: MIG7Mock_v2 READ UNALIGNED: byte_addr=0x%h (not 32-byte aligned), returning 0x0", 
+                            $time, stored_addr);
                     end
                     
                     state <= READ_DATA;

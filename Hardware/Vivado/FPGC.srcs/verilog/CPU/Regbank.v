@@ -52,9 +52,7 @@ begin
     begin
         regs[addr_d] <= data_d;
 
-        `ifdef __ICARUS__
-            $display("%d: reg%d := %d", $time, addr_d, data_d);
-        `endif
+        $display("%d: reg%d := %d", $time, addr_d, data_d);
     end
 end
 

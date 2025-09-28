@@ -16,3 +16,6 @@ set_property -dict {PACKAGE_PIN V18  IOSTANDARD TMDS_33} [get_ports HDMI_D0_P]
 #set_property -dict {PACKAGE_PIN V19  IOSTANDARD TMDS_33} [get_ports HDMI_D0_N]
 set_property -dict {PACKAGE_PIN Y18  IOSTANDARD TMDS_33} [get_ports HDMI_CLK_P]
 #set_property -dict {PACKAGE_PIN Y19  IOSTANDARD TMDS_33} [get_ports HDMI_CLK_N]
+
+create_clock -period 5.000 -name sys_clk [get_ports sys_clk_p]
+#create_generated_clock -name clk100 -source [get_ports sys_clk_p] -divide_by 2 [get_pins mig7_ddr3/ui_clk]

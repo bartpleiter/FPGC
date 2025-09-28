@@ -38,7 +38,7 @@ class CPUTestConfig:
     RAM_LIST_PATH = "Hardware/Vivado/FPGC.srcs/simulation/memory/ram.list"
     MIG7MOCK_LIST_PATH = "Hardware/Vivado/FPGC.srcs/simulation/memory/mig7mock.list"
     BOOTLOADER_ROM_PATH = "Software/BareMetalASM/Simulation/bootloader_rom_ram.asm"
-    TESTBENCH_PATH = "Hardware/Vivado/FPGC.srcs/simulation/cpu_tb.v"
+    TESTBENCH_PATH = "Hardware/Vivado/FPGC.srcs/simulation/cpu_tests_tb.v"
     VERILOG_OUTPUT_PATH = "Hardware/Vivado/FPGC.srcs/simulation/output/cpu.out"
 
     CONVERTER_SCRIPT = "BuildTools/Utils/convert_to_256_bit.py"
