@@ -18,7 +18,7 @@ The B32P2 implements a 6-stage pipeline architecture optimized for fast memory a
 
 The B32P2 uses a 6-stage pipeline designed to minimize critical path delays while maintaining high instruction throughput:
 
-```
+```text
 ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐
 │   FE1   │───▶│   FE2   │───▶│   REG   │───▶│ EXMEM1  │───▶│ EXMEM2  │───▶│   WB    │
 │ I-Cache │    │I-Cache  │    │Register │    │Execute &│    │Multi-   │    │Write-   │
@@ -69,6 +69,7 @@ The B32P2 implements hazard detection and resolution:
 ### Forwarding Network
 
 The CPU supports forwarding from:
+
 - **EXMEM2 → EXMEM1**: Mostly when instruction uses result from previous instruction
 - **WB → EXMEM1**: Mostly when instruction uses result from 2 instructions ago
 

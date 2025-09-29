@@ -26,7 +26,7 @@ However, this board has the following disadvantages:
 ![StarLite Development board](../images/starlite.png)
 (Source: [PuZhi](https://www.puzhi.com/en/detail/433.html))
 
-## FPGA
+## FPGA choise
 
 The FPGA itself this project targets is a Xilinx Artix 7 XC7A75T. In general there is no specific reason to choose a particular FPGA, as long as it has enough block RAM to contain the framebuffer and enough I/O pins to connect all the peripherals (which FPGA's generally have but usually are limited by the board they are soldered on). However, this FPGA has the advantage of containing TMDS pins, which allows for interfacing with HDMI without the need for an external HDMI controller that are usually hard to solder and/or require a lot of pins. The XC7A75T has the following (relevant) specifications:
 
@@ -39,6 +39,6 @@ The FPGA itself this project targets is a Xilinx Artix 7 XC7A75T. In general the
 
 To compensate for the disadvantages of the board, in the future I could use a Artix 7 Core Module, which only has the FPGA, DDR3, oscillator and voltage regulators, and has a very large amount of dense I/O pins on the bottom connectors. This would allow me to design a custom I/O board with the following features:
 
-- 2x 16 bit wide SDR SDRAM, allowing me to use my own SDRAM controller as alternative to the MIG 7 IP (which could still be used as the DDR3 in on the core module)
+- 2x 16 bit wide SDR SDRAM, allowing me to use my own SDRAM controller as alternative to the MIG 7 IP (which could still be used as the DDR3 is located on the core module)
 - HDMI on the I/O board while still being connected to the FPGA TMDS pins
 - All other features I would normally need, like USB, Ethernet, etc.

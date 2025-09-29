@@ -29,7 +29,7 @@ module Regbank (
 
 The register bank implements a sophisticated dual-port memory structure designed for efficient pipeline operation:
 
-```
+```text
     REG Stage           Register Bank           WB Stage
   ┌─────────────┐     ┌─────────────────┐    ┌─────────────┐
   │   addr_a    │────▶│   Port A Read   │    │             │

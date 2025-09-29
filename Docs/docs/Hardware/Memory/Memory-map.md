@@ -16,7 +16,7 @@ Additionally, as the GPU also uses multiple types of (VRAM) memory, it also has 
 
 ## CPU memory map
 
-As of writing, not all memory has been implemented yet, but are mapped in advance in case it will get added in the future. This is the case for VRAMsprite and SD Card Flash. Also, the I/O addresses and devices will change when the new PCB version is finished (currently written for PCB V3).
+As of writing, not all memory has been implemented yet, but are mapped in advance in case it will get added in the future. Also, the I/O addresses and devices will change when the new PCB version is finished (currently written for PCB V3).
 
 ```text
 SDRAM

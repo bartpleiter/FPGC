@@ -16,6 +16,7 @@ module ALU (
 ## Implementation Details
 
 ### Combinational Logic
+
 The ALU is implemented as pure combinational logic using a case statement. Note that multiplication has been omitted compared to the FPGC6, as the hardware multipliers in the FPGA need an input and output register to prevent timing issues. This is handled by the `MultiCycleALU` module.
 
 ```verilog
@@ -54,4 +55,3 @@ The `LOAD` and `LOADHI` operations are implemented as an arithmetic operation to
 ### Overflow Handling
 
 There is no overflow handling in the ALU (or anywhere else in the CPU). This means that no interrupt is generated on overflow, and that the result will always be the rightmost 32 bits of the result. As I have not found the need for overflow handling, I did not implement it. This may change in the future if I will really need it and software checking is not fast enough.
-

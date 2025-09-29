@@ -23,7 +23,6 @@ module MultiCycleALU (
 
 This module uses the same simple bus like interface as other parts in the FPGC, by using a start and done signal. The `start` signal is asserted for one clock cycle to initiate the operation, and the `done` signal indicates for one clock cycle when the result is ready. The operands `a` and `b` together with `opcode` are provided as inputs (equivalent to `data`), and the result is output on `y` (equivalent to `q`).
 
-
 ## Implementation Details
 
 Currently the module attempts to optimize multiplication for the DSP slices of the FPGA, and while this does seem to work for now, it is not really clean nor efficient and can be improved in the future. As the module works with a big state machine, it should be relatively easy to add more implementations based on the opcode.

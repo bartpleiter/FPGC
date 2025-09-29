@@ -30,6 +30,9 @@ module AddressDecoder(
 
 ## Memory Map
 
+!!! note
+    The memory map will change soon as the SD Card will not be fully memory mapped anymore, only the 512 byte buffer will be.
+
 The B32P2 implements a comprehensive 32-bit memory map covering 4GiB of addressable space:
 
 | Start Address | End Address | Size | Memory Type | Description |

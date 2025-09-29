@@ -4,7 +4,7 @@ This document provides a comprehensive visual representation of the B32P2 CPU ar
 
 ## Complete CPU Architecture
 
-```
+```text
                                  B32P2 CPU Architecture
                                    (6-Stage Pipeline)
 
@@ -46,11 +46,9 @@ This document provides a comprehensive visual representation of the B32P2 CPU ar
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-
-
 ## Hazard Detection Logic
 
-```
+```text
                      ┌─────────────────────────────────────┐
                      │          HAZARD DETECTOR            │
                      └─────────────────────────────────────┘
@@ -73,7 +71,7 @@ This document provides a comprehensive visual representation of the B32P2 CPU ar
 
 ## Cache Architecture Integration
 
-```
+```text
                 L1 Instruction Cache                           L1 Data Cache
     ┌─────────────────────────────────────────┐       ┌─────────────────────────────────────────┐
     │            CPU Pipeline                 │       │            CPU Pipeline                 │

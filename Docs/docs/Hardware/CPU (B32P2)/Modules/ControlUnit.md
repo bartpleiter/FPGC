@@ -60,6 +60,7 @@ end
 ### Special Cases
 
 #### Unsigned Constant Selection
+
 For `ARITHC` and `ARITHMC` instructions, the control unit checks the ALU opcode to determine if unsigned constants should be used:
 
 ```verilog

@@ -114,8 +114,8 @@ if (branch) begin
     jump_addr <= pc + const16;          // PC-relative branch
 end
 ```
-As the offset is 16 bit signed, the maximum jump range is limited. Therefore, it is recommended to jump to invert the if statement to just skip the next instruction, which then can be a jump instruction with much more range.
 
+As the offset is 16 bit signed, the maximum jump range is limited. Therefore, it is recommended to jump to invert the if statement to just skip the next instruction, which then can be a jump instruction with much more range.
 
 ## Halt Operation
 
@@ -126,6 +126,7 @@ if (halt) begin
     jump_addr <= pc;                    // Jump to same address
 end
 ```
+
 The nice thing about this is that it does not require additional logic to implement, and it can still be interrupted. This is useful for bootloading, and in future use could be used to implement a debugger of some kind.
 
 ## Jump Valid Logic
@@ -137,6 +138,7 @@ assign jump_valid = (jumpc | jumpr | (branch & branch_passed) | halt);
 ```
 
 ### Jump Valid Conditions
+
 - **jumpc**: Unconditional jump with constant
 - **jumpr**: Unconditional jump with register
 - **branch & branch_passed**: Conditional branch that evaluates true

@@ -23,6 +23,7 @@ module Regr #(
 | `N` | Register width in bits | 1 | Set to required data width |
 
 Parameter `N` can be set to any value to allow forwarding many signals at the same time without needing to instantiate multiple registers:
+
 ```verilog
 Regr #(.N(65)) regr_combined_stageX_to_stage_Y (
     .clk(clk),

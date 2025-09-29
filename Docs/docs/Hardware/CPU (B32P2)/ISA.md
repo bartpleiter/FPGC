@@ -4,6 +4,7 @@ The B32P2 instruction set architecture is a RISC architecture, mostly compatible
 The main differences are support for multi-cycle ARITH instructions. Multiply instructions take now >1 cycles to satisfy timing constraints, meaning MULTS and MULTU are the only instructions from B32P that need different binary patterns on B32P2.
 
 Each instruction is 32 bits and can be one of the following instructions:
+
 ``` text
          |31|30|29|28|27|26|25|24|23|22|21|20|19|18|17|16|15|14|13|12|11|10|09|08|07|06|05|04|03|02|01|00|
 ----------------------------------------------------------------------------------------------------------

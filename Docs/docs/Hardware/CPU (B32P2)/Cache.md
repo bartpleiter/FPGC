@@ -17,7 +17,8 @@ The L1i and L1d cache each contain:
 - Dual port access for CPU pipeline and cache controller
 
 ### Cache line format (274 bits total)
-```
+
+```text
 [273:18] - Cache line data (256 bits)
 [17:2]   - Tag (16 bits)
 [1]      - Valid bit
@@ -30,13 +31,15 @@ The cache is hard-coded to work with 256 MiB (64 MiW) of RAM, meaning that the C
 With 8 words (256 bits) per line, we then get 23 bit line addresses.
 
 ### CPU address breakdown (32 bits)
+
 - `[31:26]`: High-order bits (out of bounds)
 - `[25:10]`: Cache Tag (16 bits)
 - `[9:3]`: Cache Index (7 bits) - selects the cache line from the 128 cache lines
 - `[2:0]`: Word Offset (3 bits) - selects word from the 8 words in the cache line
 
 ### Memory Address Mapping
-- MIG7 addresses are aligned to 256-bit boundaries, meaning the addresses here are 23 bit cache line addresses
+
+- MIG7 addresses are aligned to 8-bit boundaries, which can be confusing given that the data with is 256 bits
 - CPU addresses are truncated to remove the word offset: `cpu_addr[31:3]`
 
 ## Cache strategy
@@ -53,13 +56,16 @@ During a cache miss on the L1i cache, a read miss on the L1d cache, or any write
 
 ![cache_arch](../../images/cachecontroller_statemachine.png)
 
+#### Clear cache
+
+Not documented above, but the cache controller also has a clear cache input, which when set will cause the cache controller to enter a loop clearing all L1i addresses, followed by all L1d addresses while evicting dirty lines. This is crucial to load and execute programs in RAM, as L1i and L1d caches are separate and do not know about each other. This means that when loading a program into RAM, the L1i cache might still contain old data/instructions, which will not be updated until those cache lines are evicted. By clearing the cache, all valid bits are cleared, forcing the CPU to fetch everything from RAM again. This clear cache can be triggered by executing a `ccache` instruction.
+
 ### Connection to the SDRAM controller
 
-As the CPU is pipelined, both the L1i and L1d cache might want to request SDRAM at the same time. Therefore we need some kind of arbiteration. Furtherfore, the MIG 7 (user) interface runs at a minimum speed of 100MHz (possibly 75MHz with some configuration change, but that might cause other issues). As the FPGC will likely run at 50MHz, there will also be need for some clock domain crossing. Luckily, the 100MHz of the MIG 7 and the 50MHz from the CPU should be able to run in sync, allowing for much simpler and faster clock domain crossing as it is just a 2 to 1 ratio.
+As the CPU is pipelined, both the L1i and L1d cache might want to request SDRAM at the same time. Therefore we need some kind of arbiteration. Furtherfore, the MIG 7 (user) interface runs at a minimum speed of 100MHz (possibly 75MHz with some configuration change, but that might cause other issues). As the FPGC will run at 50MHz, there will also be need for some clock domain crossing. Luckily, the 100MHz of the MIG 7 and the 50MHz from the CPU should be able to run in sync, allowing for much simpler and faster clock domain crossing as it is just a 2 to 1 ratio.
 
 To keep complexity low with arbiteration and clock domain crossing, I choose to create a single cache controller that handles both L1i and L1d cache misses in a single state machine, where the controller and cache RAM run at 100MHz. While this might be slower than having two independent cache controllers, this strategy will most likely make implementing and validating the design a lot easier and will only result in slowdowns when both L1i and L1d caches need the controller at the same time. Having only one controller allows me to handle everything in a big state machine, making arbiteration trivial. Furthermore, running this and the RAM instances at 100MHz means that only the output signals to the CPU need to be held for a cycle longer to align with the 50MHz, with the added bonus of the entire cache controller running twice as fast for performance improvements.
 
 ## Future improvements
 
-- [ ] (MUST DO) Add states for clear cache signal/instruction, which iteratively copies all 128 cache lines from l1d to l1i (nice hack to prevent MIG7 writes)
 - [ ] (Nice to have) Add counter for cache hit and misses, with reset, which all three can be connected to the Memory Unit in the future
