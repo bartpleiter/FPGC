@@ -2,10 +2,9 @@
  * HDMI Serializer with DDR clocking
  */
 module Serializer (
-    // Clocks and reset
+    // Clocks
     input wire clkTMDShalf,
     input wire clkRGB,
-    input wire reset,
 
     // TMDS
     input wire [9:0] TMDS_data,
@@ -55,7 +54,7 @@ OSERDESE2 #(
     .TCE(1'b0),
     .TBYTEIN(1'b0),
     .OCE(1'b1),                 // Output clock enable
-    .RST(internal_reset || reset),
+    .RST(internal_reset),
     .T1(1'b0),
     .T2(1'b0),
     .T3(1'b0),
@@ -93,7 +92,7 @@ OSERDESE2 #(
     .TCE(1'b0),
     .TBYTEIN(1'b0),
     .OCE(1'b1),                 // Output clock enable
-    .RST(internal_reset || reset),
+    .RST(internal_reset),
     .T1(1'b0),
     .T2(1'b0),
     .T3(1'b0),

@@ -33,8 +33,7 @@ module FPGC (
 );
 
 //---------------------------Clocks and reset---------------------------------
-// CPU/Memory clocks and reset
-wire reset;  // From MIG7
+// CPU/Memory clocks
 wire clk50_unb;  // From user MMCM
 wire clk50; // Buffered version of clk50_unb
 wire clk100; // From MIG7
@@ -48,7 +47,7 @@ IBUFDS ibufclk200 (
 
 clk_gen_cpu cpu_clockgen (
     .clk_ui_in      (clk100),
-    .resetn         (sys_rstn),
+    .resetn         (1'b1), // We do not want to reset clocks
     .clk_out_50     (clk50_unb),
     .locked()
 );
@@ -66,7 +65,7 @@ wire clkTMDShalf_unb;
 
 clk_generator clk_gen (
     .clk_sys_in     (clk200),
-    .resetn         (sys_rstn),
+    .resetn         (1'b1), // We do not want to reset clocks
     .clk_gpu        (clkPixel_unb),  // 25 MHz
     .clk_tmds_half  (clkTMDShalf_unb), // 125 MHz
     .locked()
@@ -81,6 +80,31 @@ BUFG bufgclkTMDShalf (
     .I(clkTMDShalf_unb),
     .O(clkTMDShalf)
 );
+
+// Resets
+wire reset50; // Reset synchronized to 50MHz clock
+wire reset100; // Reset synchronized to 100MHz clock
+reg [2:0] reset50_sync = 3'b111;
+reg [2:0] reset100_sync = 3'b111;
+
+always @(posedge clk50)
+begin
+    if (~sys_rstn)
+        reset50_sync <= 3'b111;
+    else
+        reset50_sync <= {reset50_sync[1:0], 1'b0};
+end
+
+always @(posedge clk100)
+begin
+    if (~sys_rstn)
+        reset100_sync <= 3'b111;
+    else
+        reset100_sync <= {reset100_sync[1:0], 1'b0};
+end
+
+assign reset50 = reset50_sync[2];
+assign reset100 = reset100_sync[2];
 
 //-----------------------ROM-------------------------
 // ROM I/O
@@ -359,11 +383,11 @@ mig_7series_0 mig7_ddr3
 .init_calib_complete            (mig7_init_calib_complete),
 
 // Clock ports
-.ui_clk                         (clk100),
-.ui_clk_sync_rst                (reset),   // Active high reset
+.ui_clk                         (clk100), // Output 100MHz
+.ui_clk_sync_rst                (),   // Output active high reset, unused
 
-.sys_clk_i                      (clk200),  
-.sys_rst                        (sys_rstn) // Active low reset
+.sys_clk_i                      (clk200), // Input 200MHz
+.sys_rst                        (sys_rstn) // Input active low reset
 );
 
 
@@ -391,7 +415,7 @@ CacheController #(
     .MASK_WIDTH(32)
 ) cache_controller (
     .clk100(clk100),
-    .reset(reset),
+    .reset(reset100),
 
     // CPU pipeline interface (50 MHz domain)
     .cpu_FE2_start(l1i_cache_controller_start),
@@ -443,7 +467,6 @@ FSX fsx (
     // Clocks
     .clkPixel(clkPixel),
     .clkTMDShalf(clkTMDShalf),
-    .reset(reset),
 
     // HDMI
     .TMDS_clk_p(HDMI_CLK_P),
@@ -478,7 +501,7 @@ FSX fsx (
 B32P2 cpu (
     // Clock and reset
     .clk(clk50),
-    .reset(reset),
+    .reset(reset50),
 
     // ROM (dual port)
     .rom_fe_addr(rom_fe_addr),

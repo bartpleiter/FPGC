@@ -3,10 +3,9 @@
  * Generates video from VRAM
  */
 module FSX (
-    // Clocks and reset
+    // Clocks
     input wire clkPixel,    // Pixel clock
     input wire clkTMDShalf, // Half of HDMI TDMS clock (pre-ddr)
-    input wire reset,
 
     // HDMI
     output wire TMDS_clk_p,
@@ -141,7 +140,6 @@ RGB8toRGB24 rgb8to24 (
 RGB2HDMI rgb2hdmi (
     .clkTMDShalf(clkTMDShalf),
     .clkRGB     (clkPixel),
-    .reset      (reset),
     .rRGB       (r_byte),
     .gRGB       (g_byte),
     .bRGB       (b_byte),

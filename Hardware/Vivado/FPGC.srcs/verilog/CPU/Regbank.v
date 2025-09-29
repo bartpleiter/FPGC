@@ -37,22 +37,30 @@ reg [31:0] ramResultb = 32'd0;
 // RAM logic
 always @(posedge clk) 
 begin
-    if (hold)
+    if (reset)
     begin
-        ramResulta <= data_a;
-        ramResultb <= data_b;
+        ramResulta <= 32'd0;
+        ramResultb <= 32'd0;
     end
     else
     begin
-        ramResulta <= regs[addr_a];
-        ramResultb <= regs[addr_b];
-    end
+        if (hold)
+        begin
+            ramResulta <= data_a;
+            ramResultb <= data_b;
+        end
+        else
+        begin
+            ramResulta <= regs[addr_a];
+            ramResultb <= regs[addr_b];
+        end
 
-    if (we_no_zero)
-    begin
-        regs[addr_d] <= data_d;
+        if (we_no_zero)
+        begin
+            regs[addr_d] <= data_d;
 
-        $display("%d: reg%d := %d", $time, addr_d, data_d);
+            $display("%d: reg%d := %d", $time, addr_d, data_d);
+        end
     end
 end
 

@@ -46,9 +46,7 @@ begin
         begin
             stack[ptr] <= d;
             ptr <= ptr + 1'b1;
-            `ifdef __ICARUS__
-                $display("%d: push ptr %d := %d", $time, ptr, d);
-            `endif
+            $display("%d: push ptr %d := %d", $time, ptr, d);
         end
 
         if (pop)
@@ -67,10 +65,7 @@ begin
             begin
                 useRamResult <= 1'b1;
                 ptr <= ptr - 1'b1;
-                
-                `ifdef __ICARUS__
-                    $display("%d: pop  ptr %d := %d", $time, ptr, stack[ptr - 1'b1]);
-                `endif
+                $display("%d: pop  ptr %d := %d", $time, ptr, stack[ptr - 1'b1]);
             end
         end
     end

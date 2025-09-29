@@ -142,7 +142,6 @@ FSX fsx (
     // Clocks and reset
     .clkPixel(clkPixel),
     .clkTMDShalf(clkTMDShalf),
-    .reset(1'b0),
 
     // HDMI
     .TMDS_clk_p(HDMI_CLK_P),

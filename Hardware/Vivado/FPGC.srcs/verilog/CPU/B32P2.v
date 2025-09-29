@@ -206,7 +206,7 @@ Regr #(
     .in(PC_FE1),
     .out(PC_FE2),
     .hold(stall_FE1),
-    .clear(flush_FE1)
+    .clear(flush_FE1 || reset)
 );
 
 // Signal to make sure we do not detect cache misses on invalid memory accesses (e.g. during pipeline bubbles for address 0)
@@ -218,7 +218,7 @@ Regr #(
     .in(!mem_rom_FE1 && !flush_FE1),
     .out(valid_mem_access_FE2),
     .hold(1'b0),
-    .clear(1'b0)
+    .clear(reset)
 );
 
 // Signal to tag bubbles for FE2 to ignore
@@ -230,7 +230,7 @@ Regr #(
     .in(1'b1),
     .out(n_bubble_FE2),
     .hold(stall_FE1),
-    .clear(flush_FE1)
+    .clear(flush_FE1 || reset)
 );
 wire bubble_FE2 = !n_bubble_FE2;
 
@@ -351,7 +351,7 @@ Regr #(
     .in(instr_result_FE2),
     .out(instr_REG),
     .hold(stall_FE2),
-    .clear(flush_FE2)
+    .clear(flush_FE2 || reset)
 );
 
 wire [31:0] PC_REG;
@@ -362,7 +362,7 @@ Regr #(
     .in(PC_FE2),
     .out(PC_REG),
     .hold(stall_FE2),
-    .clear(flush_FE2)
+    .clear(flush_FE2 || reset)
 );
 
 /*
@@ -411,7 +411,7 @@ Regbank regbank (
 
     .addr_a(addr_a_REG),
     .addr_b(addr_b_REG),
-    .clear(flush_REG),
+    .clear(flush_REG || reset),
     .hold(stall_REG),
     .data_a(data_a_EXMEM1),
     .data_b(data_b_EXMEM1),
@@ -432,7 +432,7 @@ Regr #(
     .in(instr_REG),
     .out(instr_EXMEM1),
     .hold(stall_REG),
-    .clear(flush_REG)
+    .clear(flush_REG || reset)
 );
 
 wire [31:0] PC_EXMEM1;
@@ -443,7 +443,7 @@ Regr #(
     .in(PC_REG),
     .out(PC_EXMEM1),
     .hold(stall_REG),
-    .clear(flush_REG)
+    .clear(flush_REG || reset)
 );
 
 /*
@@ -613,7 +613,7 @@ Regr #(
     .in(instr_EXMEM1),
     .out(instr_EXMEM2),
     .hold(stall_EXMEM1),
-    .clear(flush_EXMEM1)
+    .clear(flush_EXMEM1 || reset)
 );
 
 wire [31:0] alu_y_EXMEM2;
@@ -624,7 +624,7 @@ Regr #(
     .in(result_EXMEM1), // Use result based on operation
     .out(alu_y_EXMEM2),
     .hold(stall_EXMEM1),
-    .clear(flush_EXMEM1)
+    .clear(flush_EXMEM1 || reset)
 );
 
 // Here the ALU inputs are used to include forwarded data
@@ -637,7 +637,7 @@ Regr #(
     .in({alu_a_EXMEM1, alu_b_EXMEM1}),
     .out({data_a_EXMEM2, data_b_EXMEM2}),
     .hold(stall_EXMEM1),
-    .clear(flush_EXMEM1)
+    .clear(flush_EXMEM1 || reset)
 );
 
 wire [31:0] PC_EXMEM2;
@@ -648,7 +648,7 @@ Regr #(
     .in(PC_EXMEM1),
     .out(PC_EXMEM2),
     .hold(stall_EXMEM1),
-    .clear(flush_EXMEM1)
+    .clear(flush_EXMEM1 || reset)
 );
 
 /*
@@ -765,7 +765,7 @@ Stack stack_EXMEM2 (
     .d(data_b_EXMEM2),
     .push(push_EXMEM2),
     .pop(pop_EXMEM2),
-    .clear(1'b0),
+    .clear(reset),
     .hold(1'b0),
     .q(stack_q_WB)
 );
@@ -868,7 +868,7 @@ Regr #(
     .in(instr_EXMEM2),
     .out(instr_WB),
     .hold(1'b0),
-    .clear(l1d_cache_wait_EXMEM2 || multicycle_alu_stall) // Insert bubble if EXMEM2 is stalling
+    .clear(l1d_cache_wait_EXMEM2 || multicycle_alu_stall || reset) // Insert bubble if EXMEM2 is stalling
 );
 
 wire [31:0] alu_y_WB;
@@ -879,7 +879,7 @@ Regr #(
     .in(alu_y_EXMEM2),
     .out(alu_y_WB),
     .hold(1'b0),
-    .clear(1'b0)
+    .clear(reset)
 );
 
 wire [31:0] PC_WB;
@@ -890,7 +890,7 @@ Regr #(
     .in(PC_EXMEM2),
     .out(PC_WB),
     .hold(1'b0),
-    .clear(1'b0)
+    .clear(reset)
 );
 
 wire [31:0] data_a_WB;
@@ -901,7 +901,7 @@ Regr #(
     .in(data_a_EXMEM2),
     .out(data_a_WB),
     .hold(1'b0),
-    .clear(1'b0)
+    .clear(reset)
 );
 
 wire [31:0] multicycle_alu_y_WB;
@@ -912,7 +912,7 @@ Regr #(
     .in(multicycle_alu_y_EXMEM2),
     .out(multicycle_alu_y_WB),
     .hold(1'b0),
-    .clear(1'b0)
+    .clear(reset)
 );
 
 wire [31:0] l1d_cache_hit_q_WB;
@@ -923,7 +923,7 @@ Regr #(
     .in(l1d_cache_hit_q_EXMEM2),
     .out(l1d_cache_hit_q_WB),
     .hold(1'b0),
-    .clear(1'b0)
+    .clear(reset)
 );
 
 wire was_cache_miss_WB;
@@ -934,7 +934,7 @@ Regr #(
     .in(was_cache_miss_EXMEM2),
     .out(was_cache_miss_WB),
     .hold(1'b0),
-    .clear(1'b0)
+    .clear(reset)
 );
 
 

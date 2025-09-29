@@ -2,10 +2,9 @@
  * VGA RGBHS to HDMI signal converter
  */
 module RGB2HDMI (
-    // Clocks and reset
+    // Clocks
     input wire clkTMDShalf,
     input wire clkRGB,
-    input wire reset,
 
     // RGB
     input wire [7:0] rRGB,
@@ -57,7 +56,6 @@ TMDSenc TMDSb (
 Serializer tmds_clk_serializer (
     .clkTMDShalf(clkTMDShalf),
     .clkRGB(clkRGB),
-    .reset(reset),
     .TMDS_data(10'b1111100000),
     .TMDS_out_p(TMDS_clk_p),
     .TMDS_out_n(TMDS_clk_n)
@@ -66,7 +64,6 @@ Serializer tmds_clk_serializer (
 Serializer tmds_d0_serializer (
     .clkTMDShalf(clkTMDShalf),
     .clkRGB(clkRGB),
-    .reset(reset),
     .TMDS_data(encodedRed),
     .TMDS_out_p(TMDS_d2_p),
     .TMDS_out_n(TMDS_d2_n)
@@ -75,7 +72,6 @@ Serializer tmds_d0_serializer (
 Serializer tmds_d1_serializer (
     .clkTMDShalf(clkTMDShalf),
     .clkRGB(clkRGB),
-    .reset(reset),
     .TMDS_data(encodedGreen),
     .TMDS_out_p(TMDS_d1_p),
     .TMDS_out_n(TMDS_d1_n)
@@ -84,7 +80,6 @@ Serializer tmds_d1_serializer (
 Serializer tmds_d2_serializer (
     .clkTMDShalf(clkTMDShalf),
     .clkRGB(clkRGB),
-    .reset(reset),
     .TMDS_data(encodedBlue),
     .TMDS_out_p(TMDS_d0_p),
     .TMDS_out_n(TMDS_d0_n)
