@@ -18,3 +18,9 @@ This project is considered finished when:
 - The FPGC can run DOOM, either the original or a simplified but similar version, compiled and assembled into machine code for my own instruction set architecture, to use system calls of a self designed operating system, running from a self designed file system.
     - Preferably with a playable framerate, and if not then the CPU of the FPGC should run the code in <2 cycles per instruction, which should only be possible with a proper CPU pipeline design and caching.
 - The project is properly documented
+
+## Third-Party Components
+
+### B32CC
+
+Located in `BuildTools/B32CC/`, this is a modified version of SmallerC by Alexey Frunze to compile C code to B32P2 assembly.
