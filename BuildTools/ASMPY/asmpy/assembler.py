@@ -152,22 +152,62 @@ class Assembler:
         self._create_label_address_mappings()
         self._apply_label_address_mappings()
 
+    def _add_header_instructions(self) -> None:
+        """Add header instructions to the beginning of the assembly (before processing)."""
+        
+        # Create SourceLine objects for the header instructions
+        # We use .dw 0 as a placeholder for the filesize, which only can be calculated at the end
+        header_source_lines = [
+            SourceLine(line="jump Main", source_line_number=0, source_file_name="header"),
+            SourceLine(line="jump Int", source_line_number=0, source_file_name="header"),
+            SourceLine(line=".dw 0", source_line_number=0, source_file_name="header"),
+        ]
+        
+        # Parse the header lines into assembly lines
+        header_assembly_lines = []
+        for source_line in header_source_lines:
+            header_assembly_lines.append(AssemblyLine.parse_line(source_line))
+        
+        # Insert header at the beginning
+        self._assembly_lines = header_assembly_lines + self._assembly_lines
+    
+    def _update_header_line_count(self) -> None:
+        """Update the third header instruction (.dw) with the actual line count."""
+        if len(self._assembly_lines) < 3:
+            self._logger.warning("Not enough lines to update header line count, this should not happen!")
+            return
+            
+        # The third instruction should be the .dw instruction
+        dw_line = self._assembly_lines[2]
+        if hasattr(dw_line, 'data_instruction_values') and len(dw_line.data_instruction_values) > 0:
+            # Update the value with the total line count
+            dw_line.data_instruction_values[0] = Number(len(self._assembly_lines))
+        else:
+            self._logger.warning("Could not update header line count, this should not happen!")
+
     def _write_output_file(self) -> None:
         """Write the assembly lines as binary strings to the output file."""
         with open(self.output_file_path, "w") as file:
             for line in self._assembly_lines:
                 file.write(f"{line.to_binary_string()}\n")
 
-    def assemble(self) -> None:
+    def assemble(self, add_header: bool = False) -> None:
         """Assemble the preprocessed input file."""
 
         self._assembly_lines = self._parse_input_lines(self.preprocessed_input_lines)
+        
+        if add_header:
+            self._add_header_instructions()
+            
         self._expand_instructions()
         self._assign_directives()
         self._reorder_lines_based_on_directive()
         self._remove_directive_lines()
         self._remove_comment_lines()
         self._process_labels()
+
+        if add_header:
+            self._update_header_line_count()
 
         for line in self._assembly_lines:
             self._logger.debug(line)

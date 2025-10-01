@@ -1,15 +1,15 @@
 [*]
 [*] GTKWave Analyzer v3.3.121 (w)1999-2024 BSI
-[*] Wed Oct  1 15:36:53 2025
+[*] Wed Oct  1 17:45:37 2025
 [*]
 [dumpfile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd"
-[dumpfile_mtime] "Wed Oct  1 15:36:36 2025"
-[dumpfile_size] 2308319
+[dumpfile_mtime] "Wed Oct  1 17:42:43 2025"
+[dumpfile_size] 2361078
 [savefile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/cpu.gtkw"
-[timestart] 9390000
+[timestart] 0
 [size] 1920 1033
 [pos] -1 -1
-*-18.752369 10666000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-18.752369 964000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] cpu_tb.
 [treeopen] cpu_tb.cpu.
 [sst_width] 321
@@ -581,7 +581,6 @@ cpu_tb.cache_controller.l1d_ctrl_d[273:0]
 cpu_tb.cache_controller.l1d_ctrl_q[273:0]
 @200
 -
-@208
 -Interrupts
 @28
 cpu_tb.cpu.interruptController.int_triggered[7:0]

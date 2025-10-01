@@ -5,7 +5,7 @@ from asmpy.models.data_types import SourceLine, Number
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Assembler for B32P2.")
+    parser = argparse.ArgumentParser(description="Assembler for B32P2.", add_help=False)
     parser.add_argument("file", help="The asm file to assemble")
     parser.add_argument("output", help="The assembled output file")
     parser.add_argument(
@@ -20,6 +20,17 @@ def parse_args() -> argparse.Namespace:
         "--log-details",
         action="store_true",
         help="Enable detailed logging with extra details like line numbers and timestamps",
+    )
+    parser.add_argument(
+        "-h",
+        "--header",
+        action="store_true",
+        help="Add header instructions (jump Main, jump Int, .dw line_count) to the output",
+    )
+    parser.add_argument(
+        "--help",
+        action="help",
+        help="Show this help message and exit",
     )
     return parser.parse_args()
 

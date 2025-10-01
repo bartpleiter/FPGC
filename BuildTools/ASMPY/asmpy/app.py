@@ -30,7 +30,7 @@ def main():
 
     assembler = Assembler(preprocessed_lines, args.output)
     try:
-        assembler.assemble()
+        assembler.assemble(add_header=args.header)
     except Exception as e:
         logger.error(f"Assembler failed: {e}")
         sys.exit(1)
