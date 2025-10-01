@@ -29,7 +29,11 @@ module FPGC (
     output wire [0:0]  ddr3_cke,       // ddr3_cke
     output wire [0:0]  ddr3_cs_n,      // ddr3 negated chip select
     output wire [3:0]  ddr3_dm,        // ddr3_dm
-    output wire [0:0]  ddr3_odt        // ddr3_odt
+    output wire [0:0]  ddr3_odt,       // ddr3_odt
+
+    // UART
+    input  wire        uart_rx,
+    output wire        uart_tx
 );
 
 //---------------------------Clocks and reset---------------------------------
@@ -497,6 +501,34 @@ FSX fsx (
     .frameDrawn(frameDrawn)
 );
 
+//------------------Memory Unit (50MHz)----------------------
+// Memory Unit I/O signals
+wire        mu_start;
+wire [31:0] mu_addr;
+wire [31:0] mu_data;
+wire        mu_we;
+wire [31:0] mu_q;
+wire        mu_done;
+
+// UART RX and TX are already defined on top level
+wire        uart_irq;
+
+MemoryUnit memory_unit (
+    .clk(clk),
+    .reset(reset),
+
+    .start(mu_start),
+    .addr(mu_addr),
+    .data(mu_data),
+    .we(mu_we),
+    .q(mu_q),
+    .done(mu_done),
+
+    .uart_rx(uart_rx),
+    .uart_tx(uart_tx),
+    .uart_irq(uart_irq)
+);
+
 //-----------------------CPU-------------------------
 B32P2 cpu (
     // Clock and reset
@@ -552,7 +584,15 @@ B32P2 cpu (
     .l1d_cache_controller_done(l1d_cache_controller_done),
     .l1d_cache_controller_result(l1d_cache_controller_result),
 
-    .l1_clear_cache(l1_clear_cache)
+    .l1_clear_cache(l1_clear_cache),
+
+    // Memory Unit connections
+    .mu_start(mu_start),
+    .mu_addr(mu_addr),
+    .mu_data(mu_data),
+    .mu_we(mu_we),
+    .mu_q(mu_q),
+    .mu_done(mu_done)
 );
 
 endmodule

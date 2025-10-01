@@ -23,60 +23,86 @@ module B32P2 #(
     parameter ROM_ADDRESS = 32'h7800000, // Initial PC value, so the CPU starts executing from ROM first
     parameter INTERRUPT_JUMP_ADDR = 32'd1 // Address to jump to when an interrupt is triggered
 ) (
-    // Clock and reset
-    input wire clk,
-    input wire reset,
+    //========================
+    // System interface
+    //========================
+    input  wire         clk,
+    input  wire         reset,
 
+    //========================
     // ROM (dual port)
-    output wire [8:0] rom_fe_addr,
-    output wire rom_fe_oe,
-    input wire [31:0] rom_fe_q,
-    output wire rom_fe_hold,
+    //========================
+    output wire [8:0]   rom_fe_addr,
+    output wire         rom_fe_oe,
+    input  wire [31:0]  rom_fe_q,
+    output wire         rom_fe_hold,
 
-    output wire [8:0] rom_mem_addr,
-    input wire [31:0] rom_mem_q,
+    output wire [8:0]   rom_mem_addr,
+    input  wire [31:0]  rom_mem_q,
 
+    //========================
     // VRAM32
-    output wire [10:0] vram32_addr,
-    output wire [31:0] vram32_d,
-    output wire vram32_we,
-    input wire [31:0] vram32_q,
+    //========================
+    output wire [10:0]  vram32_addr,
+    output wire [31:0]  vram32_d,
+    output wire         vram32_we,
+    input  wire [31:0]  vram32_q,
 
+    //========================
     // VRAM8
-    output wire [13:0] vram8_addr,
-    output wire [7:0] vram8_d,
-    output wire vram8_we,
-    input wire [7:0] vram8_q,
+    //========================
+    output wire [13:0]  vram8_addr,
+    output wire [7:0]   vram8_d,
+    output wire         vram8_we,
+    input  wire [7:0]   vram8_q,
 
+    //========================
     // VRAMPX
-    output wire [16:0] vramPX_addr,
-    output wire [7:0] vramPX_d,
-    output wire vramPX_we,
-    input wire [7:0] vramPX_q,
+    //========================
+    output wire [16:0]  vramPX_addr,
+    output wire [7:0]   vramPX_d,
+    output wire         vramPX_we,
+    input  wire [7:0]   vramPX_q,
 
-    // L1i cache (cpu pipeline port)
-    output wire [6:0] l1i_pipe_addr,
-    input wire [273:0] l1i_pipe_q,
+    //========================
+    // L1i cache (CPU pipeline port)
+    //========================
+    output wire [6:0]   l1i_pipe_addr,
+    input  wire [273:0] l1i_pipe_q,
 
-    // L1d cache (cpu pipeline port)
-    output wire [6:0] l1d_pipe_addr,
-    input wire [273:0] l1d_pipe_q,
+    //========================
+    // L1d cache (CPU pipeline port)
+    //========================
+    output wire [6:0]   l1d_pipe_addr,
+    input  wire [273:0] l1d_pipe_q,
 
-    // cache controller
-    output wire [31:0] l1i_cache_controller_addr,
-    output wire l1i_cache_controller_start,
-    output wire l1i_cache_controller_flush,
-    input wire l1i_cache_controller_done,
-    input wire [31:0] l1i_cache_controller_result,
+    //========================
+    // Cache controller
+    //========================
+    output wire [31:0]  l1i_cache_controller_addr,
+    output wire         l1i_cache_controller_start,
+    output wire         l1i_cache_controller_flush,
+    input  wire         l1i_cache_controller_done,
+    input  wire [31:0]  l1i_cache_controller_result,
 
-    output wire [31:0] l1d_cache_controller_addr,
-    output wire [31:0] l1d_cache_controller_data,
-    output wire l1d_cache_controller_we,
-    output wire l1d_cache_controller_start,
-    input wire l1d_cache_controller_done,
-    input wire [31:0] l1d_cache_controller_result, 
+    output wire [31:0]  l1d_cache_controller_addr,
+    output wire [31:0]  l1d_cache_controller_data,
+    output wire         l1d_cache_controller_we,
+    output wire         l1d_cache_controller_start,
+    input  wire         l1d_cache_controller_done,
+    input  wire [31:0]  l1d_cache_controller_result, 
 
-    output wire l1_clear_cache
+    output wire         l1_clear_cache,
+
+    //========================
+    // Memory Unit
+    //========================
+    output reg          mu_start = 1'b0,
+    output reg [31:0]   mu_addr = 32'd0,
+    output reg [31:0]   mu_data = 32'd0,
+    output reg          mu_we = 1'b0,
+    input  wire [31:0]  mu_q,
+    input  wire         mu_done
 );
 
 // Flush and Stall signals
@@ -98,13 +124,16 @@ wire stall_REG;
 wire stall_EXMEM1;
 
 // TODO stall all previous stages on EXMEM2 busy
-assign stall_FE1 = exmem1_uses_exmem2_result || multicycle_alu_stall || l1i_cache_miss_FE2 || l1d_cache_wait_EXMEM2;
-assign stall_FE2 = exmem1_uses_exmem2_result || multicycle_alu_stall || l1d_cache_wait_EXMEM2;
-assign stall_REG = exmem1_uses_exmem2_result || multicycle_alu_stall || l1d_cache_wait_EXMEM2;
-assign stall_EXMEM1 = multicycle_alu_stall || l1d_cache_wait_EXMEM2;
+assign stall_FE1 = exmem1_uses_exmem2_result || multicycle_alu_stall || l1i_cache_miss_FE2 || l1d_cache_wait_EXMEM2 || mu_stall;
+assign stall_FE2 = exmem1_uses_exmem2_result || multicycle_alu_stall || l1d_cache_wait_EXMEM2 || mu_stall;
+assign stall_REG = exmem1_uses_exmem2_result || multicycle_alu_stall || l1d_cache_wait_EXMEM2 || mu_stall;
+assign stall_EXMEM1 = multicycle_alu_stall || l1d_cache_wait_EXMEM2 || mu_stall;
 
 wire multicycle_alu_stall;
 assign multicycle_alu_stall = arithm_EXMEM2 && !multicycle_alu_done_EXMEM2;
+
+wire mu_stall;
+assign mu_stall = mem_io_EXMEM2 && !mu_request_finished_EXMEM2;
 
 // Possible hazard situations:
 
@@ -113,7 +142,8 @@ assign multicycle_alu_stall = arithm_EXMEM2 && !multicycle_alu_done_EXMEM2;
 // TODO: when adding support for more multicycle memory, add here as well!
 wire exmem1_uses_exmem2_result;
 assign exmem1_uses_exmem2_result = 
-    (pop_EXMEM2 || (mem_read_EXMEM2 && (l1d_cache_hit_EXMEM2 || !mem_multicycle_EXMEM2)) || was_cache_miss_EXMEM2 || (arithm_EXMEM2 && multicycle_alu_done_EXMEM2)) && 
+    (pop_EXMEM2 || (mem_read_EXMEM2 && (l1d_cache_hit_EXMEM2 || !mem_multicycle_EXMEM2)) || was_cache_miss_EXMEM2 || mu_request_finished_EXMEM2 ||
+    (arithm_EXMEM2 && multicycle_alu_done_EXMEM2)) && 
     (dreg_EXMEM2 == areg_EXMEM1 || dreg_EXMEM2 == breg_EXMEM1);
 
 // - EXMEM1 uses result of multicycle EXMEM2 at PC-1 and dreg of PC-2 -> jump to same address to resolve
@@ -539,8 +569,6 @@ AddressDecoder addressDecoder_EXMEM1 (
     .rw(mem_read_EXMEM1 || mem_write_EXMEM1),
 
     .mem_sdram(mem_sdram_EXMEM1),
-    .mem_sdcard(),
-    .mem_spiflash(),
     .mem_io(),
     .mem_rom(),
     .mem_vram32(),
@@ -730,8 +758,6 @@ wire mem_multicycle_EXMEM2;
 wire [31:0] mem_local_address_EXMEM2;
 
 wire mem_sdram_EXMEM2;
-wire mem_sdcard_EXMEM2;
-wire mem_spiflash_EXMEM2;
 wire mem_io_EXMEM2;
 wire mem_vram32_EXMEM2;
 wire mem_vram8_EXMEM2;
@@ -743,8 +769,6 @@ AddressDecoder addressDecoder_EXMEM2 (
     .rw(mem_read_EXMEM2 || mem_write_EXMEM2),
 
     .mem_sdram(mem_sdram_EXMEM2),
-    .mem_sdcard(mem_sdcard_EXMEM2),
-    .mem_spiflash(mem_spiflash_EXMEM2),
     .mem_io(mem_io_EXMEM2),
     .mem_rom(),
     .mem_vram32(mem_vram32_EXMEM2),
@@ -858,6 +882,58 @@ assign l1d_cache_controller_we = mem_write_EXMEM2;
 // Wire to check if the current instruction was a cache miss
 wire l1d_cache_wait_EXMEM2 = (l1d_cache_miss_EXMEM2 || (mem_write_EXMEM2 && mem_sdram_EXMEM2)) && !was_cache_miss_EXMEM2;
 
+// State machine for Memory Unit/IO access
+localparam MU_IDLE = 2'b00;
+localparam MU_STARTED = 2'b01;
+localparam MU_DONE = 2'b10;
+reg [1:0] mu_state_EXMEM2 = 2'b00;
+reg mu_request_finished_EXMEM2 = 1'b0;
+reg [31:0] mu_q_EXMEM2 = 32'd0;
+
+always @(posedge clk) begin
+    if (reset) begin
+        mu_state_EXMEM2 <= MU_IDLE;
+        mu_start <= 1'b0;
+        mu_addr <= 32'd0;
+        mu_data <= 32'd0;
+        mu_we <= 1'b0;
+
+        mu_request_finished_EXMEM2 <= 1'b0;
+        mu_q_EXMEM2 <= 32'd0;
+    end else begin
+        case (mu_state_EXMEM2)
+            MU_IDLE: begin
+                mu_request_finished_EXMEM2 <= 1'b0;
+                mu_q_EXMEM2 <= 32'd0;
+                // Checking for mem_io_EXMEM2 is enough, as it is only high when read or write is high too (see AddressDecoder)
+                if (mem_io_EXMEM2 && !mu_request_finished_EXMEM2) begin
+                    mu_start <= 1'b1;
+                    mu_addr <= mem_local_address_EXMEM2;
+                    mu_data <= data_b_EXMEM2;
+                    mu_we <= mem_write_EXMEM2;
+                    mu_state_EXMEM2 <= MU_STARTED;
+                end
+            end
+            
+            MU_STARTED: begin
+                mu_start <= 1'b0;
+                mu_addr <= 32'd0;
+                mu_data <= 32'd0;
+                mu_we <= 1'b0;
+                mu_state_EXMEM2 <= MU_DONE;
+
+            end
+            
+            MU_DONE: begin
+                if (mu_done) begin
+                    mu_q_EXMEM2 <= mu_q;
+                    mu_request_finished_EXMEM2 <= 1'b1;
+                    mu_state_EXMEM2 <= MU_IDLE;
+                end
+            end
+        endcase
+    end
+end
 
 // Forward to next stage
 wire [31:0] instr_WB;
@@ -868,7 +944,7 @@ Regr #(
     .in(instr_EXMEM2),
     .out(instr_WB),
     .hold(1'b0),
-    .clear(l1d_cache_wait_EXMEM2 || multicycle_alu_stall || reset) // Insert bubble if EXMEM2 is stalling
+    .clear(l1d_cache_wait_EXMEM2 || multicycle_alu_stall || mu_stall || reset) // Insert bubble if EXMEM2 is stalling
 );
 
 wire [31:0] alu_y_WB;
@@ -937,6 +1013,16 @@ Regr #(
     .clear(reset)
 );
 
+wire [31:0] mu_q_WB;
+Regr #(
+    .N(32)
+) regr_MU_Q_WB (
+    .clk (clk),
+    .in(mu_q_EXMEM2),
+    .out(mu_q_WB),
+    .hold(1'b0),
+    .clear(reset)
+);
 
 /*
  * Stage 6: Writeback Register
@@ -995,8 +1081,6 @@ ControlUnit controlUnit_WB (
 
 // Re-use address decoder to determine from which memory result to use in data_d
 wire mem_sdram_WB;
-wire mem_sdcard_WB;
-wire mem_spiflash_WB;
 wire mem_io_WB;
 wire mem_rom_WB;
 wire mem_vram32_WB;
@@ -1011,8 +1095,6 @@ AddressDecoder addressDecoder_WB (
     .rw(mem_read_WB),
 
     .mem_sdram(mem_sdram_WB),
-    .mem_sdcard(mem_sdcard_WB),
-    .mem_spiflash(mem_spiflash_WB),
     .mem_io(mem_io_WB),
     .mem_rom(mem_rom_WB),
     .mem_vram32(mem_vram32_WB),
@@ -1031,6 +1113,7 @@ assign data_d_WB =  (pop_WB) ? stack_q_WB :
                     (mem_vram8_WB) ? vram8_q :
                     (mem_vrampx_WB) ? vramPX_q :
                     (arithm_WB) ? multicycle_alu_y_WB :
+                    (mem_io_WB) ? mu_q_WB :
                     alu_y_WB;
 
 endmodule

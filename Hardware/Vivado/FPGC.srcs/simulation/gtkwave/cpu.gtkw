@@ -1,21 +1,20 @@
 [*]
 [*] GTKWave Analyzer v3.3.121 (w)1999-2024 BSI
-[*] Sun Sep 28 21:13:05 2025
+[*] Wed Oct  1 14:51:52 2025
 [*]
 [dumpfile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd"
-[dumpfile_mtime] "Sun Sep 28 21:12:11 2025"
-[dumpfile_size] 1390488
+[dumpfile_mtime] "Wed Oct  1 14:51:03 2025"
+[dumpfile_size] 2288534
 [savefile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/cpu.gtkw"
-[timestart] 7049200
-[size] 1536 881
+[timestart] 0
+[size] 1920 1033
 [pos] -1 -1
-*-17.252371 7460500 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-21.452370 5200000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] cpu_tb.
-[treeopen] cpu_tb.cpu.
 [sst_width] 321
 [signals_width] 445
 [sst_expanded] 1
-[sst_vpaned_height] 515
+[sst_vpaned_height] 667
 @28
 cpu_tb.clk
 cpu_tb.clk100
@@ -368,7 +367,6 @@ cpu_tb.cpu.mem_sdram_EXMEM2
 cpu_tb.cpu.was_cache_miss_EXMEM2
 cpu_tb.cpu.l1d_cache_miss_EXMEM2
 cpu_tb.cpu.mem_read_EXMEM2
-@29
 cpu_tb.cpu.l1d_cache_hit_EXMEM2
 @200
 -
@@ -400,7 +398,6 @@ cpu_tb.cpu.mem_multicycle_EXMEM2
 @28
 cpu_tb.cpu.mem_sdram_EXMEM2
 cpu_tb.cpu.mem_sdram_EXMEM2
-cpu_tb.cpu.mem_spiflash_EXMEM2
 cpu_tb.cpu.mem_io_EXMEM2
 @200
 -
@@ -457,6 +454,39 @@ cpu_tb.cpu.multiCycleALU_EXMEM2.y[31:0]
 cpu_tb.cpu.multiCycleALU_EXMEM2.done
 @200
 -
+-EXMEM2 - MemoryUnit
+@28
+cpu_tb.memory_unit.clk
+cpu_tb.memory_unit.reset
+@200
+-
+@28
+cpu_tb.memory_unit.start
+@22
+cpu_tb.memory_unit.addr[31:0]
+cpu_tb.memory_unit.data[31:0]
+@28
+cpu_tb.memory_unit.we
+@22
+cpu_tb.memory_unit.q[31:0]
+@28
+cpu_tb.memory_unit.done
+@200
+-
+@22
+cpu_tb.memory_unit.state[7:0]
+@200
+-
+@28
+cpu_tb.memory_unit.uart_tx
+cpu_tb.memory_unit.uart_rx
+@25
+cpu_tb.memory_unit.uart_rx_q[7:0]
+@28
+cpu_tb.memory_unit.uart_irq
+@200
+-
+-
 -WB
 @28
 cpu_tb.cpu.clk
@@ -466,13 +496,14 @@ cpu_tb.cpu.PC_WB[31:0]
 cpu_tb.cpu.instr_WB[31:0]
 @200
 -
+@22
+cpu_tb.cpu.mu_q_WB[31:0]
+@200
 -
 -WB - Memory selection
 @28
 cpu_tb.cpu.pop_WB
 cpu_tb.cpu.mem_sdram_WB
-cpu_tb.cpu.mem_sdcard_WB
-cpu_tb.cpu.mem_spiflash_WB
 cpu_tb.cpu.mem_io_WB
 cpu_tb.cpu.mem_rom_WB
 cpu_tb.cpu.mem_vram32_WB

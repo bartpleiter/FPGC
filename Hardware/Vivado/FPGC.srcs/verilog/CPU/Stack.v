@@ -1,6 +1,6 @@
 /*
  * Stack
- * 32 Bits wide, 1024 words long
+ * 32 Bits wide, 128 words long
  * Not directly addressable, only push and pop operations supported
  */
 
@@ -18,7 +18,7 @@ module Stack (
 );
 
 reg [9:0]   ptr = 10'd0;    // Stack pointer
-reg [31:0]  stack [1023:0]; // Stack memory
+reg [31:0]  stack [128:0]; // Stack memory
 
 // RamResult is used to store the result of a pop operation
 // useRamResult is used to determine if the result of a pop operation should be used
@@ -74,7 +74,7 @@ end
 integer i;
 initial
 begin
-    for (i = 0; i < 1024; i = i + 1)
+    for (i = 0; i < 128; i = i + 1)
     begin
         stack[i] = 32'd0;
     end

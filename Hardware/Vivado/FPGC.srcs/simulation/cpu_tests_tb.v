@@ -15,12 +15,17 @@
 `include "Hardware/Vivado/FPGC.srcs/verilog/CPU/ControlUnit.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/CPU/Stack.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/CPU/BranchJumpUnit.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/InterruptController.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/CPU/AddressDecoder.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/CPU/CacheController.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/Memory/ROM.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/Memory/VRAM.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/Memory/DPRAM.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/Memory/MIG7Mock.v"
+
+`include "Hardware/Vivado/FPGC.srcs/verilog/Memory/MemoryUnit.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/IO/UARTrx.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/IO/UARTtx.v"
 
 `include "Hardware/Vivado/FPGC.srcs/verilog/GPU/FSX.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/GPU/BGWrenderer.v"
@@ -418,6 +423,34 @@ FSX fsx (
     .frameDrawn(frameDrawn)
 );
 
+//------------------Memory Unit (50MHz)----------------------
+wire        mu_start;
+wire [31:0] mu_addr;
+wire [31:0] mu_data;
+wire        mu_we;
+wire [31:0] mu_q;
+wire        mu_done;
+
+wire        uart_tx;
+// We ignore uart_rx in simulation, as we will connect uart_tx as rx for testing
+wire        uart_irq;
+
+MemoryUnit memory_unit (
+    .clk(clk),
+    .reset(reset),
+
+    .start(mu_start),
+    .addr(mu_addr),
+    .data(mu_data),
+    .we(mu_we),
+    .q(mu_q),
+    .done(mu_done),
+
+    .uart_rx(uart_tx), // Loopback for testing
+    .uart_tx(uart_tx),
+    .uart_irq(uart_irq)
+);
+
 //-----------------------CPU-------------------------
 B32P2 cpu (
     // Clock and reset
@@ -473,7 +506,15 @@ B32P2 cpu (
     .l1d_cache_controller_done(l1d_cache_controller_done),
     .l1d_cache_controller_result(l1d_cache_controller_result),
 
-    .l1_clear_cache(l1_clear_cache)
+    .l1_clear_cache(l1_clear_cache),
+
+    // Memory Unit connections
+    .mu_start(mu_start),
+    .mu_addr(mu_addr),
+    .mu_data(mu_data),
+    .mu_we(mu_we),
+    .mu_q(mu_q),
+    .mu_done(mu_done)
 );
 
 // 100 MHz clock
