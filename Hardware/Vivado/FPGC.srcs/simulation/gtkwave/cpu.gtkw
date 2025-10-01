@@ -1,21 +1,21 @@
 [*]
 [*] GTKWave Analyzer v3.3.121 (w)1999-2024 BSI
-[*] Wed Oct  1 17:45:37 2025
+[*] Wed Oct  1 22:29:15 2025
 [*]
 [dumpfile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd"
-[dumpfile_mtime] "Wed Oct  1 17:42:43 2025"
-[dumpfile_size] 2361078
+[dumpfile_mtime] "Wed Oct  1 22:23:20 2025"
+[dumpfile_size] 634143
 [savefile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/cpu.gtkw"
-[timestart] 0
-[size] 1920 1033
+[timestart] 21005000
+[size] 1536 881
 [pos] -1 -1
-*-18.752369 964000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-18.752369 21780000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] cpu_tb.
 [treeopen] cpu_tb.cpu.
 [sst_width] 321
 [signals_width] 445
 [sst_expanded] 1
-[sst_vpaned_height] 667
+[sst_vpaned_height] 552
 @28
 cpu_tb.clk
 cpu_tb.clk100
@@ -491,7 +491,7 @@ cpu_tb.memory_unit.uart_irq
 -WB
 @28
 cpu_tb.cpu.clk
-@22
+@25
 cpu_tb.cpu.PC_WB[31:0]
 @28
 cpu_tb.cpu.instr_WB[31:0]
@@ -584,12 +584,12 @@ cpu_tb.cache_controller.l1d_ctrl_q[273:0]
 -Interrupts
 @28
 cpu_tb.cpu.interruptController.int_triggered[7:0]
-@29
 cpu_tb.cpu.interrupts[7:0]
-@28
 cpu_tb.cpu.interrupt_valid
 @24
 cpu_tb.cpu.interruptController.intID[7:0]
+@28
+cpu_tb.cpu.interruptController.intDisabled
 @200
 -
 -

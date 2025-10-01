@@ -516,7 +516,7 @@ B32P2 cpu (
     .mu_q(mu_q),
     .mu_done(mu_done),
 
-    // Interrupts
+    // Interrupts, right is highest priority
     .interrupts({8'd0}) // We disable interrupts for the CPU tests, as otherwise they will mess up the tests run from RAM (until they have interrupt handling implemented)
 );
 
