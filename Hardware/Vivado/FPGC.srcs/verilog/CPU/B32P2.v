@@ -21,7 +21,8 @@
  */
 module B32P2 #(
     parameter ROM_ADDRESS = 32'h7800000, // Initial PC value, so the CPU starts executing from ROM first
-    parameter INTERRUPT_JUMP_ADDR = 32'd1 // Address to jump to when an interrupt is triggered
+    parameter INTERRUPT_JUMP_ADDR = 32'd1, // Address to jump to when an interrupt is triggered
+    parameter NUM_INTERRUPTS = 8 // Number of interrupt lines (currently requires changing InterruptController.v as well)
 ) (
     //========================
     // System interface
@@ -102,7 +103,12 @@ module B32P2 #(
     output reg [31:0]   mu_data = 32'd0,
     output reg          mu_we = 1'b0,
     input  wire [31:0]  mu_q,
-    input  wire         mu_done
+    input  wire         mu_done,
+
+    //========================
+    // Interrupts
+    //========================
+    input wire [NUM_INTERRUPTS-1:0] interrupts
 );
 
 // Flush and Stall signals
@@ -166,27 +172,54 @@ assign hazard_pc2_pc1 =
 wire [1:0] forward_a; // From how many stages ahead to forward from towards ALU input A
 wire [1:0] forward_b; // From how many stages ahead to forward from towards ALU input B
 
-// Interrupt signals
+// Interrupts
+reg intDisabled_FE1 = 1'b0;
+wire intCPU;
+wire [7:0] intID;
+
+InterruptController interruptController(
+.clk(clk),
+.reset(reset),
+
+.interrupts(interrupts),
+
+.intDisabled(intDisabled_FE1),
+.intCPU(intCPU),
+.intID(intID)
+);
+
 wire interrupt_valid;
-assign interrupt_valid = 1'b0; // TODO connect to interrupt controller
+
+assign interrupt_valid = (
+    intCPU && !intDisabled_FE1 &&
+    PC_EXMEM1 < ROM_ADDRESS && // We ignore interrupts when executing from ROM (this assumes SDRAM is placed before ROM in the memory map)
+    jump_valid_EXMEM1 // We only allow interrupts during jumps to limit possible hazard situations
+);
+
+// Program counter backup for interrupts
 reg [31:0] PC_backup = 32'd0;
 
-// Program counter updater
+
+// Program counter update logic
 reg [31:0] PC_FE1 = ROM_ADDRESS; 
 always @(posedge clk)
 begin
     if (reset)
     begin
         PC_FE1 <= ROM_ADDRESS;
+        intDisabled_FE1 <= 1'b0;
     end
     else
     begin
         if (interrupt_valid)
         begin
+            intDisabled_FE1 <= 1'b1;
+            PC_backup <= PC_EXMEM1; // Backup current PC (in EXMEM1 stage)
             PC_FE1 <= INTERRUPT_JUMP_ADDR;
         end
         else if (reti_EXMEM1)
         begin
+            intDisabled_FE1 <= 1'b0;
             PC_FE1 <= PC_backup;
         end
         else if (jump_valid_EXMEM1)
@@ -629,7 +662,7 @@ assign l1d_pipe_addr = mem_local_address_EXMEM1[9:3]; // Address of the cache li
 // Result based on operation
 wire [31:0] result_EXMEM1;
 assign result_EXMEM1 =  (getPC_EXMEM1) ? PC_EXMEM1 :
-                        (getIntID_EXMEM1) ? 32'd0 : // TODO: connect to interrupt controller
+                        (getIntID_EXMEM1) ? intID :
                         alu_y_EXMEM1;
 
 // Forward to next stage

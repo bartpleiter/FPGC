@@ -514,8 +514,8 @@ wire        mu_done;
 wire        uart_irq;
 
 MemoryUnit memory_unit (
-    .clk(clk),
-    .reset(reset),
+    .clk(clk50),
+    .reset(reset50),
 
     .start(mu_start),
     .addr(mu_addr),
@@ -530,6 +530,18 @@ MemoryUnit memory_unit (
 );
 
 //-----------------------CPU-------------------------
+// Convert frameDrawn to CPU clock domain
+wire frameDrawn_CPU; // Reset synchronized to 50MHz clock
+reg frameDrawn_ff1, frameDrawn_ff2;
+
+always @(posedge clk50)
+begin
+    frameDrawn_ff1 <= frameDrawn;
+    frameDrawn_ff2 <= frameDrawn_ff1;
+end
+
+assign frameDrawn_CPU = frameDrawn_ff2;
+
 B32P2 cpu (
     // Clock and reset
     .clk(clk50),
@@ -592,7 +604,9 @@ B32P2 cpu (
     .mu_data(mu_data),
     .mu_we(mu_we),
     .mu_q(mu_q),
-    .mu_done(mu_done)
+    .mu_done(mu_done),
+
+    .interrupts({uart_irq, frameDrawn_CPU, 6'd0})
 );
 
 endmodule

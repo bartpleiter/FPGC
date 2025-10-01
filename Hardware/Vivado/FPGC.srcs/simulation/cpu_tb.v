@@ -514,7 +514,10 @@ B32P2 cpu (
     .mu_data(mu_data),
     .mu_we(mu_we),
     .mu_q(mu_q),
-    .mu_done(mu_done)
+    .mu_done(mu_done),
+
+    // Interrupts
+    .interrupts({uart_irq, frameDrawn, 6'd0})
 );
 
 // 100 MHz clock

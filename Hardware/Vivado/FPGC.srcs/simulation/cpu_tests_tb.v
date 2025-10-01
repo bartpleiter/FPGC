@@ -514,7 +514,10 @@ B32P2 cpu (
     .mu_data(mu_data),
     .mu_we(mu_we),
     .mu_q(mu_q),
-    .mu_done(mu_done)
+    .mu_done(mu_done),
+
+    // Interrupts
+    .interrupts({8'd0}) // We disable interrupts for the CPU tests, as otherwise they will mess up the tests run from RAM (until they have interrupt handling implemented)
 );
 
 // 100 MHz clock
