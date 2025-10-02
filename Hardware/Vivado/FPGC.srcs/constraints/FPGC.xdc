@@ -5,6 +5,9 @@ set_property BITSTREAM.CONFIG.CONFIGRATE 50 [current_design]
 set_property BITSTREAM.CONFIG.SPI_BUSWIDTH 4 [current_design]
 set_property BITSTREAM.CONFIG.SPI_FALL_EDGE Yes [current_design]
 
+create_clock -period 5.000 -name sys_clk [get_ports sys_clk_p]
+#create_generated_clock -name clk100 -source [get_ports sys_clk_p] -divide_by 2 [get_pins mig7_ddr3/ui_clk]
+
 set_property -dict {PACKAGE_PIN R4 IOSTANDARD DIFF_SSTL15} [get_ports sys_clk_p]
 set_property -dict {PACKAGE_PIN R14 IOSTANDARD LVCMOS33} [get_ports sys_rstn]
 
@@ -17,5 +20,5 @@ set_property -dict {PACKAGE_PIN V18  IOSTANDARD TMDS_33} [get_ports HDMI_D0_P]
 set_property -dict {PACKAGE_PIN Y18  IOSTANDARD TMDS_33} [get_ports HDMI_CLK_P]
 #set_property -dict {PACKAGE_PIN Y19  IOSTANDARD TMDS_33} [get_ports HDMI_CLK_N]
 
-create_clock -period 5.000 -name sys_clk [get_ports sys_clk_p]
-#create_generated_clock -name clk100 -source [get_ports sys_clk_p] -divide_by 2 [get_pins mig7_ddr3/ui_clk]
+set_property -dict {PACKAGE_PIN P15 IOSTANDARD LVCMOS33} [get_ports uart_tx]
+set_property -dict {PACKAGE_PIN P14 IOSTANDARD LVCMOS33} [get_ports uart_rx]

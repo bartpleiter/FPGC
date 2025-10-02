@@ -5,6 +5,7 @@ from asmpy.assembler import Assembler
 from asmpy.preprocessor import Preprocessor
 from asmpy.utils import parse_args, read_input_file
 from asmpy.logger import CustomFormatter, configure_logging
+from asmpy.models.data_types import Number
 
 
 def main():
@@ -28,7 +29,13 @@ def main():
         logger.error(f"Preprocessor failed: {e}")
         sys.exit(1)
 
-    assembler = Assembler(preprocessed_lines, args.output)
+    try:
+        offset_address = Number(args.offset)
+    except ValueError as e:
+        logger.error(f"Invalid offset value: {args.offset}. {e}")
+        sys.exit(1)
+
+    assembler = Assembler(preprocessed_lines, args.output, offset_address=offset_address)
     try:
         assembler.assemble(add_header=args.header)
     except Exception as e:

@@ -28,6 +28,14 @@ def parse_args() -> argparse.Namespace:
         help="Add header instructions (jump Main, jump Int, .dw line_count) to the output",
     )
     parser.add_argument(
+        "-o",
+        "--offset",
+        type=str,
+        default="0",
+        help="Offset address for the program (affects label addresses). "
+             "Can be decimal (21), hex (0xabcd), or binary (0b1010). Default is 0.",
+    )
+    parser.add_argument(
         "--help",
         action="help",
         help="Show this help message and exit",

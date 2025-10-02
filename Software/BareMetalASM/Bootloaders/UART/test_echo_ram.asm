@@ -1,7 +1,4 @@
 Main:
-    load32 0x7000000 r1 ; UART tx address
-    load 65 r2        ; ASCII 'A'
-    write 0 r1 r2     ; Send 'A' to UART
     halt
 
 Int:
