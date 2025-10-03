@@ -55,3 +55,5 @@ help:
 	@echo "check     - Run ruff, mypy and pytest"
 	@echo "clean     - Clean up files and remove venv"
 	@echo "help      - Show this help"
+
+# TODO: add commands for compiling a file into a bin, sending bin over UART, triggering simulation scripts, etc.

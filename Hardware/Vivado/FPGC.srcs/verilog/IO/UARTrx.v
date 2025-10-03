@@ -156,6 +156,7 @@ begin
                 r_Rx_DV <= 1'b1;
                 r_Clock_Count <= 0;
                 r_SM_Main <= s_CLEANUP;
+                $display("%d: uart_rx byte 0x%h", $time, o_Rx_Byte);
             end
         end // case: s_RX_STOP_BIT
 

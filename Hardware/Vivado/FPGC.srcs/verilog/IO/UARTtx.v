@@ -90,6 +90,7 @@ begin
                 r_Tx_Active <= 1'b1;
                 r_Tx_Data <= i_Tx_Byte;
                 r_SM_Main <= s_TX_START_BIT;
+                $display("%d: uart_tx byte 0x%h", $time, i_Tx_Byte);
             end
             else
                 r_SM_Main <= s_IDLE;

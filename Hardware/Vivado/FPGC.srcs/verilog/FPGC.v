@@ -1,5 +1,5 @@
 module FPGC (
-    // Clocks and reset
+    // Clock and reset
     input wire sys_clk_p,
     input wire sys_clk_n,
     input wire sys_rstn,
@@ -60,6 +60,7 @@ BUFG bufgclk50 (
     .I (clk50_unb),
     .O (clk50)
 );
+
 
 // GPU clocks
 wire clkPixel;
@@ -391,7 +392,7 @@ mig_7series_0 mig7_ddr3
 .ui_clk_sync_rst                (),   // Output active high reset, unused
 
 .sys_clk_i                      (clk200), // Input 200MHz
-.sys_rst                        (sys_rstn) // Input active low reset
+.sys_rst                        (1'b1) // Input active low reset, we do not want to reset the mig
 );
 
 
@@ -411,6 +412,7 @@ wire        l1d_cache_controller_done;
 wire [31:0] l1d_cache_controller_result;
 
 wire l1_clear_cache;
+wire l1_clear_cache_done;
 
 // Instantiate CacheController
 CacheController #(
@@ -436,6 +438,7 @@ CacheController #(
     .cpu_EXMEM2_result(l1d_cache_controller_result),
 
     .cpu_clear_cache(l1_clear_cache),
+    .cpu_clear_cache_done(l1_clear_cache_done),
 
     // L1i RAM ctrl port
     .l1i_ctrl_d(l1i_ctrl_d),
@@ -512,6 +515,7 @@ wire        mu_done;
 
 // UART RX and TX are already defined on top level
 wire        uart_irq;
+wire        OST1_int;
 
 MemoryUnit memory_unit (
     .clk(clk50),
@@ -526,7 +530,8 @@ MemoryUnit memory_unit (
 
     .uart_rx(uart_rx),
     .uart_tx(uart_tx),
-    .uart_irq(uart_irq)
+    .uart_irq(uart_irq),
+    .OST1_int(OST1_int)
 );
 
 //-----------------------CPU-------------------------
@@ -597,6 +602,7 @@ B32P2 cpu (
     .l1d_cache_controller_result(l1d_cache_controller_result),
 
     .l1_clear_cache(l1_clear_cache),
+    .l1_clear_cache_done(l1_clear_cache_done),
 
     // Memory Unit connections
     .mu_start(mu_start),
@@ -607,7 +613,7 @@ B32P2 cpu (
     .mu_done(mu_done),
 
     // Interrupts, right is highest priority
-    .interrupts({6'd0, frameDrawn_CPU, uart_irq})
+    .interrupts({5'd0, frameDrawn_CPU, OST1_int, uart_irq})
 );
 
 endmodule

@@ -93,7 +93,8 @@ module B32P2 #(
     input  wire         l1d_cache_controller_done,
     input  wire [31:0]  l1d_cache_controller_result, 
 
-    output wire         l1_clear_cache,
+    output reg          l1_clear_cache = 1'b0,
+    input wire          l1_clear_cache_done,
 
     //========================
     // Memory Unit
@@ -130,16 +131,18 @@ wire stall_REG;
 wire stall_EXMEM1;
 
 // TODO stall all previous stages on EXMEM2 busy
-assign stall_FE1 = exmem1_uses_exmem2_result || multicycle_alu_stall || l1i_cache_miss_FE2 || l1d_cache_wait_EXMEM2 || mu_stall;
-assign stall_FE2 = exmem1_uses_exmem2_result || multicycle_alu_stall || l1d_cache_wait_EXMEM2 || mu_stall;
-assign stall_REG = exmem1_uses_exmem2_result || multicycle_alu_stall || l1d_cache_wait_EXMEM2 || mu_stall;
-assign stall_EXMEM1 = multicycle_alu_stall || l1d_cache_wait_EXMEM2 || mu_stall;
+assign stall_FE1 = exmem1_uses_exmem2_result || multicycle_alu_stall || l1i_cache_miss_FE2 || l1d_cache_wait_EXMEM2 || mu_stall || cc_stall;
+assign stall_FE2 = exmem1_uses_exmem2_result || multicycle_alu_stall || l1d_cache_wait_EXMEM2 || mu_stall || cc_stall;
+assign stall_REG = exmem1_uses_exmem2_result || multicycle_alu_stall || l1d_cache_wait_EXMEM2 || mu_stall || cc_stall;
+assign stall_EXMEM1 = multicycle_alu_stall || l1d_cache_wait_EXMEM2 || mu_stall || cc_stall;
 
 wire multicycle_alu_stall;
 assign multicycle_alu_stall = arithm_EXMEM2 && !multicycle_alu_done_EXMEM2;
 
 wire mu_stall;
 assign mu_stall = mem_io_EXMEM2 && !mu_request_finished_EXMEM2;
+wire cc_stall;
+assign cc_stall = clearCache_EXMEM2 && !cc_request_finished_EXMEM2;
 
 // Possible hazard situations:
 
@@ -315,8 +318,7 @@ wire l1i_cache_hit_FE2 =
     valid_mem_access_FE2 &&
     !bubble_FE2 &&
     (l1i_tag_FE2 == l1i_pipe_q[17:2]) &&
-    l1i_pipe_q[1] && // Valid bit
-    l1i_cache_miss_state_FE2 == L1I_CACHE_IDLE; // Make sure we are not currently handling a cache miss
+    l1i_pipe_q[1]; // Valid bit
 
 wire [31:0] l1i_cache_hit_q_FE2 = l1i_pipe_q[32 * l1i_offset_FE2 + 18 +: 32]; // Note that the +: is used to select base +: width
 
@@ -356,7 +358,8 @@ always @(posedge clk) begin
             
             L1I_CACHE_STARTED: begin
                 // Request has been started, so if there is a flush we need to abort it
-                if (flush_FE2) begin
+                // If we suddenly get a cache hit after starting (because of ignore signal), we can abort this request too
+                if (flush_FE2 || (l1i_tag_FE2 == l1i_pipe_q[17:2] && l1i_pipe_q[1])) begin
                     l1i_cache_miss_state_FE2 <= L1I_CACHE_IDLE;
                     l1i_cache_controller_start_reg <= 1'b0;
                     l1i_cache_controller_flush_reg <= 1'b1;
@@ -369,7 +372,8 @@ always @(posedge clk) begin
             
             L1I_CACHE_WAIT_DONE: begin
                 // Request has been started, so if there is a flush we need to abort it
-                if (flush_FE2) begin
+                // If we suddenly get a cache hit after starting (because of ignore signal), we can abort this request too
+                if (flush_FE2 || (l1i_tag_FE2 == l1i_pipe_q[17:2] && l1i_pipe_q[1])) begin
                     l1i_cache_miss_state_FE2 <= L1I_CACHE_IDLE;
                     l1i_cache_controller_flush_reg <= 1'b1;
                 end
@@ -586,7 +590,7 @@ ControlUnit controlUnit_EXMEM1 (
     .reti(reti_EXMEM1),
     .getIntID(getIntID_EXMEM1),
     .getPC(getPC_EXMEM1),
-    .clearCache(l1_clear_cache) // We set l1_clear_cache in the EXMEM1 stage to be consistent with the other control signals
+    .clearCache() // We do not set clearCache here, as we want to stall the pipeline when clearing the cache
 );
 
 wire mem_sdram_EXMEM1;
@@ -751,6 +755,8 @@ InstructionDecoder instrDec_EXMEM2 (
     .sig()
 );
 
+wire clearCache_EXMEM2;
+
 ControlUnit controlUnit_EXMEM2 (
     .instrOP(instrOP_EXMEM2),
     .aluOP(4'd0),
@@ -770,7 +776,7 @@ ControlUnit controlUnit_EXMEM2 (
     .reti(),
     .getIntID(),
     .getPC(),
-    .clearCache()
+    .clearCache(clearCache_EXMEM2)
 );
 
 wire [31:0] multicycle_alu_y_EXMEM2;
@@ -968,6 +974,47 @@ always @(posedge clk) begin
     end
 end
 
+// Clear cache state machine
+reg [2:0] clearcache_state_EXMEM2 = MU_IDLE;
+localparam CC_IDLE = 2'b00;
+localparam CC_STARTED = 2'b01;
+localparam CC_DONE = 2'b10;
+
+reg cc_request_finished_EXMEM2 = 1'b0;
+
+always @(posedge clk) begin
+    if (reset) begin
+        clearcache_state_EXMEM2 <= MU_IDLE;
+        l1_clear_cache <= 1'b0;
+        cc_request_finished_EXMEM2 <= 1'b0;
+        
+    end else begin
+        case (clearcache_state_EXMEM2)
+            CC_IDLE: begin
+                l1_clear_cache <= 1'b0;
+                cc_request_finished_EXMEM2 <= 1'b0;
+                if (clearCache_EXMEM2 && !cc_request_finished_EXMEM2) begin
+                    l1_clear_cache <= 1'b1;
+                    clearcache_state_EXMEM2 <= CC_STARTED;
+                end
+            end
+            
+            CC_STARTED: begin
+                l1_clear_cache <= 1'b0;
+                clearcache_state_EXMEM2 <= CC_DONE;
+            end
+            
+            CC_DONE: begin
+                if (l1_clear_cache_done) begin
+                    cc_request_finished_EXMEM2 <= 1'b1;
+                    clearcache_state_EXMEM2 <= CC_IDLE;
+                end
+                
+            end
+        endcase
+    end
+end
+
 // Forward to next stage
 wire [31:0] instr_WB;
 Regr #(
@@ -977,7 +1024,7 @@ Regr #(
     .in(instr_EXMEM2),
     .out(instr_WB),
     .hold(1'b0),
-    .clear(l1d_cache_wait_EXMEM2 || multicycle_alu_stall || mu_stall || reset) // Insert bubble if EXMEM2 is stalling
+    .clear(l1d_cache_wait_EXMEM2 || multicycle_alu_stall || mu_stall || cc_stall || reset) // Insert bubble if EXMEM2 is stalling
 );
 
 wire [31:0] alu_y_WB;

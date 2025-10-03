@@ -26,7 +26,10 @@ module MemoryUnit(
     // UART
     input wire          uart_rx,
     output wire         uart_tx,
-    output wire         uart_irq
+    output wire         uart_irq,
+
+    // Timer 1 interrupt
+    output wire         OST1_int
 );
 
 //========================
@@ -58,6 +61,19 @@ UARTrx uart_rx_controller(
 .o_Rx_Byte  (uart_rx_q)
 );
 
+// OS timer 1
+reg OST1_trigger = 1'b0;
+reg OST1_set = 1'b0;
+reg [31:0] OST1_value = 32'd0;
+
+OStimer OST1(
+.clk        (clk),
+.reset      (reset),
+.timerValue (OST1_value),
+.setValue   (OST1_set),
+.trigger    (OST1_trigger),
+.interrupt  (OST1_int)
+);
 
 //========================
 // Memory Unit Logic
@@ -65,14 +81,18 @@ UARTrx uart_rx_controller(
 // Address mappings
 localparam ADDR_UART_TX         = 32'h7000000; // UART tx
 localparam ADDR_UART_RX         = 32'h7000001; // UART rx
+localparam ADDR_TIMER1_VALUE    = 32'h7000002; // Timer 1 value
+localparam ADDR_TIMER1_START    = 32'h7000003; // Timer 1 start
 
-localparam ADDR_OOB             = 32'h7000002; // All addresses >= this are out of bounds and return a constant
+localparam ADDR_OOB             = 32'h7000004; // All addresses >= this are out of bounds and return a constant
 
 // State machine states
 localparam STATE_IDLE           = 8'd0;
-localparam STATE_OOB            = 8'd1;
+localparam STATE_RETURN_ZERO            = 8'd1;
 localparam STATE_WAIT_UART_TX   = 8'd2;
 localparam STATE_WAIT_UART_RX   = 8'd3;
+localparam STATE_WAIT_TIMER1_VALUE   = 8'd4;
+localparam STATE_WAIT_TIMER1_START   = 8'd5;
 reg [7:0] state = 8'd0;
 
 always @(posedge clk) begin
@@ -84,6 +104,10 @@ always @(posedge clk) begin
 
         uart_tx_start <= 1'b0;
         uart_tx_data <= 8'd0;
+
+        OST1_trigger <= 1'b0;
+        OST1_set <= 1'b0;
+        OST1_value <= 32'd0;
     end else
     begin
         case (state)
@@ -91,10 +115,16 @@ always @(posedge clk) begin
             begin
                 done <= 1'b0;
                 q <= 32'd0;
+
+                OST1_set <= 1'b0;
+                OST1_trigger <= 1'b0;
+
                 if (start)
                 begin
                     if (addr == ADDR_UART_TX)
                     begin
+                        // Set uart_tx signals
+                        // We assume we is high, to prevent lockup if we is low
                         uart_tx_data <= data[7:0];
                         uart_tx_start <= 1'b1;
                         state <= STATE_WAIT_UART_TX;
@@ -106,10 +136,25 @@ always @(posedge clk) begin
                         state <= STATE_WAIT_UART_RX;
                     end
 
+                    if (addr == ADDR_TIMER1_VALUE)
+                    begin
+                        // We assume we is high, to prevent lockup if we is low
+                        OST1_value <= data;
+                        OST1_set <= 1'b1;
+                        state <= STATE_RETURN_ZERO;
+                    end
+
+                    if (addr == ADDR_TIMER1_START)
+                    begin
+                        // We assume we is high, to prevent lockup if we is low
+                        OST1_trigger <= 1'b1;
+                        state <= STATE_RETURN_ZERO;
+                    end
+
                     if (addr >= ADDR_OOB)
                     begin
                         // Out of range
-                        state <= STATE_OOB;
+                        state <= STATE_RETURN_ZERO;
                     end
                 end
             end
@@ -131,7 +176,7 @@ always @(posedge clk) begin
                 state <= STATE_IDLE;
             end
 
-            STATE_OOB:
+            STATE_RETURN_ZERO:
             begin
                 // Out of bounds access
                 done <= 1'b1;

@@ -4,7 +4,7 @@
 source .venv/bin/activate
 
 # Compile ROM code
-if asmpy Software/BareMetalASM/Simulation/cpu_rom.asm Hardware/Vivado/FPGC.srcs/simulation/memory/rom.list
+if asmpy Software/BareMetalASM/Simulation/cpu_rom.asm Hardware/Vivado/FPGC.srcs/simulation/memory/rom.list -o 0x7800000
 then
     echo "ROM code compiled successfully"
 else
@@ -13,7 +13,7 @@ else
 fi
 
 # Compile RAM code
-if asmpy Software/BareMetalASM/Simulation/cpu_ram.asm Hardware/Vivado/FPGC.srcs/simulation/memory/ram.list
+if asmpy Software/BareMetalASM/Simulation/cpu_ram.asm Hardware/Vivado/FPGC.srcs/simulation/memory/ram.list -h
 then
     # Convert to 256 bit lines for mig7 mock
     python3 BuildTools/Utils/convert_to_256_bit.py Hardware/Vivado/FPGC.srcs/simulation/memory/ram.list Hardware/Vivado/FPGC.srcs/simulation/memory/mig7mock.list

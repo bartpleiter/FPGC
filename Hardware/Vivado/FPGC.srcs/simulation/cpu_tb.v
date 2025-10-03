@@ -26,6 +26,7 @@
 `include "Hardware/Vivado/FPGC.srcs/verilog/Memory/MemoryUnit.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/IO/UARTrx.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/IO/UARTtx.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/IO/OStimer.v"
 
 `include "Hardware/Vivado/FPGC.srcs/verilog/GPU/FSX.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/GPU/BGWrenderer.v"
@@ -284,7 +285,7 @@ MIG7Mock #(
     .ADDR_WIDTH(29),
     .DATA_WIDTH(256),
     .MASK_WIDTH(32),
-    .RAM_DEPTH(4194304),
+    .RAM_DEPTH(33554432),
     .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/mig7mock.list")
 ) mig7mock (
     .sys_clk_i(clk100),
@@ -333,6 +334,7 @@ wire        l1d_cache_controller_done;
 wire [31:0] l1d_cache_controller_result;
 
 wire l1_clear_cache;
+wire l1_clear_cache_done;
 
 // Instantiate CacheController
 CacheController #(
@@ -358,6 +360,7 @@ CacheController #(
     .cpu_EXMEM2_result(l1d_cache_controller_result),
 
     .cpu_clear_cache(l1_clear_cache),
+    .cpu_clear_cache_done(l1_clear_cache_done),
 
     // L1i RAM ctrl port
     .l1i_ctrl_d(l1i_ctrl_d),
@@ -434,6 +437,7 @@ wire        mu_done;
 wire        uart_tx;
 // We ignore uart_rx in simulation, as we will connect uart_tx as rx for testing
 wire        uart_irq;
+wire        OST1_int;
 
 MemoryUnit memory_unit (
     .clk(clk),
@@ -448,7 +452,8 @@ MemoryUnit memory_unit (
 
     .uart_rx(uart_tx), // Loopback for testing
     .uart_tx(uart_tx),
-    .uart_irq(uart_irq)
+    .uart_irq(uart_irq),
+    .OST1_int(OST1_int)
 );
 
 //-----------------------CPU-------------------------
@@ -507,6 +512,7 @@ B32P2 cpu (
     .l1d_cache_controller_result(l1d_cache_controller_result),
 
     .l1_clear_cache(l1_clear_cache),
+    .l1_clear_cache_done(l1_clear_cache_done),
 
     // Memory Unit connections
     .mu_start(mu_start),
@@ -517,7 +523,7 @@ B32P2 cpu (
     .mu_done(mu_done),
 
     // Interrupts, right is highest priority
-    .interrupts({6'd0, frameDrawn, uart_irq})
+    .interrupts({5'd0, frameDrawn, OST1_int, uart_irq})
 );
 
 // 100 MHz clock
@@ -533,7 +539,7 @@ end
 integer clk_counter = 0;
 always @(posedge clk) begin
     clk_counter = clk_counter + 1;
-    if (clk_counter == 2000) begin
+    if (clk_counter == 1000) begin
         $display("Simulation finished.");
         $finish;
     end

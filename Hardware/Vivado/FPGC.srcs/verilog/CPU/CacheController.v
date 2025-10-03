@@ -39,6 +39,7 @@ module CacheController
     output reg [31:0]                cpu_EXMEM2_result = 32'd0, // Result of the data access
     // Cache clear interface
     input  wire                      cpu_clear_cache,
+    output reg                       cpu_clear_cache_done = 1'b0,
 
     //========================
     // L1 cache DPRAM interface
@@ -114,7 +115,8 @@ localparam
     STATE_CLEARCACHE_L1D_EVICT_WAIT_READY       = 8'd28,
     STATE_CLEARCACHE_L1D_EVICT_SEND_CMD         = 8'd29,
     STATE_CLEARCACHE_L1D_CLEAR                  = 8'd30,
-    STATE_CLEARCACHE_L1D_CLEAR_FINISH           = 8'd31;
+    STATE_CLEARCACHE_L1D_CLEAR_FINISH           = 8'd31,
+    STATE_CLEARCACHE_DONE                       = 8'd32;
 
 
 reg [7:0] state = STATE_IDLE;
@@ -143,6 +145,8 @@ reg [255:0] cache_line_data = 256'b0;
 reg [6:0] clear_cache_index = 7'd0; // Index for iterating through cache lines (0-127)
 
 reg ignore_fe2_result = 1'b0; // If a flush is received while processing a FE2 request, we need to ignore the result when it is done
+
+reg get_address_after_ignore = 1'b0; // We need to delay storing the requested address if current request should be ignored
 
 always @ (posedge clk100)
 begin
@@ -182,8 +186,10 @@ begin
         cache_line_data <= 256'b0;
 
         clear_cache_index <= 7'd0;
+        cpu_clear_cache_done <= 1'b0;
 
         ignore_fe2_result <= 1'b0;
+        get_address_after_ignore <= 1'b0;
     end
     else
     begin
@@ -195,8 +201,21 @@ begin
         if (cpu_FE2_start && !cpu_FE2_start_prev)
         begin
             cpu_FE2_new_request <= 1'b1;
-            cpu_FE2_addr_stored <= cpu_FE2_addr;
+            if (ignore_fe2_result)
+            begin
+                get_address_after_ignore <= 1'b1; // We need to store the address after the ignore flag is cleared
+            end
+            else
+            begin
+                cpu_FE2_addr_stored <= cpu_FE2_addr;
+            end
             //$display("%d: CacheController NEW FE2 REQUEST: addr=0x%h", $time, cpu_FE2_addr);
+        end
+
+        if (get_address_after_ignore && !ignore_fe2_result)
+        begin
+            cpu_FE2_addr_stored <= cpu_FE2_addr;
+            get_address_after_ignore <= 1'b0;
         end
 
         // Check for CPU EXMEM2 request
@@ -236,6 +255,7 @@ begin
                 // Disassert signals on idle
                 cpu_FE2_done <= 1'b0;
                 cpu_EXMEM2_done <= 1'b0;
+                cpu_clear_cache_done <= 1'b0;
                 
 
                 // Check if there is a cache clear request (highest priority)
@@ -938,11 +958,16 @@ begin
                 // Disable write enable to ensure the last write completes properly
                 l1d_ctrl_we <= 1'b0;
                 
-                // Clear the cache clear request flag and return to idle
+                // Clear the cache clear request flag and return to idle via extra state
                 cpu_clear_cache_new_request <= 1'b0;
                 clear_cache_index <= 7'd0;
-                state <= STATE_IDLE;
+                cpu_clear_cache_done <= 1'b1;
+                state <= STATE_CLEARCACHE_DONE;
                 //$display("%d: CacheController Cache clear process completed", $time);
+            end
+
+            STATE_CLEARCACHE_DONE: begin
+                state <= STATE_IDLE; // Return to idle state
             end
 
         endcase
