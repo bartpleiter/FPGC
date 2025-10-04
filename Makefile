@@ -44,16 +44,49 @@ dev-setup: venv install
 	@echo "  uv run asmpy <file> <output>  - Run asmpy with any changes applied"
 	@echo "  source .venv/bin/activate     - Activate venv to run asmpy directly"
 
+docs-serve:
+	./Scripts/Docs/run.sh
+
+docs-deploy:
+	./Scripts/Docs/deploy.sh
+
+sim-cpu:
+	./Scripts/Simulation/simulate_cpu.sh
+
+sim-gpu:
+	./Scripts/Simulation/simulate_gpu.sh
+
+test-cpu:
+	./Scripts/Tests/run_cpu_tests.sh
+
+compile-asm:
+	./Scripts/ASM/compile_bare_metal_asm.sh $(file)
+
+flash-asm-uart:
+	./Scripts/Programmer/UART/flash_uart.sh
+
+run-asm-uart: compile-asm flash-asm-uart
+
 help:
-	@echo "venv      - Create or sync virtual environment with dependencies"
-	@echo "install   - Install fpgc tools in editable mode for development"
-	@echo "uninstall - Uninstall fpgc tools editable installation"
-	@echo "dev-setup - Install complete development environment setup"
-	@echo "lint      - Run ruff lint and mypy"
-	@echo "format    - Run ruff format"
-	@echo "test      - Run pytest with coverage"
-	@echo "check     - Run ruff, mypy and pytest"
-	@echo "clean     - Clean up files and remove venv"
-	@echo "help      - Show this help"
+	@echo "venv                - Create or sync virtual environment with dependencies"
+	@echo "install             - Install fpgc tools (ASMPY)"
+	@echo "uninstall           - Uninstall fpgc tools"
+	@echo "dev-setup           - Install complete development environment setup"
+	@echo "lint                - Run ruff lint and mypy"
+	@echo "format              - Run ruff format"
+	@echo "test                - Run pytest with coverage"
+	@echo "check               - Run ruff, mypy and pytest"
+	@echo "clean               - Clean up files and remove venv"
+	@echo "docs-serve          - Run the documentation website locally"
+	@echo "docs-deploy         - Deploy the documentation website"
+	@echo "sim-cpu             - Run CPU simulation"
+	@echo "sim-gpu             - Run GPU simulation"
+	@echo "test-cpu            - Run CPU tests"
+	@echo "compile-asm         - Compile ASM file from Software/BareMetalASM/Programs"
+	@echo "                      Usage: make compile-asm file=yourfile"
+	@echo "                      (only provide the filename without extension)"
+	@echo "flash-asm-uart      - Flash compiled ASM binary via UART"
+	@echo "run-asm-uart        - Compile and flash ASM binary via UART"
+	@echo "help                - Show this help"
 
 # TODO: add commands for compiling a file into a bin, sending bin over UART, triggering simulation scripts, etc.

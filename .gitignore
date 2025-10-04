@@ -21,3 +21,5 @@ BuildTools/ASMPY/build
 .coverage
 
 tmp
+
+Software/BareMetalASM/Output

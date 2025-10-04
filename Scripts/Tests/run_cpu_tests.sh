@@ -4,9 +4,9 @@
 source .venv/bin/activate
 
 # Run the CPU tests
-python3 Tests/CPU/cpu_tests.py --rom
+python3 Scripts/Tests/cpu_tests.py --rom
 echo
-python3 Tests/CPU/cpu_tests.py --ram
+python3 Scripts/Tests/cpu_tests.py --ram
 
 # Deactivate virtual environment
 deactivate
