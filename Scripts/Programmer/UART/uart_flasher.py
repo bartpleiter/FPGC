@@ -177,6 +177,22 @@ class UARTFlasher:
             
         return 0
 
+    def monitor_serial(self):
+        """Continuously read from the serial port and print received bytes to the terminal."""
+        if not self.serial_port:
+            raise UARTFlasherError("Serial port not initialized")
+        print("--- Serial monitor started. Press Ctrl+C to exit. ---")
+        try:
+            while True:
+                data = self.serial_port.read(1)
+                if data:
+                    # Print as hex
+                    print(f"0x{data.hex()}", end=' ', flush=True)
+        except KeyboardInterrupt:
+            print("\n--- Serial monitor stopped. ---")
+        except SerialException as e:
+            raise UARTFlasherError(f"Serial communication error during monitoring: {e}")
+
 
 def setup_logging(verbose: bool = False) -> None:
     """Setup logging configuration."""
@@ -229,6 +245,11 @@ def parse_arguments() -> argparse.Namespace:
         action="store_true",
         help="Enable verbose logging"
     )
+    parser.add_argument(
+        "--monitor",
+        action="store_true",
+        help="After flashing, monitor and print serial output"
+    )
     
     return parser.parse_args()
 
@@ -249,8 +270,10 @@ def main() -> int:
     
     try:
         with UARTFlasher(args.port, args.baudrate) as flasher:
-            return flasher.flash_program(args.file, args.test_mode)
-            
+            result = flasher.flash_program(args.file, args.test_mode)
+            if args.monitor:
+                flasher.monitor_serial()
+            return result
     except UARTFlasherError as e:
         logging.error(f"Flasher error: {e}")
         return 1

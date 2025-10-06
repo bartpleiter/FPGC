@@ -26,6 +26,8 @@
 `include "Hardware/Vivado/FPGC.srcs/verilog/Memory/MemoryUnit.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/IO/UARTrx.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/IO/UARTtx.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/IO/SimpleSPI.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/IO/MicrosCounter.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/IO/OStimer.v"
 
 `include "Hardware/Vivado/FPGC.srcs/verilog/GPU/FSX.v"
@@ -437,7 +439,42 @@ wire        mu_done;
 wire        uart_tx;
 // We ignore uart_rx in simulation, as we will connect uart_tx as rx for testing
 wire        uart_irq;
+
 wire        OST1_int;
+wire        OST2_int;
+wire        OST3_int;
+
+reg         boot_mode = 1'b0; // In hardware this is read from a pin
+
+wire        SPI0_clk;
+wire        SPI0_mosi;
+reg         SPI0_miso = 1'b0; // In hardware this is read from a pin
+wire        SPI0_cs;
+
+wire        SPI1_clk;
+wire        SPI1_mosi;
+reg         SPI1_miso = 1'b0; // In hardware this is read from a pin
+wire        SPI1_cs;
+
+wire        SPI2_clk;
+wire        SPI2_mosi;
+reg         SPI2_miso = 1'b0; // In hardware this is read from a pin
+wire        SPI2_cs;
+
+wire        SPI3_clk;
+wire        SPI3_mosi;
+reg         SPI3_miso = 1'b0; // In hardware this is read from a pin
+wire        SPI3_cs;
+
+wire        SPI4_clk;
+wire        SPI4_mosi;
+reg         SPI4_miso = 1'b0; // In hardware this is read from a pin
+wire        SPI4_cs;
+
+wire        SPI5_clk;
+wire        SPI5_mosi;
+reg         SPI5_miso = 1'b0; // In hardware this is read from a pin
+wire        SPI5_cs;
 
 MemoryUnit memory_unit (
     .clk(clk),
@@ -453,7 +490,42 @@ MemoryUnit memory_unit (
     .uart_rx(uart_tx), // Loopback for testing
     .uart_tx(uart_tx),
     .uart_irq(uart_irq),
-    .OST1_int(OST1_int)
+
+    .OST1_int(OST1_int),
+    .OST2_int(OST2_int),
+    .OST3_int(OST3_int),
+
+    .boot_mode(boot_mode),
+
+    .SPI0_clk(SPI0_clk),
+    .SPI0_mosi(SPI0_mosi),
+    .SPI0_miso(SPI0_miso),
+    .SPI0_cs(SPI0_cs),
+
+    .SPI1_clk(SPI1_clk),
+    .SPI1_mosi(SPI1_mosi),
+    .SPI1_miso(SPI1_miso),
+    .SPI1_cs(SPI1_cs),
+
+    .SPI2_clk(SPI2_clk),
+    .SPI2_mosi(SPI2_mosi),
+    .SPI2_miso(SPI2_miso),
+    .SPI2_cs(SPI2_cs),
+
+    .SPI3_clk(SPI3_clk),
+    .SPI3_mosi(SPI3_mosi),
+    .SPI3_miso(SPI3_miso),
+    .SPI3_cs(SPI3_cs),
+
+    .SPI4_clk(SPI4_clk),
+    .SPI4_mosi(SPI4_mosi),
+    .SPI4_miso(SPI4_miso),
+    .SPI4_cs(SPI4_cs),
+
+    .SPI5_clk(SPI5_clk),
+    .SPI5_mosi(SPI5_mosi),
+    .SPI5_miso(SPI5_miso),
+    .SPI5_cs(SPI5_cs)
 );
 
 //-----------------------CPU-------------------------
@@ -523,7 +595,7 @@ B32P2 cpu (
     .mu_done(mu_done),
 
     // Interrupts, right is highest priority
-    .interrupts({5'd0, frameDrawn, OST1_int, uart_irq})
+    .interrupts({3'd0, OST3_int, OST2_int, frameDrawn, OST1_int, uart_irq})
 );
 
 // 100 MHz clock

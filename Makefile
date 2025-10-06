@@ -27,8 +27,11 @@ uninstall:
 
 
 clean:
-	-uv pip uninstall fpgc -y
+	-uv pip uninstall fpgc
 	-rm -rf asmpy.egg-info
+	-rm -rf BuildTools/ASMPY/fpgc.egg-info
+	-rm -rf Docs/site
+	-rm -rf Software/BareMetalASM/Output
 	-rm -rf build
 	-rm -rf .venv
 	-rm -rf .mypy_cache

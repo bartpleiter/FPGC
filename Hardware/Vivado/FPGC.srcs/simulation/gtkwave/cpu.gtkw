@@ -1,21 +1,21 @@
 [*]
 [*] GTKWave Analyzer v3.3.121 (w)1999-2024 BSI
-[*] Fri Oct  3 20:05:07 2025
+[*] Mon Oct  6 14:27:56 2025
 [*]
 [dumpfile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd"
-[dumpfile_mtime] "Fri Oct  3 20:03:02 2025"
-[dumpfile_size] 45155069
+[dumpfile_mtime] "Mon Oct  6 14:25:33 2025"
+[dumpfile_size] 377907
 [savefile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/cpu.gtkw"
-[timestart] 11606500
+[timestart] 1256000
 [size] 1920 1033
 [pos] -1 -1
-*-17.132431 11797500 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-18.632431 1768000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] cpu_tb.
 [treeopen] cpu_tb.memory_unit.
 [sst_width] 321
-[signals_width] 777
+[signals_width] 338
 [sst_expanded] 1
-[sst_vpaned_height] 442
+[sst_vpaned_height] 562
 @28
 cpu_tb.clk
 cpu_tb.clk100
@@ -60,7 +60,7 @@ cpu_tb.cache_controller.cpu_FE2_addr[31:0]
 cpu_tb.cache_controller.cpu_FE2_new_request
 @200
 -
-@25
+@24
 cpu_tb.cache_controller.cpu_FE2_addr_stored[31:0]
 @200
 -
@@ -1034,7 +1034,7 @@ cpu_tb.memory_unit.q[31:0]
 cpu_tb.memory_unit.done
 @200
 -
-@22
+@24
 cpu_tb.memory_unit.state[7:0]
 @200
 -
@@ -1049,6 +1049,35 @@ cpu_tb.memory_unit.uart_irq
 cpu_tb.memory_unit.uart_tx_done
 @200
 -
+@28
+cpu_tb.memory_unit.SPI2_cs
+cpu_tb.memory_unit.SPI2_start
+cpu_tb.memory_unit.SPI2_clk
+cpu_tb.memory_unit.SPI2_done
+@22
+cpu_tb.memory_unit.SPI2_in[7:0]
+cpu_tb.memory_unit.SPI2_out[7:0]
+@200
+-
+@23
+cpu_tb.memory_unit.SPI0_in[7:0]
+@22
+cpu_tb.memory_unit.SPI0_out[7:0]
+@28
+cpu_tb.memory_unit.SPI0_cs
+cpu_tb.memory_unit.SPI0_done
+cpu_tb.memory_unit.SPI0_clk
+cpu_tb.memory_unit.SPI0_mosi
+cpu_tb.memory_unit.SPI0_miso
+cpu_tb.memory_unit.SPI0_start
+@200
+-
+@28
+cpu_tb.memory_unit.SPI0.r_Leading_Edge
+cpu_tb.memory_unit.SPI0.r_Trailing_Edge
+cpu_tb.memory_unit.SPI0.r_RX_Bit_Count[2:0]
+cpu_tb.memory_unit.SPI0.o_TX_Ready
+@200
 -
 -WB
 @28

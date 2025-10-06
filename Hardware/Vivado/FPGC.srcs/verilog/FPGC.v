@@ -33,8 +33,52 @@ module FPGC (
 
     // UART
     input  wire        uart_rx,
-    output wire        uart_tx
+    output wire        uart_tx,
+    input  wire        uart_nrts,
+
+    // SPI
+    output wire        SPI0_clk,
+    output wire        SPI0_mosi,
+    input  wire        SPI0_miso,
+    output wire        SPI0_cs,
+
+    output wire        SPI1_clk,
+    output wire        SPI1_mosi,
+    input  wire        SPI1_miso,
+    output wire        SPI1_cs,
+
+    output wire        SPI2_clk,
+    output wire        SPI2_mosi,
+    input  wire        SPI2_miso,
+    output wire        SPI2_cs,
+    input  wire        SPI2_nint,
+
+    output wire        SPI3_clk,
+    output wire        SPI3_mosi,
+    input  wire        SPI3_miso,
+    output wire        SPI3_cs,
+    input  wire        SPI3_nint,
+
+    output wire        SPI4_clk,
+    output wire        SPI4_mosi,
+    input  wire        SPI4_miso,
+    output wire        SPI4_cs,
+    input  wire        SPI4_nint,
+
+    output wire        SPI5_clk,
+    output wire        SPI5_mosi,
+    input  wire        SPI5_miso,
+    output wire        SPI5_cs,
+
+    input wire         boot_mode,
+    input wire         switch2,
+    
+    output wire        led1,
+    output wire        led2
 );
+
+assign led1 = boot_mode;
+assign led2 = switch2;
 
 //---------------------------Clocks and reset---------------------------------
 // CPU/Memory clocks
@@ -124,7 +168,7 @@ ROM #(
     .WIDTH(32),
     .WORDS(512),
     .ADDR_BITS(9),
-    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/rom.list")
+    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/rom_bootloader.list")
 ) rom (
     .clk (clk50),
 
@@ -505,7 +549,6 @@ FSX fsx (
 );
 
 //------------------Memory Unit (50MHz)----------------------
-// Memory Unit I/O signals
 wire        mu_start;
 wire [31:0] mu_addr;
 wire [31:0] mu_data;
@@ -513,9 +556,20 @@ wire        mu_we;
 wire [31:0] mu_q;
 wire        mu_done;
 
-// UART RX and TX are already defined on top level
+// HW pins are defined at the top of the module
+
 wire        uart_irq;
 wire        OST1_int;
+wire        OST2_int;
+wire        OST3_int;
+
+// We need to synchronize the boot_mode signal to the 50MHz clock
+reg [1:0] boot_mode_sync;
+always @(posedge clk50)
+begin
+    boot_mode_sync <= {boot_mode_sync[0], boot_mode};
+end
+wire boot_mode_50mhz = boot_mode_sync[1];
 
 MemoryUnit memory_unit (
     .clk(clk50),
@@ -531,7 +585,42 @@ MemoryUnit memory_unit (
     .uart_rx(uart_rx),
     .uart_tx(uart_tx),
     .uart_irq(uart_irq),
-    .OST1_int(OST1_int)
+
+    .OST1_int(OST1_int),
+    .OST2_int(OST2_int),
+    .OST3_int(OST3_int),
+
+    .boot_mode(boot_mode_50mhz),
+
+    .SPI0_clk(SPI0_clk),
+    .SPI0_mosi(SPI0_mosi),
+    .SPI0_miso(SPI0_miso),
+    .SPI0_cs(SPI0_cs),
+
+    .SPI1_clk(SPI1_clk),
+    .SPI1_mosi(SPI1_mosi),
+    .SPI1_miso(SPI1_miso),
+    .SPI1_cs(SPI1_cs),
+
+    .SPI2_clk(SPI2_clk),
+    .SPI2_mosi(SPI2_mosi),
+    .SPI2_miso(SPI2_miso),
+    .SPI2_cs(SPI2_cs),
+
+    .SPI3_clk(SPI3_clk),
+    .SPI3_mosi(SPI3_mosi),
+    .SPI3_miso(SPI3_miso),
+    .SPI3_cs(SPI3_cs),
+
+    .SPI4_clk(SPI4_clk),
+    .SPI4_mosi(SPI4_mosi),
+    .SPI4_miso(SPI4_miso),
+    .SPI4_cs(SPI4_cs),
+
+    .SPI5_clk(SPI5_clk),
+    .SPI5_mosi(SPI5_mosi),
+    .SPI5_miso(SPI5_miso),
+    .SPI5_cs(SPI5_cs)
 );
 
 //-----------------------CPU-------------------------
@@ -613,7 +702,7 @@ B32P2 cpu (
     .mu_done(mu_done),
 
     // Interrupts, right is highest priority
-    .interrupts({5'd0, frameDrawn_CPU, OST1_int, uart_irq})
+    .interrupts({3'd0, frameDrawn_CPU, OST3_int, OST2_int, OST1_int, uart_irq})
 );
 
 endmodule

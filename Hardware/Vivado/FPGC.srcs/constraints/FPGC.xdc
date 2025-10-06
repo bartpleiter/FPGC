@@ -20,5 +20,68 @@ set_property -dict {PACKAGE_PIN V18  IOSTANDARD TMDS_33} [get_ports HDMI_D0_P]
 set_property -dict {PACKAGE_PIN Y18  IOSTANDARD TMDS_33} [get_ports HDMI_CLK_P]
 #set_property -dict {PACKAGE_PIN Y19  IOSTANDARD TMDS_33} [get_ports HDMI_CLK_N]
 
+# USB UART
 set_property -dict {PACKAGE_PIN P15 IOSTANDARD LVCMOS33} [get_ports uart_tx]
 set_property -dict {PACKAGE_PIN P14 IOSTANDARD LVCMOS33} [get_ports uart_rx]
+set_property -dict {PACKAGE_PIN K19 IOSTANDARD LVCMOS33} [get_ports uart_nrts]
+
+# SPI Flash 1 (W25Q128)
+set_property -dict {PACKAGE_PIN G16 IOSTANDARD LVCMOS33} [get_ports SPI0_clk]
+set_property -dict {PACKAGE_PIN G15 IOSTANDARD LVCMOS33} [get_ports SPI0_mosi]
+set_property -dict {PACKAGE_PIN G18 IOSTANDARD LVCMOS33} [get_ports SPI0_miso]
+set_property -dict {PACKAGE_PIN G17 IOSTANDARD LVCMOS33} [get_ports SPI0_cs]
+
+# SPI Flash 2 (W25Q128)
+set_property -dict {PACKAGE_PIN H18 IOSTANDARD LVCMOS33} [get_ports SPI1_clk]
+set_property -dict {PACKAGE_PIN H17 IOSTANDARD LVCMOS33} [get_ports SPI1_mosi]
+set_property -dict {PACKAGE_PIN M22 IOSTANDARD LVCMOS33} [get_ports SPI1_miso]
+set_property -dict {PACKAGE_PIN N22 IOSTANDARD LVCMOS33} [get_ports SPI1_cs]
+
+# MAX3421E USB Host 1
+set_property -dict {PACKAGE_PIN L20 IOSTANDARD LVCMOS33} [get_ports SPI2_clk]
+set_property -dict {PACKAGE_PIN L19 IOSTANDARD LVCMOS33} [get_ports SPI2_mosi]
+set_property -dict {PACKAGE_PIN L18 IOSTANDARD LVCMOS33} [get_ports SPI2_miso]
+set_property -dict {PACKAGE_PIN M18 IOSTANDARD LVCMOS33} [get_ports SPI2_cs]
+set_property -dict {PACKAGE_PIN H22 IOSTANDARD LVCMOS33} [get_ports SPI2_nint]
+
+# MAX3421E USB Host 2
+set_property -dict {PACKAGE_PIN H19 IOSTANDARD LVCMOS33} [get_ports SPI3_clk]
+set_property -dict {PACKAGE_PIN J19 IOSTANDARD LVCMOS33} [get_ports SPI3_mosi]
+set_property -dict {PACKAGE_PIN J21 IOSTANDARD LVCMOS33} [get_ports SPI3_miso]
+set_property -dict {PACKAGE_PIN J20 IOSTANDARD LVCMOS33} [get_ports SPI3_cs]
+set_property -dict {PACKAGE_PIN K18 IOSTANDARD LVCMOS33} [get_ports SPI3_nint]
+
+# ENC28J60
+set_property -dict {PACKAGE_PIN K22 IOSTANDARD LVCMOS33} [get_ports SPI4_clk]
+set_property -dict {PACKAGE_PIN K21 IOSTANDARD LVCMOS33} [get_ports SPI4_mosi]
+set_property -dict {PACKAGE_PIN G20 IOSTANDARD LVCMOS33} [get_ports SPI4_miso]
+set_property -dict {PACKAGE_PIN H20 IOSTANDARD LVCMOS33} [get_ports SPI4_cs]
+set_property -dict {PACKAGE_PIN J22 IOSTANDARD LVCMOS33} [get_ports SPI4_nint]
+
+# SD Card
+set_property -dict {PACKAGE_PIN AA20 IOSTANDARD LVCMOS33} [get_ports SPI5_clk]
+set_property -dict {PACKAGE_PIN AB21 IOSTANDARD LVCMOS33} [get_ports SPI5_mosi]
+set_property -dict {PACKAGE_PIN AB18 IOSTANDARD LVCMOS33} [get_ports SPI5_miso]
+set_property -dict {PACKAGE_PIN AA21 IOSTANDARD LVCMOS33} [get_ports SPI5_cs]
+
+set_property -dict {PACKAGE_PIN H14 IOSTANDARD LVCMOS33} [get_ports boot_mode]
+set_property -dict {PACKAGE_PIN H15 IOSTANDARD LVCMOS33} [get_ports switch2]
+
+set_property -dict {PACKAGE_PIN W22 IOSTANDARD LVCMOS33} [get_ports led1]
+set_property -dict {PACKAGE_PIN Y22 IOSTANDARD LVCMOS33} [get_ports led2]
+
+# Setting pullups for possibly unconnected inputs
+set_property PULLTYPE PULLUP [get_ports SPI0_miso]
+set_property PULLTYPE PULLUP [get_ports SPI1_miso]
+set_property PULLTYPE PULLUP [get_ports SPI2_miso]
+set_property PULLTYPE PULLUP [get_ports SPI2_nint]
+set_property PULLTYPE PULLUP [get_ports SPI3_miso]
+set_property PULLTYPE PULLUP [get_ports SPI3_nint]
+set_property PULLTYPE PULLUP [get_ports SPI4_miso]
+set_property PULLTYPE PULLUP [get_ports SPI4_nint]
+set_property PULLTYPE PULLUP [get_ports SPI5_miso]
+
+set_property PULLTYPE PULLUP [get_ports uart_nrts]
+
+set_property PULLTYPE PULLUP [get_ports boot_mode]
+set_property PULLTYPE PULLUP [get_ports switch2]
