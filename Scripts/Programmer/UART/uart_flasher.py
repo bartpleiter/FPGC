@@ -45,6 +45,13 @@ class UARTFlasher:
                 timeout=self.timeout
             )
             logging.info(f"Connected to {self.port_path} at {self.baudrate} baud")
+
+            logging.info("Resetting FPGC via magic sequence")
+            # Send magic reset sequence
+            magic_sequence = bytes.fromhex("5C6A7408D53522204F5BE72AFC0F9FCE119BE20DAB4E910E61D73E1F0F99F684")
+            self.serial_port.write(magic_sequence)
+            sleep(0.1)  # Give FPGC time to reset
+            logging.info("FPGC reset complete")
             return self
         except SerialException as e:
             raise UARTFlasherError(f"Failed to open serial port {self.port_path}: {e}")

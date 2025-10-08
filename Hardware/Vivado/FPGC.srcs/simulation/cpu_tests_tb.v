@@ -22,6 +22,7 @@
 `include "Hardware/Vivado/FPGC.srcs/verilog/Memory/VRAM.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/Memory/DPRAM.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/Memory/MIG7Mock.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/Memory/W25Q128JV.v"
 
 `include "Hardware/Vivado/FPGC.srcs/verilog/Memory/MemoryUnit.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/IO/UARTrx.v"
@@ -29,6 +30,7 @@
 `include "Hardware/Vivado/FPGC.srcs/verilog/IO/SimpleSPI.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/IO/MicrosCounter.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/IO/OStimer.v"
+`include "Hardware/Vivado/FPGC.srcs/verilog/IO/UARTresetDetector.v"
 
 `include "Hardware/Vivado/FPGC.srcs/verilog/GPU/FSX.v"
 `include "Hardware/Vivado/FPGC.srcs/verilog/GPU/BGWrenderer.v"
@@ -41,6 +43,7 @@ module cpu_tb ();
 reg clk = 1'b0;
 reg clk100 = 1'b1; // To align rising edge with clk
 reg reset = 1'b0;
+wire uart_reset; // Reset signal from UARTresetDetector
 
 // Inaccurate but good enough for simulation
 wire clkPixel = clk;
@@ -345,7 +348,7 @@ CacheController #(
     .MASK_WIDTH(32)
 ) cache_controller (
     .clk100(clk100),
-    .reset(reset),
+    .reset(reset || uart_reset),
 
     // CPU pipeline interface (50 MHz domain)
     .cpu_FE2_start(l1i_cache_controller_start),
@@ -428,6 +431,41 @@ FSX fsx (
     .frameDrawn(frameDrawn)
 );
 
+//-----------------------SPI Flash (simulation models)-------------------------
+// SPI0 Flash 1
+wire SPI0_clk;
+wire SPI0_cs; 
+wire SPI0_mosi;
+wire SPI0_miso;
+wire SPI0_wp = 1'b1;
+wire SPI0_hold = 1'b1;
+
+W25Q128JV spiflash1 (
+.CLK    (SPI0_clk),
+.DIO    (SPI0_mosi),
+.CSn    (SPI0_cs),
+.WPn    (SPI0_wp),
+.HOLDn  (SPI0_hold),
+.DO     (SPI0_miso)
+);
+
+// SPI1 Flash 2
+wire SPI1_clk;
+wire SPI1_cs;
+wire SPI1_mosi;
+wire SPI1_miso;
+wire SPI1_wp = 1'b1;
+wire SPI1_hold = 1'b1;
+
+W25Q128JV spiflash2 (
+.CLK    (SPI1_clk),
+.DIO    (SPI1_mosi),
+.CSn    (SPI1_cs),
+.WPn    (SPI1_wp),
+.HOLDn  (SPI1_hold),
+.DO     (SPI1_miso)
+);
+
 //------------------Memory Unit (50MHz)----------------------
 wire        mu_start;
 wire [31:0] mu_addr;
@@ -445,16 +483,6 @@ wire        OST2_int;
 wire        OST3_int;
 
 reg         boot_mode = 1'b0; // In hardware this is read from a pin
-
-wire        SPI0_clk;
-wire        SPI0_mosi;
-reg         SPI0_miso = 1'b0; // In hardware this is read from a pin
-wire        SPI0_cs;
-
-wire        SPI1_clk;
-wire        SPI1_mosi;
-reg         SPI1_miso = 1'b0; // In hardware this is read from a pin
-wire        SPI1_cs;
 
 wire        SPI2_clk;
 wire        SPI2_mosi;
@@ -478,7 +506,8 @@ wire        SPI5_cs;
 
 MemoryUnit memory_unit (
     .clk(clk),
-    .reset(reset),
+    .reset(reset || uart_reset),
+    .uart_reset(uart_reset),
 
     .start(mu_start),
     .addr(mu_addr),
@@ -532,7 +561,7 @@ MemoryUnit memory_unit (
 B32P2 cpu (
     // Clock and reset
     .clk(clk),
-    .reset(reset),
+    .reset(reset || uart_reset),
 
     // ROM (dual port)
     .rom_fe_addr(rom_fe_addr),

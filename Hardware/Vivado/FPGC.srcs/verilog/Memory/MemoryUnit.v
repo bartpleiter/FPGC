@@ -9,6 +9,7 @@ module MemoryUnit(
     //========================
     input  wire         clk, // Assumed to be 50MHz
     input  wire         reset,
+    output wire         uart_reset,
 
     //========================
     // CPU interface (50 MHz domain)
@@ -103,6 +104,15 @@ UARTrx uart_rx_controller(
 .i_Rx_Serial(uart_rx),
 .o_Rx_DV    (uart_irq),
 .o_Rx_Byte  (uart_rx_q)
+);
+
+// Reset detection
+UARTresetDetector uart_reset_detector (
+.clk            (clk),
+.reset          (reset),
+.rx_valid       (uart_irq),
+.rx_data        (uart_rx_q),
+.magic_detected (uart_reset)
 );
 
 // OS timer 1
@@ -334,6 +344,7 @@ localparam STATE_WAIT_MICROS            = 8'd18;
 
 
 reg [7:0] state = 8'd0;
+reg wait_done = 1'b0;
 
 always @(posedge clk) begin
     if (reset)
@@ -341,6 +352,7 @@ always @(posedge clk) begin
         state <= STATE_IDLE;
         q = 32'd0;
         done <= 1'b0;
+        wait_done <= 1'b0;
 
         uart_tx_start <= 1'b0;
         uart_tx_data <= 8'd0;
@@ -385,6 +397,7 @@ always @(posedge clk) begin
         // Default assignments
         done <= 1'b0;
         q <= 32'd0;
+        wait_done <= 1'b0;
 
         uart_tx_start <= 1'b0;
 
@@ -466,8 +479,12 @@ always @(posedge clk) begin
                     // SPI0
                     if (addr == ADDR_SPI0_DATA)
                     begin
-                        SPI0_in <= data[7:0];
-                        SPI0_start <= 1'b1;
+                        if (we)
+                        begin
+                            SPI0_in <= data[7:0];
+                            SPI0_start <= 1'b1;
+                            wait_done <= 1'b1;
+                        end
                         state <= STATE_WAIT_SPI0_DATA;
                     end
 
@@ -483,8 +500,12 @@ always @(posedge clk) begin
                     // SPI1
                     if (addr == ADDR_SPI1_DATA)
                     begin
-                        SPI1_in <= data[7:0];
-                        SPI1_start <= 1'b1;
+                        if (we)
+                        begin
+                            SPI1_in <= data[7:0];
+                            SPI1_start <= 1'b1;
+                            wait_done <= 1'b1;
+                        end
                         state <= STATE_WAIT_SPI1_DATA;
                     end
 
@@ -500,8 +521,12 @@ always @(posedge clk) begin
                     // SPI2
                     if (addr == ADDR_SPI2_DATA)
                     begin
-                        SPI2_in <= data[7:0];
-                        SPI2_start <= 1'b1;
+                        if (we)
+                        begin
+                            SPI2_in <= data[7:0];
+                            SPI2_start <= 1'b1;
+                            wait_done <= 1'b1;
+                        end
                         state <= STATE_WAIT_SPI2_DATA;
                     end
 
@@ -517,8 +542,12 @@ always @(posedge clk) begin
                     // SPI3
                     if (addr == ADDR_SPI3_DATA)
                     begin
-                        SPI3_in <= data[7:0];
-                        SPI3_start <= 1'b1;
+                        if (we)
+                        begin
+                            SPI3_in <= data[7:0];
+                            SPI3_start <= 1'b1;
+                            wait_done <= 1'b1;
+                        end
                         state <= STATE_WAIT_SPI3_DATA;
                     end
 
@@ -534,8 +563,12 @@ always @(posedge clk) begin
                     // SPI4
                     if (addr == ADDR_SPI4_DATA)
                     begin
-                        SPI4_in <= data[7:0];
-                        SPI4_start <= 1'b1;
+                        if (we)
+                        begin
+                            SPI4_in <= data[7:0];
+                            SPI4_start <= 1'b1;
+                            wait_done <= 1'b1;
+                        end
                         state <= STATE_WAIT_SPI4_DATA;
                     end
 
@@ -551,8 +584,12 @@ always @(posedge clk) begin
                     // SPI5
                     if (addr == ADDR_SPI5_DATA)
                     begin
-                        SPI5_in <= data[7:0];
-                        SPI5_start <= 1'b1;
+                        if (we)
+                        begin
+                            SPI5_in <= data[7:0];
+                            SPI5_start <= 1'b1;
+                            wait_done <= 1'b1;
+                        end
                         state <= STATE_WAIT_SPI5_DATA;
                     end
 
@@ -610,7 +647,8 @@ always @(posedge clk) begin
 
             STATE_WAIT_SPI0_DATA:
             begin
-                if (SPI0_done)
+                wait_done <= 1'b1;
+                if (SPI0_done || !wait_done)
                 begin
                     done <= 1'b1;
                     q <= {24'd0, SPI0_out};
@@ -627,7 +665,8 @@ always @(posedge clk) begin
 
             STATE_WAIT_SPI1_DATA:
             begin
-                if (SPI1_done)
+                wait_done <= 1'b1;
+                if (SPI1_done || !wait_done)
                 begin
                     done <= 1'b1;
                     q <= {24'd0, SPI1_out};
@@ -644,7 +683,8 @@ always @(posedge clk) begin
 
             STATE_WAIT_SPI2_DATA:
             begin
-                if (SPI2_done)
+                wait_done <= 1'b1;
+                if (SPI2_done || !wait_done)
                 begin
                     done <= 1'b1;
                     q <= {24'd0, SPI2_out};
@@ -661,7 +701,8 @@ always @(posedge clk) begin
 
             STATE_WAIT_SPI3_DATA:
             begin
-                if (SPI3_done)
+                wait_done <= 1'b1;
+                if (SPI3_done || !wait_done)
                 begin
                     done <= 1'b1;
                     q <= {24'd0, SPI3_out};
@@ -678,7 +719,8 @@ always @(posedge clk) begin
 
             STATE_WAIT_SPI4_DATA:
             begin
-                if (SPI4_done)
+                wait_done <= 1'b1;
+                if (SPI4_done || !wait_done)
                 begin
                     done <= 1'b1;
                     q <= {24'd0, SPI4_out};
@@ -695,7 +737,8 @@ always @(posedge clk) begin
 
             STATE_WAIT_SPI5_DATA:
             begin
-                if (SPI5_done)
+                wait_done <= 1'b1;
+                if (SPI5_done || !wait_done)
                 begin
                     done <= 1'b1;
                     q <= {24'd0, SPI5_out};

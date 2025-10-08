@@ -130,7 +130,7 @@ wire stall_FE2;
 wire stall_REG;
 wire stall_EXMEM1;
 
-// TODO stall all previous stages on EXMEM2 busy
+// Stall all previous stages on EXMEM2 busy
 assign stall_FE1 = exmem1_uses_exmem2_result || multicycle_alu_stall || l1i_cache_miss_FE2 || l1d_cache_wait_EXMEM2 || mu_stall || cc_stall;
 assign stall_FE2 = exmem1_uses_exmem2_result || multicycle_alu_stall || l1d_cache_wait_EXMEM2 || mu_stall || cc_stall;
 assign stall_REG = exmem1_uses_exmem2_result || multicycle_alu_stall || l1d_cache_wait_EXMEM2 || mu_stall || cc_stall;
@@ -159,14 +159,14 @@ assign exmem1_uses_exmem2_result =
 // Note: because this is hard to describe as a variable name, we will call this situation hazard_pc1_pc2
 wire hazard_pc1_pc2;
 assign hazard_pc1_pc2 = 
-    ( (mem_read_EXMEM2 && mem_multicycle_EXMEM2) || arithm_EXMEM2 || l1d_cache_wait_EXMEM2 ) &&
+    ( (mem_read_EXMEM2 && mem_multicycle_EXMEM2) || (mem_write_EXMEM2 && mem_io_EXMEM2) || arithm_EXMEM2 || l1d_cache_wait_EXMEM2 ) &&
     ( ( (areg_EXMEM1 == addr_d_WB) && areg_EXMEM1 != 4'd0) || ( (breg_EXMEM1 == addr_d_WB) && breg_EXMEM1 != 4'd0) );
 
 // - EXMEM1 uses result of multicycle EXMEM2 at PC-2 and dreg of PC-1 -> jump to same address to resolve
 // Note: because this is hard to describe as a variable name, we will call this situation hazard_pc2_pc1
 wire hazard_pc2_pc1;
 assign hazard_pc2_pc1 = 
-    ( (mem_read_WB && mem_multicycle_WB) || arithm_WB || l1d_cache_wait_EXMEM2 ) &&
+    ( (mem_read_WB && mem_multicycle_WB) || (mem_write_WB && mem_io_WB) || arithm_WB || l1d_cache_wait_EXMEM2 ) &&
     ( ( (areg_EXMEM1 == dreg_EXMEM2) && areg_EXMEM1 != 4'd0) || ( (breg_EXMEM1 == dreg_EXMEM2) && breg_EXMEM1 != 4'd0) );
 
 // Forwarding situations
@@ -211,6 +211,7 @@ begin
     begin
         PC_FE1 <= ROM_ADDRESS;
         intDisabled_FE1 <= 1'b0;
+        PC_backup <= 32'd0;
     end
     else
     begin
@@ -1135,6 +1136,7 @@ InstructionDecoder instrDec_WB (
 
 wire pop_WB;
 wire mem_read_WB;
+wire mem_write_WB;
 wire arithm_WB;
 
 ControlUnit controlUnit_WB (
@@ -1146,7 +1148,7 @@ ControlUnit controlUnit_WB (
     .push(),
     .pop(pop_WB),
     .dreg_we(we_WB),
-    .mem_write(),
+    .mem_write(mem_write_WB),
     .mem_read(mem_read_WB),
     .arithm(arithm_WB),
     .jumpc(),

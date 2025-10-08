@@ -34,7 +34,6 @@ module FPGC (
     // UART
     input  wire        uart_rx,
     output wire        uart_tx,
-    input  wire        uart_nrts,
 
     // SPI
     output wire        SPI0_clk,
@@ -131,29 +130,21 @@ BUFG bufgclkTMDShalf (
 );
 
 // Resets
-wire reset50; // Reset synchronized to 50MHz clock
-wire reset100; // Reset synchronized to 100MHz clock
-reg [2:0] reset50_sync = 3'b111;
-reg [2:0] reset100_sync = 3'b111;
+wire uart_reset; // Reset from UART magic sequence
 
+reg [1:0] reset50_sync = 2'b11;
 always @(posedge clk50)
 begin
-    if (~sys_rstn)
-        reset50_sync <= 3'b111;
-    else
-        reset50_sync <= {reset50_sync[1:0], 1'b0};
+    reset50_sync <= {reset50_sync[0], sys_rstn};
 end
+wire reset50 = !reset50_sync[1] || uart_reset; // Reset synchronized to 50MHz clock
 
+reg [1:0] reset100_sync = 2'b11;
 always @(posedge clk100)
 begin
-    if (~sys_rstn)
-        reset100_sync <= 3'b111;
-    else
-        reset100_sync <= {reset100_sync[1:0], 1'b0};
+    reset100_sync <= {reset100_sync[0], sys_rstn};
 end
-
-assign reset50 = reset50_sync[2];
-assign reset100 = reset100_sync[2];
+wire reset100 = !reset100_sync[1] || uart_reset; // Reset synchronized to 100MHz clock
 
 //-----------------------ROM-------------------------
 // ROM I/O
@@ -465,7 +456,7 @@ CacheController #(
     .MASK_WIDTH(32)
 ) cache_controller (
     .clk100(clk100),
-    .reset(reset100),
+    .reset(reset50), // Testing 50MHz reset to rule out some reset issues
 
     // CPU pipeline interface (50 MHz domain)
     .cpu_FE2_start(l1i_cache_controller_start),
@@ -564,7 +555,7 @@ wire        OST2_int;
 wire        OST3_int;
 
 // We need to synchronize the boot_mode signal to the 50MHz clock
-reg [1:0] boot_mode_sync;
+reg [1:0] boot_mode_sync = 2'd0;
 always @(posedge clk50)
 begin
     boot_mode_sync <= {boot_mode_sync[0], boot_mode};
@@ -574,6 +565,7 @@ wire boot_mode_50mhz = boot_mode_sync[1];
 MemoryUnit memory_unit (
     .clk(clk50),
     .reset(reset50),
+    .uart_reset(uart_reset),
 
     .start(mu_start),
     .addr(mu_addr),
@@ -625,7 +617,7 @@ MemoryUnit memory_unit (
 
 //-----------------------CPU-------------------------
 // Convert frameDrawn to CPU clock domain
-wire frameDrawn_CPU; // Reset synchronized to 50MHz clock
+wire frameDrawn_CPU; // Interuupt synchronized to 50MHz clock
 reg frameDrawn_ff1, frameDrawn_ff2;
 
 always @(posedge clk50)

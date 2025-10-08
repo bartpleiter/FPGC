@@ -230,7 +230,7 @@ ReceiveProgram:
     load 0 r15
     nop
     ccache ; Clear cache
-    nop
+    reti
     reti
 
 Int:

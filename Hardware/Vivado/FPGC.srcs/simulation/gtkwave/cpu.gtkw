@@ -1,21 +1,21 @@
 [*]
 [*] GTKWave Analyzer v3.3.121 (w)1999-2024 BSI
-[*] Mon Oct  6 14:27:56 2025
+[*] Wed Oct  8 18:18:51 2025
 [*]
 [dumpfile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd"
-[dumpfile_mtime] "Mon Oct  6 14:25:33 2025"
-[dumpfile_size] 377907
+[dumpfile_mtime] "Wed Oct  8 18:18:00 2025"
+[dumpfile_size] 1433466
 [savefile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/cpu.gtkw"
-[timestart] 1256000
+[timestart] 941700
 [size] 1920 1033
 [pos] -1 -1
-*-18.632431 1768000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-16.819635 1341900 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] cpu_tb.
 [treeopen] cpu_tb.memory_unit.
 [sst_width] 321
-[signals_width] 338
+[signals_width] 373
 [sst_expanded] 1
-[sst_vpaned_height] 562
+[sst_vpaned_height] 593
 @28
 cpu_tb.clk
 cpu_tb.clk100
@@ -837,8 +837,9 @@ cpu_tb.cpu.branchJumpUnit_EXMEM1.data_b[31:0]
 cpu_tb.cpu.branchJumpUnit_EXMEM1.const16[31:0]
 @200
 -
-@28
+@29
 cpu_tb.cpu.branchJumpUnit_EXMEM1.branch
+@28
 cpu_tb.cpu.branchJumpUnit_EXMEM1.branchOP[2:0]
 @420
 cpu_tb.cpu.branchJumpUnit_EXMEM1.data_a[31:0]
@@ -1045,8 +1046,18 @@ cpu_tb.memory_unit.uart_rx_q[7:0]
 cpu_tb.memory_unit.uart_tx
 cpu_tb.memory_unit.uart_rx
 cpu_tb.memory_unit.uart_tx_start
-cpu_tb.memory_unit.uart_irq
 cpu_tb.memory_unit.uart_tx_done
+cpu_tb.memory_unit.uart_irq
+@22
+cpu_tb.memory_unit.uart_rx_q[7:0]
+@200
+-
+@22
+cpu_tb.memory_unit.uart_reset_detector.shift_reg[255:0]
+@420
+cpu_tb.memory_unit.uart_reset_detector.MAGIC_SEQUENCE
+@28
+cpu_tb.memory_unit.uart_reset_detector.magic_detected
 @200
 -
 @28
@@ -1059,9 +1070,8 @@ cpu_tb.memory_unit.SPI2_in[7:0]
 cpu_tb.memory_unit.SPI2_out[7:0]
 @200
 -
-@23
-cpu_tb.memory_unit.SPI0_in[7:0]
 @22
+cpu_tb.memory_unit.SPI0_in[7:0]
 cpu_tb.memory_unit.SPI0_out[7:0]
 @28
 cpu_tb.memory_unit.SPI0_cs
@@ -1072,11 +1082,12 @@ cpu_tb.memory_unit.SPI0_miso
 cpu_tb.memory_unit.SPI0_start
 @200
 -
+@22
+cpu_tb.memory_unit.OST1_value[31:0]
 @28
-cpu_tb.memory_unit.SPI0.r_Leading_Edge
-cpu_tb.memory_unit.SPI0.r_Trailing_Edge
-cpu_tb.memory_unit.SPI0.r_RX_Bit_Count[2:0]
-cpu_tb.memory_unit.SPI0.o_TX_Ready
+cpu_tb.memory_unit.OST1_set
+cpu_tb.memory_unit.OST1_trigger
+cpu_tb.memory_unit.OST1_int
 @200
 -
 -WB

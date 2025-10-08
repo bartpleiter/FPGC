@@ -23,18 +23,17 @@ set_property -dict {PACKAGE_PIN Y18  IOSTANDARD TMDS_33} [get_ports HDMI_CLK_P]
 # USB UART
 set_property -dict {PACKAGE_PIN P15 IOSTANDARD LVCMOS33} [get_ports uart_tx]
 set_property -dict {PACKAGE_PIN P14 IOSTANDARD LVCMOS33} [get_ports uart_rx]
-set_property -dict {PACKAGE_PIN K19 IOSTANDARD LVCMOS33} [get_ports uart_nrts]
 
 # SPI Flash 1 (W25Q128)
 set_property -dict {PACKAGE_PIN G16 IOSTANDARD LVCMOS33} [get_ports SPI0_clk]
-set_property -dict {PACKAGE_PIN G15 IOSTANDARD LVCMOS33} [get_ports SPI0_mosi]
-set_property -dict {PACKAGE_PIN G18 IOSTANDARD LVCMOS33} [get_ports SPI0_miso]
+set_property -dict {PACKAGE_PIN G15 IOSTANDARD LVCMOS33} [get_ports SPI0_miso]
+set_property -dict {PACKAGE_PIN G18 IOSTANDARD LVCMOS33} [get_ports SPI0_mosi]
 set_property -dict {PACKAGE_PIN G17 IOSTANDARD LVCMOS33} [get_ports SPI0_cs]
 
 # SPI Flash 2 (W25Q128)
 set_property -dict {PACKAGE_PIN H18 IOSTANDARD LVCMOS33} [get_ports SPI1_clk]
-set_property -dict {PACKAGE_PIN H17 IOSTANDARD LVCMOS33} [get_ports SPI1_mosi]
-set_property -dict {PACKAGE_PIN M22 IOSTANDARD LVCMOS33} [get_ports SPI1_miso]
+set_property -dict {PACKAGE_PIN H17 IOSTANDARD LVCMOS33} [get_ports SPI1_miso]
+set_property -dict {PACKAGE_PIN M22 IOSTANDARD LVCMOS33} [get_ports SPI1_mosi]
 set_property -dict {PACKAGE_PIN N22 IOSTANDARD LVCMOS33} [get_ports SPI1_cs]
 
 # MAX3421E USB Host 1
