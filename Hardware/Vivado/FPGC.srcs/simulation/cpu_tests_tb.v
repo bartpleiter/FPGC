@@ -51,8 +51,8 @@ wire clkTMDShalf = clk100;
 
 
 //-----------------------ROM-------------------------
-wire [8:0] rom_fe_addr;
-wire [8:0] rom_mem_addr;
+wire [9:0] rom_fe_addr;
+wire [9:0] rom_mem_addr;
 wire rom_fe_oe;
 wire rom_fe_hold;
 wire [31:0] rom_fe_q;
@@ -60,8 +60,8 @@ wire [31:0] rom_mem_q;
 
 ROM #(
     .WIDTH(32),
-    .WORDS(512),
-    .ADDR_BITS(9),
+    .WORDS(1024),
+    .ADDR_BITS(10),
     .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/rom.list")
 ) rom (
     .clk (clk),
@@ -440,7 +440,9 @@ wire SPI0_miso;
 wire SPI0_wp = 1'b1;
 wire SPI0_hold = 1'b1;
 
-W25Q128JV spiflash1 (
+W25Q128JV #(
+    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/spiflash1.list")
+) spiflash1 (
 .CLK    (SPI0_clk),
 .DIO    (SPI0_mosi),
 .CSn    (SPI0_cs),
@@ -457,7 +459,9 @@ wire SPI1_miso;
 wire SPI1_wp = 1'b1;
 wire SPI1_hold = 1'b1;
 
-W25Q128JV spiflash2 (
+W25Q128JV #(
+    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/spiflash2.list")
+) spiflash2 (
 .CLK    (SPI1_clk),
 .DIO    (SPI1_mosi),
 .CSn    (SPI1_cs),

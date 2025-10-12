@@ -81,25 +81,25 @@ $7A00000    +------------------------+
             |                        |
             |         VRAM8          |
             |                        |
-            | $000                  |
+            | $000                   |
             |    BG Pattern Table    |
-            |                  $3DF |
+            |                  $7FF  |
             |                        |
-            | $3E0                  |
+            | $800                   |
             |    BG Palette Table    |
-            |                  $0BDF |
+            |                  $FFF  |
             |                        |
-            | $BE0                   |
+            | $1000                  |
             |  Window Pattern Table  |
-            |                  $13DF |
+            |                  $17FF |
             |                        |
-            | $13E0                  |
+            | $1800                  |
             |  Window Palette Table  |
-            |                  $1BDF |
-            | $1BE0                  |
+            |                  $1FFF |
+            | $2000                  |
             |       Parameters       |
-            |                  $1BE1 |
-            |                        | $7A01BE1
+            |                  $2001 |
+            |                        | $7A02001
 $7B00000    +------------------------+
             |                        |
             |       VRAMpixel        |

@@ -1,13 +1,12 @@
-; UART Bootloader to be run from RAM
+; UART Bootloader to be run from RAM at offset address 0x3FF000
 ; Requires special header to halt at address 0
 ; Also requires all registers to be 0 before execution
 ; Halts at PC0, after which it waits for UART RX interrupts to receive data and write to RAM
-; Works by making use of l1i cache to keep halting at 0 until a ccache instruction is used after coying the entire program
+; Works by writing the program to a higher RAM address, then copying it to address 0 and clearing the cache to start execution
 ; First, 4 bytes are received to determine the size of the program to be copied, after which the length is sent back to confirm
-; Then, the program is received byte by byte and written per word to RAM starting at address 0
-; Finally, a 'd' is sent to confirm the program has been received and execution is started by clearing the cache, registers and returning from the interrupt
-; This bootloader stops working if its code is evicted from l1i cache
-;  therefore, I'll most likely need to move the code to a higher RAM address
+; Then, the program is received byte by byte and written per word to RAM starting at address 0x400000
+; Finally, a 'd' is sent to confirm the program has been received and execution is started by
+;  copying RAM at 0x400000 to 0, clearing the cache, registers and returning from the interrupt
 
 ; Certain registers are used in this program:
 ; r15: length of program to be received (in words)
@@ -22,104 +21,6 @@
 ; r1: temporary
 
 Main:
-    ; Uncomment the below code to test receiving data in simulation as RX is connected to TX
-
-    ; load32 0x7000000 r6
-    ; load 0 r7
-
-    ; ; Send length
-    ; write 0 r6 r7
-    ; nop
-    ; nop
-    ; jumpo 2 ; force jump to trigger interrupt
-    ; nop
-    ; nop
-
-    ; write 0 r6 r7
-    ; nop
-    ; nop
-    ; jumpo 2 ; force jump to trigger interrupt
-    ; nop
-    ; nop
-
-    ; write 0 r6 r7
-    ; nop
-    ; nop
-    ; jumpo 2 ; force jump to trigger interrupt
-    ; nop
-    ; nop
-
-    ; load 10 r7
-    ; write 0 r6 r7
-    ; nop
-    ; nop
-    ; jumpo 2 ; force jump to trigger interrupt
-    ; nop
-    ; nop
-
-    ; ; Send word 0
-    ; load32 0b10010000000000000000000000000110 r7
-    ; shiftr r7 24 r8
-    ; write 0 r6 r8
-    ; nop
-    ; nop
-    ; jumpo 2 ; force jump to trigger interrupt
-    ; nop
-    ; nop
-    ; shiftr r7 16 r8
-    ; write 0 r6 r8
-    ; nop
-    ; nop
-    ; jumpo 2 ; force jump to trigger interrupt
-    ; nop
-    ; nop
-    ; shiftr r7 8 r8
-    ; write 0 r6 r8
-    ; nop
-    ; nop
-    ; jumpo 2 ; force jump to trigger interrupt
-    ; nop
-    ; nop
-    ; shiftr r7 0 r8
-    ; write 0 r6 r8
-    ; nop
-    ; nop
-    ; jumpo 2 ; force jump to trigger interrupt
-    ; nop
-    ; nop
-
-    ; ; Send word 1
-    ; load32 0b10010000000000000000000000101000 r7
-    ; shiftr r7 24 r8
-    ; write 0 r6 r8
-    ; nop
-    ; nop
-    ; jumpo 2 ; force jump to trigger interrupt
-    ; nop
-    ; nop
-    ; shiftr r7 16 r8
-    ; write 0 r6 r8
-    ; nop
-    ; nop
-    ; jumpo 2 ; force jump to trigger interrupt
-    ; nop
-    ; nop
-    ; shiftr r7 8 r8
-    ; write 0 r6 r8
-    ; nop
-    ; nop
-    ; jumpo 2 ; force jump to trigger interrupt
-    ; nop
-    ; nop
-    ; shiftr r7 0 r8
-    ; write 0 r6 r8
-    ; nop
-    ; nop
-    ; jumpo 2 ; force jump to trigger interrupt
-    ; nop
-    ; nop
-
-
     halt
 
 
@@ -152,7 +53,7 @@ ReceiveLength:
     beq r12 r2 2
         reti ; Not done yet, wait for next byte
 
-    ;Length received, send back to confirm
+    ; Length received, send back to confirm
     shiftr r15 24 r1 ; Get highest byte
     write 0 r3 r1 ; Send byte
     shiftr r15 16 r1 ; Get second highest byte
@@ -198,7 +99,9 @@ ReceiveProgram:
         reti ; Not done yet, wait for next byte
 
     ; Word received, write to RAM
-    write 0 r14 r13 ; Write word to RAM
+    load32 0x400000 r2 ; RAM base address offset (16MiB)
+    add r2 r14 r2 ; Get current RAM address
+    write 0 r2 r13 ; Write word to RAM
     add r14 1 r14 ; Increment RAM address
 
     load 0 r13 ; Reset current word
@@ -212,26 +115,42 @@ ReceiveProgram:
     load 0x64 r1 ; ASCII 'd'
     write 0 r3 r1 ; Send byte
 
-    ; Make ready for execution
-    load 0 r1
-    load 0 r2
-    load 0 r3
-    load 0 r4
-    load 0 r5
-    load 0 r6
-    load 0 r7
-    load 0 r8
-    load 0 r9
-    load 0 r10
-    load 0 r11
-    load 0 r12
-    load 0 r13
-    load 0 r14
-    load 0 r15
-    nop
-    ccache ; Clear cache
-    reti
-    reti
+    CopyProgramToStartAddress:
+        ; Copy program to start of RAM (address 0)
+        load32 0x400000 r1 ; RAM base address offset (16MiB)
+        load 0 r2 ; Start at beginning of RAM
+        load 0 r3 ; Counter
+
+        CopyToStartLoop:
+            read 0 r1 r4 ; Read word from current RAM address (2)
+            write 0 r2 r4 ; Write word to start of RAM (3)
+            add r1 1 r1 ; Increment source address (4)
+            add r2 1 r2 ; Increment destination address (5)
+            add r3 1 r3 ; Increment counter (6)
+            beq r3 r15 2 ; Check if done (7)
+                jump CopyToStartLoop ; (8)
+
+    BootProgram:
+        ; Make ready for execution
+        load 0 r1
+        load 0 r2
+        load 0 r3
+        load 0 r4
+        load 0 r5
+        load 0 r6
+        load 0 r7
+        load 0 r8
+        load 0 r9
+        load 0 r10
+        load 0 r11
+        load 0 r12
+        load 0 r13
+        load 0 r14
+        load 0 r15
+        nop
+        ccache ; Clear cache
+        nop
+        reti
 
 Int:
     ; Check interrupt ID to be 1 (UART RX)

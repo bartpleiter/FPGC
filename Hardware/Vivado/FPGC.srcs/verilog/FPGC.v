@@ -104,7 +104,6 @@ BUFG bufgclk50 (
     .O (clk50)
 );
 
-
 // GPU clocks
 wire clkPixel;
 wire clkTMDShalf;
@@ -147,9 +146,8 @@ end
 wire reset100 = !reset100_sync[1] || uart_reset; // Reset synchronized to 100MHz clock
 
 //-----------------------ROM-------------------------
-// ROM I/O
-wire [8:0] rom_fe_addr;
-wire [8:0] rom_mem_addr;
+wire [9:0] rom_fe_addr;
+wire [9:0] rom_mem_addr;
 wire rom_fe_oe;
 wire rom_fe_hold;
 wire [31:0] rom_fe_q;
@@ -157,9 +155,9 @@ wire [31:0] rom_mem_q;
 
 ROM #(
     .WIDTH(32),
-    .WORDS(512),
-    .ADDR_BITS(9),
-    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/rom_bootloader.list")
+    .WORDS(1024),
+    .ADDR_BITS(10),
+    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/memory/rom_bootloader.list")
 ) rom (
     .clk (clk50),
 
@@ -695,6 +693,7 @@ B32P2 cpu (
 
     // Interrupts, right is highest priority
     .interrupts({3'd0, frameDrawn_CPU, OST3_int, OST2_int, OST1_int, uart_irq})
+    //.interrupts({7'd0, uart_irq})
 );
 
 endmodule

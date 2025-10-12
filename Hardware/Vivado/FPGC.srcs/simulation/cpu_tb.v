@@ -51,8 +51,8 @@ wire clkTMDShalf = clk100;
 
 
 //-----------------------ROM-------------------------
-wire [8:0] rom_fe_addr;
-wire [8:0] rom_mem_addr;
+wire [9:0] rom_fe_addr;
+wire [9:0] rom_mem_addr;
 wire rom_fe_oe;
 wire rom_fe_hold;
 wire [31:0] rom_fe_q;
@@ -60,8 +60,8 @@ wire [31:0] rom_mem_q;
 
 ROM #(
     .WIDTH(32),
-    .WORDS(512),
-    .ADDR_BITS(9),
+    .WORDS(1024),
+    .ADDR_BITS(10),
     .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/rom.list")
 ) rom (
     .clk (clk),
@@ -440,7 +440,9 @@ wire SPI0_miso;
 wire SPI0_wp = 1'b1;
 wire SPI0_hold = 1'b1;
 
-W25Q128JV spiflash1 (
+W25Q128JV #(
+    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/spiflash1.list")
+) spiflash1 (
 .CLK    (SPI0_clk),
 .DIO    (SPI0_mosi),
 .CSn    (SPI0_cs),
@@ -457,7 +459,9 @@ wire SPI1_miso;
 wire SPI1_wp = 1'b1;
 wire SPI1_hold = 1'b1;
 
-W25Q128JV spiflash2 (
+W25Q128JV #(
+    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/spiflash2.list")
+) spiflash2 (
 .CLK    (SPI1_clk),
 .DIO    (SPI1_mosi),
 .CSn    (SPI1_cs),
@@ -465,6 +469,64 @@ W25Q128JV spiflash2 (
 .HOLDn  (SPI1_hold),
 .DO     (SPI1_miso)
 );
+
+//------------------UART data sender (simulation only)----------------------
+wire        uart_rx;
+// UART test data transmission
+reg [7:0] uart_test_data [0:65535]; // Buffer for test data (64KB max)
+integer uart_test_data_size = 0;
+integer uart_test_index = -1; // Start before first index (bit ugly solution)
+reg uart_test_active = 1'b0;
+reg uart_test_start = 1'b0;
+reg uart_tx_trigger = 1'b0;
+wire uart_tx_done;
+wire uart_tx_active;
+
+// UART transmitter for testing
+UARTtx #(
+    .ENABLE_DISPLAY(0)
+) uart_transmitter (
+    .i_Clock(clk),
+    .reset(reset),
+    .i_Tx_DV(uart_tx_trigger),
+    .i_Tx_Byte(uart_test_data[uart_test_index]),
+    .o_Tx_Active(uart_tx_active),
+    .o_Tx_Serial(uart_rx), // Connect to CPU's uart_rx
+    .o_Tx_Done(uart_tx_done)
+);
+
+always @(posedge clk)
+begin
+    if (reset) begin
+        uart_test_index <= -1;
+        uart_test_active <= 1'b0;
+        uart_tx_trigger <= 1'b0;
+    end else begin
+        // Start UART transmission after delay
+        if (clk_counter > 3000 && !uart_test_start) begin
+            uart_test_start <= 1'b1;
+            uart_test_active <= 1'b1;
+        end
+        
+        // UART transmission state machine
+        if (uart_test_active && uart_test_start) begin
+            if (!uart_tx_trigger && !uart_tx_active && uart_test_index < uart_test_data_size) begin
+                // Start next byte transmission
+                uart_tx_trigger <= 1'b1;
+                uart_test_index <= uart_test_index + 1;
+                if (uart_test_index >= uart_test_data_size -1) begin
+                    uart_test_active <= 1'b0;
+                    uart_tx_trigger <= 1'b0;
+                    $display("UART bootloader test transmission complete at time %t", $time);
+                end
+                //$display("Sending UART byte %d: 0x%02x", uart_test_index, uart_test_data[uart_test_index]);
+            end else if (uart_tx_trigger && uart_tx_active) begin
+                // Clear trigger once transmission starts
+                uart_tx_trigger <= 1'b0;
+            end
+        end
+    end
+end
 
 //------------------Memory Unit (50MHz)----------------------
 wire        mu_start;
@@ -475,7 +537,6 @@ wire [31:0] mu_q;
 wire        mu_done;
 
 wire        uart_tx;
-// We ignore uart_rx in simulation, as we will connect uart_tx as rx for testing
 wire        uart_irq;
 
 wire        OST1_int;
@@ -516,7 +577,7 @@ MemoryUnit memory_unit (
     .q(mu_q),
     .done(mu_done),
 
-    .uart_rx(uart_tx), // Loopback for testing
+    .uart_rx(uart_rx),
     .uart_tx(uart_tx),
     .uart_irq(uart_irq),
 
@@ -653,6 +714,17 @@ begin
     $dumpvars;
     `endif
 
+    // Initialize UART test data
+    $readmemb("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/uartprog_8bit.list", uart_test_data);
+    // Count actual data size (find first uninitialized location)
+    uart_test_data_size = 0;
+    for (integer i = 0; i < 262144; i = i + 1) begin
+        if (uart_test_data[i] !== 8'hxx) begin
+            uart_test_data_size = i + 1;
+        end else begin
+            i = 262144; // Break loop
+        end
+    end
 end
 
 endmodule

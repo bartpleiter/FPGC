@@ -80,7 +80,5 @@ set_property PULLTYPE PULLUP [get_ports SPI4_miso]
 set_property PULLTYPE PULLUP [get_ports SPI4_nint]
 set_property PULLTYPE PULLUP [get_ports SPI5_miso]
 
-set_property PULLTYPE PULLUP [get_ports uart_nrts]
-
 set_property PULLTYPE PULLUP [get_ports boot_mode]
 set_property PULLTYPE PULLUP [get_ports switch2]

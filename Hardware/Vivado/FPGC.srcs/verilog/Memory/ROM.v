@@ -7,8 +7,8 @@
 */
 module ROM #(
     parameter WIDTH = 32,
-    parameter WORDS = 512,
-    parameter ADDR_BITS = 9,
+    parameter WORDS = 1024,
+    parameter ADDR_BITS = 10,
     parameter LIST = "memory/rom.list"
 ) (
     input  wire                 clk,

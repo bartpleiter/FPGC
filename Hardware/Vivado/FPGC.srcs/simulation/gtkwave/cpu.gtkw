@@ -1,21 +1,21 @@
 [*]
 [*] GTKWave Analyzer v3.3.121 (w)1999-2024 BSI
-[*] Wed Oct  8 18:18:51 2025
+[*] Sun Oct 12 18:55:24 2025
 [*]
 [dumpfile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd"
-[dumpfile_mtime] "Wed Oct  8 18:18:00 2025"
-[dumpfile_size] 1433466
+[dumpfile_mtime] "Sun Oct 12 18:41:56 2025"
+[dumpfile_size] 1804981
 [savefile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/cpu.gtkw"
-[timestart] 941700
-[size] 1920 1033
+[timestart] 922051200
+[size] 1536 881
 [pos] -1 -1
-*-16.819635 1341900 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-17.119637 922098100 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] cpu_tb.
 [treeopen] cpu_tb.memory_unit.
 [sst_width] 321
-[signals_width] 373
+[signals_width] 482
 [sst_expanded] 1
-[sst_vpaned_height] 593
+[sst_vpaned_height] 502
 @28
 cpu_tb.clk
 cpu_tb.clk100
@@ -379,9 +379,6 @@ cpu_tb.cpu.flush_FE1
 -
 @28
 cpu_tb.cpu.mem_rom_FE1
-@24
-cpu_tb.cpu.mem_rom_addr_FE1[8:0]
-@28
 cpu_tb.cpu.rom_fe_oe
 @200
 -
@@ -401,6 +398,9 @@ cpu_tb.cpu.mem_rom_FE2
 cpu_tb.cpu.rom_q_FE2[31:0]
 @200
 -
+@28
+cpu_tb.cpu.stall_FE2_reg
+cpu_tb.cpu.l1i_pipe_q_reg[273:0]
 @c00028
 cpu_tb.cpu.l1i_pipe_q[273:0]
 @28
@@ -819,8 +819,7 @@ cpu_tb.cpu.exmem1_uses_exmem2_result
 cpu_tb.cpu.forward_a[1:0]
 cpu_tb.cpu.forward_b[1:0]
 @28
-cpu_tb.cpu.hazard_pc1_pc2
-cpu_tb.cpu.hazard_pc2_pc1
+cpu_tb.cpu.multicycle_hazard
 @200
 -
 -EXMEM1 - BranchJumpUnit
@@ -837,9 +836,8 @@ cpu_tb.cpu.branchJumpUnit_EXMEM1.data_b[31:0]
 cpu_tb.cpu.branchJumpUnit_EXMEM1.const16[31:0]
 @200
 -
-@29
-cpu_tb.cpu.branchJumpUnit_EXMEM1.branch
 @28
+cpu_tb.cpu.branchJumpUnit_EXMEM1.branch
 cpu_tb.cpu.branchJumpUnit_EXMEM1.branchOP[2:0]
 @420
 cpu_tb.cpu.branchJumpUnit_EXMEM1.data_a[31:0]
@@ -879,9 +877,8 @@ cpu_tb.cpu.l1d_pipe_addr[6:0]
 cpu_tb.cpu.l1d_pipe_q[273:0]
 @200
 -
-@24
-cpu_tb.cache_controller.cpu_EXMEM2_addr[31:0]
 @22
+cpu_tb.cache_controller.cpu_EXMEM2_addr[31:0]
 cpu_tb.cache_controller.cpu_EXMEM2_data[31:0]
 @28
 cpu_tb.cache_controller.cpu_EXMEM2_done
@@ -896,7 +893,7 @@ cpu_tb.cache_controller.state[7:0]
 -EXMEM2
 @28
 cpu_tb.cpu.clk
-@22
+@24
 cpu_tb.cpu.PC_EXMEM2[31:0]
 @28
 cpu_tb.cpu.instr_EXMEM2[31:0]
@@ -912,7 +909,9 @@ cpu_tb.cpu.alu_y_EXMEM2[31:0]
 -EXMEM2 - SDRAM
 @28
 cpu_tb.cpu.l1d_cache_wait_EXMEM2
+@29
 cpu_tb.cpu.mem_sdram_EXMEM2
+@28
 cpu_tb.cpu.l1d_cache_miss_state_EXMEM2[1:0]
 @200
 -
@@ -964,9 +963,6 @@ cpu_tb.cpu.mem_io_EXMEM2
 @200
 -
 -EXMEM2 - ROM
-@24
-cpu_tb.cpu.rom_mem_addr[8:0]
-@200
 -
 -EXMEM2 - VRAM32
 @24
@@ -1050,6 +1046,21 @@ cpu_tb.memory_unit.uart_tx_done
 cpu_tb.memory_unit.uart_irq
 @22
 cpu_tb.memory_unit.uart_rx_q[7:0]
+@200
+-
+@28
+cpu_tb.clk
+@24
+cpu_tb.clk_counter
+@28
+cpu_tb.uart_test_active
+@420
+cpu_tb.uart_test_data_size
+cpu_tb.uart_test_index
+@28
+cpu_tb.uart_test_start
+cpu_tb.uart_tx_trigger
+cpu_tb.uart_tx_done
 @200
 -
 @22

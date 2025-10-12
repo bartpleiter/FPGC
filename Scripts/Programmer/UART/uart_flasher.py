@@ -121,7 +121,7 @@ class UARTFlasher:
             raise UARTFlasherError("Serial port not initialized")
             
         # Give FPGC time to reset
-        sleep(0.3)
+        sleep(0.5)
         
         # Read and parse binary file
         data = self.read_binary_file(file_path)
@@ -145,12 +145,12 @@ class UARTFlasher:
                 self.serial_port.write(bytes([byte]))
             logging.debug("Sent file size")
             
-            # Read confirmation (4 bytes)
-            confirmation = self.serial_port.read(4)
-            if len(confirmation) != 4:
-                raise UARTFlasherError("Failed to receive size confirmation")
+            # # Read confirmation (4 bytes)
+            # confirmation = self.serial_port.read(4)
+            # if len(confirmation) != 4:
+            #     raise UARTFlasherError("Failed to receive size confirmation")
             
-            logging.info(f"Received file size confirmation: {confirmation}")
+            # logging.info(f"Received file size confirmation: {confirmation}")
             
             # Send all words
             for word_index in range(file_size):

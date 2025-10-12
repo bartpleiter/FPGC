@@ -33,12 +33,12 @@ module B32P2 #(
     //========================
     // ROM (dual port)
     //========================
-    output wire [8:0]   rom_fe_addr,
+    output wire [9:0]   rom_fe_addr,
     output wire         rom_fe_oe,
     input  wire [31:0]  rom_fe_q,
     output wire         rom_fe_hold,
 
-    output wire [8:0]   rom_mem_addr,
+    output wire [9:0]   rom_mem_addr,
     input  wire [31:0]  rom_mem_q,
 
     //========================
@@ -118,9 +118,9 @@ wire flush_FE2;
 wire flush_REG;
 wire flush_EXMEM1;
 
-assign flush_FE1 = jump_valid_EXMEM1 || hazard_pc1_pc2 || hazard_pc2_pc1 || reti_EXMEM1 || interrupt_valid;
-assign flush_FE2 = jump_valid_EXMEM1 || hazard_pc1_pc2 || hazard_pc2_pc1 || reti_EXMEM1 || interrupt_valid;
-assign flush_REG = jump_valid_EXMEM1 || hazard_pc1_pc2 || hazard_pc2_pc1 || reti_EXMEM1 || interrupt_valid;
+assign flush_FE1 = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid || multicycle_hazard; // || hazard_pc1_pc2 || hazard_pc2_pc1
+assign flush_FE2 = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid || multicycle_hazard; // || hazard_pc1_pc2 || hazard_pc2_pc1
+assign flush_REG = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid || multicycle_hazard; // || hazard_pc1_pc2 || hazard_pc2_pc1
 assign flush_EXMEM1 = exmem1_uses_exmem2_result;
 
 assign l1i_cache_controller_flush = l1i_cache_controller_flush_reg;
@@ -155,19 +155,32 @@ assign exmem1_uses_exmem2_result =
     (arithm_EXMEM2 && multicycle_alu_done_EXMEM2)) && 
     (dreg_EXMEM2 == areg_EXMEM1 || dreg_EXMEM2 == breg_EXMEM1);
 
+// NOTE: hazard_pc1_pc2 and hazard_pc2_pc1 were not fully covering the hazard situations, and is for now replaced by multicycle_hazard
 // - EXMEM1 uses result of multicycle EXMEM2 at PC-1 and dreg of PC-2 -> jump to same address to resolve
 // Note: because this is hard to describe as a variable name, we will call this situation hazard_pc1_pc2
-wire hazard_pc1_pc2;
-assign hazard_pc1_pc2 = 
-    ( (mem_read_EXMEM2 && mem_multicycle_EXMEM2) || (mem_write_EXMEM2 && mem_io_EXMEM2) || arithm_EXMEM2 || l1d_cache_wait_EXMEM2 ) &&
-    ( ( (areg_EXMEM1 == addr_d_WB) && areg_EXMEM1 != 4'd0) || ( (breg_EXMEM1 == addr_d_WB) && breg_EXMEM1 != 4'd0) );
+// wire hazard_pc1_pc2;
+// assign hazard_pc1_pc2 = 
+//     ( (mem_read_EXMEM2 && mem_multicycle_EXMEM2) || (mem_write_EXMEM2 && mem_io_EXMEM2) || arithm_EXMEM2 || l1d_cache_wait_EXMEM2 ) &&
+//     ( ( (areg_EXMEM1 == addr_d_WB) && areg_EXMEM1 != 4'd0) || ( (breg_EXMEM1 == addr_d_WB) && breg_EXMEM1 != 4'd0) );
 
 // - EXMEM1 uses result of multicycle EXMEM2 at PC-2 and dreg of PC-1 -> jump to same address to resolve
 // Note: because this is hard to describe as a variable name, we will call this situation hazard_pc2_pc1
-wire hazard_pc2_pc1;
-assign hazard_pc2_pc1 = 
-    ( (mem_read_WB && mem_multicycle_WB) || (mem_write_WB && mem_io_WB) || arithm_WB || l1d_cache_wait_EXMEM2 ) &&
-    ( ( (areg_EXMEM1 == dreg_EXMEM2) && areg_EXMEM1 != 4'd0) || ( (breg_EXMEM1 == dreg_EXMEM2) && breg_EXMEM1 != 4'd0) );
+// wire hazard_pc2_pc1;
+// assign hazard_pc2_pc1 = 
+//     ( (mem_read_WB && mem_multicycle_WB) || (mem_write_WB && mem_io_WB) || arithm_WB || l1d_cache_wait_EXMEM2 ) &&
+//     ( ( (areg_EXMEM1 == dreg_EXMEM2) && areg_EXMEM1 != 4'd0) || ( (breg_EXMEM1 == dreg_EXMEM2) && breg_EXMEM1 != 4'd0) );
+
+// - EXMEM1 uses result of multicycle EXMEM2 or WB at PC-1 or PC-2 -> flush
+// TODO: make sure cache hits are excluded
+wire multicycle_hazard;
+assign multicycle_hazard =
+    ( 
+        ( (areg_EXMEM1 == addr_d_WB)   && areg_EXMEM1 != 4'd0)  || ( (breg_EXMEM1 == addr_d_WB)   && breg_EXMEM1 != 4'd0) ||
+        ( (areg_EXMEM1 == dreg_EXMEM2) && areg_EXMEM1 != 4'd0)  || ( (breg_EXMEM1 == dreg_EXMEM2) && breg_EXMEM1 != 4'd0)
+    ) && (
+        ( mem_multicycle_EXMEM2 || arithm_EXMEM2 ) ||
+        ( mem_multicycle_WB     || arithm_WB     )
+    );
 
 // Forwarding situations
 // EXMEM2 -> EXMEM1 (single cycle ALU operations)
@@ -226,13 +239,14 @@ begin
             intDisabled_FE1 <= 1'b0;
             PC_FE1 <= PC_backup;
         end
+        // Flushes have priority over jumps
+        else if (multicycle_hazard) //(hazard_pc1_pc2 || hazard_pc2_pc1)
+        begin
+            PC_FE1 <= PC_EXMEM1;
+        end
         else if (jump_valid_EXMEM1)
         begin
             PC_FE1 <= jump_addr_EXMEM1;
-        end
-        else if (hazard_pc1_pc2 || hazard_pc2_pc1)
-        begin
-            PC_FE1 <= PC_EXMEM1;
         end
         else if (stall_FE1)
         begin
@@ -252,7 +266,7 @@ end
 
 // Fetch address decoding
 wire mem_rom_FE1;
-wire [8:0] mem_rom_addr_FE1;
+wire [9:0] mem_rom_addr_FE1;
 assign mem_rom_FE1 = PC_FE1 >= ROM_ADDRESS;
 assign mem_rom_addr_FE1 = PC_FE1 - ROM_ADDRESS;
 
@@ -305,6 +319,22 @@ wire bubble_FE2 = !n_bubble_FE2;
  * Stage 2: Instruction Cache Miss Fetch
  */
 
+// l1i_pipe_q stall handling
+reg [273:0] l1i_pipe_q_reg = 32'd0;
+reg stall_FE2_reg = 1'b0;
+always @(posedge clk) begin
+    if (reset || flush_FE2) begin
+        l1i_pipe_q_reg <= 32'd0;
+        stall_FE2_reg <= 1'b0;
+    end else
+    begin
+        stall_FE2_reg <= stall_FE2;
+        if (!stall_FE2_reg) begin
+            l1i_pipe_q_reg <= l1i_pipe_q;
+        end
+    end
+end
+
 // ROM access
 wire mem_rom_FE2;
 assign mem_rom_FE2 = PC_FE2 >= ROM_ADDRESS;
@@ -322,6 +352,7 @@ wire l1i_cache_hit_FE2 =
     l1i_pipe_q[1]; // Valid bit
 
 wire [31:0] l1i_cache_hit_q_FE2 = l1i_pipe_q[32 * l1i_offset_FE2 + 18 +: 32]; // Note that the +: is used to select base +: width
+wire [31:0] l1i_cache_hit_q_stall_FE2 = l1i_pipe_q_reg[32 * l1i_offset_FE2 + 18 +: 32]; // Use the registered value when stalled
 
 // L1i cache miss handling
 wire l1i_cache_miss_FE2;
@@ -407,6 +438,7 @@ wire [31:0] instr_result_FE2;
 assign instr_result_FE2 =   (mem_rom_FE2) ? rom_q_FE2 :
                             (l1i_cache_miss_state_FE2 == L1I_CACHE_RESULT_READY) ? saved_cache_result_FE2 : // Cache miss result is ready
                             (l1i_cache_miss_FE2) ? 32'b0 : // Forward bubbles when still handling cache miss
+                            (l1i_cache_hit_FE2 && stall_FE2_reg && !flush_FE2) ? l1i_cache_hit_q_stall_FE2 : // Fix for stall during cache hit on new line
                             (l1i_cache_hit_FE2 && !stall_FE2 && !flush_FE2) ? l1i_cache_hit_q_FE2 : // Must be below cache miss checks
                             32'b0;
 
@@ -870,7 +902,7 @@ wire [31:0] l1d_cache_hit_q_EXMEM2 = l1d_pipe_q[32 * l1d_offset_EXMEM2 + 18 +: 3
 
 // L1d cache miss handling
 wire l1d_cache_miss_EXMEM2;
-assign l1d_cache_miss_EXMEM2 = mem_read_EXMEM2 && mem_sdram_EXMEM2 && !l1d_cache_hit_EXMEM2;
+assign l1d_cache_miss_EXMEM2 = mem_read_EXMEM2 && mem_sdram_EXMEM2 && !l1d_cache_hit_EXMEM2 && !was_cache_miss_EXMEM2;
 
 // Cache miss state machine
 reg [1:0] l1d_cache_miss_state_EXMEM2 = 2'b00;
