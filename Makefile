@@ -54,7 +54,10 @@ docs-deploy:
 	./Scripts/Docs/deploy.sh
 
 sim-cpu:
-	./Scripts/Simulation/simulate_cpu.sh
+	./Scripts/Simulation/simulate_cpu.sh --add-ram --add-flash
+
+sim-cpu-uart:
+	./Scripts/Simulation/simulate_cpu.sh --add-ram --add-flash --add-uart
 
 sim-gpu:
 	./Scripts/Simulation/simulate_gpu.sh
@@ -64,6 +67,12 @@ test-cpu:
 
 compile-asm:
 	./Scripts/ASM/compile_bare_metal_asm.sh $(file)
+
+compile-bootloader:
+	./Scripts/ASM/compile_bootloader.sh
+
+sim-bootloader:
+	./Scripts/ASM/compile_bootloader.sh --simulate
 
 flash-asm-uart:
 	./Scripts/Programmer/UART/flash_uart.sh

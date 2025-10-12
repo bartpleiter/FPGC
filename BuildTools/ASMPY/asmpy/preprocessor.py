@@ -58,7 +58,8 @@ class Preprocessor:
                     file_path=self.current_directory / directive.include_file.file_name,
                     already_included_filenames=self.already_included_filenames,
                 ).preprocess()
-                self.preprocessed_lines = include_preprocessed + self.preprocessed_lines
+                # Append the include file contents to the end of the current file
+                self.preprocessed_lines = self.preprocessed_lines + include_preprocessed
 
             elif isinstance(directive, DefinePreprocessorDirective):
                 for source_line in self.preprocessed_lines:

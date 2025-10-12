@@ -459,6 +459,8 @@ wire SPI1_miso;
 wire SPI1_wp = 1'b1;
 wire SPI1_hold = 1'b1;
 
+// No SPI Flash 2 for cpu tests needed
+/*
 W25Q128JV #(
     .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/spiflash2.list")
 ) spiflash2 (
@@ -469,6 +471,7 @@ W25Q128JV #(
 .HOLDn  (SPI1_hold),
 .DO     (SPI1_miso)
 );
+*/
 
 //------------------Memory Unit (50MHz)----------------------
 wire        mu_start;
@@ -648,15 +651,6 @@ always @(posedge clk) begin
         $display("Simulation finished.");
         $finish;
     end
-end
-
-initial
-begin
-    `ifndef testbench
-    $dumpfile("Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd");
-    $dumpvars;
-    `endif
-
 end
 
 endmodule

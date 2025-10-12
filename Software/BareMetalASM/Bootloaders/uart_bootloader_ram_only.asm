@@ -53,15 +53,16 @@ ReceiveLength:
     beq r12 r2 2
         reti ; Not done yet, wait for next byte
 
+    ; Note: sending back the length is disabled to make simulation easier
     ; Length received, send back to confirm
-    shiftr r15 24 r1 ; Get highest byte
-    write 0 r3 r1 ; Send byte
-    shiftr r15 16 r1 ; Get second highest byte
-    write 0 r3 r1 ; Send byte
-    shiftr r15 8 r1 ; Get second lowest byte
-    write 0 r3 r1 ; Send byte
-    shiftr r15 0 r1 ; Get lowest byte
-    write 0 r3 r1 ; Send byte
+    ; shiftr r15 24 r1 ; Get highest byte
+    ; write 0 r3 r1 ; Send byte
+    ; shiftr r15 16 r1 ; Get second highest byte
+    ; write 0 r3 r1 ; Send byte
+    ; shiftr r15 8 r1 ; Get second lowest byte
+    ; write 0 r3 r1 ; Send byte
+    ; shiftr r15 0 r1 ; Get lowest byte
+    ; write 0 r3 r1 ; Send byte
 
     load 1 r10 ; Set length received flag
     load 0 r12 ; Reset byte shift counter

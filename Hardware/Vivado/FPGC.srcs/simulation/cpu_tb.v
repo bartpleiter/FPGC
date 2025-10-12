@@ -471,6 +471,7 @@ W25Q128JV #(
 );
 
 //------------------UART data sender (simulation only)----------------------
+// We exclude the signal definitions from the ifdef, so they stay available in gtkwave
 wire        uart_rx;
 // UART test data transmission
 reg [7:0] uart_test_data [0:65535]; // Buffer for test data (64KB max)
@@ -482,51 +483,53 @@ reg uart_tx_trigger = 1'b0;
 wire uart_tx_done;
 wire uart_tx_active;
 
-// UART transmitter for testing
-UARTtx #(
-    .ENABLE_DISPLAY(0)
-) uart_transmitter (
-    .i_Clock(clk),
-    .reset(reset),
-    .i_Tx_DV(uart_tx_trigger),
-    .i_Tx_Byte(uart_test_data[uart_test_index]),
-    .o_Tx_Active(uart_tx_active),
-    .o_Tx_Serial(uart_rx), // Connect to CPU's uart_rx
-    .o_Tx_Done(uart_tx_done)
-);
+`ifdef uart_simulation
+    // UART transmitter for testing
+    UARTtx #(
+        .ENABLE_DISPLAY(0)
+    ) uart_transmitter (
+        .i_Clock(clk),
+        .reset(reset),
+        .i_Tx_DV(uart_tx_trigger),
+        .i_Tx_Byte(uart_test_data[uart_test_index]),
+        .o_Tx_Active(uart_tx_active),
+        .o_Tx_Serial(uart_rx), // Connect to CPU's uart_rx
+        .o_Tx_Done(uart_tx_done)
+    );
 
-always @(posedge clk)
-begin
-    if (reset) begin
-        uart_test_index <= -1;
-        uart_test_active <= 1'b0;
-        uart_tx_trigger <= 1'b0;
-    end else begin
-        // Start UART transmission after delay
-        if (clk_counter > 3000 && !uart_test_start) begin
-            uart_test_start <= 1'b1;
-            uart_test_active <= 1'b1;
-        end
-        
-        // UART transmission state machine
-        if (uart_test_active && uart_test_start) begin
-            if (!uart_tx_trigger && !uart_tx_active && uart_test_index < uart_test_data_size) begin
-                // Start next byte transmission
-                uart_tx_trigger <= 1'b1;
-                uart_test_index <= uart_test_index + 1;
-                if (uart_test_index >= uart_test_data_size -1) begin
-                    uart_test_active <= 1'b0;
+    always @(posedge clk)
+    begin
+        if (reset) begin
+            uart_test_index <= -1;
+            uart_test_active <= 1'b0;
+            uart_tx_trigger <= 1'b0;
+        end else begin
+            // Start UART transmission after delay
+            if (clk_counter > 3000 && !uart_test_start) begin
+                uart_test_start <= 1'b1;
+                uart_test_active <= 1'b1;
+            end
+            
+            // UART transmission state machine
+            if (uart_test_active && uart_test_start) begin
+                if (!uart_tx_trigger && !uart_tx_active && uart_test_index < uart_test_data_size) begin
+                    // Start next byte transmission
+                    uart_tx_trigger <= 1'b1;
+                    uart_test_index <= uart_test_index + 1;
+                    if (uart_test_index >= uart_test_data_size -1) begin
+                        uart_test_active <= 1'b0;
+                        uart_tx_trigger <= 1'b0;
+                        $display("UART bootloader test transmission complete at time %t", $time);
+                    end
+                    //$display("Sending UART byte %d: 0x%02x", uart_test_index, uart_test_data[uart_test_index]);
+                end else if (uart_tx_trigger && uart_tx_active) begin
+                    // Clear trigger once transmission starts
                     uart_tx_trigger <= 1'b0;
-                    $display("UART bootloader test transmission complete at time %t", $time);
                 end
-                //$display("Sending UART byte %d: 0x%02x", uart_test_index, uart_test_data[uart_test_index]);
-            end else if (uart_tx_trigger && uart_tx_active) begin
-                // Clear trigger once transmission starts
-                uart_tx_trigger <= 1'b0;
             end
         end
     end
-end
+`endif
 
 //------------------Memory Unit (50MHz)----------------------
 wire        mu_start;
@@ -701,7 +704,7 @@ end
 integer clk_counter = 0;
 always @(posedge clk) begin
     clk_counter = clk_counter + 1;
-    if (clk_counter == 1000) begin
+    if (clk_counter == 55000) begin
         $display("Simulation finished.");
         $finish;
     end
@@ -709,22 +712,22 @@ end
 
 initial
 begin
-    `ifndef testbench
     $dumpfile("Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd");
     $dumpvars;
-    `endif
 
-    // Initialize UART test data
-    $readmemb("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/uartprog_8bit.list", uart_test_data);
-    // Count actual data size (find first uninitialized location)
-    uart_test_data_size = 0;
-    for (integer i = 0; i < 262144; i = i + 1) begin
-        if (uart_test_data[i] !== 8'hxx) begin
-            uart_test_data_size = i + 1;
-        end else begin
-            i = 262144; // Break loop
+    `ifdef uart_simulation
+        // Initialize UART test data
+        $readmemb("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/uartprog_8bit.list", uart_test_data);
+        // Count actual data size (find first uninitialized location)
+        uart_test_data_size = 0;
+        for (integer i = 0; i < 262144; i = i + 1) begin
+            if (uart_test_data[i] !== 8'hxx) begin
+                uart_test_data_size = i + 1;
+            end else begin
+                i = 262144; // Break loop
+            end
         end
-    end
+    `endif
 end
 
 endmodule

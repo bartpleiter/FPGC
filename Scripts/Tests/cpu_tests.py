@@ -142,7 +142,7 @@ class CPUTestRunner:
             SimulationError: If simulation fails
         """
         # Compile testbench
-        compile_cmd = f"iverilog -Dtestbench -o {self.config.VERILOG_OUTPUT_PATH} {self.config.TESTBENCH_PATH}"
+        compile_cmd = f"iverilog -o {self.config.VERILOG_OUTPUT_PATH} {self.config.TESTBENCH_PATH}"
         exit_code, output = self._run_command(compile_cmd, "Compiling testbench")
 
         if exit_code != 0:
