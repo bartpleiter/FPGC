@@ -29,7 +29,7 @@
 
 // For now we force MIPS target
 // TODO: when custom CPU target is implemented, remove this
-#define MIPS
+//#define MIPS
 
 
 //#define __SMALLER_C__
@@ -1970,7 +1970,11 @@ void errorRedecl(char* s)
 #ifdef MIPS
 #include "cgmips.inc"
 #else
-#error Currently only MIPS target is supported
+#ifdef B32P2
+#include "cgb32p2.inc"
+#else
+#error Please define either MIPS or B32P2
+#endif
 #endif
 
 // expr.c code

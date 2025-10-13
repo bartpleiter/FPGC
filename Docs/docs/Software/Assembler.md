@@ -1,6 +1,6 @@
 # Assembler (ASMPY)
 
-ASMPY is an assembler for the B32P2 ISA written in Python and allows the user to write and assemble code for the FPGC. While the main focus of the assembler is to assemble the output of the C compiler (BCC), and therefore might not be great for large hand-written assembly projects, it can still be used for small assembly programs like bootloaders, or to create functional tests for the CPU/FPGC.
+ASMPY is an assembler for the B32P2 ISA written in Python and allows the user to write and assemble code for the FPGC. While the main focus of the assembler is to assemble the output of the C compiler (B32CC), and therefore might not be great for large hand-written assembly projects, it can still be used for small assembly programs like bootloaders, or to create functional tests for the CPU/FPGC.
 
 !!! note
     ASMPY is **not** the same as the assembler that runs on the FPGC itself, as Python cannot run on the FPGC. ASMPY's focus is to have a developer-friendly assembler on the development machine that can be easily extended, modified, debugged and improved.
@@ -43,7 +43,7 @@ Assembly files consist of several types of lines:
 
 - **Instructions** - CPU operations and data definitions
 - **Labels** - Address markers for jumps and references
-- **Directives** - Section organization (`.code`, `.data`, etc.), only relevant for the C compiler (BCC) output
+- **Directives** - Section organization (`.code`, `.data`, etc.), only relevant for the C compiler (B32CC) output
 - **Comments** - Documentation using `;` delimiter
 - **Preprocessor directives** - File inclusion and definitions using `#`
 
@@ -303,7 +303,7 @@ Some instructions automatically expand into multiple machine instructions:
 
 ### Section Reordering
 
-ASMPY automatically reorders sections in the output as this is required for executing BCC output.
+ASMPY automatically reorders sections in the output as this is required for executing B32CC output.
 
 1. `.code` - Executable code
 2. `.data` - Initialized data  

@@ -12,6 +12,7 @@ CORE_SOURCES = smlrc.c
 
 # Output binaries
 SMLRC_MIPS = output/smlrc-mips
+SMLRC_B32P2 = output/smlrc-b32p2
 
 # Common compiler flags for targets
 COMMON_FLAGS = 
@@ -19,13 +20,19 @@ COMMON_FLAGS =
 .PHONY: all clean mips test-mips help
 
 # Default target builds backend
-all: mips
+all: mips b32p2
 
 # Build MIPS backend
 mips: $(SMLRC_MIPS)
 
 $(SMLRC_MIPS): $(CORE_SOURCES) cgmips.inc
 	$(CC) $(CFLAGS) -DMIPS $(COMMON_FLAGS) $(CORE_SOURCES) -o $@
+
+# Build B32P2 backend
+b32p2: $(SMLRC_B32P2)
+
+$(SMLRC_B32P2): $(CORE_SOURCES) cgb32p2.inc
+	$(CC) $(CFLAGS) -DB32P2 $(COMMON_FLAGS) $(CORE_SOURCES) -o $@
 
 
 # Test that MIPS backend still works
@@ -34,10 +41,14 @@ test-mips: $(SMLRC_MIPS)
 	./$(SMLRC_MIPS) tests/a.c output/out.asm
 	@echo "MIPS compilation successful! Generated output/out.asm"
 
+test-b32p2: $(SMLRC_B32P2)
+	@echo "Testing B32P2 backend compilation..."
+	./$(SMLRC_B32P2) tests/a.c output/out.asm
+	@echo "B32P2 compilation successful! Generated output/out.asm"
 
 # Clean generated files
 clean:
-	rm -f $(SMLRC_MIPS) test.c *.asm
+	rm -f $(SMLRC_MIPS) $(SMLRC_B32P2) *.asm
 
 # Show usage help
 help:
