@@ -14,6 +14,7 @@ This directory contains a modified version of SmallerC, originally created by Al
 This version has been modified for use in the FPGC project. Key changes include:
 
 - Removing everything that is not needed for targeting the B32P2 ISA
+- Modifications to have all data 32 bit word aligned, as the B32P2 is not byte addressable
 - Modifying the MIPS backend to target B32P2 Assembly
 - Modifications to make the compiler run on the FPGC itself under the custom BDOS operating system, while still being able to run on Linux
 

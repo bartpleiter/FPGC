@@ -11,7 +11,7 @@ SRCDIR = v0100
 CORE_SOURCES = smlrc.c
 
 # Output binaries
-SMLRC_MIPS = smlrc-mips
+SMLRC_MIPS = output/smlrc-mips
 
 # Common compiler flags for targets
 COMMON_FLAGS = 
@@ -24,17 +24,15 @@ all: mips
 # Build MIPS backend
 mips: $(SMLRC_MIPS)
 
-$(SMLRC_MIPS): $(CORE_SOURCES) cgmips.c
+$(SMLRC_MIPS): $(CORE_SOURCES) cgmips.inc
 	$(CC) $(CFLAGS) -DMIPS $(COMMON_FLAGS) $(CORE_SOURCES) -o $@
 
 
 # Test that MIPS backend still works
 test-mips: $(SMLRC_MIPS)
 	@echo "Testing MIPS backend compilation..."
-	@echo 'int main(void) { return 42; }' > test.c
-	./$(SMLRC_MIPS) test.c test.asm
-	@echo "MIPS compilation successful! Generated test.asm"
-	@rm -f test.c test.asm
+	./$(SMLRC_MIPS) tests/a.c output/out.asm
+	@echo "MIPS compilation successful! Generated output/out.asm"
 
 
 # Clean generated files

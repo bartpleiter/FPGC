@@ -23,3 +23,4 @@ BuildTools/ASMPY/build
 tmp
 
 Software/BareMetalASM/Output
+BuildTools/B32CC/output

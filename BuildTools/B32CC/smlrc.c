@@ -1968,7 +1968,7 @@ void errorRedecl(char* s)
 }
 
 #ifdef MIPS
-#include "cgmips.c"
+#include "cgmips.inc"
 #else
 #error Currently only MIPS target is supported
 #endif
