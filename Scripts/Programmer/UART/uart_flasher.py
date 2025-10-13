@@ -143,22 +143,13 @@ class UARTFlasher:
             # Send file size
             for byte in file_size_bytes:
                 self.serial_port.write(bytes([byte]))
-            logging.debug("Sent file size")
-            
-            # # Read confirmation (4 bytes)
-            # confirmation = self.serial_port.read(4)
-            # if len(confirmation) != 4:
-            #     raise UARTFlasherError("Failed to receive size confirmation")
-            
-            # logging.info(f"Received file size confirmation: {confirmation}")
+                #sleep(0.0001)
             
             # Send all words
             for word_index in range(file_size):
                 for byte in word_list[word_index]:
                     self.serial_port.write(bytes([byte]))
-                    
-                if (word_index + 1) % 100 == 0:  # Progress indicator
-                    logging.debug(f"Sent {word_index + 1}/{file_size} words")
+                    #sleep(0.0001)
                     
             logging.info("Finished sending program data")
             

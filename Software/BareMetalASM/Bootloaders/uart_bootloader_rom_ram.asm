@@ -32,7 +32,7 @@ Main:
         ccache
         nop
 
-    jump CheckBootMode ; For testing bootloader in simulation
+    ;jump CheckBootMode ; For testing bootloader in simulation
     ;jump SplashScreen ; Skip init vram in simulation
 
     ClearVRAM32:

@@ -178,8 +178,8 @@ assign multicycle_hazard =
         ( (areg_EXMEM1 == addr_d_WB)   && areg_EXMEM1 != 4'd0)  || ( (breg_EXMEM1 == addr_d_WB)   && breg_EXMEM1 != 4'd0) ||
         ( (areg_EXMEM1 == dreg_EXMEM2) && areg_EXMEM1 != 4'd0)  || ( (breg_EXMEM1 == dreg_EXMEM2) && breg_EXMEM1 != 4'd0)
     ) && (
-        ( mem_multicycle_EXMEM2 || arithm_EXMEM2 ) ||
-        ( mem_multicycle_WB     || arithm_WB     )
+        ( (mem_multicycle_EXMEM2 && !l1d_cache_hit_EXMEM2) || arithm_EXMEM2 ) ||
+        ( (mem_multicycle_WB     && !l1d_cache_hit_WB    ) || arithm_WB     )
     );
 
 // Forwarding situations
@@ -1107,10 +1107,21 @@ Regr #(
 wire [31:0] l1d_cache_hit_q_WB;
 Regr #(
     .N(32)
-) regr_L1D_CACHE_HIT_EXMEM2_WB (
+) regr_L1D_CACHE_HIT_q_EXMEM2_WB (
     .clk (clk),
     .in(l1d_cache_hit_q_EXMEM2),
     .out(l1d_cache_hit_q_WB),
+    .hold(1'b0),
+    .clear(reset)
+);
+
+wire l1d_cache_hit_WB;
+Regr #(
+    .N(1)
+) regr_L1D_CACHE_HIT_EXMEM2_WB (
+    .clk (clk),
+    .in(l1d_cache_hit_EXMEM2),
+    .out(l1d_cache_hit_WB),
     .hold(1'b0),
     .clear(reset)
 );
