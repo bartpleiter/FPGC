@@ -8,5 +8,8 @@
         "asmpy",
         "bdos",
         "userbdos"
-    ]
+    ],
+    "files.associations": {
+        "*.inc": "c"
+    }
 }

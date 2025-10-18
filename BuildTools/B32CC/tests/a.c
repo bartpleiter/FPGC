@@ -18,3 +18,6 @@ int main() {
     int c = a + b;
     return c; //7
 }
+
+// Required interrupt handler
+void interrupt() {}

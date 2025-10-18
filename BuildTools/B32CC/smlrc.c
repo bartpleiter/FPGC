@@ -17,20 +17,20 @@
 /*                                                                           */
 /*                 A simple and small single-pass C compiler                 */
 /*                                                                           */
-/*             Produces 32-bit MIPS assembly output.                         */
+/*                   Produces 32-bit B32P2 assembly output.                  */
 /*                                                                           */
 /*                                 Main file                                 */
 /*                                                                           */
 /*****************************************************************************/
 
+// TODO's:
+// - update command line argument parsing to be only relevant for B32P2
+// - enforce char size of 32 bits and word size of 1 char
+
+
 // Making most functions static helps with code optimization,
 // use that to further reduce compiler's code size on RetroBSD.
 #define STATIC
-
-// For now we force MIPS target
-// TODO: when custom CPU target is implemented, remove this
-//#define MIPS
-
 
 //#define __SMALLER_C__
 
@@ -326,8 +326,6 @@ void GenInit(void);
 STATIC
 void GenFin(void);
 STATIC
-int GenInitParams(int argc, char** argv, int* idx);
-STATIC
 void GenInitFinalize(void);
 STATIC
 void GenStartCommentLine(void);
@@ -500,7 +498,6 @@ int gotoLabels[MAX_GOTO_LABELS][2];
 char gotoLabStat[MAX_GOTO_LABELS];
 int gotoLabCnt = 0;
 
-#
 int Cases[MAX_CASES][2]; // [0] is case constant, [1] is case label number
 int CasesCnt = 0;
 
@@ -1967,15 +1964,8 @@ void errorRedecl(char* s)
   error("Invalid or unsupported redeclaration of '%s'\n", s);
 }
 
-#ifdef MIPS
-#include "cgmips.inc"
-#else
-#ifdef B32P2
+// We always compile for B32P2
 #include "cgb32p2.inc"
-#else
-#error Please define either MIPS or B32P2
-#endif
-#endif
 
 // expr.c code
 
@@ -8010,13 +8000,7 @@ int main(int argc, char** argv)
   // Parse the command line arguments
   for (i = 1; i < argc; i++)
   {
-    // DONE: move code-generator-specific options to
-    // the code generator
-    if (GenInitParams(argc, argv, &i))
-    {
-      continue;
-    }
-    else if (!strcmp(argv[i], "-signed-char"))
+    if (!strcmp(argv[i], "-signed-char"))
     {
       // this is the default option
       CharIsSigned = 1;
@@ -8191,19 +8175,16 @@ int main(int argc, char** argv)
 
 #ifndef NO_ANNOTATIONS
   DumpSynDecls();
-#endif
-#ifndef NO_ANNOTATIONS
   DumpMacroTable();
-#endif
-#ifndef NO_ANNOTATIONS
   DumpIdentTable();
-#endif
-
+  
   GenStartCommentLine(); printf2("Next label number: %d\n", LabelCnt);
 
   if (warnings && warnCnt)
     printf("%d warnings\n", warnCnt);
   GenStartCommentLine(); printf2("Compilation succeeded.\n");
+
+#endif
 
   if (OutFile)
     fclose(OutFile);

@@ -21,46 +21,65 @@
 /*                                                                           */
 /*****************************************************************************/
 
+/*
+ * TODO's:
+ * - (MAJOR) support word addressing only (no byte addressing)
+ * - define 0x77FFFF stack address as a constant somewhere
+ * - define 0x7000000 IO address as a constant somewhere
+ * - add BDOS user program option with custom wrapper
+*/
 
 STATIC
 void GenInit(void)
 {
   // initialization of target-specific code generator
+  // Assembler is responsible to move all non-.code parts away from the code
   SizeOfWord = 4;
   OutputFormat = FormatSegmented;
-  CodeHeaderFooter[0] = "\t.code";
-  DataHeaderFooter[0] = "\t.data";
-  RoDataHeaderFooter[0] = "\t.rdata";
-  BssHeaderFooter[0] = "\t.bss";
+  CodeHeaderFooter[0] = ".code";
+  DataHeaderFooter[0] = ".data";
+  RoDataHeaderFooter[0] = ".rdata";
+  BssHeaderFooter[0] = ".bss";
   UseLeadingUnderscores = 0;
-  FileHeader = "";
+  FileHeader = ""; // No file header needed for now
 
-}
-
-STATIC
-int GenInitParams(int argc, char** argv, int* idx)
-{
-  (void)argc;
-  // initialization of target-specific code generator with parameters
-  if (!strcmp(argv[*idx], "-v"))
-  {
-    // RetroBSD's cc may supply this parameter. Just need to consume it.
-    return 1;
-  }
-
-  return 0;
 }
 
 STATIC
 void GenInitFinalize(void)
 {
   // finalization of initialization of target-specific code generator
+  // This is the place where we put the top of the wrapper code
+  //  around the generated code
+
+  printf2(
+      ".code\n"
+      "; Setup stack and return function before jumping to Main of C program\n"
+      "Main:\n"
+      "  ccache                  ; clear cache\n"
+      "  nop                     ; wait a bit\n"
+      "  load32 0 r14            ; initialize base pointer address\n"
+      "  load32 0x77FFFF r13     ; initialize main stack address\n"
+      "  addr2reg Return_UART r1 ; get address of return function\n"
+      "  or r0 r1 r15            ; copy return addr to r15\n"
+      "  jump main               ; jump to main of C program\n"
+      "                          ; should return to the address in r15\n"
+      "  halt                    ; should not get here\n"
+      "\n"
+      "; Function that is called after Main of C program has returned\n"
+      "; Return value should be in R1\n"
+      "; Send it over UART and halt afterwards\n"
+      "Return_UART:\n"
+      "  load32 0x7000000 r1 ; r1 = 0x7000000 | UART tx\n"
+      "  write 0 r1 r2       ; write r2 over UART\n"
+      "  halt                ; halt\n"
+      "\n");
 }
 
 STATIC
 void GenStartCommentLine(void)
 {
-  printf2(" # ");
+  printf2(" ; ");
 }
 
 STATIC
@@ -74,9 +93,10 @@ STATIC
 void GenLabel(char* Label, int Static)
 {
   {
-    if (!Static && GenExterns)
-      printf2("\t.globl\t%s\n", Label);
-    printf2("%s:\n", Label);
+    // Optional: if in the future linker support is added, below can be used
+    // if (!Static && GenExterns)
+    //   printf2("  .globl %s\n", Label);
+    printf2("Label_%s:\n", Label);
   }
 }
 
@@ -87,7 +107,7 @@ void GenPrintLabel(char* Label)
     if (isdigit(*Label))
       printf2("Label_L%s", Label);
     else
-      printf2("%s", Label);
+      printf2("Label_%s", Label);
   }
 }
 
@@ -110,9 +130,14 @@ void GenZeroData(unsigned Size, int bss)
   // B32P2: Generate zero words for uninitialized data
   unsigned words = (Size + 3) / 4; // Round up to words
   unsigned i;
-  for (i = 0; i < words; i++)
+  if (words > 0)
   {
-    printf2("\t.dw\t0\n");
+    printf2("  .dw");
+    for (i = 0; i < words; i++)
+    {
+      printf2(" 0");
+    }
+    printf2("\n");
   }
 }
 
@@ -123,22 +148,22 @@ void GenIntData(int Size, int Val)
   if (Size == 1 || Size == 2 || Size == 4)
   {
     // B32P2: All data stored as 32-bit words
-    printf2("\t.dw\t%d\n", Val);
+    printf2("  .dw %d\n", Val);
   }
 }
 
 STATIC
 void GenStartAsciiString(void)
 {
-  printf2("\t.dsb\t");
+  printf2("  .dw "); // String should be converted into 1 character per word
 }
 
 STATIC
 void GenAddrData(int Size, char* Label, int ofs)
 {
   ofs = truncInt(ofs);
-  (void)Size; // B32P2: All data stored as 32-bit words
-  printf2("\t.dw\t");
+  // B32P2: All data stored as 32-bit words, no need to check size
+  printf2("  .dw ");
   GenPrintLabel(Label);
   if (ofs)
     printf2(" %+d", ofs);
@@ -252,7 +277,7 @@ void GenPrintInstr(int instr, int val)
   case B32InstrJumpr   : p = "jumpr"; break;
   }
 
-  printf2("\t%s\t", p);
+  printf2("  %s ", p);
 }
 
 #define B32OpReg0                        0x00  // Zero register
@@ -283,8 +308,8 @@ void GenPrintInstr(int instr, int val)
 #define B32OpRegT0                       B32OpReg8   // Temp register 0
 #define B32OpRegT1                       B32OpReg9   // Temp register 1
 #define B32OpRegT2                       B32OpReg10  // Temp register 2
-#define B32OpRegT3                       B32OpReg11  // Temp register 3
-#define B32OpRegT4                       B32OpReg12  // Temp register 4
+#define B32OpRegT3                       B32OpReg11  // Momentary register 1
+#define B32OpRegT4                       B32OpReg12  // Momentary register 2
 #define B32OpRegSp                       B32OpReg13  // Stack pointer
 #define B32OpRegFp                       B32OpReg14  // Frame pointer
 #define B32OpRegRa                       B32OpReg15  // Return address
@@ -317,9 +342,9 @@ void GenPrintInstr(int instr, int val)
 #define B32OpNumLabel                    0x82
 #define B32OpIndLocal                    B32OpIndRegFp
 
-#define MAX_TEMP_REGS 5 // B32P2: use r8-r12 as temp registers (5 total)
-#define TEMP_REG_A B32OpReg2 // use r2 for momentary operations
-#define TEMP_REG_B B32OpReg3 // use r3 for momentary operations
+#define MAX_TEMP_REGS 3 // B32P2: use r8-r10 as temp registers (5 total)
+#define TEMP_REG_A B32OpReg11 // use r11 for momentary operations
+#define TEMP_REG_B B32OpReg12 // use r12 for momentary operations
 
 
 STATIC
@@ -342,7 +367,6 @@ void GenPrintOperand(int op, int val)
     case B32OpNumLabel: GenPrintNumLabel(val); break;
 
     default:
-      //error("WTF!\n");
       errorInternal(100);
       break;
     }
@@ -352,7 +376,7 @@ void GenPrintOperand(int op, int val)
 STATIC
 void GenPrintOperandSeparator(void)
 {
-  printf2(", ");
+  printf2(" ");
 }
 
 STATIC
@@ -469,30 +493,33 @@ void GenJumpIfEqual(int val, int label)
                          GenWreg, 0,
                          TEMP_REG_B, 0,
                          B32OpNumLabel, label);
+  // TODO: most likely need to use an inverted check with jump 2 and a static jump afterwards
 }
 
 STATIC
 void GenJumpIfZero(int label)
 {
 #ifndef NO_ANNOTATIONS
-  printf2(" # JumpIfZero\n");
+  printf2(" ; JumpIfZero\n");
 #endif
   GenPrintInstr3Operands(B32InstrBeq, 0,
                          GenWreg, 0,
                          B32OpRegZero, 0,
                          B32OpNumLabel, label);
+  // TODO: most likely need to use an inverted check with jump 2 and a static jump afterwards
 }
 
 STATIC
 void GenJumpIfNotZero(int label)
 {
 #ifndef NO_ANNOTATIONS
-  printf2(" # JumpIfNotZero\n");
+  printf2(" ; JumpIfNotZero\n");
 #endif
   GenPrintInstr3Operands(B32InstrBne, 0,
                          GenWreg, 0,
                          B32OpRegZero, 0,
                          B32OpNumLabel, label);
+  // TODO: most likely need to use an inverted check with jump 2 and a static jump afterwards
 }
 
 fpos_t GenPrologPos;
@@ -502,10 +529,10 @@ STATIC
 void GenWriteFrameSize(void)
 {
   unsigned size = 8/*RA + FP*/ - CurFxnMinLocalOfs;
-  printf2("\tsub\tr13 %u r13\n", size); // Adjust stack pointer
-  printf2("\twrite\t%u r13 r14\n", size - 8); // Save frame pointer
-  printf2("\tadd\tr13 %u r14\n", size - 8); // Set up new frame pointer
-  printf2("\t%cwrite\t4 r14 r15\n", GenLeaf ? '#' : ' '); // Save return address if not leaf
+  printf2("  sub r13 %10u r13\n", size); // Adjust stack pointer
+  printf2("  write %10u r13 r14\n", size - 8); // Save frame pointer
+  printf2("  add r13 %10u r14\n", size - 8); // Set up new frame pointer
+  printf2("  %cwrite 4 r14 r15\n", GenLeaf ? ';' : ' '); // Save return address if not leaf
 }
 
 STATIC
@@ -920,6 +947,8 @@ void GenPushReg(void)
     return;
   }
 
+  // TODO: keep track of stack depth and error when exceeding limit
+
   GenPrintInstr1Operand(B32InstrPush, 0,
                         GenWreg, 0);
 
@@ -938,6 +967,8 @@ void GenPopReg(void)
     GenLreg = GenWreg;
     return;
   }
+
+  // TODO: keep track of stack depth
 
   GenPrintInstr1Operand(B32InstrPop, 0,
                         TEMP_REG_A, 0);
@@ -1200,24 +1231,25 @@ void GenPrep(int* idx)
 }
 
 /*
+B32P2 Comparison Code Generation Strategy:
 ;     l <[u] 0       // slt[u] w, w, 0                            "k"
       l <[u] const   // slt[u] w, w, const                        "m"
       l <[u] r       // slt[u] w, l, r                            "i"
-* if (l <    0)      // bgez w, Lskip                             "f"
+* if (l <    0)      // bges w, $0, Lskip                         "f"
   if (l <[u] const)  // slt[u] w, w, const; beq w, $0, Lskip      "mc"
   if (l <[u] r)      // slt[u] w, l, r; beq w, $0, Lskip          "ic"
 
 ;     l <=[u] 0      // slt[u] w, w, 1                            "l"
       l <=[u] const  // slt[u] w, w, const + 1                    "n"
       l <=[u] r      // slt[u] w, r, l; xor w, w, 1               "js"
-* if (l <=    0)     // bgtz w, Lskip                             "g"
+* if (l <=    0)     // bgts w, $0, Lskip                         "g"
   if (l <=[u] const) // slt[u] w, w, const + 1; beq w, $0, Lskip  "nc"
   if (l <=[u] r)     // slt[u] w, r, l; bne w, $0, Lskip          "jd"
 
       l >[u] 0       // slt[u] w, $0, w                           "o"
       l >[u] const   // slt[u] w, w, const + 1; xor w, w, 1       "ns"
       l >[u] r       // slt[u] w, r, l                            "j"
-* if (l >    0)      // blez w, Lskip                             "h"
+* if (l >    0)      // bles w, $0, Lskip                         "h"
 **if (l >u   0)      // beq w, $0, Lskip
   if (l >[u] const)  // slt[u] w, w, const + 1; bne w, $0, Lskip  "nd"
   if (l >[u] r)      // slt[u] w, r, l; beq w, $0, Lskip          "jc"
@@ -1225,7 +1257,7 @@ void GenPrep(int* idx)
 ;     l >=[u] 0      // slt[u] w, w, 0; xor w, w, 1               "ks"
       l >=[u] const  // slt[u] w, w, const; xor w, w, 1           "ms"
       l >=[u] r      // slt[u] w, l, r; xor w, w, 1               "is"
-* if (l >=    0)     // bltz w, Lskip                             "e"
+* if (l >=    0)     // blts w, $0, Lskip                         "e"
   if (l >=[u] const) // slt[u] w, w, const; bne w, $0, Lskip      "md"
   if (l >=[u] r)     // slt[u] w, l, r; bne w, $0, Lskip          "id"
 
@@ -1289,8 +1321,9 @@ void GenCmp(int* idx, int op)
   if (constness == 2)
     GenPopReg();
 
-  // bltz, blez, bgez, bgtz are for signed comparison with 0 only,
-  // so for conditional branches on <0u, <=0u, >0u, >=0u use the general method instead
+  // B32P2: bgts, bges, blts, bles are for signed comparison with 0 only.
+  // For unsigned conditional branches on <0u, <=0u, >0u, >=0u, use the general method
+  // (slt/sltu + beq/bne) instead since B32P2 doesn't have unsigned zero-comparison branches.
   if (condbranch && op < 4 && constness == 0 && unsign)
   {
     // Except, >0u is more optimal as !=0
@@ -1328,7 +1361,9 @@ void GenCmp(int* idx, int op)
       condbranch ^= 3;
       // fallthrough
     case 'f':
-      // B32P2: Compare with zero using signed comparison, then branch
+      // B32P2: Branch if less than zero (signed)
+      // if (l < 0): blts GenWreg, r0, label
+      // if (l >= 0): bges GenWreg, r0, label
       GenPrintInstr3Operands((condbranch == 1) ? B32InstrBlts : B32InstrBges, 0,
                              GenWreg, 0,
                              B32OpRegZero, 0,
@@ -1338,7 +1373,9 @@ void GenCmp(int* idx, int op)
       condbranch ^= 3;
       // fallthrough
     case 'h':
-      // B32P2: Compare with zero using signed comparison, then branch
+      // B32P2: Branch if greater than zero (signed)
+      // if (l > 0): bgts GenWreg, r0, label
+      // if (l <= 0): bles GenWreg, r0, label
       GenPrintInstr3Operands((condbranch == 1) ? B32InstrBgts : B32InstrBles, 0,
                              GenWreg, 0,
                              B32OpRegZero, 0,
@@ -1475,21 +1512,21 @@ void GenExpr0(void)
 #ifndef NO_ANNOTATIONS
     switch (tok)
     {
-    case tokNumInt: printf2(" # %d\n", truncInt(v)); break;
-    //case tokNumUint: printf2(" # %uu\n", truncUint(v)); break;
-    case tokIdent: case tokRevIdent: printf2(" # %s\n", IdentTable + v); break;
-    case tokLocalOfs: case tokRevLocalOfs: printf2(" # local ofs\n"); break;
-    case ')': printf2(" # ) fxn call\n"); break;
-    case tokUnaryStar: printf2(" # * (read dereference)\n"); break;
-    case '=': printf2(" # = (write dereference)\n"); break;
-    case tokShortCirc: printf2(" # short-circuit "); break;
-    case tokGoto: printf2(" # sh-circ-goto "); break;
-    case tokLogAnd: printf2(" # short-circuit && target\n"); break;
-    case tokLogOr: printf2(" # short-circuit || target\n"); break;
+    case tokNumInt: printf2(" ; %d\n", truncInt(v)); break;
+    //case tokNumUint: printf2(" ; %uu\n", truncUint(v)); break;
+    case tokIdent: case tokRevIdent: printf2(" ; %s\n", IdentTable + v); break;
+    case tokLocalOfs: case tokRevLocalOfs: printf2(" ; local ofs\n"); break;
+    case ')': printf2(" ; ) fxn call\n"); break;
+    case tokUnaryStar: printf2(" ; * (read dereference)\n"); break;
+    case '=': printf2(" ; = (write dereference)\n"); break;
+    case tokShortCirc: printf2(" ; short-circuit "); break;
+    case tokGoto: printf2(" ; sh-circ-goto "); break;
+    case tokLogAnd: printf2(" ; short-circuit && target\n"); break;
+    case tokLogOr: printf2(" ; short-circuit || target\n"); break;
     case tokIf: case tokIfNot: case tokReturn: break;
-    case tokNum0: printf2(" # 0\n"); break;
-    case tokAssign0:  printf2(" # =\n"); break;
-    default: printf2(" # %s\n", GetTokenName(tok)); break;
+    case tokNum0: printf2(" ; 0\n"); break;
+    case tokAssign0:  printf2(" ; =\n"); break;
+    default: printf2(" ; %s\n", GetTokenName(tok)); break;
     }
 #endif
 
@@ -1675,17 +1712,17 @@ void GenExpr0(void)
         int instr = GenGetBinaryOperatorInstr(tok);
         GenPrintInstr3Operands(instr, 0,
                                GenWreg, 0,
-                               GenWreg, 0,
-                               B32OpConst, stack[i - 1][1]);
+                               B32OpConst, stack[i - 1][1],
+                               GenWreg, 0);
       }
       else
       {
         int instr = GenGetBinaryOperatorInstr(tok);
         GenPopReg();
         GenPrintInstr3Operands(instr, 0,
-                               GenWreg, 0,
                                GenLreg, 0,
-                               GenRreg, 0);
+                               GenRreg, 0,
+                               GenWreg, 0);
       }
       break;
 
@@ -1771,9 +1808,9 @@ void GenExpr0(void)
 
           GenReadIndirect(GenWreg, TEMP_REG_B, v);
           GenPrintInstr3Operands(instr, 0,
-                                 TEMP_REG_A, 0,
                                  GenWreg, 0,
-                                 GenRreg, 0);
+                                 GenRreg, 0,
+                                 TEMP_REG_A, 0);
           GenWriteIndirect(TEMP_REG_B, TEMP_REG_A, v);
         }
         else
@@ -1786,8 +1823,8 @@ void GenExpr0(void)
 
           GenReadIndirect(GenWreg, GenLreg, v);
           GenPrintInstr3Operands(instr, 0,
-                                 TEMP_REG_B, 0,
                                  GenWreg, 0,
+                                 TEMP_REG_B, 0,
                                  TEMP_REG_B, 0);
           GenWriteIndirect(GenLreg, TEMP_REG_B, v);
         }
@@ -1813,8 +1850,8 @@ void GenExpr0(void)
           GenReadIdent(TEMP_REG_B, v, stack[i - 1][1]);
 
         GenPrintInstr3Operands(instr, 0,
-                               GenWreg, 0,
                                TEMP_REG_B, 0,
+                               GenWreg, 0,
                                GenWreg, 0);
 
         if (stack[i - 1][0] == tokRevLocalOfs)
@@ -1850,8 +1887,8 @@ void GenExpr0(void)
         GenReadIndirect(GenWreg, GenLreg, v); // destroys either GenLreg or GenRreg because GenWreg coincides with one of them
         GenPrintInstr3Operands(instr, 0,
                                GenWreg, 0,
-                               GenWreg, 0,
-                               rsaved, 0);
+                               rsaved, 0,
+                               GenWreg, 0);
         GenWriteIndirect(lsaved, GenWreg, v);
       }
       GenExtendRegIfNeeded(GenWreg, v);
@@ -1994,8 +2031,8 @@ void GenExpr0(void)
 
     case tok_Bool:
       GenPrintInstr3Operands(B32InstrSltu, 0,
-                             GenWreg, 0,
                              B32OpRegZero, 0,
+                             GenWreg, 0,
                              GenWreg, 0);
       break;
 
@@ -2125,6 +2162,7 @@ void GenExpr(void)
 STATIC
 void GenFin(void)
 {
+  // To be honest, I am not sure what this does and just converted it to B32P2 assembly
   if (StructCpyLabel)
   {
     int lbl = LabelCnt++;
@@ -2133,22 +2171,82 @@ void GenFin(void)
 
     GenNumLabel(StructCpyLabel);
 
-    puts2("\tmove\t$2, $6\n"
-          "\tmove\t$3, $6");
+    puts2("  or r0 r6 r2\n"
+          "  or r0 r6 r3");
     GenNumLabel(lbl);
-    puts2("\tlbu\t$6, 0($5)\n"
-          "\taddiu\t$5, $5, 1\n"
-          "\taddiu\t$4, $4, -1\n"
-          "\tsb\t$6, 0($3)\n"
-          "\taddiu\t$3, $3, 1");
-    printf2("\tbne\t$4, $0, "); GenPrintNumLabel(lbl);
-    puts2("");
+    puts2("  read 0 r5 r6\n"
+          "  add r5 1 r5\n"
+          "  sub r4 1 r4\n"
+          "  write 0 r3 r6\n"
+          "  add r3 1 r3");
+    
+    printf2("  beq r4 r0 2\n");
+    printf2("  jump ");GenPrintNumLabel(lbl);
 
-    puts2("\tj\t$31");
+    puts2("");
+    puts2(" jumpr 0 r15");
 
 
     puts2(CodeHeaderFooter[1]);
   }
 
-  
+  // This is the place where we put the end of the wrapper code
+  //  around the generated code
+
+  printf2(
+      ".code\n"
+      "; Interrupt handlers\n"
+      "; Has some administration before jumping to interrupt function\n"
+      "; To prevent interfering with other stacks, they have their own stack\n"
+      "; Also, all registers have to be backed up and restored to hardware stack\n"
+      "; A return function has to be put on the stack as wel that the C code interrupt handler\n"
+      "; will jump to when it is done\n"
+      "\n"
+      "Int:\n"
+      "  push r1\n"
+      "  push r2\n"
+      "  push r3\n"
+      "  push r4\n"
+      "  push r5\n"
+      "  push r6\n"
+      "  push r7\n"
+      "  push r8\n"
+      "  push r9\n"
+      "  push r10\n"
+      "  push r11\n"
+      "  push r12\n"
+      "  push r13\n"
+      "  push r14\n"
+      "  push r15\n"
+      "\n"
+      "  load32 0x7FFFFF r13     ; initialize (BDOS) int stack address\n"
+      "  load32 0 r14            ; initialize base pointer address\n"
+      "  addr2reg Return_Interrupt r1 ; get address of return function\n"
+      "  or r0 r1 r15            ; copy return addr to r15\n"
+      "  jump Label_interrupt    ; jump to interrupt handler of C program\n"
+      "                            ; should return to the address we just put on the stack\n"
+      "  halt                    ; should not get here\n"
+      "\n"
+      "\n"
+      "; Function that is called after the interrupt handler from C has returned\n"
+      "; Restores all registers and issues RETI instruction to continue from original code\n"
+      "Return_Interrupt:\n"
+      "  pop r15\n"
+      "  pop r14\n"
+      "  pop r13\n"
+      "  pop r12\n"
+      "  pop r11\n"
+      "  pop r10\n"
+      "  pop r9\n"
+      "  pop r8\n"
+      "  pop r7\n"
+      "  pop r6\n"
+      "  pop r5\n"
+      "  pop r4\n"
+      "  pop r3\n"
+      "  pop r2\n"
+      "  pop r1\n"
+      "\n"
+      "  reti        ; return from interrrupt\n"
+      "  halt        ; should not get here\n");
 }
