@@ -35,7 +35,9 @@ def main():
         logger.error(f"Invalid offset value: {args.offset}. {e}")
         sys.exit(1)
 
-    assembler = Assembler(preprocessed_lines, args.output, offset_address=offset_address)
+    assembler = Assembler(
+        preprocessed_lines, args.output, offset_address=offset_address
+    )
     try:
         assembler.assemble(add_header=args.header)
     except Exception as e:

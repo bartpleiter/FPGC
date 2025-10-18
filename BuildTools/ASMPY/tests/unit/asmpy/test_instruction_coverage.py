@@ -7,16 +7,20 @@ from asmpy.assembler import Assembler
 
 
 def src(line: str, n: int = 1) -> SourceLine:
+    """Helper to create a SourceLine."""
     return SourceLine(line=line, source_line_number=n, source_file_name="test.asm")
 
 
 def parse(code: str) -> InstructionAssemblyLine:
+    """Helper to parse an instruction line."""
     line = AssemblyLine.parse_line(src(code))
     assert isinstance(line, InstructionAssemblyLine)
     return line
 
 
 def test_all_instruction_binaries():
+    """Test that all instruction types can be converted to binary."""
+    # Arrange
     samples = [
         # Control
         "halt",
@@ -72,6 +76,7 @@ def test_all_instruction_binaries():
         "jumpro 4 r2",
     ]
 
+    # Act & Assert
     for code in samples:
         inst = parse(code)
         b = inst.to_binary_string()
@@ -79,9 +84,14 @@ def test_all_instruction_binaries():
 
 
 def test_load32_expansion_with_high_bits():
-    # Test case where high bits are non-zero - should expand into two instructions
+    """Test that LOAD32 with non-zero high bits expands to two instructions."""
+    # Arrange
     line = AssemblyLine.parse_line(src("load32 0x12345678 r1"))
+
+    # Act
     expanded = line.expand()
+
+    # Assert
     # Should expand into two instructions when high bits are non-zero
     assert len(expanded) == 2
     for e in expanded:
@@ -91,9 +101,14 @@ def test_load32_expansion_with_high_bits():
 
 
 def test_load32_expansion_no_high_bits():
-    # Test case where high bits are zero - should expand into only one instruction
+    """Test that LOAD32 with zero high bits expands to one instruction."""
+    # Arrange
     line = AssemblyLine.parse_line(src("load32 0x00005678 r1"))
+
+    # Act
     expanded = line.expand()
+
+    # Assert
     # Should expand into only one instruction when high bits are zero
     assert len(expanded) == 1
     assert isinstance(expanded[0], InstructionAssemblyLine)
@@ -107,7 +122,8 @@ def test_load32_expansion_no_high_bits():
 
 
 def test_addr2reg_expansion_label_resolution():
-    # Provide label and addr2reg referencing it; use Assembler to resolve
+    """Test that ADDR2REG pseudo-instruction resolves labels and expands correctly."""
+    # Arrange
     code_lines = [
         src(".code"),
         src("Start:"),
@@ -116,11 +132,16 @@ def test_addr2reg_expansion_label_resolution():
     # Assembler expects preprocessed lines (SourceLine list)
     out_fd, out_path = tempfile.mkstemp()
     os.close(out_fd)
+
     try:
         assembler = Assembler(
             preprocessed_input_lines=code_lines, output_file_path=out_path
         )
+
+        # Act
         assembler.assemble()
+
+        # Assert
         # Output should contain two lines for load/loadhi
         with open(out_path) as f:
             binary_lines = [line.strip() for line in f.readlines() if line.strip()]
@@ -130,7 +151,11 @@ def test_addr2reg_expansion_label_resolution():
 
 
 def test_halt_with_argument_error():
+    """Test that HALT instruction raises error when given invalid arguments."""
+    # Arrange
     inst = parse("halt")
+
+    # Act & Assert
     with pytest.raises(ValueError):
         # Force argument misuse by manually injecting fake register
         inst.arguments = ["bad"]  # type: ignore

@@ -33,7 +33,7 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="0",
         help="Offset address for the program (affects label addresses). "
-             "Can be decimal (21), hex (0xabcd), or binary (0b1010). Default is 0.",
+        "Can be decimal (21), hex (0xabcd), or binary (0b1010). Default is 0.",
     )
     parser.add_argument(
         "--help",
