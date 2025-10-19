@@ -118,9 +118,9 @@ wire flush_FE2;
 wire flush_REG;
 wire flush_EXMEM1;
 
-assign flush_FE1 = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid || multicycle_hazard; // || hazard_pc1_pc2 || hazard_pc2_pc1
-assign flush_FE2 = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid || multicycle_hazard; // || hazard_pc1_pc2 || hazard_pc2_pc1
-assign flush_REG = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid || multicycle_hazard; // || hazard_pc1_pc2 || hazard_pc2_pc1
+assign flush_FE1 = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid || multicycle_hazard || exmem1_uses_exmem2_result_hazard; // || hazard_pc1_pc2 || hazard_pc2_pc1
+assign flush_FE2 = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid || multicycle_hazard || exmem1_uses_exmem2_result_hazard; // || hazard_pc1_pc2 || hazard_pc2_pc1
+assign flush_REG = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid || multicycle_hazard || exmem1_uses_exmem2_result_hazard; // || hazard_pc1_pc2 || hazard_pc2_pc1
 assign flush_EXMEM1 = exmem1_uses_exmem2_result;
 
 assign l1i_cache_controller_flush = l1i_cache_controller_flush_reg;
@@ -148,12 +148,35 @@ assign cc_stall = clearCache_EXMEM2 && !cc_request_finished_EXMEM2;
 
 // - EXMEM1 uses result of non-ALU operation from EXMEM2 -> stall
 // Note: in case of multi cycle operation (cache miss or ALU), only set this signal high on the last cycle!
-// TODO: when adding support for more multicycle memory, add here as well!
+// When adding support for more multicycle memory, add here as well!
+// NOTE: the stall and flush cause issues when there is also a dependency on PC-2
+//        then we need to flush the entire pipeline to resolve the hazard
 wire exmem1_uses_exmem2_result;
-assign exmem1_uses_exmem2_result = 
+assign exmem1_uses_exmem2_result =
     (pop_EXMEM2 || (mem_read_EXMEM2 && (l1d_cache_hit_EXMEM2 || !mem_multicycle_EXMEM2)) || was_cache_miss_EXMEM2 || mu_request_finished_EXMEM2 ||
     (arithm_EXMEM2 && multicycle_alu_done_EXMEM2)) && 
-    (dreg_EXMEM2 == areg_EXMEM1 || dreg_EXMEM2 == breg_EXMEM1);
+    ( 
+        ( (dreg_EXMEM2 == areg_EXMEM1) && areg_EXMEM1 != 4'd0) ||
+        ( (dreg_EXMEM2 == breg_EXMEM1) && breg_EXMEM1 != 4'd0)
+    ) &&
+    ( 
+        ( (addr_d_WB != areg_EXMEM1) || areg_EXMEM1 == 4'd0) &&
+        ( (addr_d_WB != breg_EXMEM1) || breg_EXMEM1 == 4'd0)
+    );
+
+
+wire exmem1_uses_exmem2_result_hazard;
+assign exmem1_uses_exmem2_result_hazard =
+    (pop_EXMEM2 || (mem_read_EXMEM2 && (l1d_cache_hit_EXMEM2 || !mem_multicycle_EXMEM2)) || was_cache_miss_EXMEM2 || mu_request_finished_EXMEM2 ||
+    (arithm_EXMEM2 && multicycle_alu_done_EXMEM2)) && 
+    ( 
+        ( (dreg_EXMEM2 == areg_EXMEM1) && areg_EXMEM1 != 4'd0) ||
+        ( (dreg_EXMEM2 == breg_EXMEM1) && breg_EXMEM1 != 4'd0)
+    ) &&
+    ( 
+        ( (addr_d_WB == areg_EXMEM1) || areg_EXMEM1 != 4'd0) ||
+        ( (addr_d_WB == breg_EXMEM1) || breg_EXMEM1 != 4'd0)
+    );
 
 // NOTE: hazard_pc1_pc2 and hazard_pc2_pc1 were not fully covering the hazard situations, and is for now replaced by multicycle_hazard
 // - EXMEM1 uses result of multicycle EXMEM2 at PC-1 and dreg of PC-2 -> jump to same address to resolve
@@ -171,7 +194,6 @@ assign exmem1_uses_exmem2_result =
 //     ( ( (areg_EXMEM1 == dreg_EXMEM2) && areg_EXMEM1 != 4'd0) || ( (breg_EXMEM1 == dreg_EXMEM2) && breg_EXMEM1 != 4'd0) );
 
 // - EXMEM1 uses result of multicycle EXMEM2 or WB at PC-1 or PC-2 -> flush
-// TODO: make sure cache hits are excluded
 wire multicycle_hazard;
 assign multicycle_hazard =
     ( 
@@ -240,7 +262,7 @@ begin
             PC_FE1 <= PC_backup;
         end
         // Flushes have priority over jumps
-        else if (multicycle_hazard) //(hazard_pc1_pc2 || hazard_pc2_pc1)
+        else if (multicycle_hazard || exmem1_uses_exmem2_result_hazard) //(hazard_pc1_pc2 || hazard_pc2_pc1)
         begin
             PC_FE1 <= PC_EXMEM1;
         end

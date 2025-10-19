@@ -1,21 +1,21 @@
 [*]
 [*] GTKWave Analyzer v3.3.121 (w)1999-2024 BSI
-[*] Sun Oct 12 18:55:24 2025
+[*] Sun Oct 19 16:35:01 2025
 [*]
 [dumpfile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd"
-[dumpfile_mtime] "Sun Oct 12 18:41:56 2025"
-[dumpfile_size] 1804981
+[dumpfile_mtime] "Sun Oct 19 16:35:01 2025"
+[dumpfile_size] 92745747
 [savefile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/cpu.gtkw"
-[timestart] 922051200
-[size] 1536 881
+[timestart] 0
+[size] 1920 1033
 [pos] -1 -1
-*-17.119637 922098100 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-17.119637 264800 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] cpu_tb.
 [treeopen] cpu_tb.memory_unit.
 [sst_width] 321
 [signals_width] 482
 [sst_expanded] 1
-[sst_vpaned_height] 502
+[sst_vpaned_height] 639
 @28
 cpu_tb.clk
 cpu_tb.clk100
@@ -743,7 +743,7 @@ cpu_tb.cpu.addr_b_REG[3:0]
 -EXMEM1
 @28
 cpu_tb.cpu.clk
-@24
+@22
 cpu_tb.cpu.PC_EXMEM1[31:0]
 @c00028
 cpu_tb.cpu.instr_EXMEM1[31:0]
@@ -815,6 +815,7 @@ cpu_tb.cpu.alu_y_EXMEM1[31:0]
 -EXMEM1 - Hazards
 @28
 cpu_tb.cpu.exmem1_uses_exmem2_result
+cpu_tb.cpu.exmem1_uses_exmem2_result_hazard
 @24
 cpu_tb.cpu.forward_a[1:0]
 cpu_tb.cpu.forward_b[1:0]
@@ -893,7 +894,7 @@ cpu_tb.cache_controller.state[7:0]
 -EXMEM2
 @28
 cpu_tb.cpu.clk
-@24
+@22
 cpu_tb.cpu.PC_EXMEM2[31:0]
 @28
 cpu_tb.cpu.instr_EXMEM2[31:0]
@@ -909,9 +910,7 @@ cpu_tb.cpu.alu_y_EXMEM2[31:0]
 -EXMEM2 - SDRAM
 @28
 cpu_tb.cpu.l1d_cache_wait_EXMEM2
-@29
 cpu_tb.cpu.mem_sdram_EXMEM2
-@28
 cpu_tb.cpu.l1d_cache_miss_state_EXMEM2[1:0]
 @200
 -
@@ -1060,7 +1059,6 @@ cpu_tb.uart_test_index
 @28
 cpu_tb.uart_test_start
 cpu_tb.uart_tx_trigger
-cpu_tb.uart_tx_done
 @200
 -
 @22
@@ -1104,7 +1102,7 @@ cpu_tb.memory_unit.OST1_int
 -WB
 @28
 cpu_tb.cpu.clk
-@24
+@23
 cpu_tb.cpu.PC_WB[31:0]
 @28
 cpu_tb.cpu.instr_WB[31:0]
