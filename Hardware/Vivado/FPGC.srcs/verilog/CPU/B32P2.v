@@ -137,7 +137,7 @@ assign stall_REG = exmem1_uses_exmem2_result || multicycle_alu_stall || l1d_cach
 assign stall_EXMEM1 = multicycle_alu_stall || l1d_cache_wait_EXMEM2 || mu_stall || cc_stall;
 
 wire multicycle_alu_stall;
-assign multicycle_alu_stall = arithm_EXMEM2 && !multicycle_alu_done_EXMEM2;
+assign multicycle_alu_stall = arithm_EXMEM2 && !malu_request_finished_EXMEM2;
 
 wire mu_stall;
 assign mu_stall = mem_io_EXMEM2 && !mu_request_finished_EXMEM2;
@@ -146,15 +146,15 @@ assign cc_stall = clearCache_EXMEM2 && !cc_request_finished_EXMEM2;
 
 // Possible hazard situations:
 
-// - EXMEM1 uses result of non-ALU operation from EXMEM2 -> stall
+// - EXMEM1 uses result of non-ALU (single cycle) operation from EXMEM2 -> stall
 // Note: in case of multi cycle operation (cache miss or ALU), only set this signal high on the last cycle!
 // When adding support for more multicycle memory, add here as well!
 // NOTE: the stall and flush cause issues when there is also a dependency on PC-2
 //        then we need to flush the entire pipeline to resolve the hazard
 wire exmem1_uses_exmem2_result;
 assign exmem1_uses_exmem2_result =
-    (pop_EXMEM2 || (mem_read_EXMEM2 && (l1d_cache_hit_EXMEM2 || !mem_multicycle_EXMEM2)) || was_cache_miss_EXMEM2 || mu_request_finished_EXMEM2 ||
-    (arithm_EXMEM2 && multicycle_alu_done_EXMEM2)) && 
+    (pop_EXMEM2 || (mem_read_EXMEM2 && (l1d_cache_hit_EXMEM2 || !mem_multicycle_EXMEM2)) ||
+    was_cache_miss_EXMEM2 || mu_request_finished_EXMEM2 || malu_request_finished_EXMEM2) && 
     ( 
         ( (dreg_EXMEM2 == areg_EXMEM1) && areg_EXMEM1 != 4'd0) ||
         ( (dreg_EXMEM2 == breg_EXMEM1) && breg_EXMEM1 != 4'd0)
@@ -167,8 +167,8 @@ assign exmem1_uses_exmem2_result =
 
 wire exmem1_uses_exmem2_result_hazard;
 assign exmem1_uses_exmem2_result_hazard =
-    (pop_EXMEM2 || (mem_read_EXMEM2 && (l1d_cache_hit_EXMEM2 || !mem_multicycle_EXMEM2)) || was_cache_miss_EXMEM2 || mu_request_finished_EXMEM2 ||
-    (arithm_EXMEM2 && multicycle_alu_done_EXMEM2)) && 
+    (pop_EXMEM2 || (mem_read_EXMEM2 && (l1d_cache_hit_EXMEM2 || !mem_multicycle_EXMEM2)) ||
+    was_cache_miss_EXMEM2 || mu_request_finished_EXMEM2 || malu_request_finished_EXMEM2) && 
     ( 
         ( (dreg_EXMEM2 == areg_EXMEM1) && areg_EXMEM1 != 4'd0) ||
         ( (dreg_EXMEM2 == breg_EXMEM1) && breg_EXMEM1 != 4'd0)
@@ -834,20 +834,6 @@ ControlUnit controlUnit_EXMEM2 (
     .clearCache(clearCache_EXMEM2)
 );
 
-wire [31:0] multicycle_alu_y_EXMEM2;
-wire multicycle_alu_done_EXMEM2;
-MultiCycleALU multiCycleALU_EXMEM2 (
-    .clk(clk),
-    .reset(reset),
-
-    .start(arithm_EXMEM2),
-    .done(multicycle_alu_done_EXMEM2),
-    .a(data_a_EXMEM2),
-    .b(data_b_EXMEM2),
-    .opcode(aluOP_EXMEM2),
-    .y(multicycle_alu_y_EXMEM2)
-);
-
 wire mem_multicycle_EXMEM2;
 wire [31:0] mem_local_address_EXMEM2;
 
@@ -1029,6 +1015,80 @@ always @(posedge clk) begin
     end
 end
 
+// State machine for Multicycle ALU
+localparam MALU_IDLE = 2'b00;
+localparam MALU_STARTED = 2'b01;
+localparam MALU_DONE = 2'b10;
+reg [1:0] malu_state_EXMEM2 = 2'b00;
+reg malu_request_finished_EXMEM2 = 1'b0;
+reg [31:0] malu_q_EXMEM2 = 32'd0;
+
+reg [31:0] malu_a = 32'd0;
+reg [31:0] malu_b = 32'd0;
+reg [3:0]  malu_opcode = 4'd0;
+reg malu_start = 1'b0;
+
+wire [31:0] malu_y;
+wire malu_done;
+MultiCycleALU multiCycleALU_EXMEM2 (
+    .clk(clk),
+    .reset(reset),
+
+    .start(malu_start),
+    .done(malu_done),
+    .a(malu_a),
+    .b(malu_b),
+    .opcode(malu_opcode),
+    .y(malu_y)
+);
+
+always @(posedge clk) begin
+    if (reset) begin
+        malu_state_EXMEM2 <= MU_IDLE;
+    
+        malu_a <= 32'd0;
+        malu_b <= 32'd0;
+        malu_opcode <= 4'd0;
+        malu_start <= 1'b0;
+
+        malu_request_finished_EXMEM2 <= 1'b0;
+        malu_q_EXMEM2 <= 32'd0;
+    end else begin
+        case (malu_state_EXMEM2)
+            MALU_IDLE: begin
+                malu_request_finished_EXMEM2 <= 1'b0;
+                mu_q_EXMEM2 <= 32'd0;
+
+                if (arithm_EXMEM2 && !malu_request_finished_EXMEM2) begin
+                    malu_start <= 1'b1;
+                    malu_a <= data_a_EXMEM2;
+                    malu_b <= data_b_EXMEM2;
+                    malu_opcode <= aluOP_EXMEM2;
+
+                    malu_state_EXMEM2 <= MU_STARTED;
+                end
+            end
+            
+            MALU_STARTED: begin
+                malu_start <= 1'b0;
+                malu_a <= 32'd0;
+                malu_b <= 32'd0;
+                malu_opcode <= 4'd0;
+
+                malu_state_EXMEM2 <= MU_DONE;
+            end
+            
+            MALU_DONE: begin
+                if (malu_done) begin
+                    malu_q_EXMEM2 <= malu_y;
+                    malu_request_finished_EXMEM2 <= 1'b1;
+                    malu_state_EXMEM2 <= MU_IDLE;
+                end
+            end
+        endcase
+    end
+end
+
 // Clear cache state machine
 reg [2:0] clearcache_state_EXMEM2 = MU_IDLE;
 localparam CC_IDLE = 2'b00;
@@ -1120,7 +1180,7 @@ Regr #(
     .N(32)
 ) regr_MULTICYCLE_ALU_EXMEM2_WB (
     .clk (clk),
-    .in(multicycle_alu_y_EXMEM2),
+    .in(malu_q_EXMEM2),
     .out(multicycle_alu_y_WB),
     .hold(1'b0),
     .clear(reset)

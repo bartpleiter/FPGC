@@ -1,7 +1,8 @@
 /*
  * Multi cycle ALU
  * Performs ARITHM instructions that require multiple cycles
- * TODO: multiple stages currently does not work for the DSP inference
+ * Uses a state machine to orchestrate the operations to the relevant submodules based on opcode
+ * While this does add latency, it simplifies the design and makes it behave similar to the Memory Unit
  */
 module MultiCycleALU (
     input wire clk,
@@ -27,21 +28,46 @@ localparam
     OP_MODS   = 4'b0110, // Modulus signed
     OP_MODU   = 4'b0111; // Modulus unsigned
 
-wire [63:0] mults_y;
-wire [63:0] multu_y;
-
+// State machine states
 localparam
-    STATE_IDLE = 3'd0,
-    STATE_MULT_STAGE1 = 3'd1,
-    STATE_MULT_STAGE2 = 3'd2,
-    STATE_MULT_STAGE3 = 3'd3,
-    STATE_MULT_STAGE4 = 3'd4,
-    STATE_MULT_STAGE5 = 3'd5,
-    STATE_FETCH_RESULT = 3'd6,
-    STATE_DONE = 3'd7;
+    STATE_IDLE = 4'd0,
+    STATE_WAIT_MULTU = 4'd1,
+    STATE_WAIT_MULTS = 4'd2,
+    STATE_WAIT_MULTFP = 4'd3,
+    STATE_DONE = 4'd15;
 
+reg [3:0] state = STATE_IDLE;
 
-reg [2:0] state = STATE_IDLE;
+// Multicycle operations submodules
+reg [31:0] multu_a = 32'd0;
+reg [31:0] multu_b = 32'd0;
+wire [63:0] multu_y;
+reg multu_start = 1'b0;
+wire multu_done;
+MultuPipelined multu (
+    .clk(clk),
+    .reset(reset),
+    .a(multu_a),
+    .b(multu_b),
+    .y(multu_y),
+    .start(multu_start),
+    .done(multu_done)
+);
+
+reg [31:0] mults_a = 32'd0;
+reg [31:0] mults_b = 32'd0;
+wire [63:0] mults_y;
+reg mults_start = 1'b0;
+wire mults_done;
+MultsPipelined mults (
+    .clk(clk),
+    .reset(reset),
+    .a(mults_a),
+    .b(mults_b),
+    .y(mults_y),
+    .start(mults_start),
+    .done(mults_done)
+);
 
 always @ (posedge clk)
 begin
@@ -50,76 +76,87 @@ begin
         done <= 1'b0;
         state <= STATE_IDLE;
         y <= 32'd0;
+
+        // Reset submodule signals
+        multu_start <= 1'b0;
+        multu_a <= 32'd0;
+        multu_b <= 32'd0;
+        mults_start <= 1'b0;
+        mults_a <= 32'd0;
+        mults_b <= 32'd0;
     end
     else
     begin
+        // Default assignments
+        done <= 1'b0;
+        y <= y;
+        multu_start <= 1'b0;
+        mults_start <= 1'b0;
         case (state)
             STATE_IDLE:
+            begin
+                if (start)
                 begin
-                    done <= 1'b0;
-                    if (start)
+                    if (opcode == OP_MULTU)
                     begin
-                        state <= STATE_MULT_STAGE1;
+                        multu_a <= a;
+                        multu_b <= b;
+                        multu_start <= 1'b1;
+                        state <= STATE_WAIT_MULTU;
+                    end
+
+                    if (opcode == OP_MULTS)
+                    begin
+                        mults_a <= a;
+                        mults_b <= b;
+                        mults_start <= 1'b1;
+                        state <= STATE_WAIT_MULTS;
+                    end
+
+                    if (opcode == OP_MULTFP)
+                    begin
+                        mults_a <= a;
+                        mults_b <= b;
+                        mults_start <= 1'b1;
+                        state <= STATE_WAIT_MULTFP;
                     end
                 end
-            STATE_MULT_STAGE1:
+            end
+
+            STATE_WAIT_MULTU:
+            begin
+                if (multu_done)
                 begin
-                    state <= STATE_MULT_STAGE2;
-                end
-            STATE_MULT_STAGE2:
-                begin
-                    state <= STATE_MULT_STAGE3;
-                end
-            STATE_MULT_STAGE3:
-                begin
-                    state <= STATE_MULT_STAGE4;
-                end
-            STATE_MULT_STAGE4:
-                begin
-                    state <= STATE_MULT_STAGE5;
-                end
-            STATE_MULT_STAGE5:
-                begin
-                    state <= STATE_FETCH_RESULT;
-                end
-            STATE_FETCH_RESULT:
-                begin
-                    case (opcode)
-                        OP_MULTS:
-                            y <= multu_y[31:0];
-                        OP_MULTU:
-                            y <= mults_y[31:0];
-                        OP_MULTFP:
-                            y <= mults_y[47:16];
-                        default:
-                            y <= 32'd0;
-                    endcase
+                    y <= multu_y[31:0];
                     done <= 1'b1;
-                    state <= STATE_DONE;
-                end
-            STATE_DONE:
-                begin
-                    done <= 1'b0;
                     state <= STATE_IDLE;
                 end
+            end
+
+            STATE_WAIT_MULTS:
+            begin
+                if (mults_done)
+                begin
+                    y <= mults_y[31:0];
+                    done <= 1'b1;
+                    state <= STATE_IDLE;
+                end
+            end
+
+            STATE_WAIT_MULTFP:
+            begin
+                if (mults_done)
+                begin
+                    y <= mults_y[47:16]; // Fixed point result adjustment
+                    done <= 1'b1;
+                    state <= STATE_IDLE;
+                end
+            end
+
+            default:
+                state <= STATE_IDLE;
         endcase
     end
 end
-
-MultuPipelined multu (
-    .clk(clk),
-    .reset(reset),
-    .a(a),
-    .b(b),
-    .y(multu_y)
-);
-
-MultsPipelined mults (
-    .clk(clk),
-    .reset(reset),
-    .a(a),
-    .b(b),
-    .y(mults_y)
-);
 
 endmodule
