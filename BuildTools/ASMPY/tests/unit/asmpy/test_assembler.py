@@ -11,7 +11,9 @@ def test_assembler_simple_program():
     source_lines = [
         SourceLine(line=".code", source_line_number=1, source_file_name="test.asm"),
         SourceLine(line="load 1 r1", source_line_number=2, source_file_name="test.asm"),
-        SourceLine(line="add r1 r2 r3", source_line_number=3, source_file_name="test.asm"),
+        SourceLine(
+            line="add r1 r2 r3", source_line_number=3, source_file_name="test.asm"
+        ),
         SourceLine(line="halt", source_line_number=4, source_file_name="test.asm"),
     ]
     temp_file = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".bin")
@@ -39,7 +41,9 @@ def test_assembler_with_labels():
         SourceLine(line=".code", source_line_number=1, source_file_name="test.asm"),
         SourceLine(line="Start:", source_line_number=2, source_file_name="test.asm"),
         SourceLine(line="load 1 r1", source_line_number=3, source_file_name="test.asm"),
-        SourceLine(line="jump Start", source_line_number=4, source_file_name="test.asm"),
+        SourceLine(
+            line="jump Start", source_line_number=4, source_file_name="test.asm"
+        ),
     ]
     temp_file = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".bin")
     temp_file.close()
@@ -64,9 +68,15 @@ def test_assembler_with_comments():
     # Arrange
     source_lines = [
         SourceLine(line=".code", source_line_number=1, source_file_name="test.asm"),
-        SourceLine(line="; This is a comment", source_line_number=2, source_file_name="test.asm"),
+        SourceLine(
+            line="; This is a comment",
+            source_line_number=2,
+            source_file_name="test.asm",
+        ),
         SourceLine(line="load 1 r1", source_line_number=3, source_file_name="test.asm"),
-        SourceLine(line="; Another comment", source_line_number=4, source_file_name="test.asm"),
+        SourceLine(
+            line="; Another comment", source_line_number=4, source_file_name="test.asm"
+        ),
         SourceLine(line="halt", source_line_number=5, source_file_name="test.asm"),
     ]
     temp_file = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".bin")
@@ -170,7 +180,9 @@ def test_assembler_with_offset():
         SourceLine(line=".code", source_line_number=1, source_file_name="test.asm"),
         SourceLine(line="Start:", source_line_number=2, source_file_name="test.asm"),
         SourceLine(line="load 1 r1", source_line_number=3, source_file_name="test.asm"),
-        SourceLine(line="jump Start", source_line_number=4, source_file_name="test.asm"),
+        SourceLine(
+            line="jump Start", source_line_number=4, source_file_name="test.asm"
+        ),
     ]
     temp_file = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".bin")
     temp_file.close()
@@ -185,7 +197,12 @@ def test_assembler_with_offset():
         # Assert
         assert os.path.exists(temp_file.name)
         # Label address should be offset + 0 (first instruction)
-        assert assembler._label_address_mappings[list(assembler._label_address_mappings.keys())[0]] == 0x1000
+        assert (
+            assembler._label_address_mappings[
+                list(assembler._label_address_mappings.keys())[0]
+            ]
+            == 0x1000
+        )
     finally:
         os.unlink(temp_file.name)
 
@@ -244,7 +261,11 @@ def test_assembler_pseudo_instruction_expansion():
     # Arrange
     source_lines = [
         SourceLine(line=".code", source_line_number=1, source_file_name="test.asm"),
-        SourceLine(line="load32 0x12345678 r1", source_line_number=2, source_file_name="test.asm"),
+        SourceLine(
+            line="load32 0x12345678 r1",
+            source_line_number=2,
+            source_file_name="test.asm",
+        ),
     ]
     temp_file = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".bin")
     temp_file.close()
@@ -297,10 +318,14 @@ def test_assembler_label_in_data_section():
     # Arrange
     source_lines = [
         SourceLine(line=".data", source_line_number=1, source_file_name="test.asm"),
-        SourceLine(line="DataLabel:", source_line_number=2, source_file_name="test.asm"),
+        SourceLine(
+            line="DataLabel:", source_line_number=2, source_file_name="test.asm"
+        ),
         SourceLine(line=".dw 42", source_line_number=3, source_file_name="test.asm"),
         SourceLine(line=".code", source_line_number=4, source_file_name="test.asm"),
-        SourceLine(line="load DataLabel r1", source_line_number=5, source_file_name="test.asm"),
+        SourceLine(
+            line="load DataLabel r1", source_line_number=5, source_file_name="test.asm"
+        ),
         SourceLine(line="halt", source_line_number=6, source_file_name="test.asm"),
     ]
     temp_file = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".bin")

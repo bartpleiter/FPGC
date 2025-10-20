@@ -76,7 +76,7 @@ def test_main_assembler_exception_exits(
     # Act & Assert
     with pytest.raises(SystemExit) as exc_info:
         main()
-    
+
     assert exc_info.value.code == 1
     mock_configure_logging.assert_called_once_with(
         "DEBUG", MockCustomFormatter.return_value
@@ -114,7 +114,7 @@ def test_main_preprocessor_exception_exits(
     # Act & Assert
     with pytest.raises(SystemExit) as exc_info:
         main()
-    
+
     assert exc_info.value.code == 1
     mock_configure_logging.assert_called_once()
     mock_preprocessor_instance.preprocess.assert_called_once()
@@ -151,7 +151,7 @@ def test_main_invalid_offset_exits(
     # Act & Assert
     with pytest.raises(SystemExit) as exc_info:
         main()
-    
+
     assert exc_info.value.code == 1
     mock_configure_logging.assert_called_once()
     MockAssembler.assert_not_called()

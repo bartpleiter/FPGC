@@ -154,8 +154,14 @@ def test_preprocessor_simple_define():
 
         file_path = Path(temp_file.name)
         source_lines = [
-            SourceLine(line="#define VALUE 42", source_line_number=1, source_file_name=file_path),
-            SourceLine(line="load VALUE r1", source_line_number=2, source_file_name=file_path),
+            SourceLine(
+                line="#define VALUE 42",
+                source_line_number=1,
+                source_file_name=file_path,
+            ),
+            SourceLine(
+                line="load VALUE r1", source_line_number=2, source_file_name=file_path
+            ),
         ]
         preprocessor = Preprocessor(source_lines, file_path)
 
@@ -182,9 +188,15 @@ def test_preprocessor_multiple_defines():
 
         file_path = Path(temp_file.name)
         source_lines = [
-            SourceLine(line="#define A 10", source_line_number=1, source_file_name=file_path),
-            SourceLine(line="#define B 20", source_line_number=2, source_file_name=file_path),
-            SourceLine(line="add A B r1", source_line_number=3, source_file_name=file_path),
+            SourceLine(
+                line="#define A 10", source_line_number=1, source_file_name=file_path
+            ),
+            SourceLine(
+                line="#define B 20", source_line_number=2, source_file_name=file_path
+            ),
+            SourceLine(
+                line="add A B r1", source_line_number=3, source_file_name=file_path
+            ),
         ]
         preprocessor = Preprocessor(source_lines, file_path)
 
@@ -203,7 +215,9 @@ def test_preprocessor_include_file():
     """Test that preprocessor correctly includes external files."""
     # Arrange
     # Create include file
-    include_file = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".asm", dir="/tmp")
+    include_file = tempfile.NamedTemporaryFile(
+        mode="w", delete=False, suffix=".asm", dir="/tmp"
+    )
     try:
         include_file.write("load 1 r1\n")
         include_file.write("add r1 r2 r3\n")
@@ -211,14 +225,20 @@ def test_preprocessor_include_file():
         include_path = Path(include_file.name)
 
         # Create main file
-        main_file = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".asm", dir="/tmp")
+        main_file = tempfile.NamedTemporaryFile(
+            mode="w", delete=False, suffix=".asm", dir="/tmp"
+        )
         main_file.write(f'#include "{include_path.name}"\n')
         main_file.write("halt\n")
         main_file.close()
         main_path = Path(main_file.name)
 
         source_lines = [
-            SourceLine(line=f'#include "{include_path.name}"', source_line_number=1, source_file_name=main_path),
+            SourceLine(
+                line=f'#include "{include_path.name}"',
+                source_line_number=1,
+                source_file_name=main_path,
+            ),
             SourceLine(line="halt", source_line_number=2, source_file_name=main_path),
         ]
         preprocessor = Preprocessor(source_lines, main_path)
@@ -240,7 +260,9 @@ def test_preprocessor_prevent_duplicate_include():
     """Test that preprocessor prevents including the same file twice."""
     # Arrange
     # Create a file that includes itself
-    self_include = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".asm", dir="/tmp")
+    self_include = tempfile.NamedTemporaryFile(
+        mode="w", delete=False, suffix=".asm", dir="/tmp"
+    )
     try:
         self_include.write(f'#include "{Path(self_include.name).name}"\n')
         self_include.write("nop\n")
@@ -248,7 +270,11 @@ def test_preprocessor_prevent_duplicate_include():
         file_path = Path(self_include.name)
 
         source_lines = [
-            SourceLine(line=f'#include "{file_path.name}"', source_line_number=1, source_file_name=file_path),
+            SourceLine(
+                line=f'#include "{file_path.name}"',
+                source_line_number=1,
+                source_file_name=file_path,
+            ),
             SourceLine(line="nop", source_line_number=2, source_file_name=file_path),
         ]
         preprocessor = Preprocessor(source_lines, file_path)
@@ -294,8 +320,14 @@ def test_preprocessor_define_with_hex_value():
 
         file_path = Path(temp_file.name)
         source_lines = [
-            SourceLine(line="#define ADDR 0x1000", source_line_number=1, source_file_name=file_path),
-            SourceLine(line="load ADDR r1", source_line_number=2, source_file_name=file_path),
+            SourceLine(
+                line="#define ADDR 0x1000",
+                source_line_number=1,
+                source_file_name=file_path,
+            ),
+            SourceLine(
+                line="load ADDR r1", source_line_number=2, source_file_name=file_path
+            ),
         ]
         preprocessor = Preprocessor(source_lines, file_path)
 
