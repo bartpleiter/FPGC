@@ -290,7 +290,7 @@ MIG7Mock #(
     .ADDR_WIDTH(29),
     .DATA_WIDTH(256),
     .MASK_WIDTH(32),
-    .RAM_DEPTH(4194304),
+    .RAM_DEPTH(33554432),
     .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/mig7mock.list")
 ) mig7mock (
     .sys_clk_i(clk100),
@@ -523,7 +523,7 @@ MemoryUnit memory_unit (
     .q(mu_q),
     .done(mu_done),
 
-    .uart_rx(uart_tx), // Loopback for testing
+    .uart_rx(1'b1), // Ignored for now, use uart_tx for loopback testing
     .uart_tx(uart_tx),
     .uart_irq(uart_irq),
 

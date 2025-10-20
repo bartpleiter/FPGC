@@ -100,9 +100,9 @@ $(B32CC_OUTPUT): $(B32CC_SOURCES) $(B32CC_DIR)/cgb32p2.inc
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -DNO_ANNOTATIONS $(B32CC_SOURCES) -o $@
 
-# TODO: replace this test with a proper test suite
 test-b32cc: $(B32CC_OUTPUT)
-	cd $(B32CC_DIR) && ./output/b32cc tests/a.c output/out.asm
+	@mkdir -p Tests/C/tmp
+	./Scripts/Tests/run_b32cc_tests.sh
 
 clean-b32cc:
 	rm -f $(B32CC_OUTPUT)

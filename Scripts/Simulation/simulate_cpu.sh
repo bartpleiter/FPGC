@@ -108,7 +108,6 @@ fi
 
 # Run simulation and open gtkwave (in X11 as Wayland has issues)
 echo "Running simulation"
-mkdir -p Hardware/Vivado/FPGC.srcs/simulation/output
 
 IVERILOG_ARGS="-o Hardware/Vivado/FPGC.srcs/simulation/output/cpu.out Hardware/Vivado/FPGC.srcs/simulation/cpu_tb.v"
 if [ "$COMPILE_UART" = true ]; then
