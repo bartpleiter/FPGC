@@ -9,7 +9,7 @@ CC = gcc
 CFLAGS = -Wall -Wextra -O2
 B32CC_DIR = BuildTools/B32CC
 B32CC_SOURCES = $(B32CC_DIR)/smlrc.c
-B32CC_OUTPUT = $(B32CC_DIR)/output/smlrc-b32p2
+B32CC_OUTPUT = $(B32CC_DIR)/output/b32cc
 
 # -----------------------------------------------------------------------------
 # Phony Targets
@@ -97,11 +97,12 @@ format: ruff-format
 b32cc: $(B32CC_OUTPUT)
 
 $(B32CC_OUTPUT): $(B32CC_SOURCES) $(B32CC_DIR)/cgb32p2.inc
+	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -DNO_ANNOTATIONS $(B32CC_SOURCES) -o $@
 
 # TODO: replace this test with a proper test suite
 test-b32cc: $(B32CC_OUTPUT)
-	cd $(B32CC_DIR) && ./output/smlrc-b32p2 tests/a.c output/out.asm
+	cd $(B32CC_DIR) && ./output/b32cc tests/a.c output/out.asm
 
 clean-b32cc:
 	rm -f $(B32CC_OUTPUT)
@@ -120,16 +121,22 @@ docs-deploy:
 # Simulation
 # =============================================================================
 
+SIMULATION_OUTPUT_DIR = Hardware/Vivado/FPGC.srcs/simulation/output
+
 sim-cpu:
+	@mkdir -p $(SIMULATION_OUTPUT_DIR)
 	./Scripts/Simulation/simulate_cpu.sh --add-ram --add-flash
 
 sim-cpu-uart:
+	@mkdir -p $(SIMULATION_OUTPUT_DIR)
 	./Scripts/Simulation/simulate_cpu.sh --add-ram --add-flash --add-uart
 
 sim-gpu:
+	@mkdir -p $(SIMULATION_OUTPUT_DIR)
 	./Scripts/Simulation/simulate_gpu.sh
 
 sim-bootloader:
+	@mkdir -p $(SIMULATION_OUTPUT_DIR)
 	./Scripts/ASM/compile_bootloader.sh --simulate
 
 # =============================================================================
@@ -137,6 +144,7 @@ sim-bootloader:
 # =============================================================================
 
 test-cpu:
+	@mkdir -p $(SIMULATION_OUTPUT_DIR)
 	./Scripts/Tests/run_cpu_tests.sh
 
 # =============================================================================
