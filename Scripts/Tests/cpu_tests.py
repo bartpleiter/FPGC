@@ -33,7 +33,7 @@ logger.setLevel(logging.INFO)
 class CPUTestConfig:
     """Configuration constants for CPU tests."""
 
-    TESTS_DIRECTORY = "Software/BareMetalASM/Simulation/tests"
+    TESTS_DIRECTORY = "Tests/CPU"
     ROM_LIST_PATH = "Hardware/Vivado/FPGC.srcs/simulation/memory/rom.list"
     RAM_LIST_PATH = "Hardware/Vivado/FPGC.srcs/simulation/memory/ram.list"
     MIG7MOCK_LIST_PATH = "Hardware/Vivado/FPGC.srcs/simulation/memory/mig7mock.list"
