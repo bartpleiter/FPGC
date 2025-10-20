@@ -121,7 +121,7 @@ wire flush_EXMEM1;
 assign flush_FE1 = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid || multicycle_hazard || exmem1_uses_exmem2_result_hazard; // || hazard_pc1_pc2 || hazard_pc2_pc1
 assign flush_FE2 = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid || multicycle_hazard || exmem1_uses_exmem2_result_hazard; // || hazard_pc1_pc2 || hazard_pc2_pc1
 assign flush_REG = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid || multicycle_hazard || exmem1_uses_exmem2_result_hazard; // || hazard_pc1_pc2 || hazard_pc2_pc1
-assign flush_EXMEM1 = exmem1_uses_exmem2_result;
+assign flush_EXMEM1 = exmem1_uses_exmem2_result || exmem1_uses_exmem2_result_hazard;
 
 assign l1i_cache_controller_flush = l1i_cache_controller_flush_reg;
 
@@ -174,34 +174,30 @@ assign exmem1_uses_exmem2_result_hazard =
         ( (dreg_EXMEM2 == breg_EXMEM1) && breg_EXMEM1 != 4'd0)
     ) &&
     ( 
-        ( (addr_d_WB == areg_EXMEM1) || areg_EXMEM1 != 4'd0) ||
-        ( (addr_d_WB == breg_EXMEM1) || breg_EXMEM1 != 4'd0)
+        ( (addr_d_WB == areg_EXMEM1) && areg_EXMEM1 != 4'd0) ||
+        ( (addr_d_WB == breg_EXMEM1) && breg_EXMEM1 != 4'd0)
     );
-
-// NOTE: hazard_pc1_pc2 and hazard_pc2_pc1 were not fully covering the hazard situations, and is for now replaced by multicycle_hazard
-// - EXMEM1 uses result of multicycle EXMEM2 at PC-1 and dreg of PC-2 -> jump to same address to resolve
-// Note: because this is hard to describe as a variable name, we will call this situation hazard_pc1_pc2
-// wire hazard_pc1_pc2;
-// assign hazard_pc1_pc2 = 
-//     ( (mem_read_EXMEM2 && mem_multicycle_EXMEM2) || (mem_write_EXMEM2 && mem_io_EXMEM2) || arithm_EXMEM2 || l1d_cache_wait_EXMEM2 ) &&
-//     ( ( (areg_EXMEM1 == addr_d_WB) && areg_EXMEM1 != 4'd0) || ( (breg_EXMEM1 == addr_d_WB) && breg_EXMEM1 != 4'd0) );
-
-// - EXMEM1 uses result of multicycle EXMEM2 at PC-2 and dreg of PC-1 -> jump to same address to resolve
-// Note: because this is hard to describe as a variable name, we will call this situation hazard_pc2_pc1
-// wire hazard_pc2_pc1;
-// assign hazard_pc2_pc1 = 
-//     ( (mem_read_WB && mem_multicycle_WB) || (mem_write_WB && mem_io_WB) || arithm_WB || l1d_cache_wait_EXMEM2 ) &&
-//     ( ( (areg_EXMEM1 == dreg_EXMEM2) && areg_EXMEM1 != 4'd0) || ( (breg_EXMEM1 == dreg_EXMEM2) && breg_EXMEM1 != 4'd0) );
 
 // - EXMEM1 uses result of multicycle EXMEM2 or WB at PC-1 or PC-2 -> flush
 wire multicycle_hazard;
 assign multicycle_hazard =
     ( 
-        ( (areg_EXMEM1 == addr_d_WB)   && areg_EXMEM1 != 4'd0)  || ( (breg_EXMEM1 == addr_d_WB)   && breg_EXMEM1 != 4'd0) ||
-        ( (areg_EXMEM1 == dreg_EXMEM2) && areg_EXMEM1 != 4'd0)  || ( (breg_EXMEM1 == dreg_EXMEM2) && breg_EXMEM1 != 4'd0)
-    ) && (
-        ( (mem_multicycle_EXMEM2 && !l1d_cache_hit_EXMEM2) || arithm_EXMEM2 ) ||
-        ( (mem_multicycle_WB     && !l1d_cache_hit_WB    ) || arithm_WB     )
+        // EXMEM1 uses result from multicycle EXMEM2
+        (
+            ( (areg_EXMEM1 == dreg_EXMEM2) && areg_EXMEM1 != 4'd0) || 
+            ( (breg_EXMEM1 == dreg_EXMEM2) && breg_EXMEM1 != 4'd0)
+        ) && 
+        ( (mem_multicycle_EXMEM2 && !l1d_cache_hit_EXMEM2) || arithm_EXMEM2 )
+    ) ||
+    (
+        // EXMEM1 uses result from WB where EXMEM2 was multicycle
+        (
+            ( (areg_EXMEM1 == addr_d_WB) && areg_EXMEM1 != 4'd0) || 
+            ( (breg_EXMEM1 == addr_d_WB) && breg_EXMEM1 != 4'd0)
+        ) && 
+        ( 
+            ((mem_multicycle_EXMEM2 && !l1d_cache_hit_EXMEM2) || arithm_EXMEM2)
+        )
     );
 
 // Forwarding situations
@@ -652,9 +648,6 @@ wire mem_sdram_EXMEM1;
 wire mem_multicycle_EXMEM1;
 wire [31:0] mem_local_address_EXMEM1;
 
-// TODO optimization in case address calculations are slow:
-// Calculate all signals in EXMEM1 and forward them to EXMEM2
-// This way the address decoding does not need to be done in EXMEM2
 AddressDecoder addressDecoder_EXMEM1 (
     .areg_value(alu_a_EXMEM1), // Use forwarded data
     .const16(const16_EXMEM1),
@@ -671,11 +664,11 @@ AddressDecoder addressDecoder_EXMEM1 (
     .mem_local_address(mem_local_address_EXMEM1)
 );
 
-assign forward_a =  (areg_EXMEM1 == dreg_EXMEM2 && we_EXMEM2 && areg_EXMEM1 != 4'd0) ? 2'd1 :
-                    (areg_EXMEM1 == addr_d_WB && we_WB && areg_EXMEM1 != 4'd0) ? 2'd2 :
+assign forward_a =  (areg_EXMEM1 == dreg_EXMEM2 && areg_EXMEM1 != 4'd0) ? 2'd1 :
+                    (areg_EXMEM1 == addr_d_WB && areg_EXMEM1 != 4'd0) ? 2'd2 :
                     2'd0;
-assign forward_b =  (breg_EXMEM1 == dreg_EXMEM2 && we_EXMEM2 && breg_EXMEM1 != 4'd0) ? 2'd1 :
-                    (breg_EXMEM1 == addr_d_WB && we_WB && breg_EXMEM1 != 4'd0) ? 2'd2 :
+assign forward_b =  (breg_EXMEM1 == dreg_EXMEM2 && breg_EXMEM1 != 4'd0) ? 2'd1 :
+                    (breg_EXMEM1 == addr_d_WB && breg_EXMEM1 != 4'd0) ? 2'd2 :
                     2'd0;
 
 assign alu_a_EXMEM1 =   (forward_a == 2'd1) ? alu_y_EXMEM2 :

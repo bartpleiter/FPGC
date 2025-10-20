@@ -1,15 +1,15 @@
 [*]
 [*] GTKWave Analyzer v3.3.121 (w)1999-2024 BSI
-[*] Sun Oct 19 17:34:33 2025
+[*] Mon Oct 20 09:50:56 2025
 [*]
 [dumpfile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd"
-[dumpfile_mtime] "Sun Oct 19 17:33:27 2025"
-[dumpfile_size] 87812527
+[dumpfile_mtime] "Mon Oct 20 09:49:59 2025"
+[dumpfile_size] 70345900
 [savefile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/cpu.gtkw"
 [timestart] 0
-[size] 1920 1033
+[size] 1536 881
 [pos] -1 -1
-*-17.119637 351700 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-17.119637 91100 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] cpu_tb.
 [treeopen] cpu_tb.cpu.
 [treeopen] cpu_tb.cpu.multiCycleALU_EXMEM2.
@@ -17,7 +17,7 @@
 [sst_width] 321
 [signals_width] 482
 [sst_expanded] 1
-[sst_vpaned_height] 639
+[sst_vpaned_height] 500
 @28
 cpu_tb.clk
 cpu_tb.clk100
@@ -999,7 +999,7 @@ cpu_tb.cpu.multiCycleALU_EXMEM2.b[31:0]
 cpu_tb.cpu.multiCycleALU_EXMEM2.y[31:0]
 @28
 cpu_tb.cpu.multiCycleALU_EXMEM2.done
-@201
+@200
 -
 @22
 cpu_tb.cpu.multiCycleALU_EXMEM2.state[3:0]
@@ -1008,11 +1008,17 @@ cpu_tb.cpu.multiCycleALU_EXMEM2.state[3:0]
 -MULTU
 @28
 cpu_tb.cpu.multiCycleALU_EXMEM2.multu.start
+cpu_tb.cpu.multiCycleALU_EXMEM2.multu.done
+@22
+cpu_tb.cpu.multiCycleALU_EXMEM2.multu.y[63:0]
 @200
 -
 -MULTS
 @28
 cpu_tb.cpu.multiCycleALU_EXMEM2.mults.start
+cpu_tb.cpu.multiCycleALU_EXMEM2.mults.done
+@22
+cpu_tb.cpu.multiCycleALU_EXMEM2.mults.y[63:0]
 @200
 -
 -EXMEM2 - MemoryUnit
