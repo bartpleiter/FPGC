@@ -32,7 +32,7 @@ Main:
         ccache
         nop
 
-    jump CheckBootMode ; For testing bootloader in simulation
+    ;jump CheckBootMode ; For testing bootloader in simulation
     ;jump SplashScreen ; Skip init vram in simulation
 
     ClearVRAM32:
@@ -131,7 +131,6 @@ Main:
     CopyUARTbootloader:
         addr2reg UART_Bootloader_RAM_code r2
         read 2 r2 r1 ; Read third word, should be the program length
-        add r1 1 r1 ; Add one to be sure we copy the full program
         load 0 r3  ; Loop counter
         load32 0x3FF000 r5 ; Dest address start
 

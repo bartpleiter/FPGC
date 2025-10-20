@@ -1,15 +1,15 @@
 [*]
 [*] GTKWave Analyzer v3.3.121 (w)1999-2024 BSI
-[*] Mon Oct 20 09:50:56 2025
+[*] Mon Oct 20 10:40:19 2025
 [*]
 [dumpfile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd"
-[dumpfile_mtime] "Mon Oct 20 09:49:59 2025"
-[dumpfile_size] 70345900
+[dumpfile_mtime] "Mon Oct 20 10:40:12 2025"
+[dumpfile_size] 83303918
 [savefile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/cpu.gtkw"
-[timestart] 0
-[size] 1536 881
+[timestart] 110011600
+[size] 1920 1033
 [pos] -1 -1
-*-17.119637 91100 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-17.119637 110419500 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] cpu_tb.
 [treeopen] cpu_tb.cpu.
 [treeopen] cpu_tb.cpu.multiCycleALU_EXMEM2.
@@ -17,7 +17,7 @@
 [sst_width] 321
 [signals_width] 482
 [sst_expanded] 1
-[sst_vpaned_height] 500
+[sst_vpaned_height] 604
 @28
 cpu_tb.clk
 cpu_tb.clk100
@@ -963,6 +963,17 @@ cpu_tb.cpu.mem_sdram_EXMEM2
 cpu_tb.cpu.mem_io_EXMEM2
 @200
 -
+@28
+cpu_tb.cpu.mu_state_EXMEM2[1:0]
+@29
+cpu_tb.cpu.mu_start
+@28
+cpu_tb.cpu.mu_done
+@22
+cpu_tb.cpu.mu_q_EXMEM2[31:0]
+cpu_tb.cpu.mu_q[31:0]
+@200
+-
 -EXMEM2 - ROM
 -
 -EXMEM2 - VRAM32
@@ -1039,6 +1050,7 @@ cpu_tb.memory_unit.q[31:0]
 @28
 cpu_tb.memory_unit.done
 @200
+-
 -
 @24
 cpu_tb.memory_unit.state[7:0]

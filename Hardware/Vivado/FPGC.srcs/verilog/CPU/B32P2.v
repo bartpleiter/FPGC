@@ -906,14 +906,14 @@ wire l1d_cache_miss_EXMEM2;
 assign l1d_cache_miss_EXMEM2 = mem_read_EXMEM2 && mem_sdram_EXMEM2 && !l1d_cache_hit_EXMEM2 && !was_cache_miss_EXMEM2;
 
 // Cache miss state machine
-reg [1:0] l1d_cache_miss_state_EXMEM2 = 2'b00;
-reg l1d_cache_controller_start_reg = 1'b0;
-
-reg was_cache_miss_EXMEM2 = 1'b0;
-
 localparam L1D_CACHE_IDLE = 2'b00;
 localparam L1D_CACHE_STARTED = 2'b01;
 localparam L1D_CACHE_WAIT_DONE = 2'b10;
+
+reg [1:0] l1d_cache_miss_state_EXMEM2 = L1D_CACHE_IDLE;
+reg l1d_cache_controller_start_reg = 1'b0;
+
+reg was_cache_miss_EXMEM2 = 1'b0;
 
 always @(posedge clk) begin
     if (reset) begin
@@ -1037,7 +1037,7 @@ MultiCycleALU multiCycleALU_EXMEM2 (
 
 always @(posedge clk) begin
     if (reset) begin
-        malu_state_EXMEM2 <= MU_IDLE;
+        malu_state_EXMEM2 <= MALU_IDLE;
     
         malu_a <= 32'd0;
         malu_b <= 32'd0;
@@ -1050,7 +1050,7 @@ always @(posedge clk) begin
         case (malu_state_EXMEM2)
             MALU_IDLE: begin
                 malu_request_finished_EXMEM2 <= 1'b0;
-                mu_q_EXMEM2 <= 32'd0;
+                malu_q_EXMEM2 <= 32'd0;
 
                 if (arithm_EXMEM2 && !malu_request_finished_EXMEM2) begin
                     malu_start <= 1'b1;
@@ -1058,7 +1058,7 @@ always @(posedge clk) begin
                     malu_b <= data_b_EXMEM2;
                     malu_opcode <= aluOP_EXMEM2;
 
-                    malu_state_EXMEM2 <= MU_STARTED;
+                    malu_state_EXMEM2 <= MALU_STARTED;
                 end
             end
             
@@ -1068,14 +1068,14 @@ always @(posedge clk) begin
                 malu_b <= 32'd0;
                 malu_opcode <= 4'd0;
 
-                malu_state_EXMEM2 <= MU_DONE;
+                malu_state_EXMEM2 <= MALU_DONE;
             end
             
             MALU_DONE: begin
                 if (malu_done) begin
                     malu_q_EXMEM2 <= malu_y;
                     malu_request_finished_EXMEM2 <= 1'b1;
-                    malu_state_EXMEM2 <= MU_IDLE;
+                    malu_state_EXMEM2 <= MALU_IDLE;
                 end
             end
         endcase
@@ -1083,16 +1083,16 @@ always @(posedge clk) begin
 end
 
 // Clear cache state machine
-reg [2:0] clearcache_state_EXMEM2 = MU_IDLE;
 localparam CC_IDLE = 2'b00;
 localparam CC_STARTED = 2'b01;
 localparam CC_DONE = 2'b10;
+reg [2:0] clearcache_state_EXMEM2 = CC_IDLE;
 
 reg cc_request_finished_EXMEM2 = 1'b0;
 
 always @(posedge clk) begin
     if (reset) begin
-        clearcache_state_EXMEM2 <= MU_IDLE;
+        clearcache_state_EXMEM2 <= CC_IDLE;
         l1_clear_cache <= 1'b0;
         cc_request_finished_EXMEM2 <= 1'b0;
         
