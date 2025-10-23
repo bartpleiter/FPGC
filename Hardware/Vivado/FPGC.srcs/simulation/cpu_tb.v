@@ -688,7 +688,8 @@ B32P2 cpu (
     .mu_done(mu_done),
 
     // Interrupts, right is highest priority
-    .interrupts({3'd0, frameDrawn, OST3_int, OST2_int, OST1_int, uart_irq})
+    // Framedrawn disabled for now to simplify b32cc test debugging
+    .interrupts({3'd0, 1'b0, OST3_int, OST2_int, OST1_int, uart_irq})
 );
 
 // 100 MHz clock
