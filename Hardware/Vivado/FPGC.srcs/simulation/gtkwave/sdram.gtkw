@@ -1,0 +1,39 @@
+[*]
+[*] GTKWave Analyzer v3.3.121 (w)1999-2024 BSI
+[*] Fri Oct 24 16:28:27 2025
+[*]
+[dumpfile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/sdram.vcd"
+[dumpfile_mtime] "Fri Oct 24 16:25:56 2025"
+[dumpfile_size] 1129637
+[savefile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/sdram.gtkw"
+[timestart] 0
+[size] 1536 881
+[pos] -1 -1
+*-18.699999 796000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] sdram_tb.
+[sst_width] 278
+[signals_width] 158
+[sst_expanded] 1
+[sst_vpaned_height] 238
+@28
+sdram_tb.clk
+sdram_tb.reset
+@200
+-
+-SDRAM Controller
+@22
+sdram_tb.sdc.cpu_addr[20:0]
+sdram_tb.sdc.cpu_data[255:0]
+@28
+sdram_tb.sdc.cpu_we
+sdram_tb.sdc.cpu_start
+sdram_tb.sdc.cpu_done
+@23
+sdram_tb.sdc.cpu_q[255:0]
+@200
+-
+-
+@22
+sdram_tb.sdc.state[4:0]
+[pattern_trace] 1
+[pattern_trace] 0

@@ -19,7 +19,7 @@ B32CC_OUTPUT = $(B32CC_DIR)/output/b32cc
 .PHONY: lint format mypy ruff-lint ruff-format
 .PHONY: asmpy-install asmpy-uninstall asmpy-test asmpy-clean
 .PHONY: docs-serve docs-deploy
-.PHONY: sim-cpu sim-cpu-uart sim-gpu sim-bootloader
+.PHONY: sim-cpu sim-cpu-uart sim-gpu sim-sdram sim-bootloader
 .PHONY: test-cpu
 .PHONY: compile-asm compile-bootloader
 .PHONY: flash-asm-uart run-asm-uart
@@ -135,6 +135,10 @@ sim-gpu:
 	@mkdir -p $(SIMULATION_OUTPUT_DIR)
 	./Scripts/Simulation/simulate_gpu.sh
 
+sim-sdram:
+	@mkdir -p $(SIMULATION_OUTPUT_DIR)
+	./Scripts/Simulation/simulate_sdram.sh
+
 sim-bootloader:
 	@mkdir -p $(SIMULATION_OUTPUT_DIR)
 	./Scripts/ASM/compile_bootloader.sh --simulate
@@ -225,6 +229,7 @@ help:
 	@echo "  sim-cpu             - Run CPU simulation"
 	@echo "  sim-cpu-uart        - Run CPU simulation with UART"
 	@echo "  sim-gpu             - Run GPU simulation"
+	@echo "  sim-sdram           - Run SDRAM controller simulation"
 	@echo "  sim-bootloader      - Compile and simulate bootloader"
 	@echo ""
 	@echo "--- Testing (Hardware) ---"
