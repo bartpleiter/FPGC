@@ -1,20 +1,20 @@
 [*]
 [*] GTKWave Analyzer v3.3.121 (w)1999-2024 BSI
-[*] Sat Oct 25 09:22:05 2025
+[*] Sat Oct 25 11:10:49 2025
 [*]
 [dumpfile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/sdram.vcd"
-[dumpfile_mtime] "Fri Oct 24 21:39:46 2025"
-[dumpfile_size] 1128939
+[dumpfile_mtime] "Sat Oct 25 11:09:33 2025"
+[dumpfile_size] 1398376
 [savefile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/sdram.gtkw"
-[timestart] 0
+[timestart] 995000
 [size] 1920 1033
-[pos] -1 -33
-*-18.699999 1343000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[pos] -1 -1
+*-15.672102 1115600 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] sdram_tb.
 [sst_width] 278
-[signals_width] 158
+[signals_width] 340
 [sst_expanded] 1
-[sst_vpaned_height] 188
+[sst_vpaned_height] 268
 @28
 sdram_tb.clk
 sdram_tb.reset
@@ -32,8 +32,19 @@ sdram_tb.sdc.cpu_done
 sdram_tb.sdc.cpu_q[255:0]
 @200
 -
-@25
+@28
+sdram_tb.sdc.cpu_start_prev
+sdram_tb.sdc.cpu_new_request
+@22
+sdram_tb.sdc.cpu_addr_stored[20:0]
+sdram_tb.sdc.cpu_data_stored[255:0]
+@28
+sdram_tb.sdc.cpu_we_stored
+@200
+-
+@24
 sdram_tb.sdc.state[7:0]
+sdram_tb.sdc.wait_counter[15:0]
 @200
 -
 -
@@ -45,8 +56,24 @@ sdram_tb.SDRAM_RASn
 sdram_tb.SDRAM_CASn
 sdram_tb.SDRAM_CSn
 sdram_tb.SDRAM_WEn
-@22
+@c00023
 sdram_tb.SDRAM_A[12:0]
+@29
+(0)sdram_tb.SDRAM_A[12:0]
+(1)sdram_tb.SDRAM_A[12:0]
+(2)sdram_tb.SDRAM_A[12:0]
+(3)sdram_tb.SDRAM_A[12:0]
+(4)sdram_tb.SDRAM_A[12:0]
+(5)sdram_tb.SDRAM_A[12:0]
+(6)sdram_tb.SDRAM_A[12:0]
+(7)sdram_tb.SDRAM_A[12:0]
+(8)sdram_tb.SDRAM_A[12:0]
+(9)sdram_tb.SDRAM_A[12:0]
+(10)sdram_tb.SDRAM_A[12:0]
+(11)sdram_tb.SDRAM_A[12:0]
+(12)sdram_tb.SDRAM_A[12:0]
+@1401201
+-group_end
 @28
 sdram_tb.SDRAM_BA[1:0]
 @22

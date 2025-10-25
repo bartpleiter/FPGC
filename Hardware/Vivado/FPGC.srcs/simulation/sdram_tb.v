@@ -12,8 +12,15 @@ module sdram_tb ();
 reg clk = 1'b0;
 reg reset = 1'b0;
 
+// SDRAM clock phase shift configuration (in degrees)
+parameter SDRAM_CLK_PHASE = 90;
+
+// Calculate phase shift delay in nanoseconds (clock period is 10ns @ 100MHz)
+localparam real PHASE_DELAY = (SDRAM_CLK_PHASE / 360.0) * 10.0;
+
 //---------------------------SDRAM---------------------------------
 // SDRAM signals
+reg              SDRAM_CLK_internal = 1'b0;  // Internal SDRAM clock signal
 wire             SDRAM_CLK;     // SDRAM clock
 wire    [31 : 0] SDRAM_DQ;      // SDRAM I/O
 wire    [12 : 0] SDRAM_A;       // SDRAM Address
@@ -25,7 +32,13 @@ wire             SDRAM_CASn;    // CAS#
 wire             SDRAM_WEn;     // WE#
 wire    [3 : 0]  SDRAM_DQM;     // Mask
 
-assign SDRAM_CLK = ~clk;
+// Apply phase shift to SDRAM clock
+assign SDRAM_CLK = SDRAM_CLK_internal;
+
+// Generate phase-shifted SDRAM clock
+always @(clk) begin
+    SDRAM_CLK_internal <= #PHASE_DELAY clk;
+end
 
 mt48lc16m16a2 sdram1 (
 .Dq     (SDRAM_DQ[15:0]), 
@@ -108,17 +121,29 @@ begin
     cpu_data = 256'b0;
     cpu_we = 1'b0;
     cpu_start = 1'b0;
+    #6;
 
     #1000;
 
     // Write test
-    cpu_addr = 21'd0;
+    cpu_addr = 21'd16;
     cpu_data = 256'hDEADBEEF_CAFEBABE_01234567_89ABCDEF_11223344_55667788_99AABBCC_DDEEFF00;
     cpu_we = 1'b1;
     cpu_start = 1'b1;
-
     #10;
     cpu_start = 1'b0;
+    cpu_addr = 21'b0;
+    cpu_data = 256'b0;
+    cpu_we = 1'b0;
+
+    #100;
+    // Read test
+    cpu_addr = 21'd16;
+    cpu_we = 1'b0;
+    cpu_start = 1'b1;
+    #10;
+    cpu_start = 1'b0;
+    cpu_addr = 21'b0;
 
 end
 
