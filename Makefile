@@ -121,7 +121,7 @@ docs-deploy:
 # Simulation
 # =============================================================================
 
-SIMULATION_OUTPUT_DIR = Hardware/Vivado/FPGC.srcs/simulation/output
+SIMULATION_OUTPUT_DIR = Hardware/FPGA/Verilog/Simulation/Output
 
 sim-cpu:
 	@mkdir -p $(SIMULATION_OUTPUT_DIR)

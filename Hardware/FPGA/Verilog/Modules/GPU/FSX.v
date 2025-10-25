@@ -167,7 +167,7 @@ always @(negedge vsync)
 begin
     file = $fopen(
         $sformatf(
-            "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/frame%0d.ppm",
+            "/home/bart/repos/FPGC/Hardware/FPGA/Verilog/Simulation/Output/frame%0d.ppm",
             framecounter
         ),
         "w"

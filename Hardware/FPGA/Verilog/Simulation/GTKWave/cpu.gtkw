@@ -1,15 +1,15 @@
 [*]
 [*] GTKWave Analyzer v3.3.121 (w)1999-2024 BSI
-[*] Fri Oct 24 16:25:51 2025
+[*] Sat Oct 25 20:46:01 2025
 [*]
-[dumpfile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/cpu.vcd"
-[dumpfile_mtime] "Tue Oct 21 20:31:42 2025"
-[dumpfile_size] 9760636
-[savefile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/cpu.gtkw"
-[timestart] 1392500
+[dumpfile] "/home/bart/repos/FPGC/Hardware/FPGA/Verilog/Simulation/Output/cpu.vcd"
+[dumpfile_mtime] "Sat Oct 25 20:45:57 2025"
+[dumpfile_size] 9758305
+[savefile] "/home/bart/repos/FPGC/Hardware/FPGA/Verilog/Simulation/GTKWave/cpu.gtkw"
+[timestart] 1083100
 [size] 1536 881
 [pos] -1 -1
-*-16.819637 1618000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-16.819637 1286600 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] cpu_tb.
 [treeopen] cpu_tb.cpu.
 [treeopen] cpu_tb.cpu.multiCycleALU_EXMEM2.
@@ -17,7 +17,7 @@
 [sst_width] 321
 [signals_width] 482
 [sst_expanded] 1
-[sst_vpaned_height] 552
+[sst_vpaned_height] 515
 @28
 cpu_tb.clk
 cpu_tb.clk100

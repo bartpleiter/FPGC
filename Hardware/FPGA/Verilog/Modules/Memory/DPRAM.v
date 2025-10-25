@@ -5,8 +5,7 @@
 module DPRAM #(
     parameter WIDTH = 274, // 8 words per cache line + 16 bit tag + 2 bits for valid and dirty
     parameter WORDS = 128, // 128 cache lines
-    parameter ADDR_BITS = 7, // 128 cache lines require 7 address bits
-    parameter LIST = "memory/l1i.list"
+    parameter ADDR_BITS = 7 // 128 cache lines require 7 address bits
 ) (
     input  wire                 clk_pipe,
     input  wire [    WIDTH-1:0] pipe_d,
@@ -49,10 +48,14 @@ begin
     end
 end
 
-// Initialize RAM
+// Initialize RAM to be zero
+integer i;
 initial
 begin
-    $readmemb(LIST, ram);
+    for (i = 0; i < WORDS; i = i + 1)
+    begin
+        ram[i] = {WIDTH{1'b0}};
+    end
 end
 
 endmodule

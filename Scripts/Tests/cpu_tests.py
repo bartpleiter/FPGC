@@ -34,12 +34,12 @@ class CPUTestConfig:
     """Configuration constants for CPU tests."""
 
     TESTS_DIRECTORY = "Tests/CPU"
-    ROM_LIST_PATH = "Hardware/Vivado/FPGC.srcs/simulation/memory/rom.list"
-    RAM_LIST_PATH = "Hardware/Vivado/FPGC.srcs/simulation/memory/ram.list"
-    MIG7MOCK_LIST_PATH = "Hardware/Vivado/FPGC.srcs/simulation/memory/mig7mock.list"
+    ROM_LIST_PATH = "Hardware/FPGA/Verilog/Simulation/MemoryLists/rom.list"
+    RAM_LIST_PATH = "Hardware/FPGA/Verilog/Simulation/MemoryLists/ram.list"
+    MIG7MOCK_LIST_PATH = "Hardware/FPGA/Verilog/Simulation/MemoryLists/mig7mock.list"
     BOOTLOADER_ROM_PATH = "Software/BareMetalASM/Simulation/sim_jump_to_ram.asm"
-    TESTBENCH_PATH = "Hardware/Vivado/FPGC.srcs/simulation/cpu_tests_tb.v"
-    VERILOG_OUTPUT_PATH = "Hardware/Vivado/FPGC.srcs/simulation/output/cpu.out"
+    TESTBENCH_PATH = "Hardware/FPGA/Verilog/Simulation/cpu_tests_tb.v"
+    VERILOG_OUTPUT_PATH = "Hardware/FPGA/Verilog/Simulation/Output/cpu.out"
 
     CONVERTER_SCRIPT = "Scripts/Simulation/convert_to_256_bit.py"
 

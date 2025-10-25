@@ -4,12 +4,12 @@
  */
 `timescale 1ns / 1ps
 
-`include "Hardware/Vivado/FPGC.srcs/verilog/GPU/FSX.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/GPU/BGWrenderer.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/GPU/PixelEngine.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/GPU/TimingGenerator.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/GPU/HDMI/RGB8toRGB24.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/Memory/VRAM.v"
+`include "Hardware/FPGA/Verilog/Modules/GPU/FSX.v"
+`include "Hardware/FPGA/Verilog/Modules/GPU/BGWrenderer.v"
+`include "Hardware/FPGA/Verilog/Modules/GPU/PixelEngine.v"
+`include "Hardware/FPGA/Verilog/Modules/GPU/TimingGenerator.v"
+`include "Hardware/FPGA/Verilog/Modules/GPU/HDMI/RGB8toRGB24.v"
+`include "Hardware/FPGA/Verilog/Modules/Memory/VRAM.v"
 
 module FSX_tb ();
 
@@ -39,7 +39,7 @@ VRAM #(
     .WIDTH(32),
     .WORDS(1056),
     .ADDR_BITS(14),
-    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/vram32.list")
+    .LIST("Hardware/FPGA/Verilog/Simulation/MemoryLists/vram32.list")
 ) vram32 (
     //CPU port
     .cpu_clk (clk),
@@ -78,7 +78,7 @@ VRAM #(
     .WIDTH(8),
     .WORDS(8194),
     .ADDR_BITS(14),
-    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/vram8.list")
+    .LIST("Hardware/FPGA/Verilog/Simulation/MemoryLists/vram8.list")
 ) vram8 (
     // CPU port
     .cpu_clk (clk),
@@ -118,7 +118,7 @@ VRAM #(
     .WIDTH(8),
     .WORDS(76800),
     .ADDR_BITS(17),
-    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/vramPX.list")
+    .LIST("Hardware/FPGA/Verilog/Simulation/MemoryLists/vramPX.list")
 ) vramPX (
     // CPU port
     .cpu_clk (clk),
@@ -174,7 +174,7 @@ FSX fsx (
 
 initial
 begin
-    $dumpfile("Hardware/Vivado/FPGC.srcs/simulation/output/FSX.vcd");
+    $dumpfile("Hardware/FPGA/Verilog/Simulation/Output/FSX.vcd");
     $dumpvars;
 
     repeat(850000) // 850000 for exactly one frame at 640x480

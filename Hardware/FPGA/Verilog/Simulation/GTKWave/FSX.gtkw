@@ -2,10 +2,10 @@
 [*] GTKWave Analyzer v3.3.116 (w)1999-2023 BSI
 [*] Tue Jan 21 18:54:31 2025
 [*]
-[dumpfile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/FSX.vcd"
+[dumpfile] "/home/bart/repos/FPGC/Hardware/FPGA/Verilog/Simulation/Output/FSX.vcd"
 [dumpfile_mtime] "Tue Jan 21 18:31:14 2025"
 [dumpfile_size] 131600380
-[savefile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/FSX.gtkw"
+[savefile] "/home/bart/repos/FPGC/Hardware/FPGA/Verilog/Simulation/Gtkwave/FSX.gtkw"
 [timestart] 2750459000
 [size] 1536 881
 [pos] -1 -1

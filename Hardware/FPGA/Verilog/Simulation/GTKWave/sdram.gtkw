@@ -2,10 +2,10 @@
 [*] GTKWave Analyzer v3.3.121 (w)1999-2024 BSI
 [*] Sat Oct 25 11:10:49 2025
 [*]
-[dumpfile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/output/sdram.vcd"
+[dumpfile] "/home/bart/repos/FPGC/Hardware/FPGA/Verilog/Simulation/Output/sdram.vcd"
 [dumpfile_mtime] "Sat Oct 25 11:09:33 2025"
 [dumpfile_size] 1398376
-[savefile] "/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/gtkwave/sdram.gtkw"
+[savefile] "/home/bart/repos/FPGC/Hardware/FPGA/Verilog/Simulation/Gtkwave/sdram.gtkw"
 [timestart] 995000
 [size] 1920 1033
 [pos] -1 -1

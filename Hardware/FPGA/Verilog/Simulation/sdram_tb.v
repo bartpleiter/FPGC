@@ -3,8 +3,8 @@
  */
 `timescale 1ns / 1ps
 
-`include "Hardware/Vivado/FPGC.srcs/verilog/Memory/SDRAMcontroller.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/Memory/mt48lc16m16a2.v"
+`include "Hardware/FPGA/Verilog/Modules/Memory/SDRAMcontroller.v"
+`include "Hardware/FPGA/Verilog/Modules/Memory/mt48lc16m16a2.v"
 
 
 module sdram_tb ();
@@ -114,7 +114,7 @@ end
 
 initial
 begin
-    $dumpfile("Hardware/Vivado/FPGC.srcs/simulation/output/sdram.vcd");
+    $dumpfile("Hardware/FPGA/Verilog/Simulation/Output/sdram.vcd");
     $dumpvars;
 
     cpu_addr = 21'b0;

@@ -4,39 +4,39 @@
  */
 `timescale 1ns / 1ps
 
-`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/B32P2.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/Regr.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/Regbank.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/InstructionDecoder.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/ALU.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/MultiCycleALU.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/MultiCycleAluOps/MultuPipelined.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/MultiCycleAluOps/MultsPipelined.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/ControlUnit.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/Stack.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/BranchJumpUnit.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/InterruptController.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/AddressDecoder.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/CPU/CacheController.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/Memory/ROM.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/Memory/VRAM.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/Memory/DPRAM.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/Memory/MIG7Mock.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/Memory/W25Q128JV.v"
+`include "Hardware/FPGA/Verilog/Modules/CPU/B32P2.v"
+`include "Hardware/FPGA/Verilog/Modules/CPU/Regr.v"
+`include "Hardware/FPGA/Verilog/Modules/CPU/Regbank.v"
+`include "Hardware/FPGA/Verilog/Modules/CPU/InstructionDecoder.v"
+`include "Hardware/FPGA/Verilog/Modules/CPU/ALU.v"
+`include "Hardware/FPGA/Verilog/Modules/CPU/MultiCycleALU.v"
+`include "Hardware/FPGA/Verilog/Modules/CPU/MultiCycleAluOps/MultuPipelined.v"
+`include "Hardware/FPGA/Verilog/Modules/CPU/MultiCycleAluOps/MultsPipelined.v"
+`include "Hardware/FPGA/Verilog/Modules/CPU/ControlUnit.v"
+`include "Hardware/FPGA/Verilog/Modules/CPU/Stack.v"
+`include "Hardware/FPGA/Verilog/Modules/CPU/BranchJumpUnit.v"
+`include "Hardware/FPGA/Verilog/Modules/CPU/InterruptController.v"
+`include "Hardware/FPGA/Verilog/Modules/CPU/AddressDecoder.v"
+`include "Hardware/FPGA/Verilog/Modules/CPU/CacheControllerMIG7.v"
+`include "Hardware/FPGA/Verilog/Modules/Memory/ROM.v"
+`include "Hardware/FPGA/Verilog/Modules/Memory/VRAM.v"
+`include "Hardware/FPGA/Verilog/Modules/Memory/DPRAM.v"
+`include "Hardware/FPGA/Verilog/Modules/Memory/MIG7Mock.v"
+`include "Hardware/FPGA/Verilog/Modules/Memory/W25Q128JV.v"
 
-`include "Hardware/Vivado/FPGC.srcs/verilog/Memory/MemoryUnit.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/IO/UARTrx.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/IO/UARTtx.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/IO/SimpleSPI.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/IO/MicrosCounter.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/IO/OStimer.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/IO/UARTresetDetector.v"
+`include "Hardware/FPGA/Verilog/Modules/Memory/MemoryUnit.v"
+`include "Hardware/FPGA/Verilog/Modules/IO/UARTrx.v"
+`include "Hardware/FPGA/Verilog/Modules/IO/UARTtx.v"
+`include "Hardware/FPGA/Verilog/Modules/IO/SimpleSPI.v"
+`include "Hardware/FPGA/Verilog/Modules/IO/MicrosCounter.v"
+`include "Hardware/FPGA/Verilog/Modules/IO/OStimer.v"
+`include "Hardware/FPGA/Verilog/Modules/IO/UARTresetDetector.v"
 
-`include "Hardware/Vivado/FPGC.srcs/verilog/GPU/FSX.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/GPU/BGWrenderer.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/GPU/PixelEngine.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/GPU/TimingGenerator.v"
-`include "Hardware/Vivado/FPGC.srcs/verilog/GPU/HDMI/RGB8toRGB24.v"
+`include "Hardware/FPGA/Verilog/Modules/GPU/FSX.v"
+`include "Hardware/FPGA/Verilog/Modules/GPU/BGWrenderer.v"
+`include "Hardware/FPGA/Verilog/Modules/GPU/PixelEngine.v"
+`include "Hardware/FPGA/Verilog/Modules/GPU/TimingGenerator.v"
+`include "Hardware/FPGA/Verilog/Modules/GPU/HDMI/RGB8toRGB24.v"
 
 module cpu_tb ();
 
@@ -62,7 +62,7 @@ ROM #(
     .WIDTH(32),
     .WORDS(1024),
     .ADDR_BITS(10),
-    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/rom.list")
+    .LIST("Hardware/FPGA/Verilog/Simulation/MemoryLists/rom.list")
 ) rom (
     .clk (clk),
 
@@ -95,7 +95,7 @@ VRAM #(
     .WIDTH(32),
     .WORDS(1056),
     .ADDR_BITS(11),
-    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/vram32.list")
+    .LIST("Hardware/FPGA/Verilog/Simulation/MemoryLists/vram32.list")
 ) vram32 (
     //CPU port
     .cpu_clk (clk),
@@ -132,7 +132,7 @@ VRAM #(
     .WIDTH(8),
     .WORDS(8194),
     .ADDR_BITS(14),
-    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/vram8.list")
+    .LIST("Hardware/FPGA/Verilog/Simulation/MemoryLists/vram8.list")
 ) vram8 (
     // CPU port
     .cpu_clk (clk),
@@ -170,7 +170,7 @@ VRAM #(
     .WIDTH(8),
     .WORDS(76800),
     .ADDR_BITS(17),
-    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/vramPX.list")
+    .LIST("Hardware/FPGA/Verilog/Simulation/MemoryLists/vramPX.list")
 ) vramPX (
     // CPU port
     .cpu_clk (clk),
@@ -208,8 +208,7 @@ assign l1i_pipe_d  = 274'd0;
 DPRAM #(
     .WIDTH(274),
     .WORDS(128),
-    .ADDR_BITS(7),
-    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/l1i.list")
+    .ADDR_BITS(7)
 ) l1i_ram (
     .clk_pipe(clk),
     .pipe_d(l1i_pipe_d),
@@ -244,8 +243,7 @@ assign l1d_pipe_d  = 274'd0;
 DPRAM #(
     .WIDTH(274),
     .WORDS(128),
-    .ADDR_BITS(7),
-    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/l1d.list")
+    .ADDR_BITS(7)
 ) l1d_ram (
     .clk_pipe(clk),
     .pipe_d(l1d_pipe_d),
@@ -291,7 +289,7 @@ MIG7Mock #(
     .DATA_WIDTH(256),
     .MASK_WIDTH(32),
     .RAM_DEPTH(33554432),
-    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/mig7mock.list")
+    .LIST("Hardware/FPGA/Verilog/Simulation/MemoryLists/mig7mock.list")
 ) mig7mock (
     .sys_clk_i(clk100),
     .sys_rst(reset),
@@ -441,7 +439,7 @@ wire SPI0_wp = 1'b1;
 wire SPI0_hold = 1'b1;
 
 W25Q128JV #(
-    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/spiflash1.list")
+    .LIST("Hardware/FPGA/Verilog/Simulation/MemoryLists/spiflash1.list")
 ) spiflash1 (
 .CLK    (SPI0_clk),
 .DIO    (SPI0_mosi),
@@ -462,7 +460,7 @@ wire SPI1_hold = 1'b1;
 // No SPI Flash 2 for cpu tests needed
 /*
 W25Q128JV #(
-    .LIST("/home/bart/repos/FPGC/Hardware/Vivado/FPGC.srcs/simulation/memory/spiflash2.list")
+    .LIST("Hardware/FPGA/Verilog/Simulation/MemoryLists/spiflash2.list")
 ) spiflash2 (
 .CLK    (SPI1_clk),
 .DIO    (SPI1_mosi),

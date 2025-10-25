@@ -1,17 +1,33 @@
+# Documentation site
 Docs/site
 
-Hardware/Vivado/FPGC.cache
-Hardware/Vivado/FPGC.hw
-Hardware/Vivado/FPGC.gen
-Hardware/Vivado/FPGC.ip_user_files
-Hardware/Vivado/FPGC.runs
-Hardware/Vivado/FPGC.sim
-Hardware/Vivado/*.log
+# Vivado
+Hardware/FPGA/Artix7_A75T/FPGC.cache
+Hardware/FPGA/Artix7_A75T/FPGC.hw
+Hardware/FPGA/Artix7_A75T/FPGC.gen
+Hardware/FPGA/Artix7_A75T/FPGC.ip_user_files
+Hardware/FPGA/Artix7_A75T/FPGC.runs
+Hardware/FPGA/Artix7_A75T/FPGC.sim
+Hardware/FPGA/Artix7_A75T/*.log
 
-Hardware/Vivado/FPGC.srcs/simulation/output
+# Quartus
+Hardware/FPGA/Cyclone10_CL120/db
+Hardware/FPGA/Cyclone10_CL120/incremental_db
+Hardware/FPGA/Cyclone10_CL120/output_files
+Hardware/FPGA/Cyclone10_CL120/*.bak
+Hardware/FPGA/Cyclone10_CL120/*.qws
+Hardware/FPGA/Cyclone10_CL120/*.rpt
+Hardware/FPGA/Cyclone10_CL120/*.htm
+Hardware/FPGA/Cyclone10_CL120/*.sof
+Hardware/FPGA/Cyclone10_CL120/*.summary
+Hardware/FPGA/Cyclone10_CL120/*.jdi
+Hardware/FPGA/Cyclone10_CL120/*.sld
 
+# Verilog
+Hardware/FPGA/Verilog/Simulation/Output
+
+# Python
 __pycache__
-
 .venv
 BuildTools/ASMPY/build
 *.egg-info
@@ -20,8 +36,8 @@ BuildTools/ASMPY/build
 .ruff_cache
 .coverage
 
+# Others
 tmp
-
 Software/BareMetalASM/Output
 BuildTools/B32CC/output
 Tests/C/tmp
