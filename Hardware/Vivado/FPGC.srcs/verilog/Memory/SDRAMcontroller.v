@@ -27,296 +27,196 @@ module SDRAMcontroller(
     output wire         SDRAM_WEn,
     output wire         SDRAM_CASn,
     output wire         SDRAM_RASn,
-    output reg          SDRAM_CKE = 1'b1, 
+    output wire         SDRAM_CKE,
     output reg [12:0]   SDRAM_A   = 13'd0,
     output reg [1:0]    SDRAM_BA  = 2'd0,
-    output reg [3:0]    SDRAM_DQM = 4'b1111,
+    output reg [3:0]    SDRAM_DQM = 4'b0000,
     inout [31:0]        SDRAM_DQ
 );
 
-// SDRAM commands
-parameter [3:0] SDRAM_CMD_UNSELECTED= 4'b1000;
-parameter [3:0] SDRAM_CMD_NOP       = 4'b0111;
-parameter [3:0] SDRAM_CMD_ACTIVE    = 4'b0011;
-parameter [3:0] SDRAM_CMD_READ      = 4'b0101;
-parameter [3:0] SDRAM_CMD_WRITE     = 4'b0100;
-parameter [3:0] SDRAM_CMD_BURSTSTOP = 4'b0110;
-parameter [3:0] SDRAM_CMD_PRECHARGE = 4'b0010;
-parameter [3:0] SDRAM_CMD_REFRESH   = 4'b0001;
-parameter [3:0] SDRAM_CMD_LOADMODE  = 4'b0000;
-
-// Mode register value
-// {3'b reserved, 1'b write mode, 1'b reserved, 1'b test mode, 3'b CAS latency, 1'b addressing mode, 3'b burst length}
-//  CAS latency: 010=2, 011=3
-//  addressing mode: 0=seq 1=interleave
-//  burst length: 000=1, 001=2, 010=4, 011=8, 111=full page
-// We need: CAS latency 2, sequential, burst length 8
-parameter [12:0] MODE_REG = {3'b0, 1'b0, 1'b0, 1'b0, 3'b010, 1'b0, 3'b011};
-
-reg [3:0] SDRAM_CMD = SDRAM_CMD_NOP;
-assign {SDRAM_CSn, SDRAM_RASn, SDRAM_CASn, SDRAM_WEn} = SDRAM_CMD;
-
-
-// cycles_per_refresh calculation:
+//==============Refresh Settings=================
 //   100MHz -> 100.000.000 cycles per sec
 //   100.000.000*0,064 -> 6.400.000 cycles per 64ms
 //   6.400.000 / 8192 auto refreshes -> refresh after ~782 cycles
-parameter cycles_per_refresh = 782;
+localparam cycles_per_refresh = 782;
 // Note: after adjusting make sure that cycles_per_refresh fits in the refresh_counter width
-reg  [9:0] refresh_counter = 10'd0;
+reg [9:0] refresh_counter = 10'd0;
 
-parameter sdram_startup_cycles = 100;   // 200us @ 100MHz -> 20.000 cycles. Lowered for simulation
-reg [15:0] startup_counter = 16'd0;     // Cycle counter for startup, max 65.535
+//==============Init Settings=================
+`ifndef __ICARUS__
+localparam sdram_startup_cycles = 20000;  // 200us @ 100MHz -> 20.000 cycles
+`else
+localparam sdram_startup_cycles = 10;  // Lowered for simulation
+`endif
 
-parameter addr_precharge_bit  = 10;     // Address bit that selects which banks are to be precharged (1 == all banks)
+reg [15:0] startup_counter = 16'd0;     // Cycle counter for startup
 
+//==============Mode Register=================
+// Mode register value
+// {3'b reserved, 1'b write mode, 1'b reserved, 1'b test mode,
+//  3'b CAS latency, 1'b addressing mode, 3'b burst length}
+// CAS latency: 010=2, 011=3
+// addressing mode: 0=seq 1=interleave
+// burst length: 000=1, 001=2, 010=4, 011=8, 111=full page
+// We need: CAS latency 2, sequential, burst length 8
+localparam MODE_REG = {3'b0, 1'b0, 1'b0, 1'b0, 3'b010, 1'b0, 3'b011};
 
-// convert input address into row, column and bank
-wire [12:0] addr_row;
-wire [8:0]  addr_col;
-wire [1:0]  addr_bank;
-assign addr_col  = cpu_addr[8:0];   // 9  bit columns
-assign addr_row  = cpu_addr[21:9];  // 13 bit rows
-assign addr_bank = cpu_addr[23:22]; // 2  bit banks
-
-
-// DQ port setup
-// write
+//==============Ports=================
+// DQ Port
+// Write
 reg [31:0] SDRAM_DATA = 32'd0;
 reg SDRAM_DQ_OE = 1'b0;
 assign SDRAM_DQ = SDRAM_DQ_OE ? SDRAM_DATA : 32'hZZZZ;
-// read
+// Read
 wire [31:0] SDRAM_Q;
 assign SDRAM_Q = SDRAM_DQ;
 
+localparam PRECHARGE_ADDR_IDX = 10; // Address bit of precharge all banks
+reg [3:0] SDRAM_CMD = CMD_NOP;
+assign {SDRAM_CSn, SDRAM_RASn, SDRAM_CASn, SDRAM_WEn} = SDRAM_CMD;
+assign SDRAM_CKE = 1'b1; // No reason to disable clock enable
 
-// state machine
-parameter s_init        = 5'd0;
-parameter s_idle        = 5'd1;
-parameter s_open_in_2   = 5'd2;
-parameter s_open_in_1   = 5'd3;
-parameter s_write_1     = 5'd4;
-parameter s_write_2     = 5'd5;
-parameter s_write_3     = 5'd6;
-parameter s_read_1      = 5'd7;
-parameter s_read_2      = 5'd8;
-parameter s_read_3      = 5'd9;
-parameter s_read_4      = 5'd10;
-parameter s_write_precharge   = 5'd11;
-parameter s_idle_in_6   = 5'd12;
-parameter s_idle_in_5   = 5'd13;
-parameter s_idle_in_4   = 5'd14;
-parameter s_idle_in_3   = 5'd15;
-parameter s_idle_in_2   = 5'd16;
-parameter s_idle_in_1   = 5'd17;
-parameter s_read_precharge = 5'd18;
-parameter s_read_idle_in_3 = 5'd19;
-reg [4:0] state = s_init;
+//==============SDRAM Commands=================
+localparam
+    CMD_UNSELECTED          = 4'b1000,
+    CMD_NOP                 = 4'b0111,
+    CMD_READ                = 4'b0101,
+    CMD_WRITE               = 4'b0100,
+    CMD_BANK_ACTIVE         = 4'b0011,
+    CMD_PRECHARGE_ALL       = 4'b0010,
+    CMD_AUTO_REFRESH        = 4'b0001,
+    CMD_MODE_REGISTER_SET   = 4'b0000;
+
+//==============State Machine=================
+localparam
+    STATE_INIT_WAIT = 8'd0,
+    STATE_INIT_SETUP = 8'd1,
+    STATE_IDLE = 8'd2;
+
+reg [7:0] state = STATE_INIT_WAIT;
 
 
-// not used, but useful for debugging
-wire refresh = (SDRAM_CMD == SDRAM_CMD_REFRESH);
 
-reg is_refreshing = 1'b0;
+
+
+// wire [12:0] addr_row;
+// wire [8:0]  addr_col;
+// wire [1:0]  addr_bank;
+// assign addr_col  = {cpu_addr[5:0], 3'd0}; // Make sure we start at the beginning of a burst
+// assign addr_row  = cpu_addr[18:6];
+// assign addr_bank = cpu_addr[20:19];
 
 always @(posedge clk)
 begin
     if (reset)
     begin
-        SDRAM_CMD <= SDRAM_CMD_UNSELECTED;
-        state <= s_init;
-        startup_counter <= 16'd0;
         cpu_done <= 1'b0;
-    end
-    else
-    begin
-        // default state
-        SDRAM_CMD   <= SDRAM_CMD_NOP;
+        cpu_q <= 256'd0;
+
         SDRAM_A     <= 13'd0;
         SDRAM_BA    <= 2'b00;
         SDRAM_DQM   <= 4'b0000;
-        cpu_done <= 1'b0;
-     
-        // update counter for refresh
+
+        refresh_counter <= 10'd0;
+        startup_counter <= 16'd0;
+
+        SDRAM_DATA  <= 32'd0;
+        SDRAM_DQ_OE <= 1'b0;
+        SDRAM_CMD   <= CMD_NOP;
+
+        state <= STATE_INIT_WAIT;
+    end
+    else
+    begin
+        // Default assignments
+        cpu_done    <= 1'b0;
+
+        SDRAM_CMD   <= CMD_NOP;
+        SDRAM_A     <= 13'd0;
+        SDRAM_BA    <= 2'b00;
+        SDRAM_DQM   <= 4'b0000;
+        SDRAM_DATA  <= 32'd0;
+        SDRAM_DQ_OE <= 1'b0;
+
+        // Always update refresh counter
         refresh_counter <= refresh_counter + 1'b1;
 
-        case(state)
-            s_init: 
+        case (state)
+            
+            STATE_INIT_WAIT:
             begin
-                // ~200us pause,
-                //  followed by precharge of all banks,
-                //  followed by two auto refreshes,
-                //  followed by mode register init
-                SDRAM_CKE <= 1'b1;
-
-                // hold DQM high during initial pause
-                if (startup_counter < sdram_startup_cycles - 50)
+                SDRAM_DQM   <= 4'b1111; // DQM high until idle
+                // Wait until startup_counter reaches sdram_startup_cycles
+                if (startup_counter < sdram_startup_cycles)
                 begin
-                    SDRAM_DQM <= 4'b1111;
+                    startup_counter <= startup_counter + 1'b1;
                 end
+                else
+                begin
+                    // Move to precharge state
+                    state <= STATE_INIT_SETUP;
+                    startup_counter <= 16'd0; // Reset counter for next state
+                end
+            end
 
-                case(startup_counter)
-                    (sdram_startup_cycles-50):
+            STATE_INIT_SETUP:
+            begin
+                // This state does the following in sequence with 8 cycle delay between commands:
+                // - Precharge all banks
+                // - 8x Auto refresh
+                // - Mode register set
+                SDRAM_DQM <= 4'b1111; // DQM high until idle
+                
+                // Increment counter each cycle
+                startup_counter <= startup_counter + 1'b1;
+                
+                case (startup_counter)
+                    16'd0:
                     begin
-                        // precharge all banks
-                        SDRAM_CMD <= SDRAM_CMD_PRECHARGE;
-                        SDRAM_A[addr_precharge_bit] <= 1'b1; // select all banks
-                        SDRAM_BA <= 2'b00;
+                        // Precharge all banks
+                        SDRAM_CMD <= CMD_PRECHARGE_ALL;
+                        SDRAM_A[PRECHARGE_ADDR_IDX] <= 1'b1;
                     end
-                    (sdram_startup_cycles-28):
+                    16'd8, 16'd16, 16'd24, 16'd32, 16'd40, 16'd48, 16'd56, 16'd64:
                     begin
-                        SDRAM_CMD <= SDRAM_CMD_REFRESH;
+                        // Auto refresh (8 times)
+                        SDRAM_CMD <= CMD_AUTO_REFRESH;
                     end
-                    (sdram_startup_cycles-18):
+                    16'd72:
                     begin
-                        SDRAM_CMD <= SDRAM_CMD_REFRESH;
-                    end
-                    (sdram_startup_cycles-7):
-                    begin
-                        SDRAM_CMD <= SDRAM_CMD_LOADMODE;
+                        // Mode register set
+                        SDRAM_CMD <= CMD_MODE_REGISTER_SET;
                         SDRAM_A <= MODE_REG;
                     end
-                    sdram_startup_cycles:
+                    16'd80:
                     begin
-                        state <= s_idle;
+                        // Initialization done, move to idle
+                        state <= STATE_IDLE;
                     end
-                    default: 
-                    begin
+                    default: begin
+                        // NOP for all other cycles (already set by default assignments)
                     end
                 endcase
-                startup_counter <= startup_counter + 1'b1;
             end
 
-            s_idle_in_6: state <= s_idle_in_5;
-            s_idle_in_5: state <= s_idle_in_4;
-            s_idle_in_4: state <= s_idle_in_3;
-            s_idle_in_3: state <= s_idle_in_2;
-            s_idle_in_2: state <= s_idle_in_1;
-            s_idle_in_1: state <= s_idle;
-
-            s_idle:
+            STATE_IDLE:
             begin
-                if (refresh_counter > cycles_per_refresh) //refresh has priority!
-                    begin
-                        state       <= s_idle_in_6;
-                        is_refreshing <= 1'b1;
-                        SDRAM_CMD   <= SDRAM_CMD_REFRESH;
-                        refresh_counter <= 0;
-                    end
-                else 
-                begin     
-                    if (cpu_start)
-                    begin
-                        //--------------------------------
-                        //-- Start the read or write cycle. 
-                        //-- First task is to open the row
-                        //--------------------------------
-                        state       <= s_open_in_2;
-                        SDRAM_CMD   <= SDRAM_CMD_ACTIVE;
-                        SDRAM_A     <= addr_row;
-                        SDRAM_BA    <= addr_bank;
-                    end
-                    else //if nothing happens, just nop
-                    begin
-                        SDRAM_DQM <= 2'b00;
-                        SDRAM_CMD <= SDRAM_CMD_NOP;
-                        SDRAM_A <= 0;  
-                    end
-                end                
-                                
-            end
-
-            //--------------------------------------------
-            //-- Opening the row ready for reads or writes
-            //--------------------------------------------
-            s_open_in_2: state <= s_open_in_1;
-
-            s_open_in_1:
-            begin
-                // if write command
-                if (cpu_we)
+                // Refresh has highest priority
+                if (refresh_counter > cycles_per_refresh)
                 begin
-                    state <= s_write_1;
-                    SDRAM_DATA <= cpu_data; // already present sdram with data
-                    SDRAM_DQ_OE <= 1'b1;
+                    SDRAM_CMD <= CMD_AUTO_REFRESH;
+                    refresh_counter <= 0;
+                    // TODO: go to a state to wait tRC (60ns)
                 end
-                else // if read command
-                begin
-                    state <= s_read_1;
-                    SDRAM_DQ_OE <= 1'b0;
-                end
+                // TODO: else, handle read/write requests from CPU
             end
-
-            s_write_1: 
-            begin
-                state                       <= s_write_2;
-                SDRAM_CMD                   <= SDRAM_CMD_WRITE;
-                SDRAM_A                     <= addr_col; 
-                SDRAM_A[addr_precharge_bit] <= 1'b0;
-                SDRAM_BA                    <= addr_bank;
-                SDRAM_DQM                   <= 2'b00;  
-                SDRAM_DATA                  <= cpu_data;
-            end
-
-            s_write_2:
-            begin
-                state                   <= s_write_precharge;
-                SDRAM_DQ_OE             <= 1'b0;
-                cpu_done             <= 1'b1; // high for two cycles (this + s_write_precharge)
-            end
-
-            s_write_precharge:
-            begin
-                cpu_done                 <= 1'b1;
-                state                       <= s_idle_in_3;
-                SDRAM_CMD                   <= SDRAM_CMD_PRECHARGE;
-                SDRAM_A[addr_precharge_bit] <= 1'b1;
-            end
-            
-
-            //----------------------------------
-            //-- Processing the read transaction
-            //----------------------------------
-            s_read_1: 
-            begin
-                state                       <= s_read_2;
-                SDRAM_CMD                   <= SDRAM_CMD_READ;
-                SDRAM_A                     <= addr_col; 
-                SDRAM_BA                    <= addr_bank;
-                SDRAM_A[addr_precharge_bit] <= 1'b0;
-                SDRAM_DQM                   <= 2'b00;
-            end   
-            s_read_2:
-            begin
-                state                       <= s_read_3;
-            end   
-            s_read_3:
-            begin
-                state                       <= s_read_precharge;
-            end
-
-            s_read_precharge:
-            begin
-                cpu_q                       <= SDRAM_Q;
-                cpu_done                 <= 1'b1; // high for two cycles (this + s_read_idle_in_3)
-                state                       <= s_read_idle_in_3;
-                SDRAM_CMD                   <= SDRAM_CMD_PRECHARGE;
-                SDRAM_A[addr_precharge_bit] <= 1'b1;
-            end
-
-            s_read_idle_in_3:
-            begin
-                cpu_done                 <= 1'b1;
-                state                       <= s_idle_in_2;
-            end
-            
             default:
             begin
-                SDRAM_CMD <= SDRAM_CMD_UNSELECTED;
-                state <= s_init;
-                startup_counter <= 16'd0;
+                state <= STATE_INIT_WAIT;
             end
         endcase
     end
 end
+
+
 endmodule

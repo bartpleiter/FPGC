@@ -74,6 +74,7 @@ SDRAMcontroller sdc (
     .cpu_done(cpu_done),
     .cpu_q(cpu_q),
 
+    .SDRAM_CKE(SDRAM_CKE),
     .SDRAM_CSn(SDRAM_CSn),
     .SDRAM_WEn(SDRAM_WEn),
     .SDRAM_CASn(SDRAM_CASn),
@@ -108,7 +109,7 @@ begin
     cpu_we = 1'b0;
     cpu_start = 1'b0;
 
-    #150;
+    #1000;
 
     // Write test
     cpu_addr = 21'd0;
