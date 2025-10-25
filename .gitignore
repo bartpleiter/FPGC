@@ -13,6 +13,7 @@ Hardware/FPGA/Artix7_A75T/*.log
 # Quartus
 Hardware/FPGA/Cyclone10_CL120/db
 Hardware/FPGA/Cyclone10_CL120/incremental_db
+Hardware/FPGA/Cyclone10_CL120/greybox_tmp
 Hardware/FPGA/Cyclone10_CL120/output_files
 Hardware/FPGA/Cyclone10_CL120/*.bak
 Hardware/FPGA/Cyclone10_CL120/*.qws
@@ -22,6 +23,7 @@ Hardware/FPGA/Cyclone10_CL120/*.sof
 Hardware/FPGA/Cyclone10_CL120/*.summary
 Hardware/FPGA/Cyclone10_CL120/*.jdi
 Hardware/FPGA/Cyclone10_CL120/*.sld
+
 
 # Verilog
 Hardware/FPGA/Verilog/Simulation/Output

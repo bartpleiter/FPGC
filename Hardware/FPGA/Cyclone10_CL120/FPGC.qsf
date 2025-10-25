@@ -52,15 +52,145 @@ set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_
 set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_symbol
 set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_signal_integrity
 set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_boundary_scan
+
 set_location_assignment PIN_AA12 -to sys_clk_50
 set_location_assignment PIN_B12 -to sys_clk_27
-set_location_assignment PIN_F15 -to sys_rstn
+set_location_assignment PIN_F15 -to key1
+set_location_assignment PIN_E16 -to key2
 set_location_assignment PIN_V15 -to led1
 set_location_assignment PIN_U14 -to led2
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to sys_rstn
+
+set_location_assignment PIN_V21 -to SDRAM0_ADDR[0]
+set_location_assignment PIN_V22 -to SDRAM0_ADDR[1]
+set_location_assignment PIN_U21 -to SDRAM0_ADDR[2]
+set_location_assignment PIN_U22 -to SDRAM0_ADDR[3]
+set_location_assignment PIN_M22 -to SDRAM0_ADDR[4]
+set_location_assignment PIN_N21 -to SDRAM0_ADDR[5]
+set_location_assignment PIN_N22 -to SDRAM0_ADDR[6]
+set_location_assignment PIN_P21 -to SDRAM0_ADDR[7]
+set_location_assignment PIN_P22 -to SDRAM0_ADDR[8]
+set_location_assignment PIN_R21 -to SDRAM0_ADDR[9]
+set_location_assignment PIN_W22 -to SDRAM0_ADDR[10]
+set_location_assignment PIN_T20 -to SDRAM0_ADDR[11]
+set_location_assignment PIN_R20 -to SDRAM0_ADDR[12]
+set_location_assignment PIN_Y22 -to SDRAM0_BA[0]
+set_location_assignment PIN_W21 -to SDRAM0_BA[1]
+set_location_assignment PIN_AA20 -to SDRAM0_CAS_N
+set_location_assignment PIN_R22 -to SDRAM0_CKE
+set_location_assignment PIN_T16 -to SDRAM0_CLK
+set_location_assignment PIN_AA22 -to SDRAM0_CS_N
+set_location_assignment PIN_T19 -to SDRAM0_LDQM
+set_location_assignment PIN_R19 -to SDRAM0_UDQM
+set_location_assignment PIN_AA21 -to SDRAM0_RAS_N
+set_location_assignment PIN_AB20 -to SDRAM0_WE_N
+set_location_assignment PIN_W19 -to SDRAM0_DQ[0]
+set_location_assignment PIN_W20 -to SDRAM0_DQ[1]
+set_location_assignment PIN_T15 -to SDRAM0_DQ[2]
+set_location_assignment PIN_T17 -to SDRAM0_DQ[3]
+set_location_assignment PIN_U20 -to SDRAM0_DQ[4]
+set_location_assignment PIN_T18 -to SDRAM0_DQ[5]
+set_location_assignment PIN_R16 -to SDRAM0_DQ[6]
+set_location_assignment PIN_R17 -to SDRAM0_DQ[7]
+set_location_assignment PIN_K19 -to SDRAM0_DQ[8]
+set_location_assignment PIN_K18 -to SDRAM0_DQ[9]
+set_location_assignment PIN_M19 -to SDRAM0_DQ[10]
+set_location_assignment PIN_M20 -to SDRAM0_DQ[11]
+set_location_assignment PIN_N19 -to SDRAM0_DQ[12]
+set_location_assignment PIN_P20 -to SDRAM0_DQ[13]
+set_location_assignment PIN_N20 -to SDRAM0_DQ[14]
+set_location_assignment PIN_N18 -to SDRAM0_DQ[15]
+
+set_location_assignment PIN_H22 -to SDRAM1_ADDR[0]
+set_location_assignment PIN_H21 -to SDRAM1_ADDR[1]
+set_location_assignment PIN_F22 -to SDRAM1_ADDR[2]
+set_location_assignment PIN_F21 -to SDRAM1_ADDR[3]
+set_location_assignment PIN_E22 -to SDRAM1_ADDR[4]
+set_location_assignment PIN_E21 -to SDRAM1_ADDR[5]
+set_location_assignment PIN_D22 -to SDRAM1_ADDR[6]
+set_location_assignment PIN_D21 -to SDRAM1_ADDR[7]
+set_location_assignment PIN_C22 -to SDRAM1_ADDR[8]
+set_location_assignment PIN_C21 -to SDRAM1_ADDR[9]
+set_location_assignment PIN_J21 -to SDRAM1_ADDR[10]
+set_location_assignment PIN_B22 -to SDRAM1_ADDR[11]
+set_location_assignment PIN_B21 -to SDRAM1_ADDR[12]
+set_location_assignment PIN_K21 -to SDRAM1_BA[0]
+set_location_assignment PIN_J22 -to SDRAM1_BA[1]
+set_location_assignment PIN_L22 -to SDRAM1_CAS_N
+set_location_assignment PIN_A20 -to SDRAM1_CKE
+set_location_assignment PIN_B20 -to SDRAM1_CLK
+set_location_assignment PIN_K22 -to SDRAM1_CS_N
+set_location_assignment PIN_J18 -to SDRAM1_LDQM
+set_location_assignment PIN_D20 -to SDRAM1_UDQM
+set_location_assignment PIN_L21 -to SDRAM1_RAS_N
+set_location_assignment PIN_M21 -to SDRAM1_WE_N
+set_location_assignment PIN_G18 -to SDRAM1_DQ[0]
+set_location_assignment PIN_F17 -to SDRAM1_DQ[1]
+set_location_assignment PIN_F19 -to SDRAM1_DQ[2]
+set_location_assignment PIN_F20 -to SDRAM1_DQ[3]
+set_location_assignment PIN_H18 -to SDRAM1_DQ[4]
+set_location_assignment PIN_H20 -to SDRAM1_DQ[5]
+set_location_assignment PIN_H19 -to SDRAM1_DQ[6]
+set_location_assignment PIN_J20 -to SDRAM1_DQ[7]
+set_location_assignment PIN_D19 -to SDRAM1_DQ[8]
+set_location_assignment PIN_C20 -to SDRAM1_DQ[9]
+set_location_assignment PIN_C19 -to SDRAM1_DQ[10]
+set_location_assignment PIN_D18 -to SDRAM1_DQ[11]
+set_location_assignment PIN_D17 -to SDRAM1_DQ[12]
+set_location_assignment PIN_C18 -to SDRAM1_DQ[13]
+set_location_assignment PIN_C17 -to SDRAM1_DQ[14]
+set_location_assignment PIN_B19 -to SDRAM1_DQ[15]
+
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to key1
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to key2
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led1
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led2
+
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_ADDR[12]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_ADDR[11]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_ADDR[10]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_ADDR[9]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_ADDR[8]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_ADDR[7]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_ADDR[6]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_ADDR[5]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_ADDR[4]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_ADDR[3]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_ADDR[2]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_ADDR[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_ADDR[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_ADDR
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_BA[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_BA[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_BA
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_CAS_N
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_CKE
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_CLK
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_CS_N
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_WE_N
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_UDQM
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_RAS_N
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_LDQM
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[2]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[3]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[4]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[5]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[6]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[7]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[8]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[9]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[10]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[11]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[12]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[13]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[14]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[15]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ
+
 set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
 set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
 set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
+
+set_global_assignment -name QIP_FILE pll1.qip
