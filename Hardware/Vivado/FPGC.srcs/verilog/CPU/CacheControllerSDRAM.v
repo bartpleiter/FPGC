@@ -1,20 +1,15 @@
 /*
- * Cache controller for L1 instruction and data cache, to use with MIG7
- * Runs at 100 MHz as it needs to connect to MIG7
+ * Cache controller for L1 instruction and data cache, to use with SDRAM via custom SDRAM controller
+ * Runs at 100 MHz
  * - Aside from the CPU pipeline interface (50 MHz), everything else is also in the 100 MHz domain
  * Connects to:
  * - DPRAM for L1 instruction cache (hardcoded to 7 bits, or 128 lines)
  * - DPRAM for L1 data cache (hardcoded to 7 bits, or 128 lines)
  * - CPU pipeline for commands from FE2 and EXMEM2 stages
- * - MIG7 for memory interface
+ * - SDRAM controller for memory access
+ * NOTE: In contrast to the MIG7, the SDRAM controller uses 256 bit addressing
  */
-module CacheController
-#(
-    parameter ADDR_WIDTH = 29, // Note: this is in bytes, so for 256 bit (32 byte) accesses, the lower 5 bits are always 0
-    parameter DATA_WIDTH = 256,
-    parameter MASK_WIDTH = 32
-)
-(
+module CacheControllerSDRAM (
     //========================
     // System interface
     //========================
@@ -56,23 +51,14 @@ module CacheController
     input  wire [273:0]              l1d_ctrl_q,
 
     //========================
-    // MIG7 interface
+    // SDRAM controller interface
     //========================
-    input  wire                      init_calib_complete,
-    output reg  [ADDR_WIDTH-1:0]     app_addr          = {ADDR_WIDTH{1'b0}},
-    output reg  [2:0]                app_cmd           = 3'b000,
-    output reg                       app_en            = 1'b0,
-    input  wire                      app_rdy,
-    
-    output reg  [DATA_WIDTH-1:0]     app_wdf_data      = {DATA_WIDTH{1'b0}},
-    output reg                       app_wdf_end       = 1'b0,
-    output reg  [MASK_WIDTH-1:0]     app_wdf_mask      = {MASK_WIDTH{1'b0}},
-    output reg                       app_wdf_wren      = 1'b0,
-    input  wire                      app_wdf_rdy,
-    
-    input  wire [DATA_WIDTH-1:0]     app_rd_data,
-    input  wire                      app_rd_data_end,
-    input  wire                      app_rd_data_valid
+    output reg [20:0]                sdc_addr = 21'd0,
+    output reg [255:0]               sdc_data = 256'd0,
+    output reg                       sdc_we   = 1'b0,
+    output reg                       sdc_start = 1'b0,
+    input  wire                      sdc_done,
+    input  wire [255:0]              sdc_q
 );
 
 localparam
@@ -87,21 +73,21 @@ localparam
     // L1 Data Cache Read States
     STATE_L1D_READ_WAIT_CACHE_READ       = 8'd5,
     STATE_L1D_READ_CHECK_CACHE           = 8'd6,
-    STATE_L1D_READ_EVICT_DIRTY_WAIT_READY= 8'd7,
+    STATE_UNUSED_1                       = 8'd7,
     STATE_L1D_READ_EVICT_DIRTY_SEND_CMD  = 8'd8,
     STATE_L1D_READ_SEND_CMD              = 8'd9,
-    STATE_L1D_READ_WAIT_READY            = 8'd10,
+    STATE_UNUSED_2                       = 8'd10,
     STATE_L1D_READ_WAIT_DATA             = 8'd11,
     STATE_L1D_READ_WRITE_TO_CACHE        = 8'd12,
     STATE_L1D_READ_SIGNAL_CPU_DONE       = 8'd13,
 
     // L1 Data Cache Write States
-    STATE_L1D_WRITE_WAIT_CACHE_READ          = 8'd14,
-    STATE_L1D_WRITE_CHECK_CACHE              = 8'd15,
-    STATE_L1D_WRITE_MISS_EVICT_DIRTY_WAIT_READY = 8'd16,
+    STATE_L1D_WRITE_WAIT_CACHE_READ             = 8'd14,
+    STATE_L1D_WRITE_CHECK_CACHE                 = 8'd15,
+    STATE_UNUSED_3                              = 8'd16,
     STATE_L1D_WRITE_MISS_EVICT_DIRTY_SEND_CMD   = 8'd17,
     STATE_L1D_WRITE_MISS_FETCH_SEND_CMD         = 8'd18,
-    STATE_L1D_WRITE_MISS_FETCH_WAIT_READY       = 8'd19,
+    STATE_UNUSED_4                              = 8'd19,
     STATE_L1D_WRITE_MISS_FETCH_WAIT_DATA        = 8'd20,
     STATE_L1D_WRITE_WRITE_TO_CACHE              = 8'd21,
     STATE_L1D_WRITE_SIGNAL_CPU_DONE             = 8'd22,
@@ -112,7 +98,7 @@ localparam
     STATE_CLEARCACHE_L1D_READ                   = 8'd25,
     STATE_CLEARCACHE_L1D_WAIT_READ              = 8'd26,
     STATE_CLEARCACHE_L1D_CHECK                  = 8'd27,
-    STATE_CLEARCACHE_L1D_EVICT_WAIT_READY       = 8'd28,
+    STATE_UNUSED_5                              = 8'd28,
     STATE_CLEARCACHE_L1D_EVICT_SEND_CMD         = 8'd29,
     STATE_CLEARCACHE_L1D_CLEAR                  = 8'd30,
     STATE_CLEARCACHE_L1D_CLEAR_FINISH           = 8'd31,
@@ -156,13 +142,12 @@ begin
         cpu_FE2_result <= 32'd0;
         cpu_EXMEM2_done <= 1'b0;
         cpu_EXMEM2_result <= 32'd0;
-        app_addr <= {ADDR_WIDTH{1'b0}};
-        app_cmd <= 3'b000;
-        app_en <= 1'b0;
-        app_wdf_data <= {DATA_WIDTH{1'b0}};
-        app_wdf_end <= 1'b0;
-        app_wdf_mask <= {MASK_WIDTH{1'b0}};
-        app_wdf_wren <= 1'b0;
+        
+        sdc_addr <= 21'd0;
+        sdc_data <= 256'd0;
+        sdc_we <= 1'b0;
+        sdc_start <= 1'b0;
+
         l1i_ctrl_d <= 274'b0;
         l1i_ctrl_addr <= 7'b0;
         l1i_ctrl_we <= 1'b0;
@@ -219,7 +204,7 @@ begin
         end
 
         // Check for CPU EXMEM2 request
-        if (cpu_EXMEM2_start && !cpu_EXMEM2_start_prev)
+        if (cpu_EXMEM2_start && !cpu_EXMEM2_start_prev)                                                                                                                                  
         begin
             cpu_EXMEM2_new_request <= 1'b1;
             cpu_EXMEM2_addr_stored <= cpu_EXMEM2_addr;
@@ -303,16 +288,14 @@ begin
                     //$display("%d: CacheController PROCESSING FE2 REQUEST: addr=0x%h", $time, cpu_FE2_start ? cpu_FE2_addr : cpu_FE2_addr_stored);
 
                     // FE2 requests are only READ operations
-                    // Setup MIG7 read command with arguments depending on the availability in the _stored registers
-                    app_cmd <= 3'b001; // READ command
-                    app_en <= 1'b1;
-                    app_addr <= cpu_FE2_start ? {cpu_FE2_addr[31:3], 5'b00000} : {cpu_FE2_addr_stored[31:3], 5'b00000}; // Convert to byte address and align to 256 bits (32 bytes)
-                    //$display("%d: CacheController MIG7 FE2 READ CMD: addr=0x%h", $time, cpu_FE2_start ? {cpu_FE2_addr[31:3], 5'b00000} : {cpu_FE2_addr_stored[31:3], 5'b00000});
+                    // Request sdram controller with arguments depending on the availability in the _stored registers
+                    sdc_we <= 1'b0;
+                    sdc_start <= 1'b1;
+                    sdc_addr <= cpu_FE2_start ? cpu_FE2_addr[31:3] : cpu_FE2_addr_stored[31:3];
 
                     cpu_FE2_new_request <= 1'b0; // Clear the request flag
 
-                    state <= STATE_L1I_SEND_READ_CMD; // Wait for MIG7 to accept the read command
-                    //$display("%d: CacheController IDLE -> STATE_L1I_SEND_READ_CMD", $time);
+                    state <= STATE_L1I_WAIT_READ_DATA;
 
                 end
             end
@@ -321,37 +304,28 @@ begin
             // L1 Instruction Cache Read States
             // ------------------------
 
-            STATE_L1I_SEND_READ_CMD: begin
-                // Wait for MIG7 to assert ready, indicating the read command is accepted
-                // At this point the address is stored, so we should use it in case cpu does not set the signals anymore
-                app_addr <= {cpu_FE2_addr_stored[31:3], 5'b00000}; // Convert to byte address and align to 256 bits (32 bytes)
-                if (app_rdy)
-                begin
-                    // MIG7 is ready, we can proceed with the read operation
-                    app_en <= 1'b0; // Disassert app_en to prevent sending another command
-                    state <= STATE_L1I_WAIT_READ_DATA; // Wait until the data is ready
-                end
-            end
-
             STATE_L1I_WAIT_READ_DATA: begin
-                // Wait for MIG7 to provide the read data
-                if (app_rd_data_valid && app_rd_data_end)
+                // Disassert request
+                sdc_start <= 1'b0;
+                sdc_addr <= 21'd0;
+                // Wait for SDRAM controller to be done
+                if (sdc_done)
                 begin
                     // Extract the requested 32-bit word based on offset for the CPU return value
                     case (cpu_FE2_addr_stored[2:0])
-                        3'd0: cpu_FE2_result <= app_rd_data[31:0];
-                        3'd1: cpu_FE2_result <= app_rd_data[63:32];
-                        3'd2: cpu_FE2_result <= app_rd_data[95:64];
-                        3'd3: cpu_FE2_result <= app_rd_data[127:96];
-                        3'd4: cpu_FE2_result <= app_rd_data[159:128];
-                        3'd5: cpu_FE2_result <= app_rd_data[191:160];
-                        3'd6: cpu_FE2_result <= app_rd_data[223:192];
-                        3'd7: cpu_FE2_result <= app_rd_data[255:224];
+                        3'd0: cpu_FE2_result <= sdc_q[31:0];
+                        3'd1: cpu_FE2_result <= sdc_q[63:32];
+                        3'd2: cpu_FE2_result <= sdc_q[95:64];
+                        3'd3: cpu_FE2_result <= sdc_q[127:96];
+                        3'd4: cpu_FE2_result <= sdc_q[159:128];
+                        3'd5: cpu_FE2_result <= sdc_q[191:160];
+                        3'd6: cpu_FE2_result <= sdc_q[223:192];
+                        3'd7: cpu_FE2_result <= sdc_q[255:224];
                     endcase
 
                     // Write the retrieved cache line directly to DPRAM
                     // Format: {256bit_data, 16bit_tag, 1'b1(valid), 1'b0(dirty)}
-                    l1i_ctrl_d <= {app_rd_data, cpu_FE2_addr_stored[25:10], 1'b1, 1'b0};
+                    l1i_ctrl_d <= {sdc_q, cpu_FE2_addr_stored[25:10], 1'b1, 1'b0};
                     l1i_ctrl_addr <= cpu_FE2_addr_stored[9:3]; // DPRAM index, aligned on cache line size (8 words = 256 bits)
                     l1i_ctrl_we <= 1'b1;
 
@@ -406,118 +380,74 @@ begin
                 if (l1d_ctrl_q[0])
                 begin
                     //$display("%d: CacheController L1D cache line is dirty, need to evict first", $time);
-                    // If dirty, we need to write to MIG7 before reading the new cache line
-                    if (app_rdy && app_wdf_rdy)
-                    begin
-                        app_cmd <= 3'b000; // WRITE command
-                        app_en <= 1'b1;
-                        // We need to write the address of the old cache line, so we need to use:
-                        // the tag l1d_ctrl_q[17:2]
-                        // the index of the cache line cpu_EXMEM2_addr_stored[9:3], which is aligned to 256 bits (8 words)
-                        app_addr <= {l1d_ctrl_q[17:2], cpu_EXMEM2_addr_stored[9:3], 5'b00000}; // Convert to byte address
+                    sdc_we <= 1'b1;
+                    sdc_start <= 1'b1;
+                    // We need to write the address of the old cache line, so we need to use:
+                    // the tag l1d_ctrl_q[17:2]
+                    // the index of the cache line cpu_EXMEM2_addr_stored[9:3], which is aligned to 256 bits (8 words)
+                    sdc_addr <= {l1d_ctrl_q[17:2], cpu_EXMEM2_addr_stored[9:3]};
+                    sdc_data <= l1d_ctrl_q[273:18]; // Data to write, which is the cache line data
 
-                        app_wdf_wren <= 1'b1; // Enable write data
-                        app_wdf_data <= l1d_ctrl_q[273:18]; // Data to write, which is the cache line data
-                        app_wdf_end <= 1'b1; // End of write data
-                        //$display("%d: CacheController MIG7 L1D EVICT WRITE CMD: addr=0x%h, data=0x%h", $time, {l1d_ctrl_q[17:2], cpu_EXMEM2_addr_stored[9:3]}, l1d_ctrl_q[273:18]);
+                    state <= STATE_L1D_READ_EVICT_DIRTY_SEND_CMD;
 
-                        state <= STATE_L1D_READ_EVICT_DIRTY_SEND_CMD; // Wait for MIG7 to accept the write command
-                    end
-                    else
-                    begin
-                        // Go to state where we wait for MIG7 to be ready
-                        state <= STATE_L1D_READ_EVICT_DIRTY_WAIT_READY;
-                    end
                 end
                 else
                 begin
                     //$display("%d: CacheController L1D cache line is clean, can read new line directly", $time);
                     // If not dirty, we can directly read the new cache line
-                    app_cmd <= 3'b001; // READ command
-                    app_en <= 1'b1;
-                    app_addr <= {cpu_EXMEM2_addr_stored[31:3], 5'b00000}; // Convert to byte address and align to 256 bits (32 bytes)
-                    //$display("%d: CacheController MIG7 L1D READ CMD: addr=0x%h", $time, cpu_EXMEM2_addr_stored[31:3]);
+                    sdc_we <= 1'b0;
+                    sdc_start <= 1'b1;
+                    sdc_addr <= cpu_EXMEM2_addr_stored[31:3];
 
-                    state <= STATE_L1D_READ_WAIT_READY; // Wait for MIG7 to accept the read command
-                end
-            end
-
-            STATE_L1D_READ_EVICT_DIRTY_WAIT_READY: begin
-                // Wait for the MIG7 to be ready, so we can proceed with the write operation
-                if (app_rdy && app_wdf_rdy)
-                begin
-                    app_cmd <= 3'b000; // WRITE command
-                    app_en <= 1'b1;
-                    // We need to write the address of the old cache line, so we need to use:
-                    // the tag l1d_ctrl_q[17:2]
-                    // the index of the cache line cpu_EXMEM2_addr_stored[9:3], which is aligned to 256 bits (8 words)
-                    app_addr <= {l1d_ctrl_q[17:2], cpu_EXMEM2_addr_stored[9:3], 5'b00000}; // Convert to byte address 
-                    app_wdf_wren <= 1'b1; // Enable write data
-                    app_wdf_data <= cache_line_data; // Data to write, which is the cache line data
-                    app_wdf_end <= 1'b1; // End of write data
-                    state <= STATE_L1D_READ_EVICT_DIRTY_SEND_CMD; // Wait for MIG7 to accept the write command
+                    state <= STATE_L1D_READ_WAIT_DATA;
                 end
             end
 
             STATE_L1D_READ_EVICT_DIRTY_SEND_CMD: begin
-                // Properly handle write signal disabling with synchronization
-                if (app_rdy && app_en)
+                // Disassert sdc signals
+                sdc_start <= 1'b0;
+                sdc_addr <= 21'd0;
+                sdc_data <= 256'd0;
+                sdc_we <= 1'b0;
+
+                // Wait SDRAM controller to finish before proceeding
+                if (sdc_done)
                 begin
-                    app_en <= 1'b0; // Disable command enable
-                end
-                
-                if (app_wdf_rdy && app_wdf_wren)
-                begin
-                    app_wdf_wren <= 1'b0; // Disable write data enable
-                    app_wdf_end <= 1'b0; // End of write data
-                end
-                
-                // Wait for both signals to be properly disabled before proceeding
-                if (~app_en && ~app_wdf_wren)
-                begin
-                    state <= STATE_L1D_READ_SEND_CMD; // The cache line is now written to MIG7, we can start a read the next cycle
+                    state <= STATE_L1D_READ_SEND_CMD; // The cache line is now written to SDRAM, we can start a read the next cycle
                 end
             end
 
             STATE_L1D_READ_SEND_CMD: begin
-                // Set the MIG7 read command for the new cache line
-                app_cmd <= 3'b001; // READ command
-                app_en <= 1'b1;
-                app_addr <= {cpu_EXMEM2_addr_stored[31:3], 5'b00000}; // Convert to byte address and align to 256 bits (32 bytes)
-                //$display("%d: CacheController MIG7 L1D READ CMD after evict: addr=0x%h", $time, {cpu_EXMEM2_addr_stored[31:3], 5'b00000});
+                sdc_we <= 1'b0;
+                sdc_start <= 1'b1;
+                sdc_addr <= cpu_EXMEM2_addr_stored[31:3];
 
-                state <= STATE_L1D_READ_WAIT_READY; // Wait for MIG7 to accept the read command
-            end
-
-            STATE_L1D_READ_WAIT_READY: begin
-                // Wait for MIG7 to assert ready, indicating the read command is accepted
-                if (app_rdy)
-                begin
-                    // MIG7 is ready, we can proceed with the read operation
-                    app_en <= 1'b0; // Disassert app_en to prevent sending another command
-                    state <= STATE_L1D_READ_WAIT_DATA; // Wait until the data is ready
-                end
+                state <= STATE_L1D_READ_WAIT_DATA;
             end
 
             STATE_L1D_READ_WAIT_DATA: begin
+                // Disassert sdc signals
+                sdc_start <= 1'b0;
+                sdc_addr <= 21'd0;
+
                 // Wait until data is ready, and write it to DPRAM of L1D cache
-                if (app_rd_data_valid && app_rd_data_end)
+                if (sdc_done)
                 begin
                     // Extract the requested 32-bit word based on offset for the CPU return value
                     case (cpu_EXMEM2_addr_stored[2:0])
-                        3'd0: cpu_EXMEM2_result <= app_rd_data[31:0];
-                        3'd1: cpu_EXMEM2_result <= app_rd_data[63:32];
-                        3'd2: cpu_EXMEM2_result <= app_rd_data[95:64];
-                        3'd3: cpu_EXMEM2_result <= app_rd_data[127:96];
-                        3'd4: cpu_EXMEM2_result <= app_rd_data[159:128];
-                        3'd5: cpu_EXMEM2_result <= app_rd_data[191:160];
-                        3'd6: cpu_EXMEM2_result <= app_rd_data[223:192];
-                        3'd7: cpu_EXMEM2_result <= app_rd_data[255:224];
+                        3'd0: cpu_EXMEM2_result <= sdc_q[31:0];
+                        3'd1: cpu_EXMEM2_result <= sdc_q[63:32];
+                        3'd2: cpu_EXMEM2_result <= sdc_q[95:64];
+                        3'd3: cpu_EXMEM2_result <= sdc_q[127:96];
+                        3'd4: cpu_EXMEM2_result <= sdc_q[159:128];
+                        3'd5: cpu_EXMEM2_result <= sdc_q[191:160];
+                        3'd6: cpu_EXMEM2_result <= sdc_q[223:192];
+                        3'd7: cpu_EXMEM2_result <= sdc_q[255:224];
                     endcase
 
                     // Write the retrieved cache line directly to DPRAM
                     // Format: {256bit_data, 16bit_tag, 1'b1(valid), 1'b0(dirty)}
-                    l1d_ctrl_d <= {app_rd_data, cpu_EXMEM2_addr_stored[25:10], 1'b1, 1'b0};
+                    l1d_ctrl_d <= {sdc_q, cpu_EXMEM2_addr_stored[25:10], 1'b1, 1'b0};
                     l1d_ctrl_addr <= cpu_EXMEM2_addr_stored[9:3]; // DPRAM index, aligned on cache line size (8 words = 256 bits)
                     l1d_ctrl_we <= 1'b1;
 
@@ -622,103 +552,60 @@ begin
                     begin
                         //$display("%d: CacheController L1D write miss: current line is dirty, need to evict first", $time);
                         // Current cache line is dirty, need to write it back to memory first
-                        if (app_rdy && app_wdf_rdy)
-                        begin
-                            app_cmd <= 3'b000; // WRITE command
-                            app_en <= 1'b1;
-                            // We need to write the address of the old cache line, so we need to use:
-                            // the tag l1d_ctrl_q[17:2]
-                            // the index of the cache line cpu_EXMEM2_addr_stored[9:3], which is aligned to 256 bits (8 words)
-                            app_addr <= {l1d_ctrl_q[17:2], cpu_EXMEM2_addr_stored[9:3], 5'b00000}; // Convert to byte address
+                        sdc_we <= 1'b1;
+                        sdc_start <= 1'b1;
+                        // We need to write the address of the old cache line, so we need to use:
+                        // the tag l1d_ctrl_q[17:2]
+                        // the index of the cache line cpu_EXMEM2_addr_stored[9:3], which is aligned to 256 bits (8 words)
+                        sdc_addr <= {l1d_ctrl_q[17:2], cpu_EXMEM2_addr_stored[9:3]};
+                        sdc_data <= l1d_ctrl_q[273:18]; // Data to write, which is the cache line data
 
-                            app_wdf_wren <= 1'b1; // Enable write data
-                            app_wdf_data <= l1d_ctrl_q[273:18]; // Data to write, which is the cache line data
-                            app_wdf_end <= 1'b1; // End of write data
+                        state <= STATE_L1D_WRITE_MISS_EVICT_DIRTY_SEND_CMD;
 
-                            state <= STATE_L1D_WRITE_MISS_EVICT_DIRTY_SEND_CMD; // Wait for MIG7 to accept the write command
-                        end
-                        else
-                        begin
-                            // Go to state where we wait for MIG7 to be ready
-                            state <= STATE_L1D_WRITE_MISS_EVICT_DIRTY_WAIT_READY;
-                        end
                     end
                     // If current line not dirty and therefore can be safely overwritten
                     else
                     begin
                         //$display("%d: CacheController L1D write miss: current line is clean, can fetch new line directly", $time);
                         // Current cache line is not dirty, can directly fetch new cache line
-                        app_cmd <= 3'b001; // READ command
-                        app_en <= 1'b1;
-                        app_addr <= {cpu_EXMEM2_addr_stored[31:3], 5'b00000}; // Convert to byte address and align to 256 bits (32 bytes)
-                        //$display("%d: CacheController MIG7 L1D write miss read CMD: addr=0x%h", $time, {cpu_EXMEM2_addr_stored[31:3], 5'b00000});
+                        sdc_we <= 1'b0;
+                        sdc_start <= 1'b1;
+                        sdc_addr <= cpu_EXMEM2_addr_stored[31:3];
 
-                        state <= STATE_L1D_WRITE_MISS_FETCH_WAIT_READY; // Wait for MIG7 to accept the read command
+                        state <= STATE_L1D_WRITE_MISS_FETCH_WAIT_DATA;
                     end
                 end
             end
 
-            STATE_L1D_WRITE_MISS_EVICT_DIRTY_WAIT_READY: begin
-                // Wait for the MIG7 to be ready, so we can proceed with the write operation
-                if (app_rdy && app_wdf_rdy)
-                begin
-                    app_cmd <= 3'b000; // WRITE command
-                    app_en <= 1'b1;
-                    // We need to write the address of the old cache line, so we need to use:
-                    // the tag l1d_ctrl_q[17:2]
-                    // the index of the cache line cpu_EXMEM2_addr_stored[9:3], which is aligned to 256 bits (8 words)
-                    app_addr <= {l1d_ctrl_q[17:2], cpu_EXMEM2_addr_stored[9:3], 5'b00000}; // Convert to byte address
-                    app_wdf_wren <= 1'b1; // Enable write data
-                    app_wdf_data <= cache_line_data; // Data to write, which is the cache line data
-                    app_wdf_end <= 1'b1; // End of write data
-                    //$display("%d: CacheController MIG7 L1D write miss evict CMD: addr=0x%h, data=0x%h", $time, {l1d_ctrl_q[17:2], cpu_EXMEM2_addr_stored[9:3]}, cache_line_data);
-                    state <= STATE_L1D_WRITE_MISS_EVICT_DIRTY_SEND_CMD; // Wait for MIG7 to accept the write command
-                end
-            end
-
             STATE_L1D_WRITE_MISS_EVICT_DIRTY_SEND_CMD: begin
-                // Properly handle write signal disabling with synchronization
-                if (app_rdy && app_en)
+                // Disassert sdc signals
+                sdc_start <= 1'b0;
+                sdc_addr <= 21'd0;
+                sdc_data <= 256'd0;
+                sdc_we <= 1'b0;
+
+                // Wait SDRAM controller to finish before proceeding
+                if (sdc_done)
                 begin
-                    app_en <= 1'b0; // Disable command enable
-                end
-                
-                if (app_wdf_rdy && app_wdf_wren)
-                begin
-                    app_wdf_wren <= 1'b0; // Disable write data enable
-                    app_wdf_end <= 1'b0; // End of write data
-                end
-                
-                // Wait for both signals to be properly disabled before proceeding
-                if (~app_en && ~app_wdf_wren)
-                begin
-                    state <= STATE_L1D_WRITE_MISS_FETCH_SEND_CMD; // The cache line is now written to MIG7, we can start a read the next cycle
+                    state <= STATE_L1D_WRITE_MISS_FETCH_SEND_CMD; // The cache line is now written to SDRAM, we can start a read the next cycle
                 end
             end
 
             STATE_L1D_WRITE_MISS_FETCH_SEND_CMD: begin
-                // Set the MIG7 read command for the new cache line
-                app_cmd <= 3'b001; // READ command
-                app_en <= 1'b1;
-                app_addr <= {cpu_EXMEM2_addr_stored[31:3], 5'b00000}; // Convert to byte address and align to 256 bits (32 bytes)
-                //$display("%d: CacheController MIG7 L1D write miss fetch CMD: addr=0x%h", $time, {cpu_EXMEM2_addr_stored[31:3], 5'b00000});
+                sdc_we <= 1'b0;
+                sdc_start <= 1'b1;
+                sdc_addr <= cpu_EXMEM2_addr_stored[31:3];
 
-                state <= STATE_L1D_WRITE_MISS_FETCH_WAIT_READY; // Wait for MIG7 to accept the read command
-            end
-
-            STATE_L1D_WRITE_MISS_FETCH_WAIT_READY: begin
-                // Wait for MIG7 to assert ready, indicating the read command is accepted
-                if (app_rdy)
-                begin
-                    // MIG7 is ready, we can proceed with the read operation
-                    app_en <= 1'b0; // Disassert app_en to prevent sending another command
-                    state <= STATE_L1D_WRITE_MISS_FETCH_WAIT_DATA; // Wait until the data is ready
-                end
+                state <= STATE_L1D_WRITE_MISS_FETCH_WAIT_DATA;
             end
 
             STATE_L1D_WRITE_MISS_FETCH_WAIT_DATA: begin
+                // Disassert sdc signals
+                sdc_start <= 1'b0;
+                sdc_addr <= 21'd0;
+
                 // Wait until data is ready, then update it with the write data and write it to DPRAM of L1D cache with dirty and valid bit set
-                if (app_rd_data_valid && app_rd_data_end)
+                if (sdc_done)
                 begin
                     
                     l1d_ctrl_d[17:0] <= {cpu_EXMEM2_addr_stored[25:10], 1'b1, 1'b1};
@@ -729,41 +616,41 @@ begin
                     case (cpu_EXMEM2_addr_stored[2:0])
                         3'd0: begin
                             l1d_ctrl_d[49:18]    <= cpu_EXMEM2_data_stored;
-                            l1d_ctrl_d[273:50]   <= app_rd_data[255:32];
+                            l1d_ctrl_d[273:50]   <= sdc_q[255:32];
                         end
                         3'd1: begin
                             l1d_ctrl_d[81:50]    <= cpu_EXMEM2_data_stored;
-                            l1d_ctrl_d[49:18]    <= app_rd_data[31:0];
-                            l1d_ctrl_d[273:82]   <= app_rd_data[255:64];
+                            l1d_ctrl_d[49:18]    <= sdc_q[31:0];
+                            l1d_ctrl_d[273:82]   <= sdc_q[255:64];
                         end
                         3'd2: begin
                             l1d_ctrl_d[113:82]   <= cpu_EXMEM2_data_stored;
-                            l1d_ctrl_d[81:18]    <= app_rd_data[63:0];
-                            l1d_ctrl_d[273:114]  <= app_rd_data[255:96];
+                            l1d_ctrl_d[81:18]    <= sdc_q[63:0];
+                            l1d_ctrl_d[273:114]  <= sdc_q[255:96];
                         end
                         3'd3: begin
                             l1d_ctrl_d[145:114]  <= cpu_EXMEM2_data_stored;
-                            l1d_ctrl_d[113:18]   <= app_rd_data[95:0];
-                            l1d_ctrl_d[273:146]  <= app_rd_data[255:128];
+                            l1d_ctrl_d[113:18]   <= sdc_q[95:0];
+                            l1d_ctrl_d[273:146]  <= sdc_q[255:128];
                         end
                         3'd4: begin
                             l1d_ctrl_d[177:146]  <= cpu_EXMEM2_data_stored;
-                            l1d_ctrl_d[145:18]   <= app_rd_data[127:0];
-                            l1d_ctrl_d[273:178]  <= app_rd_data[255:160];
+                            l1d_ctrl_d[145:18]   <= sdc_q[127:0];
+                            l1d_ctrl_d[273:178]  <= sdc_q[255:160];
                         end
                         3'd5: begin
                             l1d_ctrl_d[209:178]  <= cpu_EXMEM2_data_stored;
-                            l1d_ctrl_d[177:18]   <= app_rd_data[159:0];
-                            l1d_ctrl_d[273:210]  <= app_rd_data[255:192];
+                            l1d_ctrl_d[177:18]   <= sdc_q[159:0];
+                            l1d_ctrl_d[273:210]  <= sdc_q[255:192];
                         end
                         3'd6: begin
                             l1d_ctrl_d[241:210]  <= cpu_EXMEM2_data_stored;
-                            l1d_ctrl_d[209:18]   <= app_rd_data[191:0];
-                            l1d_ctrl_d[273:242]  <= app_rd_data[255:224];
+                            l1d_ctrl_d[209:18]   <= sdc_q[191:0];
+                            l1d_ctrl_d[273:242]  <= sdc_q[255:224];
                         end
                         3'd7: begin
                             l1d_ctrl_d[273:242]  <= cpu_EXMEM2_data_stored;
-                            l1d_ctrl_d[241:18]   <= app_rd_data[223:0];
+                            l1d_ctrl_d[241:18]   <= sdc_q[223:0];
                         end
                     endcase
 
@@ -846,25 +733,15 @@ begin
                     // Store the cache line data for eviction
                     cache_line_data <= l1d_ctrl_q[273:18];
                     
-                    // Check if MIG7 is ready for write operation
-                    if (app_rdy && app_wdf_rdy)
-                    begin
-                        app_cmd <= 3'b000; // WRITE command
-                        app_en <= 1'b1;
-                        // Construct address from tag and index
-                        app_addr <= {l1d_ctrl_q[17:2], clear_cache_index, 5'b00000}; // Convert to byte address
-                        
-                        app_wdf_wren <= 1'b1; // Enable write data
-                        app_wdf_data <= l1d_ctrl_q[273:18]; // Data to write
-                        app_wdf_end <= 1'b1; // End of write data
-                        
-                        state <= STATE_CLEARCACHE_L1D_EVICT_SEND_CMD;
-                    end
-                    else
-                    begin
-                        // Wait for MIG7 to be ready
-                        state <= STATE_CLEARCACHE_L1D_EVICT_WAIT_READY;
-                    end
+                    sdc_we <= 1'b1;
+                    sdc_start <= 1'b1;
+                    // Construct address from tag and index
+                    sdc_addr <= {l1d_ctrl_q[17:2], clear_cache_index};
+                    
+                    sdc_data <= l1d_ctrl_q[273:18]; // Data to write
+                    
+                    state <= STATE_CLEARCACHE_L1D_EVICT_SEND_CMD; // TODO
+
                 end
                 else
                 begin
@@ -884,38 +761,15 @@ begin
                 end
             end
 
-            STATE_CLEARCACHE_L1D_EVICT_WAIT_READY: begin
-                // Wait for MIG7 to be ready for write operation
-                if (app_rdy && app_wdf_rdy)
-                begin
-                    app_cmd <= 3'b000; // WRITE command
-                    app_en <= 1'b1;
-                    // Use stored data from previous state
-                    app_addr <= {l1d_ctrl_q[17:2], clear_cache_index, 5'b00000}; // Convert to byte address
-                    
-                    app_wdf_wren <= 1'b1; // Enable write data
-                    app_wdf_data <= cache_line_data; // Data to write
-                    app_wdf_end <= 1'b1; // End of write data
-                    
-                    state <= STATE_CLEARCACHE_L1D_EVICT_SEND_CMD;
-                end
-            end
-
             STATE_CLEARCACHE_L1D_EVICT_SEND_CMD: begin
-                // Properly handle write signal disabling with synchronization
-                if (app_rdy && app_en)
-                begin
-                    app_en <= 1'b0; // Disable command enable
-                end
-                
-                if (app_wdf_rdy && app_wdf_wren)
-                begin
-                    app_wdf_wren <= 1'b0; // Disable write data enable
-                    app_wdf_end <= 1'b0; // End of write data
-                end
-                
-                // Wait for both signals to be properly disabled before proceeding
-                if (~app_en && ~app_wdf_wren)
+                // Disassert sdc signals
+                sdc_start <= 1'b0;
+                sdc_addr <= 21'd0;
+                sdc_data <= 256'd0;
+                sdc_we <= 1'b0;
+
+                // Wait SDRAM controller to finish before proceeding
+                if (sdc_done)
                 begin
                     // Move to next cache line
                     if (clear_cache_index == 7'd127)
@@ -931,6 +785,8 @@ begin
                         state <= STATE_CLEARCACHE_L1D_READ;
                     end
                 end
+
+               
             end
 
             STATE_CLEARCACHE_L1D_CLEAR: begin
