@@ -134,7 +134,7 @@ RGB8toRGB24 rgb8to24 (
 );
 
 
-// Ignore TMDS serialization if using Icarus Verilog as it uses Xilinx primitives
+// Ignore TMDS serialization if using Icarus Verilog as it uses vendor specific primitives
 `ifndef __ICARUS__
 // Convert VGA signal to HDMI signals
 RGB2HDMI rgb2hdmi (

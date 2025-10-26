@@ -34,7 +34,7 @@ begin
     if (reset)
     begin
         ptr <= 10'd0;
-        useRamResult <= 32'd0;
+        useRamResult <= 1'b0;
         ramResult <= 32'd0;
         qreg <= 32'd0;
     end

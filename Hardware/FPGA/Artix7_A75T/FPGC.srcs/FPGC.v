@@ -157,7 +157,7 @@ ROM #(
     .WIDTH(32),
     .WORDS(1024),
     .ADDR_BITS(10),
-    .LIST("/home/bart/repos/FPGC/Hardware/FPGA/Verilog/MemoryLists/Verilog/MemoryLists/rom_bootloader.list")
+    .LIST("/home/bart/repos/FPGC/Hardware/FPGA/Verilog/MemoryLists/rom_bootloader.list")
 ) rom (
     .clk (clk50),
 
@@ -190,7 +190,7 @@ VRAM #(
     .WIDTH(32),
     .WORDS(1056),
     .ADDR_BITS(11),
-    .LIST("/home/bart/repos/FPGC/Hardware/FPGA/Verilog/MemoryLists/Verilog/MemoryLists/vram32.list")
+    .LIST("/home/bart/repos/FPGC/Hardware/FPGA/Verilog/MemoryLists/vram32.list")
 ) vram32 (
     //CPU port
     .cpu_clk (clk50),
@@ -227,7 +227,7 @@ VRAM #(
     .WIDTH(8),
     .WORDS(8194),
     .ADDR_BITS(14),
-    .LIST("/home/bart/repos/FPGC/Hardware/FPGA/Verilog/MemoryLists/Verilog/MemoryLists/vram8.list")
+    .LIST("/home/bart/repos/FPGC/Hardware/FPGA/Verilog/MemoryLists/vram8.list")
 ) vram8 (
     // CPU port
     .cpu_clk (clk50),
@@ -265,7 +265,7 @@ VRAM #(
     .WIDTH(8),
     .WORDS(76800),
     .ADDR_BITS(17),
-    .LIST("/home/bart/repos/FPGC/Hardware/FPGA/Verilog/MemoryLists/Verilog/MemoryLists/vramPX.list")
+    .LIST("/home/bart/repos/FPGC/Hardware/FPGA/Verilog/MemoryLists/vramPX.list")
 ) vramPX (
     // CPU port
     .cpu_clk (clk50),

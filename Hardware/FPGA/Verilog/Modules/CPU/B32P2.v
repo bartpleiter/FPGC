@@ -576,6 +576,7 @@ wire [31:0] constAlu_EXMEM1;
 wire [31:0] constAluu_EXMEM1;
 wire [3:0]  instrOP_EXMEM1;
 wire        alu_use_const_EXMEM1;
+wire        alu_use_constu_EXMEM1;
 wire [31:0] alu_y_EXMEM1;
 
 // Branch and jump operations
@@ -813,7 +814,7 @@ ControlUnit controlUnit_EXMEM2 (
     .alu_use_constu(),
     .push(push_EXMEM2),
     .pop(pop_EXMEM2),
-    .dreg_we(we_EXMEM2),
+    .dreg_we(),
     .mem_write(mem_write_EXMEM2),
     .mem_read(mem_read_EXMEM2),
     .arithm(arithm_EXMEM2),

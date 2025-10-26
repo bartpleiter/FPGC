@@ -140,57 +140,167 @@ set_location_assignment PIN_C18 -to SDRAM1_DQ[13]
 set_location_assignment PIN_C17 -to SDRAM1_DQ[14]
 set_location_assignment PIN_B19 -to SDRAM1_DQ[15]
 
+set_location_assignment PIN_Y2 -to HDMI_CLK_P
+set_location_assignment PIN_Y1 -to HDMI_CLK_N
+set_location_assignment PIN_Y4 -to HDMI_D0_P
+set_location_assignment PIN_Y3 -to HDMI_D0_N
+set_location_assignment PIN_AB6 -to HDMI_D1_P
+set_location_assignment PIN_AB5 -to HDMI_D1_N
+set_location_assignment PIN_AA7 -to HDMI_D2_P
+set_location_assignment PIN_AB7 -to HDMI_D2_N
+
+set_location_assignment PIN_AA5 -to uart_rx
+set_location_assignment PIN_AA6 -to uart_tx
+
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to key1
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to key2
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led1
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led2
 
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_ADDR[12]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_ADDR[11]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_ADDR[10]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_ADDR[9]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_ADDR[8]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_ADDR[7]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_ADDR[6]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_ADDR[5]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_ADDR[4]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_ADDR[3]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_ADDR[2]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_ADDR[1]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_ADDR[0]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_ADDR
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_BA[1]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_BA[0]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_BA
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_CAS_N
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_CKE
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_CLK
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_CS_N
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_WE_N
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_UDQM
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_RAS_N
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_LDQM
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[0]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[1]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[2]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[3]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[4]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[5]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[6]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[7]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[8]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[9]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[10]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[11]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[12]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[13]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[14]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ[15]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DRAM_DQ
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_ADDR[12]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_ADDR[11]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_ADDR[10]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_ADDR[9]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_ADDR[8]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_ADDR[7]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_ADDR[6]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_ADDR[5]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_ADDR[4]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_ADDR[3]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_ADDR[2]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_ADDR[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_ADDR[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_ADDR
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_BA[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_BA[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_BA
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_CAS_N
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_CKE
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_CLK
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_CS_N
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_WE_N
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_UDQM
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_RAS_N
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_LDQM
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_DQ[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_DQ[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_DQ[2]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_DQ[3]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_DQ[4]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_DQ[5]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_DQ[6]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_DQ[7]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_DQ[8]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_DQ[9]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_DQ[10]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_DQ[11]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_DQ[12]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_DQ[13]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_DQ[14]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_DQ[15]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM0_DQ
+
+
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_ADDR[12]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_ADDR[11]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_ADDR[10]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_ADDR[9]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_ADDR[8]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_ADDR[7]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_ADDR[6]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_ADDR[5]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_ADDR[4]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_ADDR[3]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_ADDR[2]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_ADDR[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_ADDR[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_ADDR
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_BA[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_BA[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_BA
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_CAS_N
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_CKE
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_CLK
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_CS_N
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_WE_N
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_UDQM
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_RAS_N
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_LDQM
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_DQ[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_DQ[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_DQ[2]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_DQ[3]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_DQ[4]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_DQ[5]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_DQ[6]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_DQ[7]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_DQ[8]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_DQ[9]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_DQ[10]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_DQ[11]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_DQ[12]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_DQ[13]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_DQ[14]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_DQ[15]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_DQ
+
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to uart_rx
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to uart_tx
+
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_CLK_P
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_CLK_N
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_D0_P
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_D0_N
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_D1_P
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_D1_N
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_D2_P
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_D2_N
+
+set_global_assignment -name CYCLONEII_RESERVE_NCEO_AFTER_CONFIGURATION "USE AS REGULAR IO"
 
 set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
 set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
 set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
-set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
 
+set_global_assignment -name VERILOG_MACRO "CYCLONE10=1"
+set_global_assignment -name POWER_PRESET_COOLING_SOLUTION "23 MM HEAT SINK WITH 200 LFPM AIRFLOW"
+set_global_assignment -name POWER_BOARD_THERMAL_MODEL "NONE (CONSERVATIVE)"
+
+set_global_assignment -name VERILOG_FILE FPGC.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/Memory/VRAM.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/Memory/SDRAMcontroller.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/Memory/ROM.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/Memory/MemoryUnit.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/Memory/DPRAM.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/UARTtx.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/UARTrx.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/UARTresetDetector.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/SimpleSPI.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/OStimer.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/MicrosCounter.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/HDMI/TMDSenc.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/HDMI/RGB8toRGB24.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/HDMI/RGB2HDMI.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/TimingGenerator.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/PixelEngine.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/FSX.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/BGWrenderer.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/MultiCycleAluOps/MultuPipelined.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/MultiCycleAluOps/MultsPipelined.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/Stack.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/Regr.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/Regbank.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/MultiCycleALU.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/InterruptController.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/InstructionDecoder.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/ControlUnit.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/CacheControllerSDRAM.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/BranchJumpUnit.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/B32P2.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/ALU.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/AddressDecoder.v
 set_global_assignment -name QIP_FILE pll1.qip
+set_global_assignment -name QIP_FILE ddr.qip
+
+
+set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
