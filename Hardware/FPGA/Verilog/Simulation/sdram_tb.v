@@ -13,7 +13,7 @@ reg clk = 1'b0;
 reg reset = 1'b0;
 
 // SDRAM clock phase shift configuration (in degrees)
-parameter SDRAM_CLK_PHASE = 90;
+parameter SDRAM_CLK_PHASE = 270;
 
 // Calculate phase shift delay in nanoseconds (clock period is 10ns @ 100MHz)
 localparam real PHASE_DELAY = (SDRAM_CLK_PHASE / 360.0) * 10.0;

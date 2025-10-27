@@ -125,7 +125,7 @@ Main:
         read 0x19 r1 r2     ; Boot mode
         bne r2 r0 2         ; On low, jump to copy UART bootloader
             jump CopyUARTbootloader
-        jump SPIflashBootloader
+        jump CopyUARTbootloader ; For testing, always jump to UART bootloader
     
 
     CopyUARTbootloader:

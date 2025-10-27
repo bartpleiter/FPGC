@@ -1,20 +1,20 @@
 [*]
 [*] GTKWave Analyzer v3.3.121 (w)1999-2024 BSI
-[*] Sat Oct 25 11:10:49 2025
+[*] Mon Oct 27 10:41:45 2025
 [*]
 [dumpfile] "/home/bart/repos/FPGC/Hardware/FPGA/Verilog/Simulation/Output/sdram.vcd"
-[dumpfile_mtime] "Sat Oct 25 11:09:33 2025"
-[dumpfile_size] 1398376
-[savefile] "/home/bart/repos/FPGC/Hardware/FPGA/Verilog/Simulation/Gtkwave/sdram.gtkw"
-[timestart] 995000
+[dumpfile_mtime] "Mon Oct 27 10:41:38 2025"
+[dumpfile_size] 1398366
+[savefile] "/home/bart/repos/FPGC/Hardware/FPGA/Verilog/Simulation/GTKWave/sdram.gtkw"
+[timestart] 870200
 [size] 1920 1033
 [pos] -1 -1
-*-15.672102 1115600 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-16.671848 1041400 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] sdram_tb.
 [sst_width] 278
 [signals_width] 340
 [sst_expanded] 1
-[sst_vpaned_height] 268
+[sst_vpaned_height] 302
 @28
 sdram_tb.clk
 sdram_tb.reset

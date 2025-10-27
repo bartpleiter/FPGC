@@ -58,7 +58,7 @@ reg [15:0] wait_counter = 16'd0;     // Cycle counter for various states
 // CAS latency: 010=2, 011=3
 // addressing mode: 0=seq 1=interleave
 // burst length: 000=1, 001=2, 010=4, 011=8, 111=full page
-// We need: CAS latency 2, sequential, burst length 8
+// We need: CAS latency 2, sequential, burst length 8, write mode 0
 localparam MODE_REG = {3'b0, 1'b0, 1'b0, 1'b0, 3'b010, 1'b0, 3'b011};
 
 //==============Ports=================
@@ -369,41 +369,46 @@ begin
                     end
                     16'd2:
                     begin
-                        // Read first word in burst (start with highest word)
-                        cpu_q[255:224] <= SDRAM_Q;
+                        // Wait another cycle for CL2
                         wait_counter <= wait_counter + 1'b1;
                     end
                     16'd3:
                     begin
-                        cpu_q[223:192] <= SDRAM_Q;
+                        // Read first word in burst (start with highest word)
+                        cpu_q[255:224] <= SDRAM_Q;
                         wait_counter <= wait_counter + 1'b1;
                     end
                     16'd4:
                     begin
-                        cpu_q[191:160] <= SDRAM_Q;
+                        cpu_q[223:192] <= SDRAM_Q;
                         wait_counter <= wait_counter + 1'b1;
                     end
                     16'd5:
                     begin
-                        cpu_q[159:128] <= SDRAM_Q;
+                        cpu_q[191:160] <= SDRAM_Q;
                         wait_counter <= wait_counter + 1'b1;
                     end
                     16'd6:
                     begin
-                        cpu_q[127:96] <= SDRAM_Q;
+                        cpu_q[159:128] <= SDRAM_Q;
                         wait_counter <= wait_counter + 1'b1;
                     end
                     16'd7:
                     begin
-                        cpu_q[95:64] <= SDRAM_Q;
+                        cpu_q[127:96] <= SDRAM_Q;
                         wait_counter <= wait_counter + 1'b1;
                     end
                     16'd8:
                     begin
-                        cpu_q[63:32] <= SDRAM_Q;
+                        cpu_q[95:64] <= SDRAM_Q;
                         wait_counter <= wait_counter + 1'b1;
                     end
                     16'd9:
+                    begin
+                        cpu_q[63:32] <= SDRAM_Q;
+                        wait_counter <= wait_counter + 1'b1;
+                    end
+                    16'd10:
                     begin
                         // Read complete, can directly go to idle
                         cpu_q[31:0] <= SDRAM_Q;

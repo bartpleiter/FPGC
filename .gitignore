@@ -14,6 +14,7 @@ Hardware/FPGA/Artix7_A75T/*.log
 Hardware/FPGA/Cyclone10_CL120/db
 Hardware/FPGA/Cyclone10_CL120/incremental_db
 Hardware/FPGA/Cyclone10_CL120/greybox_tmp
+Hardware/FPGA/Cyclone10_CL120/.qsys_edit
 Hardware/FPGA/Cyclone10_CL120/output_files
 Hardware/FPGA/Cyclone10_CL120/*.bak
 Hardware/FPGA/Cyclone10_CL120/*.qws
