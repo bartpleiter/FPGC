@@ -25,6 +25,20 @@ Hardware/FPGA/Cyclone10_CL120/*.summary
 Hardware/FPGA/Cyclone10_CL120/*.jdi
 Hardware/FPGA/Cyclone10_CL120/*.sld
 
+Hardware/FPGA/CycloneIV_EP4CE40/db
+Hardware/FPGA/CycloneIV_EP4CE40/incremental_db
+Hardware/FPGA/CycloneIV_EP4CE40/greybox_tmp
+Hardware/FPGA/CycloneIV_EP4CE40/.qsys_edit
+Hardware/FPGA/CycloneIV_EP4CE40/output_files
+Hardware/FPGA/CycloneIV_EP4CE40/*.bak
+Hardware/FPGA/CycloneIV_EP4CE40/*.qws
+Hardware/FPGA/CycloneIV_EP4CE40/*.rpt
+Hardware/FPGA/CycloneIV_EP4CE40/*.htm
+Hardware/FPGA/CycloneIV_EP4CE40/*.sof
+Hardware/FPGA/CycloneIV_EP4CE40/*.summary
+Hardware/FPGA/CycloneIV_EP4CE40/*.jdi
+Hardware/FPGA/CycloneIV_EP4CE40/*.sld
+
 
 # Verilog
 Hardware/FPGA/Verilog/Simulation/Output
@@ -38,6 +52,9 @@ BuildTools/ASMPY/build
 .pytest_cache
 .ruff_cache
 .coverage
+
+# EasyEDA
+Hardware/PCB/FPGC-CycloneIV-AIO_backup/
 
 # Others
 tmp
