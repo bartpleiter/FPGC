@@ -1,23 +1,7 @@
 module FPGC (
-    // TODO remove this reminder BGA fanout
-    // FPGA configuration
-    // output wire         FPGA_CSn,
-    // output wire         FPGA_DCLK,
-    // output wire         FPGA_ASDO,
-    // input  wire         FPGA_DATA0,
-
-    // JTAG
-    // input wire          TCK,
-    // input wire          TMS,
-    // input wire          TDI,
-    // output wire         TDO,
-
-    // Other
-    // output wire         FPGA_CONF_DONE,
-    // output wire         FPGA_NCONFIG,
-
     // Clocks
     input wire          sys_clk_50,
+    input wire          sys_clk_header,
 
     // SDRAM
     output wire         SDRAM_CLK,
@@ -35,7 +19,7 @@ module FPGC (
     output wire         SRAM_CSn,
     output wire         SRAM_WEn,
     output wire         SRAM_OEn,
-    output wire [16:0]  SRAM_A,
+    output wire [18:0]  SRAM_A,
     inout  wire [7:0]   SRAM_DQ,
 
     // USB Host
@@ -109,9 +93,30 @@ module FPGC (
     output wire         led_usb,
     output wire         led_eth,
     output wire         led_user,
+    output wire         led_uart_rx,
+    output wire         led_uart_tx,
     
     // Buttons
-    input wire          reset_n
+    input wire          reset_n,
+
+    // Display header
+    output wire         disp_1,
+    output wire         disp_2,
+    output wire         disp_3,
+    output wire         disp_4,
+    output wire         disp_5,
+    output wire         disp_6,
+
+    // GPIO Header
+    inout wire          gpio_1,
+    inout wire          gpio_2,
+    inout wire          gpio_3,
+    inout wire          gpio_4,
+    inout wire          gpio_5,
+    inout wire          gpio_6,
+    inout wire          gpio_7,
+    inout wire          gpio_8,
+    inout wire          gpio_9
 );
 
 
