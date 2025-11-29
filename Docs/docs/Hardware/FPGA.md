@@ -1,44 +1,41 @@
 # FPGA
 
-The FPGC project targets Xilinx Artix 7 XC7A75T FPGA, specifically on the PuZhi PZ-A75T StarLite development board.
+The FPGC project supports multiple FPGA options. In general there is no specific reason to choose a particular FPGA, as long as it has enough block RAM to contain the 320x240x8-bit framebuffer (unless you want to use an external SRAM chip with some arbiteration logic)  and enough I/O pins to connect all the devices you need. This page describes the different FPGA options that are supported by the project.
 
-## FPGA development board
+## FPGA requirements
 
-The PuZhi PZ-A75T StarLite development board was chosen for the following reasons:
+The minimum requirements for an FPGA to run the FPGC design is mainly determined by the amount of block RAM needed, pins for external memory and I/O, as well as the amount of logic elements are available to implement the CPU, GPU and I/O logic. There are no exact numbers on these requirements, as certain components and sizes can be adjusted in the Verilog design. One main requirement if you do not want to use an external SRAM chip is that the FPGA must have at least 320x240x8bit = 614,400 bits = ~600kb of block RAM available to store the framebuffer, aside from the block RAM needed for CPU caches and such.
 
-- The FPGA contains enough block RAM to contain a 320x240x8-bit framebuffer
-- The board contains a 32 bit wide bus to the SDRAM, which alligns well with the 32 bit architecture of the CPU
-- The board contains enough 2.54mm pitch pin headers to connect all the I/O needed to make a full featured computer
+## Supported FPGAs
 
-Furthermore, this development board has the following extra features that are useful for this project:
+The FPGC is being tested for the following FPGAs, with their code in the respective folders in the `Hardware/FPGA` directory of the project.
 
-- A HDMI port connected to TMDS pins on the FPGA, allowing for great compatibility with basically all HDMI inputs
-- Two USB C ports, one for UART and one for JTAG programming, with a programmer on board saving the need for an external programmer
-- A microSD card slot
-- 1GB of DDR3 SDRAM, which is near infinite memory for this project, even more than needed for persistent storage
+### Intel/Altera Cyclone IV EP4CE40
 
-However, this board has the following disadvantages:
+The Cyclone IV EP4CE40 is currently used on the custom PCB. This is an older but very capable FPGA that was really cheap to buy new from LCSC (20 euro). The performance should be somewhat equal to the newer Cyclone 10 series, but less than the Cyclone V (note that with less performance I do not mean of the CPU design, but of the timing headroom left in the design). The EP4CE40F23I7N variant is used, which comes in a 484-pin FBGA package.
 
-- The SDRAM memory is DDR3, which is way more complex to interface with than SDR SDRAM which I used in the past and is more common on Altera FPGA boards. Practically, this forces me to use the MIG 7 memory controller IP from Xilinx instead of my own SDRAM controller, which complicates both simulation and the design, and most likely will introduce a bunch of latency (although should have more throughput)
-- The USB to UART bridge does not have the DTR pin connected, which requires a patch wire to be soldered to an I/O pin on the FPGA
-- The Gigabit Ethernet PHY is currently too complex to interface with, requiring me to add a different Ethernet controller to the I/O board, like a W5500 or ENC28J60
+| Specification | Value |
+|---------------|-------|
+| Logic Elements | 39,600 |
+| Block RAM | 1.1Mb |
+| HW multipliers | 116 |
 
-![StarLite Development board](../images/starlite.png)
-(Source: [PuZhi](https://www.puzhi.com/en/detail/433.html))
+### Intel/Altera Cyclone 10 LP 10CL120
 
-## FPGA choise
+The Cyclone 10 LP 10CL120 is supported via the QMTECH Cyclone 10 module. This is a newer FPGA from Intel that should be similar in performance to the Cyclone IV, but with lower power consumption. The 10CL120 variant is the highest model in the Cyclone 10 LP family.
 
-The FPGA itself this project targets is a Xilinx Artix 7 XC7A75T. In general there is no specific reason to choose a particular FPGA, as long as it has enough block RAM to contain the framebuffer and enough I/O pins to connect all the peripherals (which FPGA's generally have but usually are limited by the board they are soldered on). However, this FPGA has the advantage of containing TMDS pins, which allows for interfacing with HDMI without the need for an external HDMI controller that are usually hard to solder and/or require a lot of pins. The XC7A75T has the following (relevant) specifications:
+| Specification | Value |
+|---------------|-------|
+| Logic Elements | 119,088 |
+| Block RAM | 3.9Mb |
+| HW multipliers | 288 |
 
-- 75K logic cells
-- 180 DSP slices
-- 3.7Mb of block RAM
-- 300 I/O pins
+### Xilinx Artix 7 XC7A75T
 
-## Future ideas
+The Artix 7 XC7A75T is supported via the PZ-A75T StarLite development board. This is a more modern FPGA from Xilinx focussed on performance (like the Cyclone V from Altera), and has native TMDS support for HDMI output.
 
-To compensate for the disadvantages of the board, in the future I could use a Artix 7 Core Module, which only has the FPGA, DDR3, oscillator and voltage regulators, and has a very large amount of dense I/O pins on the bottom connectors. This would allow me to design a custom I/O board with the following features:
-
-- 2x 16 bit wide SDR SDRAM, allowing me to use my own SDRAM controller as alternative to the MIG 7 IP (which could still be used as the DDR3 is located on the core module)
-- HDMI on the I/O board while still being connected to the FPGA TMDS pins
-- All other features I would normally need, like USB, Ethernet, etc.
+| Specification | Value |
+|---------------|-------|
+| Logic Cells | 75,520 |
+| Block RAM | 3.7Mb |
+| DSP Slices | 180 |

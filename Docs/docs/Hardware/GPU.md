@@ -69,7 +69,7 @@ The PixelPlane Engine is a very simple rendering engine to allow changing indivi
 Because the PixelPlane Engine is very simplistic, the CPU has to do more work for generating graphics. For example, for drawing a line, every pixel has to be calculated and set by the CPU.
 
 !!! info
-    Note that bitmap rendering needs relatively many BRAM resources in the FPGA. This means that most lower-end FPGA's like the Cyclone IV EP4CE15 cannot fit the required 320x240x8 bits. If you do want to run the FPGC on such FPGA, it should be quite easy to remove this renderer from the design (or reduce the color depth to monochrome). External SRAM is not a solution either, unless you create an arbiter between the CPU and GPU that can handle clock domain crossing.
+    Note that bitmap rendering needs relatively many BRAM resources in the FPGA if stored in block RAM. On the custom PCB (Cyclone IV EP4CE40), the framebuffer is stored in external SRAM to free up block RAM. On the Cyclone 10 10CL120 and Artix 7 XC7A75T platforms, the framebuffer is stored in block RAM as these FPGAs have sufficient resources. If you want to run the FPGC on a lower-end FPGA, it should be quite easy to remove this renderer from the design (or reduce the color depth to monochrome), or add external SRAM with arbitration logic.
 
 ## Output encoder (HDMI)
 
@@ -85,6 +85,12 @@ To output a HDMI signal, the timing signals and R8G8B8 color output have to be T
 
 ### Outputting TMDS
 
-After generating the TMDS registers for the clock, R, G and B (+sync) signals, it is required to serialize them and create differential signals. This is relatively easy using most Xilix FPGA's, since they contain serializers, differential output buffers and hardware outputs for TMDS signals at 3.3V. As I changed the FPGA for this project from an Altera Cyclone V FPGA to a Xilinx Artix 7 FPGA, the FPGC currently uses these to output the TMDS signal.
+After generating the TMDS registers for the clock, R, G and B (+sync) signals, it is required to serialize them and create differential signals. The method for doing this varies depending on the FPGA platform:
 
-The Cyclone IV and V FPGA's I used before, however, do not support the TMDS IO standard. Adding an HDMI encoder IC is expensive, more difficult to solder, increases PCB complexity and costs more I/O pins. Luckily there is a workaround for these devices, at the cost of reduced compatibility with monitors. 3.3V LVDS (by selecting 2.5V LVDS with a 3.3V IO bank voltage, which is somehow allowed by Quartus) can also be used to output something close enough that most devices accept it as a valid HDMI signal, after putting the TMDS registers through some DDR modules and LVDS encoder. There probably is a way to electrically convert LVDS to TMDS, but I have not looked that deep into it.
+#### Xilinx Artix 7 (PZ-A75T StarLite)
+
+Xilinx FPGAs like the Artix 7 have native TMDS support, containing serializers, differential output buffers and hardware outputs for TMDS signals at 3.3V. This makes HDMI output relatively straightforward.
+
+#### Intel/Altera Cyclone IV and Cyclone 10 (Custom PCB and QMTECH module)
+
+The Cyclone IV (used on the custom PCB) and Cyclone 10 LP (used on the QMTECH module) do not support the TMDS IO standard natively. Adding an HDMI encoder IC is expensive, more difficult to solder, increases PCB complexity and costs more I/O pins. At the fixed output resolution of the FPGC (480p), the clock speeds are low enough to use regular output pins with some serialization logic in the FPGA, in combination with AC coupling capacitors (100nF). This works perfect for the two different monitors I tested on.

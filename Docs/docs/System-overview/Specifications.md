@@ -1,5 +1,8 @@
 # Specifications
 
+!!! Note
+    This page needs to be updated as I am switching to the Cyclone IV FPGA on the custom PCB.
+
 ## CPU
 
 - 32 Bit

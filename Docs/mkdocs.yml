@@ -30,6 +30,7 @@ plugins:
 
 markdown_extensions:
   - admonition
+  - attr_list
   - pymdownx.tasklist:
       custom_checkbox: False
   - pymdownx.highlight:
