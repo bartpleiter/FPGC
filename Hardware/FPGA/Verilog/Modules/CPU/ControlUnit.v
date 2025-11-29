@@ -1,10 +1,10 @@
 /*
- * Control Unit
+ * ControlUnit
  * Simple control unit that sets flags based on the instruction opcode and optional ALU opcode
  */
-module ControlUnit(
-    input wire [3:0]    instrOP,
-    input wire [3:0]    aluOP,
+module ControlUnit (
+    input wire  [3:0]   instrOP,
+    input wire  [3:0]   aluOP,
 
     output reg          alu_use_const,
     output reg          alu_use_constu,

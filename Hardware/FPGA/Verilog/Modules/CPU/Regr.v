@@ -1,8 +1,8 @@
 /*
-* Register that can be cleared or held
-* For passing data between CPU stages
-*/
-
+ * Regr
+ * Register that can be cleared or held
+ * For passing data between CPU stages
+ */
 module Regr #(
     parameter N = 1 // Amount of bits in the register
 ) (

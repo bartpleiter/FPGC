@@ -1,29 +1,26 @@
-// TODO: clean this up a bit, possibly reimplement in a way that matches the rest of the design
-
-//////////////////////////////////////////////////////////////////////
-// File Downloaded from http://www.nandland.com
-//////////////////////////////////////////////////////////////////////
-// This file contains the UART Transmitter. This transmitter is able
-// to transmit 8 bits of serial data, one start bit, one stop bit,
-// and no parity bit. When transmit is complete o_Tx_done will be
-// driven high for one clock cycle.
-//
-// Set Parameter CLKS_PER_BIT as follows:
-// CLKS_PER_BIT = (Frequency of i_Clock)/(Frequency of UART)
-// Example: 25 MHz Clock, 115200 baud UART
-// (25000000)/(115200) = 217
-
-module UARTtx
-#(parameter ENABLE_DISPLAY = 1)
-(
-    input       i_Clock,
-    input       reset,
-    input       i_Tx_DV,
-    input [7:0] i_Tx_Byte,
-    output      o_Tx_Active,
-    output  reg o_Tx_Serial,
-    output  o_Tx_Done
-    );
+/*
+ * UARTtx
+ * UART Transmitter module, able to transmit 8 bits of serial data,
+ * one start bit, one stop bit, and no parity bit
+ * When transmit is complete o_Tx_done will be driven high for one clock cycle
+ *
+ * Set Parameter CLKS_PER_BIT as follows:
+ * CLKS_PER_BIT = (Frequency of i_Clock)/(Frequency of UART)
+ * Example: 25 MHz Clock, 115200 baud UART: (25000000)/(115200) = 217
+ *
+ * TODO: clean this up a bit, possibly reimplement in a way that matches the rest of the design
+ */
+module UARTtx #(
+    parameter ENABLE_DISPLAY = 1
+) (
+    input wire          i_Clock,
+    input wire          reset,
+    input wire          i_Tx_DV,
+    input wire  [7:0]   i_Tx_Byte,
+    output wire         o_Tx_Active,
+    output reg          o_Tx_Serial,
+    output wire         o_Tx_Done
+);
 
 localparam CLKS_PER_BIT   = 50; //1MBaud
 localparam s_IDLE = 3'b000;

@@ -1,25 +1,26 @@
 /*
-* Internal FPGA ROM
-* Implemented as dual port rom for simultaneous
-* access by the Fetch and Memory stages of the CPU
-* Contains output enable signals for both ports
-* Additionally, it contains a hold signal for the Fetch stage
-*/
+ * ROM
+ * Internal FPGA ROM
+ * Implemented as dual port rom for simultaneous
+ * access by the Fetch and Memory stages of the CPU
+ * Contains output enable signals for both ports
+ * Additionally, it contains a hold signal for the Fetch stage
+ */
 module ROM #(
-    parameter WIDTH = 32,
-    parameter WORDS = 1024,
+    parameter WIDTH     = 32,
+    parameter WORDS     = 1024,
     parameter ADDR_BITS = 10,
-    parameter LIST = "memory/rom.list"
+    parameter LIST      = "memory/rom.list"
 ) (
-    input  wire                 clk,
+    input  wire                     clk,
 
-    input  wire [ADDR_BITS-1:0] fe_addr,
-    input  wire                 fe_oe,
-    output reg  [    WIDTH-1:0] fe_q,
-    input  wire                 fe_hold,
+    input  wire [ADDR_BITS-1:0]     fe_addr,
+    input  wire                     fe_oe,
+    output reg  [    WIDTH-1:0]     fe_q,
+    input  wire                     fe_hold,
 
-    input  wire [ADDR_BITS-1:0] mem_addr,
-    output reg  [    WIDTH-1:0] mem_q
+    input  wire [ADDR_BITS-1:0]     mem_addr,
+    output reg  [    WIDTH-1:0]     mem_q
 );
 
 reg [WIDTH-1:0] rom[0:WORDS-1];

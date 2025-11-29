@@ -1,9 +1,9 @@
 /*
- * MemoryUnit (MU)
+ * MemoryUnit
  * Single interface between CPU and slow Memory or IO
  * Optimized for simplicity, not speed, as high speed memory should be directly connected to CPU
  */
-module MemoryUnit(
+module MemoryUnit (
     //========================
     // System interface
     //========================
@@ -38,43 +38,42 @@ module MemoryUnit(
     input wire          boot_mode,
 
     // SPI0 (Flash 1)
-    output              SPI0_clk,
+    output wire         SPI0_clk,
     output reg          SPI0_cs = 1'b1,
-    output              SPI0_mosi,
-    input               SPI0_miso,
+    output wire         SPI0_mosi,
+    input wire          SPI0_miso,
 
     // SPI1 (Flash 2)
-    output              SPI1_clk,
+    output wire         SPI1_clk,
     output reg          SPI1_cs = 1'b1,
-    output              SPI1_mosi,
-    input               SPI1_miso,
+    output wire         SPI1_mosi,
+    input wire          SPI1_miso,
 
     // SPI2 (USB Host 1)
-    output              SPI2_clk,
+    output wire         SPI2_clk,
     output reg          SPI2_cs = 1'b1,
-    output              SPI2_mosi,
-    input               SPI2_miso,
+    output wire         SPI2_mosi,
+    input wire          SPI2_miso,
 
     // SPI3 (USB Host 2)
-    output              SPI3_clk,
+    output wire         SPI3_clk,
     output reg          SPI3_cs = 1'b1,
-    output              SPI3_mosi,
-    input               SPI3_miso,
+    output wire         SPI3_mosi,
+    input wire          SPI3_miso,
 
     // SPI4 (Ethernet)
-    output              SPI4_clk,
+    output wire         SPI4_clk,
     output reg          SPI4_cs = 1'b1,
-    output              SPI4_mosi,
-    input               SPI4_miso,
+    output wire         SPI4_mosi,
+    input wire          SPI4_miso,
 
     // SPI5 (SD Card)
-    output              SPI5_clk,
+    output wire         SPI5_clk,
     output reg          SPI5_cs = 1'b1,
-    output              SPI5_mosi,
-    input               SPI5_miso
+    output wire         SPI5_mosi,
+    input wire          SPI5_miso
 
     // TODO: GPIO
-
 );
 
 //========================

@@ -1,39 +1,40 @@
 /*
+ * FSX
  * Graphical processor (Frame Synthesizer)
  * Generates video from VRAM
  */
 module FSX (
     // Clocks
-    input wire clkPixel,    // Pixel clock
-    input wire clkTMDShalf, // Half of HDMI TDMS clock (pre-ddr)
+    input wire          clkPixel,    // Pixel clock
+    input wire          clkTMDShalf, // Half of HDMI TDMS clock (pre-ddr)
 
     // HDMI
-    output wire TMDS_clk_p,
-    output wire TMDS_clk_n,
-    output wire TMDS_d0_p,
-    output wire TMDS_d0_n,
-    output wire TMDS_d1_p,
-    output wire TMDS_d1_n,
-    output wire TMDS_d2_p,
-    output wire TMDS_d2_n,
+    output wire         TMDS_clk_p,
+    output wire         TMDS_clk_n,
+    output wire         TMDS_d0_p,
+    output wire         TMDS_d0_n,
+    output wire         TMDS_d1_p,
+    output wire         TMDS_d1_n,
+    output wire         TMDS_d2_p,
+    output wire         TMDS_d2_n,
 
     // VRAM32
-    output wire [10:0] vram32_addr,
-    input wire [31:0]  vram32_q,
+    output wire [10:0]  vram32_addr,
+    input wire  [31:0]  vram32_q,
 
     // VRAM8
-    output wire [13:0] vram8_addr,
-    input wire [7:0]   vram8_q,
+    output wire [13:0]  vram8_addr,
+    input wire  [7:0]   vram8_q,
 
     // VRAMpixel
-    output wire [16:0] vramPX_addr,
-    input wire [7:0]   vramPX_q,
+    output wire [16:0]  vramPX_addr,
+    input wire  [7:0]   vramPX_q,
 
     // Parameters
-    input wire halfRes, // Render half res at full res by zooming in at top left corner
-    
+    input wire          halfRes, // Render half res at full res by zooming in at top left corner
+
     // Interrupt signal
-    output wire frameDrawn
+    output wire         frameDrawn
 );
 
 // Video timings

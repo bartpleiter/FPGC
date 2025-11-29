@@ -1,44 +1,46 @@
-module MIG7Mock
-#(
-    parameter ADDR_WIDTH = 29, // Address width is in bytes -> 2^29 = 512MB
-    parameter DATA_WIDTH = 256, // Data width is 256 bits = 32 bytes -> 8 words
+/*
+ * MIG7Mock
+ * Mock implementation of MIG7 memory controller for simulation
+ */
+module MIG7Mock #(
+    parameter ADDR_WIDTH = 29,        // Address width is in bytes -> 2^29 = 512MB
+    parameter DATA_WIDTH = 256,       // Data width is 256 bits = 32 bytes -> 8 words
     parameter MASK_WIDTH = 32,
-    parameter RAM_DEPTH = 33554432,  // Configurable RAM depth in bytes for simulation (32MB for now)
-    parameter LIST = "memory/mig7mock.list" // Initialization file for RAM
-)
-(
+    parameter RAM_DEPTH  = 33554432,  // Configurable RAM depth in bytes for simulation (32MB for now)
+    parameter LIST       = "memory/mig7mock.list" // Initialization file for RAM
+) (
     // System interface
-    input                           sys_clk_i,
-    input                           sys_rst,
-    output                          ui_clk,
-    output                          ui_clk_sync_rst,
-    output                          init_calib_complete,
-    
+    input  wire                     sys_clk_i,
+    input  wire                     sys_rst,
+    output wire                     ui_clk,
+    output wire                     ui_clk_sync_rst,
+    output wire                     init_calib_complete,
+
     // Application interface
-    input [ADDR_WIDTH-1:0]          app_addr,
-    input [2:0]                     app_cmd,
-    input                           app_en,
-    output                          app_rdy,
-    
+    input  wire [ADDR_WIDTH-1:0]    app_addr,
+    input  wire [2:0]               app_cmd,
+    input  wire                     app_en,
+    output wire                     app_rdy,
+
     // Write data interface
-    input [DATA_WIDTH-1:0]          app_wdf_data,
-    input                           app_wdf_end,
-    input [MASK_WIDTH-1:0]          app_wdf_mask,
-    input                           app_wdf_wren,
-    output                          app_wdf_rdy,
-    
+    input  wire [DATA_WIDTH-1:0]    app_wdf_data,
+    input  wire                     app_wdf_end,
+    input  wire [MASK_WIDTH-1:0]    app_wdf_mask,
+    input  wire                     app_wdf_wren,
+    output wire                     app_wdf_rdy,
+
     // Read data interface
-    output [DATA_WIDTH-1:0]         app_rd_data,
-    output                          app_rd_data_end,
-    output                          app_rd_data_valid,
-    
+    output wire [DATA_WIDTH-1:0]    app_rd_data,
+    output wire                     app_rd_data_end,
+    output wire                     app_rd_data_valid,
+
     // Unused signals (tied off)
-    input                           app_sr_req,
-    input                           app_ref_req,
-    input                           app_zq_req,
-    output                          app_sr_active,
-    output                          app_ref_ack,
-    output                          app_zq_ack
+    input  wire                     app_sr_req,
+    input  wire                     app_ref_req,
+    input  wire                     app_zq_req,
+    output wire                     app_sr_active,
+    output wire                     app_ref_ack,
+    output wire                     app_zq_ack
 );
 
 // Clock and reset generation

@@ -1,23 +1,24 @@
 /*
+ * PixelEngine
  * Renders Pixel Plane at 320x240 on a 640x480 screen
  */
 module PixelEngine (
     // Video timings
-    input wire         blank,
-    input wire [11:0]  h_count,   // Line position in pixels including blanking
-    input wire [11:0]  v_count,   // Frame position in lines including blanking
+    input wire          blank,
+    input wire  [11:0]  h_count,   // Line position in pixels including blanking
+    input wire  [11:0]  v_count,   // Frame position in lines including blanking
 
     // Output colors
-    output wire [2:0]  r,
-    output wire [2:0]  g,
-    output wire [1:0]  b,
-    
+    output wire [2:0]   r,
+    output wire [2:0]   g,
+    output wire [1:0]   b,
+
     // VRAM
-    output wire [16:0] vram_addr,
-    input wire [7:0]   vram_q,
+    output wire [16:0]  vram_addr,
+    input wire  [7:0]   vram_q,
 
     // Parameters
-    input wire         halfRes    // Render half res (160x120) at full res by zooming in at top left corner
+    input wire          halfRes    // Render half res (160x120) at full res by zooming in at top left corner
 );
 
   localparam HSTART_HDMI = 159; // Pixel to start rendering

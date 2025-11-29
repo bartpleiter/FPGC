@@ -1,13 +1,17 @@
-// One shot timer that counts in milliseconds
-// Uses a delay of sysClkMHz-1 cycles per timerValue
+/*
+ * OStimer
+ * One shot timer that counts in milliseconds
+ * Uses a delay of sysClkMHz-1 cycles per timerValue
+ */
+module OStimer (
+    input wire          clk,
+    input wire          reset,
 
-module OStimer(
-    input clk,
-    input reset,
-    input [31:0] timerValue,
-    input trigger,
-    input setValue,
-    output reg interrupt = 1'b0
+    input wire  [31:0]  timerValue,
+    input wire          trigger,
+    input wire          setValue,
+
+    output reg          interrupt = 1'b0
 );
 
 // States

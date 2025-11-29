@@ -1,28 +1,27 @@
 /*
- * Instruction Decoder
+ * InstructionDecoder
  * Very basic instruction decoder, mostly just extracts the fields from the instruction
  */
-
 module InstructionDecoder (
-    input   wire [31:0]  instr,
-    
-    output  wire [3:0]   instrOP,
-    output  wire [3:0]   aluOP,
-    output  wire [2:0]   branchOP,
+    input  wire [31:0]  instr,
 
-    output  wire [31:0]  constAlu,
-    output  wire [31:0]  constAluu,
-    output  wire [31:0]  const16,
-    output  wire [15:0]  const16u,
-    output  wire [26:0]  const27,
+    output wire [3:0]   instrOP,
+    output wire [3:0]   aluOP,
+    output wire [2:0]   branchOP,
 
-    output  wire [3:0]   areg,
-    output  wire [3:0]   breg,
-    output  wire [3:0]   dreg,
+    output wire [31:0]  constAlu,
+    output wire [31:0]  constAluu,
+    output wire [31:0]  const16,
+    output wire [15:0]  const16u,
+    output wire [26:0]  const27,
 
-    output  wire         he,
-    output  wire         oe,
-    output  wire         sig
+    output wire [3:0]   areg,
+    output wire [3:0]   breg,
+    output wire [3:0]   dreg,
+
+    output wire         he,
+    output wire         oe,
+    output wire         sig
 );
 
 assign instrOP  = instr[31:28];

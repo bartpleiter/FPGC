@@ -1,4 +1,5 @@
 /*
+ * TimingGenerator
  * Generates video timings and counters
  * Note that changing the V_POL from 0 requires updating the BGWrenderer.v
  */
@@ -15,13 +16,15 @@ module TimingGenerator #(
     parameter V_POL           = 0,   // Vertical sync polarity
     parameter INTERRUPT_TICKS = 32   // Number of cycles to keep interrupt signal high
 ) (
-    input wire        clkPixel,
-    output reg [11:0] h_count = 12'd0, // Frame position in lines including blanking
-    output reg [11:0] v_count = 12'd0, // Frame position in lines including blanking
-    output wire       hsync,
-    output wire       vsync,
-    output wire       blank,
-    output wire       frameDrawn
+    input wire          clkPixel,
+
+    output reg  [11:0]  h_count = 12'd0, // Frame position in lines including blanking
+    output reg  [11:0]  v_count = 12'd0, // Frame position in lines including blanking
+
+    output wire         hsync,
+    output wire         vsync,
+    output wire         blank,
+    output wire         frameDrawn
 );
 
                                      // Horizontal: sync, active, and pixels

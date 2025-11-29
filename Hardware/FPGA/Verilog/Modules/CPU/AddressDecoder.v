@@ -5,9 +5,9 @@
  * address of the memory location
  * Basically it acts as the memory map for data memory
  */
-module AddressDecoder(
-    input wire [31:0]   areg_value,
-    input wire [31:0]   const16,
+module AddressDecoder (
+    input wire  [31:0]  areg_value,
+    input wire  [31:0]  const16,
     input wire          rw,
 
     output wire         mem_sdram,

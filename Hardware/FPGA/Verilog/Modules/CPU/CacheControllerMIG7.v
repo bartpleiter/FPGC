@@ -1,4 +1,5 @@
 /*
+ * CacheController (MIG7)
  * Cache controller for L1 instruction and data cache, to use with MIG7
  * Runs at 100 MHz as it needs to connect to MIG7
  * - Aside from the CPU pipeline interface (50 MHz), everything else is also in the 100 MHz domain
@@ -8,71 +9,72 @@
  * - CPU pipeline for commands from FE2 and EXMEM2 stages
  * - MIG7 for memory interface
  */
-module CacheController
-#(
+module CacheController #(
     parameter ADDR_WIDTH = 29, // Note: this is in bytes, so for 256 bit (32 byte) accesses, the lower 5 bits are always 0
     parameter DATA_WIDTH = 256,
     parameter MASK_WIDTH = 32
-)
-(
+) (
     //========================
     // System interface
     //========================
-    input  wire                      clk100,
-    input  wire                      reset,
+    input  wire                     clk100,
+    input  wire                     reset,
 
     //========================
     // CPU pipeline interface (50 MHz domain)
     //========================
     // FE2 stage
-    input  wire                      cpu_FE2_start,
-    input  wire [31:0]               cpu_FE2_addr, // Address in CPU words for instruction fetch
-    input  wire                      cpu_FE2_flush, // CPU is flushed, do not set the done signal when the fetch completes
-    output reg                       cpu_FE2_done      = 1'b0,
-    output reg [31:0]                cpu_FE2_result    = 32'd0, // Result of the instruction fetch
+    input  wire                     cpu_FE2_start,
+    input  wire [31:0]              cpu_FE2_addr,       // Address in CPU words for instruction fetch
+    input  wire                     cpu_FE2_flush,      // CPU is flushed, do not set the done signal when the fetch completes
+    output reg                      cpu_FE2_done        = 1'b0,
+    output reg  [31:0]              cpu_FE2_result      = 32'd0, // Result of the instruction fetch
+
     // EXMEM2 stage
-    input  wire                      cpu_EXMEM2_start,
-    input  wire [31:0]               cpu_EXMEM2_addr, // Address in CPU words for data access
-    input  wire [31:0]               cpu_EXMEM2_data,
-    input  wire                      cpu_EXMEM2_we,
-    output reg                       cpu_EXMEM2_done   = 1'b0,
-    output reg [31:0]                cpu_EXMEM2_result = 32'd0, // Result of the data access
+    input  wire                     cpu_EXMEM2_start,
+    input  wire [31:0]              cpu_EXMEM2_addr,    // Address in CPU words for data access
+    input  wire [31:0]              cpu_EXMEM2_data,
+    input  wire                     cpu_EXMEM2_we,
+    output reg                      cpu_EXMEM2_done     = 1'b0,
+    output reg  [31:0]              cpu_EXMEM2_result   = 32'd0, // Result of the data access
+
     // Cache clear interface
-    input  wire                      cpu_clear_cache,
-    output reg                       cpu_clear_cache_done = 1'b0,
+    input  wire                     cpu_clear_cache,
+    output reg                      cpu_clear_cache_done = 1'b0,
 
     //========================
     // L1 cache DPRAM interface
     //========================
     // L1i cache
-    output reg  [273:0]              l1i_ctrl_d        = 274'b0,
-    output reg  [6:0]                l1i_ctrl_addr     = 7'b0,
-    output reg                       l1i_ctrl_we       = 1'b0,
-    input  wire [273:0]              l1i_ctrl_q,
+    output reg  [273:0]             l1i_ctrl_d          = 274'b0,
+    output reg  [6:0]               l1i_ctrl_addr       = 7'b0,
+    output reg                      l1i_ctrl_we         = 1'b0,
+    input  wire [273:0]             l1i_ctrl_q,
+
     // L1d cache
-    output reg  [273:0]              l1d_ctrl_d        = 274'b0,
-    output reg  [6:0]                l1d_ctrl_addr     = 7'b0,
-    output reg                       l1d_ctrl_we       = 1'b0,
-    input  wire [273:0]              l1d_ctrl_q,
+    output reg  [273:0]             l1d_ctrl_d          = 274'b0,
+    output reg  [6:0]               l1d_ctrl_addr       = 7'b0,
+    output reg                      l1d_ctrl_we         = 1'b0,
+    input  wire [273:0]             l1d_ctrl_q,
 
     //========================
     // MIG7 interface
     //========================
-    input  wire                      init_calib_complete,
-    output reg  [ADDR_WIDTH-1:0]     app_addr          = {ADDR_WIDTH{1'b0}},
-    output reg  [2:0]                app_cmd           = 3'b000,
-    output reg                       app_en            = 1'b0,
-    input  wire                      app_rdy,
-    
-    output reg  [DATA_WIDTH-1:0]     app_wdf_data      = {DATA_WIDTH{1'b0}},
-    output reg                       app_wdf_end       = 1'b0,
-    output reg  [MASK_WIDTH-1:0]     app_wdf_mask      = {MASK_WIDTH{1'b0}},
-    output reg                       app_wdf_wren      = 1'b0,
-    input  wire                      app_wdf_rdy,
-    
-    input  wire [DATA_WIDTH-1:0]     app_rd_data,
-    input  wire                      app_rd_data_end,
-    input  wire                      app_rd_data_valid
+    input  wire                     init_calib_complete,
+    output reg  [ADDR_WIDTH-1:0]    app_addr            = {ADDR_WIDTH{1'b0}},
+    output reg  [2:0]               app_cmd             = 3'b000,
+    output reg                      app_en              = 1'b0,
+    input  wire                     app_rdy,
+
+    output reg  [DATA_WIDTH-1:0]    app_wdf_data        = {DATA_WIDTH{1'b0}},
+    output reg                      app_wdf_end         = 1'b0,
+    output reg  [MASK_WIDTH-1:0]    app_wdf_mask        = {MASK_WIDTH{1'b0}},
+    output reg                      app_wdf_wren        = 1'b0,
+    input  wire                     app_wdf_rdy,
+
+    input  wire [DATA_WIDTH-1:0]    app_rd_data,
+    input  wire                     app_rd_data_end,
+    input  wire                     app_rd_data_valid
 );
 
 localparam

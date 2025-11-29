@@ -1,11 +1,10 @@
 /*
- * Register Bank
+ * Regbank
  * Contains 16 registers of 32 bit each
  * Designed to be inferred as block RAM
  * Reg0 is always 0
  * TODO: move all logic to RAM logic
  */
-
 module Regbank (
     // Clock and reset
     input wire clk,

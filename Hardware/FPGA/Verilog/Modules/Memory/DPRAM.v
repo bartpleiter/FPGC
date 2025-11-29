@@ -1,23 +1,24 @@
 /*
-* Dual port, dual clock RAM implementation (for L1 cache)
-* One port for CPU pipeline and one port for cache controller
-*/
+ * DPRAM
+ * Dual port, dual clock RAM implementation (for L1 cache)
+ * One port for CPU pipeline and one port for cache controller
+ */
 module DPRAM #(
-    parameter WIDTH = 274, // 8 words per cache line + 16 bit tag + 2 bits for valid and dirty
-    parameter WORDS = 128, // 128 cache lines
-    parameter ADDR_BITS = 7 // 128 cache lines require 7 address bits
+    parameter WIDTH     = 274, // 8 words per cache line + 16 bit tag + 2 bits for valid and dirty
+    parameter WORDS     = 128, // 128 cache lines
+    parameter ADDR_BITS = 7    // 128 cache lines require 7 address bits
 ) (
-    input  wire                 clk_pipe,
-    input  wire [    WIDTH-1:0] pipe_d,
-    input  wire [ADDR_BITS-1:0] pipe_addr,
-    input  wire                 pipe_we,
-    output reg  [    WIDTH-1:0] pipe_q,
+    input  wire                     clk_pipe,
+    input  wire [    WIDTH-1:0]     pipe_d,
+    input  wire [ADDR_BITS-1:0]     pipe_addr,
+    input  wire                     pipe_we,
+    output reg  [    WIDTH-1:0]     pipe_q,
 
-    input  wire                 clk_ctrl,
-    input  wire [    WIDTH-1:0] ctrl_d,
-    input  wire [ADDR_BITS-1:0] ctrl_addr,
-    input  wire                 ctrl_we,
-    output reg  [    WIDTH-1:0] ctrl_q
+    input  wire                     clk_ctrl,
+    input  wire [    WIDTH-1:0]     ctrl_d,
+    input  wire [ADDR_BITS-1:0]     ctrl_addr,
+    input  wire                     ctrl_we,
+    output reg  [    WIDTH-1:0]     ctrl_q
 );
 
 reg [WIDTH-1:0] ram[0:WORDS-1];

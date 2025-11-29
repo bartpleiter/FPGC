@@ -1,22 +1,23 @@
 /*
-* Interrupt controller
-* Gives priority to lower numbered interrupts
-* Outputs a single interrupt signal and ID to the CPU
-* When multiple interrupts happen at the same time, the lower priority ones are queued
-*
-* On interrupt, CPU should set intDisabled high, save the PC and jump to ADDR 1
-*  and restore everything on reti by setting intDisabled to low and jumping to the saved PC
-*/
-
+ * InterruptController
+ * Gives priority to lower numbered interrupts
+ * Outputs a single interrupt signal and ID to the CPU
+ * When multiple interrupts happen at the same time, the lower priority ones are queued
+ *
+ * On interrupt, CPU should set intDisabled high, save the PC and jump to ADDR 1
+ * and restore everything on reti by setting intDisabled to low and jumping to the saved PC
+ */
 module InterruptController #(
-    parameter NUM_INTERRUPTS = 8 // Changinging this requires changing the priority encoder logic below
-)(
-    input clk, reset,
-    input [NUM_INTERRUPTS-1:0] interrupts,  // int1=bit0, int2=bit1, etc.
-    
-    input intDisabled,
-    output reg intCPU = 1'b0,
-    output reg [7:0] intID = 8'd0
+    parameter NUM_INTERRUPTS = 8 // Changing this requires changing the priority encoder logic below
+) (
+    input wire                       clk,
+    input wire                       reset,
+
+    input wire [NUM_INTERRUPTS-1:0]  interrupts,  // int1=bit0, int2=bit1, etc.
+    input wire                       intDisabled,
+
+    output reg                       intCPU = 1'b0,
+    output reg [7:0]                 intID = 8'd0
 );
 
 reg [NUM_INTERRUPTS-1:0] int_prev = {NUM_INTERRUPTS{1'b0}};

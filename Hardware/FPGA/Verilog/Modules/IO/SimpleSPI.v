@@ -1,24 +1,27 @@
-// TODO: clean this up a bit, possibly reimplement in a way that matches the rest of the design
-
-module SimpleSPI
-#(parameter CLKS_PER_HALF_BIT = 1)
-(
-    // Control/Data Signals,
-    input       reset,
-    input       clk,
+/*
+ * SimpleSPI
+ * Simple SPI master module
+ * TODO: clean this up a bit, possibly reimplement in a way that matches the rest of the design
+ */
+module SimpleSPI #(
+    parameter CLKS_PER_HALF_BIT = 1
+) (
+    // Control/Data Signals
+    input wire          reset,
+    input wire          clk,
 
     // TX (MOSI) Signals
-    input [7:0] in_byte,
-    input       start,
+    input wire  [7:0]   in_byte,
+    input wire          start,
 
     // RX (MISO) Signals
-    output reg       done = 1'b0,
-    output reg [7:0] out_byte = 8'd0,
+    output reg          done = 1'b0,
+    output reg  [7:0]   out_byte = 8'd0,
 
     // SPI Interface
-    output reg  spi_clk = 1'b0,
-    input       miso,
-    output      mosi
+    output reg          spi_clk = 1'b0,
+    input wire          miso,
+    output wire         mosi
 );
 
 reg o_SPI_MOSI = 1'b0;

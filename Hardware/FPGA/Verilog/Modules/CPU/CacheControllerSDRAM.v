@@ -1,4 +1,5 @@
 /*
+ * CacheController (SDRAM)
  * Cache controller for L1 instruction and data cache, to use with SDRAM via custom SDRAM controller
  * Runs at 100 MHz
  * - Aside from the CPU pipeline interface (50 MHz), everything else is also in the 100 MHz domain
@@ -13,52 +14,55 @@ module CacheController (
     //========================
     // System interface
     //========================
-    input  wire                      clk100,
-    input  wire                      reset,
+    input  wire         clk100,
+    input  wire         reset,
 
     //========================
     // CPU pipeline interface (50 MHz domain)
     //========================
     // FE2 stage
-    input  wire                      cpu_FE2_start,
-    input  wire [31:0]               cpu_FE2_addr, // Address in CPU words for instruction fetch
-    input  wire                      cpu_FE2_flush, // CPU is flushed, do not set the done signal when the fetch completes
-    output reg                       cpu_FE2_done      = 1'b0,
-    output reg [31:0]                cpu_FE2_result    = 32'd0, // Result of the instruction fetch
+    input  wire         cpu_FE2_start,
+    input  wire [31:0]  cpu_FE2_addr,       // Address in CPU words for instruction fetch
+    input  wire         cpu_FE2_flush,      // CPU is flushed, do not set the done signal when the fetch completes
+    output reg          cpu_FE2_done        = 1'b0,
+    output reg  [31:0]  cpu_FE2_result      = 32'd0, // Result of the instruction fetch
+
     // EXMEM2 stage
-    input  wire                      cpu_EXMEM2_start,
-    input  wire [31:0]               cpu_EXMEM2_addr, // Address in CPU words for data access
-    input  wire [31:0]               cpu_EXMEM2_data,
-    input  wire                      cpu_EXMEM2_we,
-    output reg                       cpu_EXMEM2_done   = 1'b0,
-    output reg [31:0]                cpu_EXMEM2_result = 32'd0, // Result of the data access
+    input  wire         cpu_EXMEM2_start,
+    input  wire [31:0]  cpu_EXMEM2_addr,    // Address in CPU words for data access
+    input  wire [31:0]  cpu_EXMEM2_data,
+    input  wire         cpu_EXMEM2_we,
+    output reg          cpu_EXMEM2_done     = 1'b0,
+    output reg  [31:0]  cpu_EXMEM2_result   = 32'd0, // Result of the data access
+
     // Cache clear interface
-    input  wire                      cpu_clear_cache,
-    output reg                       cpu_clear_cache_done = 1'b0,
+    input  wire         cpu_clear_cache,
+    output reg          cpu_clear_cache_done = 1'b0,
 
     //========================
     // L1 cache DPRAM interface
     //========================
     // L1i cache
-    output reg  [273:0]              l1i_ctrl_d        = 274'b0,
-    output reg  [6:0]                l1i_ctrl_addr     = 7'b0,
-    output reg                       l1i_ctrl_we       = 1'b0,
-    input  wire [273:0]              l1i_ctrl_q,
+    output reg  [273:0] l1i_ctrl_d          = 274'b0,
+    output reg  [6:0]   l1i_ctrl_addr       = 7'b0,
+    output reg          l1i_ctrl_we         = 1'b0,
+    input  wire [273:0] l1i_ctrl_q,
+
     // L1d cache
-    output reg  [273:0]              l1d_ctrl_d        = 274'b0,
-    output reg  [6:0]                l1d_ctrl_addr     = 7'b0,
-    output reg                       l1d_ctrl_we       = 1'b0,
-    input  wire [273:0]              l1d_ctrl_q,
+    output reg  [273:0] l1d_ctrl_d          = 274'b0,
+    output reg  [6:0]   l1d_ctrl_addr       = 7'b0,
+    output reg          l1d_ctrl_we         = 1'b0,
+    input  wire [273:0] l1d_ctrl_q,
 
     //========================
     // SDRAM controller interface
     //========================
-    output reg [20:0]                sdc_addr = 21'd0,
-    output reg [255:0]               sdc_data = 256'd0,
-    output reg                       sdc_we   = 1'b0,
-    output reg                       sdc_start = 1'b0,
-    input  wire                      sdc_done,
-    input  wire [255:0]              sdc_q
+    output reg  [20:0]  sdc_addr            = 21'd0,
+    output reg  [255:0] sdc_data            = 256'd0,
+    output reg          sdc_we              = 1'b0,
+    output reg          sdc_start           = 1'b0,
+    input  wire         sdc_done,
+    input  wire [255:0] sdc_q
 );
 
 localparam

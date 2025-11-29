@@ -1,19 +1,21 @@
-// UARTresetDetector listens to shifts in received UART bytes,
-//  and set magic_detected high if a match is found with a static sequence
-// The idea is that this magic_detected signal can be used as a reset, which resets this module too
+/*
+ * UARTresetDetector
+ * Listens to shifts in received UART bytes and sets magic_detected high if a match is found with a static sequence
+ * The idea is that this magic_detected signal can be used as a reset, which resets this module too
+ */
 module UARTresetDetector #(
     parameter MAGIC_LEN = 32,
     parameter [MAGIC_LEN*8-1:0] MAGIC_SEQUENCE = 256'h5C6A7408D53522204F5BE72AFC0F9FCE119BE20DAB4E910E61D73E1F0F99F684
 ) (
-    input wire clk,
-    input wire reset,
-    
+    input wire          clk,
+    input wire          reset,
+
     // UART RX interface
-    input wire rx_valid,          // data valid strobe from UART
-    input wire [7:0] rx_data,     // received byte
-    
+    input wire          rx_valid,      // data valid strobe from UART
+    input wire  [7:0]   rx_data,       // received byte
+
     // Output
-    output reg magic_detected = 1'b0
+    output reg          magic_detected = 1'b0
 );
 
     reg rx_valid_prev = 1'b0;

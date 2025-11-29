@@ -1,28 +1,29 @@
 /*
+ * RGB2HDMI
  * VGA RGBHS to HDMI signal converter
  */
 module RGB2HDMI (
     // Clocks
-    input wire clkTMDShalf,
-    input wire clkRGB,
+    input wire          clkTMDShalf,
+    input wire          clkRGB,
 
     // RGB
-    input wire [7:0] rRGB,
-    input wire [7:0] gRGB,
-    input wire [7:0] bRGB,
-    input wire blk,
-    input wire hs,
-    input wire vs,
+    input wire  [7:0]   rRGB,
+    input wire  [7:0]   gRGB,
+    input wire  [7:0]   bRGB,
+    input wire          blk,
+    input wire          hs,
+    input wire          vs,
 
     // HDMI
-    output wire TMDS_clk_p,
-    output wire TMDS_clk_n,
-    output wire TMDS_d0_p,
-    output wire TMDS_d0_n,
-    output wire TMDS_d1_p,
-    output wire TMDS_d1_n,
-    output wire TMDS_d2_p,
-    output wire TMDS_d2_n
+    output wire         TMDS_clk_p,
+    output wire         TMDS_clk_n,
+    output wire         TMDS_d0_p,
+    output wire         TMDS_d0_n,
+    output wire         TMDS_d1_p,
+    output wire         TMDS_d1_n,
+    output wire         TMDS_d2_p,
+    output wire         TMDS_d2_n
 );
 
 wire [9:0] encodedRed;

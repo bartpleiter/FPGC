@@ -1,5 +1,6 @@
 /*
- * Branch and Jump Unit
+ * BranchJumpUnit
+ * Handles branch and jump address calculations
  */
 module BranchJumpUnit (
     input wire  [2:0]   branchOP,
@@ -8,15 +9,15 @@ module BranchJumpUnit (
     input wire  [31:0]  const16,
     input wire  [26:0]  const27,
     input wire  [31:0]  pc,
-    input wire halt,
-    input wire branch,
-    input wire jumpc,
-    input wire jumpr,
-    input wire oe,
-    input wire sig,
+    input wire          halt,
+    input wire          branch,
+    input wire          jumpc,
+    input wire          jumpr,
+    input wire          oe,
+    input wire          sig,
 
-    output reg [31:0] jump_addr,
-    output wire jump_valid
+    output reg  [31:0]  jump_addr,
+    output wire         jump_valid
 );
 
 // Branch opcodes

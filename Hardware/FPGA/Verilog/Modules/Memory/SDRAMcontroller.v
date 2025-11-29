@@ -1,26 +1,26 @@
 /*
-* SDRAM controller
-* Custom made for FPGC with l1 cache (8 32-bit words per cache line), having two W9825G6KH-6 chips
-* Should run at 100MHz (with the SDRAM_CLK outside of this module at 180 degrees phase shifted)
-* Uses a 256 bit bus to the CPU/Cache controller, similar to a MIG 7
-* In contrast to MIG 7, the address is given in 256 bit words, not in bytes
-*
-* Some calculations:
-* - SDRAMx2 size: 64MiB (16M x 32 x 4 banks) -> 16 MiWords -> 2 MiLines (256 bits per line)
-* - Addressing: log2(2097152) = 21 bits 
-*/
-module SDRAMcontroller(
+ * SDRAMcontroller
+ * Custom made for FPGC with l1 cache (8 32-bit words per cache line), having two W9825G6KH-6 chips
+ * Should run at 100MHz (with the SDRAM_CLK outside of this module at 180 degrees phase shifted)
+ * Uses a 256 bit bus to the CPU/Cache controller, similar to a MIG 7
+ * In contrast to MIG 7, the address is given in 256 bit words, not in bytes
+ *
+ * Some calculations:
+ * - SDRAMx2 size: 64MiB (16M x 32 x 4 banks) -> 16 MiWords -> 2 MiLines (256 bits per line)
+ * - Addressing: log2(2097152) = 21 bits
+ */
+module SDRAMcontroller (
     // Clock and reset
     input wire          clk,
     input wire          reset,
 
     // CPU/Cache controller interface
-    input wire [20:0]   cpu_addr,
-    input wire [255:0]  cpu_data,
+    input wire  [20:0]  cpu_addr,
+    input wire  [255:0] cpu_data,
     input wire          cpu_we,
     input wire          cpu_start,
     output reg          cpu_done = 1'b0,
-    output reg [255:0]  cpu_q = 256'd0,
+    output reg  [255:0] cpu_q = 256'd0,
 
     // SDRAM signals
     output wire         SDRAM_CSn,
@@ -28,10 +28,10 @@ module SDRAMcontroller(
     output wire         SDRAM_CASn,
     output wire         SDRAM_RASn,
     output wire         SDRAM_CKE,
-    output reg [12:0]   SDRAM_A   = 13'd0,
-    output reg [1:0]    SDRAM_BA  = 2'd0,
-    output reg [3:0]    SDRAM_DQM = 4'b0000,
-    inout [31:0]        SDRAM_DQ
+    output reg  [12:0]  SDRAM_A   = 13'd0,
+    output reg  [1:0]   SDRAM_BA  = 2'd0,
+    output reg  [3:0]   SDRAM_DQM = 4'b0000,
+    inout       [31:0]  SDRAM_DQ
 );
 
 //==============Refresh Settings=================

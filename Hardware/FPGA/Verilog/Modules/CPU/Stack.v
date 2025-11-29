@@ -3,7 +3,6 @@
  * 32 Bits wide, 128 words long
  * Not directly addressable, only push and pop operations supported
  */
-
 module Stack (
     input wire          clk,
     input wire          reset,

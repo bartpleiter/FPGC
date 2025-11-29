@@ -1,15 +1,16 @@
 /*
+ * Serializer
  * HDMI Serializer with DDR clocking
  */
 module Serializer (
     // Clocks
-    input wire clkTMDShalf,
-    input wire clkRGB,
+    input wire          clkTMDShalf,
+    input wire          clkRGB,
 
     // TMDS
-    input wire [9:0] TMDS_data,
-    output wire      TMDS_out_p,
-    output wire      TMDS_out_n
+    input wire  [9:0]   TMDS_data,
+    output wire         TMDS_out_p,
+    output wire         TMDS_out_n
 );
 
 // Reset is needed for the OSERDESE2

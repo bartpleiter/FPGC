@@ -1,5 +1,6 @@
 /*
- * B32P2, a 32-bit pipelined CPU with 6-stage pipeline
+ * B32P2
+ * 32-bit pipelined CPU with 6-stage pipeline
  * Second iteration of B32P with focus on single cycle execution of all stages
  *
  * Features:

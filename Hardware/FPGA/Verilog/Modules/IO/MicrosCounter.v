@@ -1,9 +1,11 @@
-// 32 bit microsecond counter starting from reset
-
-module MicrosCounter(
-    input clk,
-    input reset,
-    output reg [31:0] micros = 32'd0
+/*
+ * MicrosCounter
+ * 32 bit microsecond counter starting from reset
+ */
+module MicrosCounter (
+    input wire          clk,
+    input wire          reset,
+    output reg  [31:0]  micros = 32'd0
 );
 
 reg [15:0] delayCounter = 16'd0; // counter for timing 1 ms

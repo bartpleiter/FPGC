@@ -1,27 +1,28 @@
 /*
+ * BGWrenderer
  * Renders Background and Window plane
  */
-module BGWrenderer(
+module BGWrenderer (
     // Clock
-    input wire clkPixel,
+    input wire          clkPixel,
 
     // Video timings
-    input wire vs,
-    input wire [11:0] h_count,  // Line position in pixels including blanking
-    input wire [11:0] v_count,  // Frame position in lines including blanking
+    input wire          vs,
+    input wire  [11:0]  h_count,  // Line position in pixels including blanking
+    input wire  [11:0]  v_count,  // Frame position in lines including blanking
 
     // Output pixels
-    output wire [2:0] r,
-    output wire [2:0] g,
-    output wire [1:0] b,
+    output wire [2:0]   r,
+    output wire [2:0]   g,
+    output wire [1:0]   b,
 
     // VRAM32
-    output wire [10:0] vram32_addr,
-    input wire [31:0]  vram32_q,
+    output wire [10:0]  vram32_addr,
+    input wire  [31:0]  vram32_q,
 
     // VRAM8
-    output wire [13:0] vram8_addr,
-    input wire [7:0]   vram8_q
+    output wire [13:0]  vram8_addr,
+    input wire  [7:0]   vram8_q
 );
 
 localparam VSTART = 86;  // Line to start rendering

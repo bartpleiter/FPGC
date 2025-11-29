@@ -1,5 +1,6 @@
 /*
  * ALU
+ * Arithmetic Logic Unit for single-cycle operations
  */
 module ALU (
     input wire  [31:0]  a,

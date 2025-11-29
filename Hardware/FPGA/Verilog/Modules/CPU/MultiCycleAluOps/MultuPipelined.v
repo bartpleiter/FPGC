@@ -1,11 +1,17 @@
+/*
+ * MultuPipelined
+ * Pipelined unsigned 32x32 multiplier
+ */
 module MultuPipelined (
-    input wire clk,
-    input wire reset,
-    input wire [31:0] a,
-    input wire [31:0] b,
-    input wire start,
-    output reg [63:0] y,
-    output reg done
+    input wire          clk,
+    input wire          reset,
+
+    input wire  [31:0]  a,
+    input wire  [31:0]  b,
+    input wire          start,
+
+    output reg  [63:0]  y,
+    output reg          done
 );
 
 // Pipelined hardware multiplier

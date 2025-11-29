@@ -1,20 +1,20 @@
 /*
- * Multi cycle ALU
+ * MultiCycleALU
  * Performs ARITHM instructions that require multiple cycles
  * Uses a state machine to orchestrate the operations to the relevant submodules based on opcode
  * While this does add latency, it simplifies the design and makes it behave similar to the Memory Unit
  */
 module MultiCycleALU (
-    input wire clk,
-    input wire reset,
+    input wire          clk,
+    input wire          reset,
 
-    input wire start,
-    output reg done = 1'b0,
+    input wire          start,
+    output reg          done = 1'b0,
 
-    input wire [31:0] a,
-    input wire [31:0] b,
-    input wire [3:0] opcode,
-    output reg [31:0] y = 32'd0
+    input wire  [31:0]  a,
+    input wire  [31:0]  b,
+    input wire  [3:0]   opcode,
+    output reg  [31:0]  y = 32'd0
 );
 
 // Opcodes

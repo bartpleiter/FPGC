@@ -1,12 +1,13 @@
 /*
+ * TMDSenc
  * TMDS encoding for HDMI
  */
 module TMDSenc (
-    input wire        clk,
-    input wire  [7:0] data,  // Video data (red, green or blue)
-    input wire        blk,   // Blanking, selects between control code and data
-    input wire  [1:0] c,     // Control data
-    output wire [9:0] q      // Output
+    input wire          clk,
+    input wire  [7:0]   data,  // Video data (red, green or blue)
+    input wire          blk,   // Blanking, selects between control code and data
+    input wire  [1:0]   c,     // Control data
+    output wire [9:0]   q      // Output
 );
 
 wire [3:0] Nb1s = data[0] + data[1] + data[2] + data[3] + data[4] + data[5] + data[6] + data[7];

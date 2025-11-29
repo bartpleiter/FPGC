@@ -1,10 +1,11 @@
 /*
-* Generates a reset pulse for 10 cycles on falling edge of DTR.
-*/
+ * DtrReset
+ * Generates a reset pulse for 10 cycles on falling edge of DTR
+ */
 module DtrReset (
-  input wire  clk,
-  input wire  dtr,
-  output reg  reset_dtr = 1'b0
+    input wire  clk,
+    input wire  dtr,
+    output reg  reset_dtr = 1'b0
 );
 
 reg state = 1'b0;

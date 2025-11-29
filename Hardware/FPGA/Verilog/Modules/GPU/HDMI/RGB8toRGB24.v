@@ -1,9 +1,10 @@
 /*
- * Converts an 8-bit RGB value (RRRGGGBB) to a 24-bit RGB value (RRRRRRRR GGGGGGGG BBBBBBBB).
+ * RGB8toRGB24
+ * Converts an 8-bit RGB value (RRRGGGBB) to a 24-bit RGB value (RRRRRRRR GGGGGGGG BBBBBBBB)
  */
 module RGB8toRGB24 (
-    input wire [ 7:0]  rgb8, // 8-bit RGB input (RRRGGGBB)
-    output wire [23:0] rgb24 // 24-bit RGB output (RRRRRRRR GGGGGGGG BBBBBBBB)
+    input wire  [7:0]   rgb8,  // 8-bit RGB input (RRRGGGBB)
+    output wire [23:0]  rgb24  // 24-bit RGB output (RRRRRRRR GGGGGGGG BBBBBBBB)
 );
 
 wire [2:0] r_in = rgb8[7:5];  // Extract 3 bits for red
