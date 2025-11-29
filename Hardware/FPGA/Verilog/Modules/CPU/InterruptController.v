@@ -55,49 +55,49 @@ begin
             begin
                 int_triggered[0] <= 1'b0;
                 intCPU <= 1'b1;
-                intID <= 0 + 1;  // intID starts from 1
+                intID <= 1'd1; // Interrupt IDs start at 1
             end
             else if (int_triggered[1])
             begin
                 int_triggered[1] <= 1'b0;
                 intCPU <= 1'b1;
-                intID <= 1 + 1;
+                intID <= 1'd2;
             end
             else if (int_triggered[2])
             begin
                 int_triggered[2] <= 1'b0;
                 intCPU <= 1'b1;
-                intID <= 2 + 1;
+                intID <= 1'd3;
             end
             else if (int_triggered[3])
             begin
                 int_triggered[3] <= 1'b0;
                 intCPU <= 1'b1;
-                intID <= 3 + 1;
+                intID <= 1'd4;
             end
             else if (int_triggered[4])
             begin
                 int_triggered[4] <= 1'b0;
                 intCPU <= 1'b1;
-                intID <= 4 + 1;
+                intID <= 1'd5;
             end
             else if (int_triggered[5])
             begin
                 int_triggered[5] <= 1'b0;
                 intCPU <= 1'b1;
-                intID <= 5 + 1;
+                intID <= 1'd6;
             end
             else if (int_triggered[6])
             begin
                 int_triggered[6] <= 1'b0;
                 intCPU <= 1'b1;
-                intID <= 6 + 1;
+                intID <= 1'd7;
             end
             else if (int_triggered[7])
             begin
                 int_triggered[7] <= 1'b0;
                 intCPU <= 1'b1;
-                intID <= 7 + 1;
+                intID <= 1'd8;
             end
         end
         

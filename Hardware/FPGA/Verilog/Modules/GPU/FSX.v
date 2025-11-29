@@ -54,7 +54,6 @@ TimingGenerator timingGenerator (
     // Video signals
     .hsync(hsync),
     .vsync(vsync),
-    .csync(csync),
     .blank(blank),
 
     // Interrupt signal

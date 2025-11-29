@@ -53,8 +53,8 @@ TMDSenc TMDSb (
     .q   (encodedBlue)
 );
 
-// Serializer logic for Cyclone 10 board
-`ifdef CYCLONE10
+// Serializer logic for Cyclone FPGAs
+`ifdef CYCLONE
 
     reg [9:0] latchedRed    = 10'd0;
     reg [9:0] latchedGreen  = 10'd0;

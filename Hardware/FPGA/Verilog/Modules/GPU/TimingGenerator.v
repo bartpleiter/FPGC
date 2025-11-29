@@ -20,7 +20,6 @@ module TimingGenerator #(
     output reg [11:0] v_count = 12'd0, // Frame position in lines including blanking
     output wire       hsync,
     output wire       vsync,
-    output wire       csync,
     output wire       blank,
     output wire       frameDrawn
 );
@@ -53,7 +52,6 @@ end
 
 assign hsync = (h_count > HS_STA && h_count <= HS_END) ^ H_POL;
 assign vsync = (v_count > VS_STA && v_count <= VS_END) ^ V_POL;
-assign csync = ~(hsync ^ vsync);
 
 assign blank = ~(h_count > HA_STA && h_count <= HA_END && v_count > VA_STA && v_count <= VA_END);
 
