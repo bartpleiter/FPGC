@@ -313,8 +313,8 @@ set_location_assignment PIN_A16 -to SRAM_A[6]
 set_location_assignment PIN_A17 -to SRAM_A[7]
 set_location_assignment PIN_B6 -to uart_dtr_n
 set_location_assignment PIN_A6 -to uart_rts_n
-set_location_assignment PIN_A4 -to uart_rx
-set_location_assignment PIN_A5 -to uart_tx
+set_location_assignment PIN_A4 -to uart_tx
+set_location_assignment PIN_A5 -to uart_rx
 set_location_assignment PIN_C3 -to eth_clk
 set_location_assignment PIN_C4 -to eth_cs
 set_location_assignment PIN_B3 -to eth_miso
