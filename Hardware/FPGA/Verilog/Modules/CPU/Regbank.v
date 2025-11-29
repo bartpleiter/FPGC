@@ -58,7 +58,7 @@ begin
         begin
             regs[addr_d] <= data_d;
 
-            $display("%d: reg%d := %d", $time, addr_d, data_d);
+            $display("%0t reg r%02d: %d", $time, addr_d, data_d);
         end
     end
 end

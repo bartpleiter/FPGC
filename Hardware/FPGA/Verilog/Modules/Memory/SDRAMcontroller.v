@@ -332,6 +332,12 @@ begin
                         // We can already set cpu_done here for write requests
                         cpu_done <= 1'b1;
                         cpu_new_request <= 1'b0;
+                        $display("%0t SDRAM WR @%05h: %08h %08h %08h %08h %08h %08h %08h %08h",
+                            $time, cpu_addr_stored,
+                            cpu_data_stored[255:224], cpu_data_stored[223:192],
+                            cpu_data_stored[191:160], cpu_data_stored[159:128],
+                            cpu_data_stored[127:96],  cpu_data_stored[95:64],
+                            cpu_data_stored[63:32],   cpu_data_stored[31:0]);
                     end
                     16'd8, 16'd9, 16'd10:
                     begin
@@ -415,7 +421,13 @@ begin
                         wait_counter <= 16'd0;
                         cpu_done <= 1'b1;
                         cpu_new_request <= 1'b0;
-                        state <= STATE_IDLE; 
+                        state <= STATE_IDLE;
+                        $display("%0t SDRAM RD @%05h: %08h %08h %08h %08h %08h %08h %08h %08h",
+                            $time, cpu_addr_stored,
+                            cpu_q[255:224], cpu_q[223:192],
+                            cpu_q[191:160], cpu_q[159:128],
+                            cpu_q[127:96],  cpu_q[95:64],
+                            cpu_q[63:32],   SDRAM_Q);
                     end
                     default:
                     begin

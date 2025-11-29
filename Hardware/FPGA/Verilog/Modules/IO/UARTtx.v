@@ -91,7 +91,7 @@ begin
                 r_SM_Main <= s_TX_START_BIT;
                 if (ENABLE_DISPLAY == 1)
                 begin
-                    $display("%d: uart_tx byte 0x%h", $time, i_Tx_Byte);
+                    $display("%0t UART TX: %02h", $time, i_Tx_Byte);
                 end
             end
             else

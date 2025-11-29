@@ -116,16 +116,21 @@ class CPUTestRunner:
         lines = result.split("\n")
         last_reg15_line = None
 
-        # Find the last occurrence of "reg15 :="
+        # Find the last occurrence of "reg r15:" (new format) or "reg15 :=" (old format)
         for line in lines:
-            if "reg15 :=" in line:
+            if "reg r15:" in line or "reg15 :=" in line:
                 last_reg15_line = line
 
         if last_reg15_line is None:
             raise ResultParsingError("No result found in simulation output")
 
         try:
-            return int(last_reg15_line.split("reg15 :=")[1].strip())
+            # Handle new format: "1234.0 ns reg r15: 123"
+            if "reg r15:" in last_reg15_line:
+                return int(last_reg15_line.split("reg r15:")[1].strip())
+            # Handle old format: "... reg15 := 123"
+            else:
+                return int(last_reg15_line.split("reg15 :=")[1].strip())
         except (ValueError, IndexError) as e:
             raise ResultParsingError(
                 f"Failed to parse register value from line: {last_reg15_line}"

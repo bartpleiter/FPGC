@@ -144,14 +144,13 @@ class B32CCTestRunner:
         """
         lines = result.split("\n")
 
-        # Look for "uart_tx byte 0xXX" pattern
-        uart_pattern = re.compile(r"uart_tx byte\s+(0x[0-9a-fA-F]+)")
+        # Look for "UART TX: XX" pattern
+        uart_pattern = re.compile(r"UART TX:\s*([0-9a-fA-F]+)")
 
         for line in lines:
             match = uart_pattern.search(line)
             if match:
                 try:
-                    # Extract the hex value and convert to int
                     hex_value = match.group(1)
                     return int(hex_value, 16)
                 except (ValueError, IndexError) as e:

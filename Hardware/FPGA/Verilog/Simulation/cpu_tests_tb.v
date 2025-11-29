@@ -17,11 +17,12 @@
 `include "Hardware/FPGA/Verilog/Modules/CPU/BranchJumpUnit.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/InterruptController.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/AddressDecoder.v"
-`include "Hardware/FPGA/Verilog/Modules/CPU/CacheControllerMIG7.v"
+`include "Hardware/FPGA/Verilog/Modules/CPU/CacheControllerSDRAM.v"
 `include "Hardware/FPGA/Verilog/Modules/Memory/ROM.v"
 `include "Hardware/FPGA/Verilog/Modules/Memory/VRAM.v"
 `include "Hardware/FPGA/Verilog/Modules/Memory/DPRAM.v"
-`include "Hardware/FPGA/Verilog/Modules/Memory/MIG7Mock.v"
+`include "Hardware/FPGA/Verilog/Modules/Memory/SDRAMcontroller.v"
+`include "Hardware/FPGA/Verilog/Modules/Memory/mt48lc16m16a2.v"
 `include "Hardware/FPGA/Verilog/Modules/Memory/W25Q128JV.v"
 
 `include "Hardware/FPGA/Verilog/Modules/Memory/MemoryUnit.v"
@@ -48,6 +49,96 @@ wire uart_reset; // Reset signal from UARTresetDetector
 // Inaccurate but good enough for simulation
 wire clkPixel = clk;
 wire clkTMDShalf = clk100;
+
+// SDRAM clock phase shift configuration (in degrees)
+parameter SDRAM_CLK_PHASE = 270;
+
+// Calculate phase shift delay in nanoseconds (clock period is 10ns @ 100MHz)
+localparam real PHASE_DELAY = (SDRAM_CLK_PHASE / 360.0) * 10.0;
+
+//---------------------------SDRAM---------------------------------
+// SDRAM signals
+reg              SDRAM_CLK_internal = 1'b0;  // Internal SDRAM clock signal
+wire             SDRAM_CLK;     // SDRAM clock
+wire    [31 : 0] SDRAM_DQ;      // SDRAM I/O
+wire    [12 : 0] SDRAM_A;       // SDRAM Address
+wire    [1 : 0]  SDRAM_BA;      // Bank Address
+wire             SDRAM_CKE;     // Synchronous Clock Enable
+wire             SDRAM_CSn;     // CS#
+wire             SDRAM_RASn;    // RAS#
+wire             SDRAM_CASn;    // CAS#
+wire             SDRAM_WEn;     // WE#
+wire    [3 : 0]  SDRAM_DQM;     // Mask
+
+// Apply phase shift to SDRAM clock
+assign SDRAM_CLK = SDRAM_CLK_internal;
+
+// Generate phase-shifted SDRAM clock
+always @(clk100) begin
+    SDRAM_CLK_internal <= #PHASE_DELAY clk100;
+end
+
+mt48lc16m16a2 #(
+    .LIST("Hardware/FPGA/Verilog/Simulation/MemoryLists/mig7mock.list"),
+    .HIGH_HALF(0)
+) sdram1 (
+.Dq     (SDRAM_DQ[15:0]), 
+.Addr   (SDRAM_A), 
+.Ba     (SDRAM_BA), 
+.Clk    (SDRAM_CLK), 
+.Cke    (SDRAM_CKE), 
+.Cs_n   (SDRAM_CSn), 
+.Ras_n  (SDRAM_RASn), 
+.Cas_n  (SDRAM_CASn), 
+.We_n   (SDRAM_WEn), 
+.Dqm    (SDRAM_DQM[1:0])
+);
+
+mt48lc16m16a2 #(
+    .LIST("Hardware/FPGA/Verilog/Simulation/MemoryLists/mig7mock.list"),
+    .HIGH_HALF(1)
+) sdram2 (
+.Dq     (SDRAM_DQ[31:16]), 
+.Addr   (SDRAM_A), 
+.Ba     (SDRAM_BA), 
+.Clk    (SDRAM_CLK), 
+.Cke    (SDRAM_CKE), 
+.Cs_n   (SDRAM_CSn), 
+.Ras_n  (SDRAM_RASn), 
+.Cas_n  (SDRAM_CASn), 
+.We_n   (SDRAM_WEn), 
+.Dqm    (SDRAM_DQM[3:2])
+);
+
+//-----------------------SDRAM Controller(100MHz)------------------------
+wire [20:0]     sdc_addr;
+wire [255:0]    sdc_data;
+wire            sdc_we;
+wire            sdc_start;
+wire            sdc_done;
+wire [255:0]    sdc_q;
+SDRAMcontroller sdc (
+    // Clock and reset
+    .clk(clk100),
+    .reset(1'b0), // For now we do not want to reset the SDRAM controller
+
+    .cpu_addr(sdc_addr),
+    .cpu_data(sdc_data),
+    .cpu_we(sdc_we),
+    .cpu_start(sdc_start),
+    .cpu_done(sdc_done),
+    .cpu_q(sdc_q),
+
+    .SDRAM_CKE(SDRAM_CKE),
+    .SDRAM_CSn(SDRAM_CSn),
+    .SDRAM_WEn(SDRAM_WEn),
+    .SDRAM_CASn(SDRAM_CASn),
+    .SDRAM_RASn(SDRAM_RASn),
+    .SDRAM_A(SDRAM_A),
+    .SDRAM_BA(SDRAM_BA),
+    .SDRAM_DQM(SDRAM_DQM),
+    .SDRAM_DQ(SDRAM_DQ)
+);
 
 
 //-----------------------ROM-------------------------
@@ -257,69 +348,6 @@ DPRAM #(
     .ctrl_q(l1d_ctrl_q)
 );
 
-//-----------------------MIG7 Mock (100MHz)-------------------------
-
-// MIG7Mock I/O signals
-wire mig7_init_calib_complete;
-
-wire [28:0] mig7_app_addr;
-wire [2:0]  mig7_app_cmd;
-wire        mig7_app_en;
-wire        mig7_app_rdy;
-
-wire [255:0] mig7_app_wdf_data;
-wire         mig7_app_wdf_end;
-wire [31:0]  mig7_app_wdf_mask;
-wire         mig7_app_wdf_wren;
-wire         mig7_app_wdf_rdy;
-
-wire [255:0] mig7_app_rd_data;
-wire         mig7_app_rd_data_end;
-wire         mig7_app_rd_data_valid;
-
-wire         mig7_app_sr_req = 1'b0;
-wire         mig7_app_ref_req = 1'b0;
-wire         mig7_app_zq_req = 1'b0;
-wire         mig7_app_sr_active;
-wire         mig7_app_ref_ack;
-wire         mig7_app_zq_ack;
-
-MIG7Mock #(
-    .ADDR_WIDTH(29),
-    .DATA_WIDTH(256),
-    .MASK_WIDTH(32),
-    .RAM_DEPTH(33554432),
-    .LIST("Hardware/FPGA/Verilog/Simulation/MemoryLists/mig7mock.list")
-) mig7mock (
-    .sys_clk_i(clk100),
-    .sys_rst(reset),
-    .ui_clk(), // Not used in simulation
-    .ui_clk_sync_rst(), // Not used in simulation
-    .init_calib_complete(mig7_init_calib_complete),
-
-    .app_addr(mig7_app_addr),
-    .app_cmd(mig7_app_cmd),
-    .app_en(mig7_app_en),
-    .app_rdy(mig7_app_rdy),
-
-    .app_wdf_data(mig7_app_wdf_data),
-    .app_wdf_end(mig7_app_wdf_end),
-    .app_wdf_mask(mig7_app_wdf_mask),
-    .app_wdf_wren(mig7_app_wdf_wren),
-    .app_wdf_rdy(mig7_app_wdf_rdy),
-
-    .app_rd_data(mig7_app_rd_data),
-    .app_rd_data_end(mig7_app_rd_data_end),
-    .app_rd_data_valid(mig7_app_rd_data_valid),
-
-    .app_sr_req(mig7_app_sr_req),
-    .app_ref_req(mig7_app_ref_req),
-    .app_zq_req(mig7_app_zq_req),
-    .app_sr_active(mig7_app_sr_active),
-    .app_ref_ack(mig7_app_ref_ack),
-    .app_zq_ack(mig7_app_zq_ack)
-);
-
 //-----------------------CacheController (100MHz)-------------------------
 
 // Cache controller <-> CPU pipeline interface signals
@@ -340,11 +368,7 @@ wire l1_clear_cache;
 wire l1_clear_cache_done;
 
 // Instantiate CacheController
-CacheController #(
-    .ADDR_WIDTH(29),
-    .DATA_WIDTH(256),
-    .MASK_WIDTH(32)
-) cache_controller (
+CacheController cache_controller (
     .clk100(clk100),
     .reset(reset || uart_reset),
 
@@ -377,20 +401,13 @@ CacheController #(
     .l1d_ctrl_we(l1d_ctrl_we),
     .l1d_ctrl_q(l1d_ctrl_q),
 
-    // MIG7 interface: use MIG7Mock signals directly
-    .init_calib_complete(mig7_init_calib_complete),
-    .app_addr(mig7_app_addr),
-    .app_cmd(mig7_app_cmd),
-    .app_en(mig7_app_en),
-    .app_rdy(mig7_app_rdy),
-    .app_wdf_data(mig7_app_wdf_data),
-    .app_wdf_end(mig7_app_wdf_end),
-    .app_wdf_mask(mig7_app_wdf_mask),
-    .app_wdf_wren(mig7_app_wdf_wren),
-    .app_wdf_rdy(mig7_app_wdf_rdy),
-    .app_rd_data(mig7_app_rd_data),
-    .app_rd_data_end(mig7_app_rd_data_end),
-    .app_rd_data_valid(mig7_app_rd_data_valid)
+    // SDRAM controller interface
+    .sdc_addr(sdc_addr),
+    .sdc_data(sdc_data),
+    .sdc_we(sdc_we),
+    .sdc_start(sdc_start),
+    .sdc_done(sdc_done),
+    .sdc_q(sdc_q)
 );
 
 //-----------------------FSX-------------------------
