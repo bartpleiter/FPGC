@@ -5,6 +5,7 @@
 
 ## Verilog/FPGA design
 
+- [x] Create top level module for EP4CE40 (custom PCB)
 - [ ] Rewrite regbank to just use logic cells instead of attempting block RAM inference
 - [ ] Rewrite stack to force use of block RAM
 - [ ] Look into reducing path from CacheController|EXMEM2_result into cpu|PC_FE1
@@ -23,4 +24,4 @@
 ## Documentation
 
 - [ ] Write getting started for Altera FPGAs (memory programming, Quartus setup, etc)
-- [ ] Move modules in PCB documentation down the page
+- [x] Move modules in PCB documentation down the page

@@ -5,39 +5,6 @@ Previous versions of the FPGC used an FPGA development board or module with a cu
 !!! Note
     The FPGC still supports using the PZ-A75T StarLite development board and the QMTECH Cyclone 10 10CL120 module as alternative to the custom PCB. However, the main focus of the project is now on the custom PCB.
 
-## Alternative platforms
-
-### PZ-A75T StarLite Development Board
-
-The PZ-A75T StarLite development board contains a Xilinx Artix 7 XC7A75T FPGA and was used during early development. It has the following features:
-
-- HDMI port connected to TMDS pins on the FPGA
-- Two USB C ports (one for UART, one for JTAG programming)
-- MicroSD card slot
-- 1GB of DDR3 SDRAM (which is insane for this project)
-- A reasonable amount of I/O on two pin headers to support a custom I/O board.
-
-However, this board has some disadvantages:
-
-- The DDR3 SDRAM requires the MIG 7 memory controller IP from Xilinx, which complicates simulation and is costly in terms of logic gates and latency (note that simulation has been solved by creating a custom simulation model of the MIG 7).
-- The USB to UART bridge cannot use control signals (not wired, and either the IC or Linux driver does not support it)
-- The Gigabit Ethernet PHY is complex to interface with, and can better be ignored in favour of a simpler 10Mbit PHY such as the ENC28J60.
-
-![StarLite Development board](../images/starlite.png){ width="80%" }
-
-(Source: [PuZhi](https://www.puzhi.com/en/detail/433.html))
-
-### QMTECH Cyclone 10 10CL120 Module
-
-The QMTECH Cyclone 10 module is a compact FPGA module containing an Intel Cyclone 10 LP 10CL120 FPGA with two onboard SDRAM ICs, exposing 64MiB at a 32 bits bus. The module very cheap given the hardware, and provides a good amount of I/O pins through pin headers, making it suitable for use with a custom I/O board.
-
-!!! Note
-    While the boards from QMTECH are generally extremely suited for a project like this (very cheap, small size, black PCB, good documentation, contains memory), the boards seem to be only in stock for a limited time before they are discontinued (which raises questions on how they source their chips). This has already happed with the Cyclone IV EP4CE15 Cyclone V 5CEFA5F23 modules I used in previous versions of the FPGC project.
-
-![QMTECH Cyclone 10 Module](../images/qmtech.png){ width="50%" }
-
-(Source: [QMTECH](https://github.com/ChinaQMTECH/Cyclone_10LP_10CL120YF484_Core_Board))
-
 ## Main PCB features
 
 The custom PCB contains the following main components:
@@ -85,3 +52,36 @@ The following 3d renders show the top and bottom layers of the assembled PCB (in
 ### Bottom
 
 ![3d_render_pcb_bottom](../images/bottom.png)
+
+## Alternative platforms
+
+### PZ-A75T StarLite Development Board
+
+The PZ-A75T StarLite development board contains a Xilinx Artix 7 XC7A75T FPGA and was used during early development. It has the following features:
+
+- HDMI port connected to TMDS pins on the FPGA
+- Two USB C ports (one for UART, one for JTAG programming)
+- MicroSD card slot
+- 1GB of DDR3 SDRAM (which is insane for this project)
+- A reasonable amount of I/O on two pin headers to support a custom I/O board.
+
+However, this board has some disadvantages:
+
+- The DDR3 SDRAM requires the MIG 7 memory controller IP from Xilinx, which complicates simulation and is costly in terms of logic gates and latency (note that simulation has been solved by creating a custom simulation model of the MIG 7).
+- The USB to UART bridge cannot use control signals (not wired, and either the IC or Linux driver does not support it)
+- The Gigabit Ethernet PHY is complex to interface with, and can better be ignored in favour of a simpler 10Mbit PHY such as the ENC28J60.
+
+![StarLite Development board](../images/starlite.png){ width="80%" }
+
+(Source: [PuZhi](https://www.puzhi.com/en/detail/433.html))
+
+### QMTECH Cyclone 10 10CL120 Module
+
+The QMTECH Cyclone 10 module is a compact FPGA module containing an Intel Cyclone 10 LP 10CL120 FPGA with two onboard SDRAM ICs, exposing 64MiB at a 32 bits bus. The module very cheap given the hardware, and provides a good amount of I/O pins through pin headers, making it suitable for use with a custom I/O board.
+
+!!! Note
+    While the boards from QMTECH are generally extremely suited for a project like this (very cheap, small size, black PCB, good documentation, contains memory), the boards seem to be only in stock for a limited time before they are discontinued (which raises questions on how they source their chips). This has already happed with the Cyclone IV EP4CE15 Cyclone V 5CEFA5F23 modules I used in previous versions of the FPGC project.
+
+![QMTECH Cyclone 10 Module](../images/qmtech.png){ width="50%" }
+
+(Source: [QMTECH](https://github.com/ChinaQMTECH/Cyclone_10LP_10CL120YF484_Core_Board))
