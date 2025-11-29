@@ -40,7 +40,10 @@ always @(clk) begin
     SDRAM_CLK_internal <= #PHASE_DELAY clk;
 end
 
-mt48lc16m16a2 sdram1 (
+mt48lc16m16a2 #(
+    .LIST("Hardware/FPGA/Verilog/Simulation/MemoryLists/mig7mock.list"),
+    .HIGH_HALF(0)
+) sdram1 (
 .Dq     (SDRAM_DQ[15:0]), 
 .Addr   (SDRAM_A), 
 .Ba     (SDRAM_BA), 
@@ -53,7 +56,10 @@ mt48lc16m16a2 sdram1 (
 .Dqm    (SDRAM_DQM[1:0])
 );
 
-mt48lc16m16a2 sdram2 (
+mt48lc16m16a2 #(
+    .LIST("Hardware/FPGA/Verilog/Simulation/MemoryLists/mig7mock.list"),
+    .HIGH_HALF(1)
+) sdram2 (
 .Dq     (SDRAM_DQ[31:16]), 
 .Addr   (SDRAM_A), 
 .Ba     (SDRAM_BA), 

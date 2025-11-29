@@ -78,7 +78,10 @@ always @(clk100) begin
     SDRAM_CLK_internal <= #PHASE_DELAY clk100;
 end
 
-mt48lc16m16a2 sdram1 (
+mt48lc16m16a2 #(
+    .LIST("Hardware/FPGA/Verilog/Simulation/MemoryLists/mig7mock.list"),
+    .HIGH_HALF(0)
+) sdram1 (
 .Dq     (SDRAM_DQ[15:0]), 
 .Addr   (SDRAM_A), 
 .Ba     (SDRAM_BA), 
@@ -91,7 +94,10 @@ mt48lc16m16a2 sdram1 (
 .Dqm    (SDRAM_DQM[1:0])
 );
 
-mt48lc16m16a2 sdram2 (
+mt48lc16m16a2 #(
+    .LIST("Hardware/FPGA/Verilog/Simulation/MemoryLists/mig7mock.list"),
+    .HIGH_HALF(1)
+) sdram2 (
 .Dq     (SDRAM_DQ[31:16]), 
 .Addr   (SDRAM_A), 
 .Ba     (SDRAM_BA), 
@@ -713,7 +719,7 @@ end
 integer clk_counter = 0;
 always @(posedge clk) begin
     clk_counter = clk_counter + 1;
-    if (clk_counter == 55000) begin // 55000
+    if (clk_counter == 200) begin // 55000
         $display("Simulation finished.");
         $finish;
     end

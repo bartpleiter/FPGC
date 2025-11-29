@@ -25,7 +25,7 @@
 *                IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR
 *                A PARTICULAR PURPOSE, OR AGAINST INFRINGEMENT.
 *
-*                Copyright © 2001 Micron Semiconductor Products, Inc.
+*                Copyright ï¿½ 2001 Micron Semiconductor Products, Inc.
 *                All rights researved
 *
 * Rev  Author          Date        Changes
@@ -46,6 +46,10 @@ module mt48lc16m16a2 (Dq, Addr, Ba, Clk, Cke, Cs_n, Ras_n, Cas_n, We_n, Dqm);
     parameter data_bits =      16;
     parameter col_bits  =       9;
     parameter mem_sizes = 4194303;
+    
+    // Memory initialization parameters
+    parameter LIST      = "";           // Path to 256-bit initialization file
+    parameter HIGH_HALF = 0;            // 0 = low 16 bits (bits 15:0), 1 = high 16 bits (bits 31:16)
 
     inout     [data_bits - 1 : 0] Dq;
     input     [addr_bits - 1 : 0] Addr;
@@ -120,7 +124,7 @@ module mt48lc16m16a2 (Dq, Addr, Ba, Clk, Cke, Cs_n, Ras_n, Cas_n, We_n, Dqm);
     // Write Burst Mode
     wire      Write_burst_mode = Mode_reg[9];
 
-    wire      Debug            = 1'b1;                          // Debug messages : 1 = On
+    wire      Debug            = 1'b0;                          // Debug messages : 1 = On
     wire      Dq_chk           = Sys_clk & Data_in_enable;      // Check setup/hold time for DQ
     
     assign    Dq               = Dq_reg;                        // DQ buffer
@@ -172,6 +176,81 @@ module mt48lc16m16a2 (Dq, Addr, Ba, Clk, Cke, Cs_n, Ras_n, Cas_n, We_n, Dqm);
         RC_chk0 = 0; RC_chk1 = 0; RC_chk2 = 0; RC_chk3 = 0;
         RP_chk0 = 0; RP_chk1 = 0; RP_chk2 = 0; RP_chk3 = 0;
         $timeformat (-9, 1, " ns", 12);
+    end
+
+    // Memory initialization from file (format = 256-bit words in binary)
+    // Each 256-bit word contains 8 x 32-bit words, stored as word7_word6_..._word1_word0
+    // SDRAMcontroller writes highest word first: bits[255:224] to col 0, bits[31:0] to col 7
+    // This chip stores either the low 16 bits or high 16 bits of each 32-bit word
+    // Address mapping matches SDRAMcontroller:
+    //   - cpu_addr[20:19] = bank
+    //   - cpu_addr[18:6]  = row
+    //   - cpu_addr[5:0]   = column / 8 (burst aligned)
+    
+    // Temporary storage for reading the init file - limited size for simulation efficiency
+    // 65536 x 256-bit = 2MB of initialization data, should be enough for most test cases
+    reg [255:0] init_mem [0:65535];
+    
+    initial begin : mem_init
+        integer line_num;
+        integer word_idx;
+        integer bank_sel;
+        integer row_addr;
+        integer col_addr;
+        integer mem_addr;
+        integer max_lines;
+        reg [31:0] word32;
+        reg [15:0] word16;
+        
+        if (LIST != "") begin
+            // Use $readmemb which handles underscore separators in binary format
+            $readmemb(LIST, init_mem);
+            
+            // Process the memory and distribute to banks
+            // Limited to 65536 lines (2MB of init data)
+            max_lines = 65536;
+            
+            for (line_num = 0; line_num < max_lines; line_num = line_num + 1) begin
+                // Stop when we hit undefined memory (indicates end of file data)
+                if (init_mem[line_num] === 256'bx) begin
+                    max_lines = line_num;
+                end else begin
+                    // cpu_addr mapping: [20:19]=bank, [18:6]=row, [5:0]=col/8
+                    bank_sel = (line_num >> 19) & 2'b11;
+                    row_addr = (line_num >> 6) & 13'h1FFF;
+                    
+                    // Process 8 x 32-bit words per line
+                    for (word_idx = 0; word_idx < 8; word_idx = word_idx + 1) begin
+                        // Extract 32-bit word
+                        // SDRAMcontroller writes highest word first: col 0 gets bits[255:224], col 7 gets bits[31:0]
+                        // So we need to reverse: word at column N comes from bits[(7-N)*32 +: 32]
+                        word32 = init_mem[line_num][(7-word_idx)*32 +: 32];
+                        
+                        // Select high or low 16 bits based on HIGH_HALF parameter
+                        if (HIGH_HALF)
+                            word16 = word32[31:16];
+                        else
+                            word16 = word32[15:0];
+                        
+                        // Calculate column address: base column from line_num[5:0] * 8 + word_idx
+                        col_addr = ((line_num & 6'h3F) << 3) + word_idx;
+                        
+                        // Memory address = {row, col}
+                        mem_addr = (row_addr << 9) | col_addr;
+                        
+                        // Store in appropriate bank
+                        case (bank_sel)
+                            0: Bank0[mem_addr] = word16;
+                            1: Bank1[mem_addr] = word16;
+                            2: Bank2[mem_addr] = word16;
+                            3: Bank3[mem_addr] = word16;
+                        endcase
+                    end
+                end
+            end
+            if (max_lines > 0)
+                $display("SDRAM init: Loaded %0d x 256-bit words from %s (HIGH_HALF=%0d)", max_lines, LIST, HIGH_HALF);
+        end
     end
 
     // System clock generator
