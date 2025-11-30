@@ -380,7 +380,7 @@ class CPUTestRunner:
 
     def run_tests_from_rom(self) -> list[str]:
         """Run all tests from ROM and display results.
-        
+
         Returns:
             List of failed test names.
         """
@@ -390,7 +390,7 @@ class CPUTestRunner:
 
     def run_tests_from_ram(self) -> list[str]:
         """Run all tests from RAM and display results.
-        
+
         Returns:
             List of failed test names.
         """
