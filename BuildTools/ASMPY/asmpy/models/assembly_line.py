@@ -176,7 +176,7 @@ class LabelAssemblyLine(AssemblyLine):
 class InstructionAssemblyLine(AssemblyLine):
     """Class to represent an instruction line of assembly code"""
 
-    INSTRUCTION_OPERATIONS: list[StringParsableEnum] = [
+    INSTRUCTION_OPERATIONS: list[type[StringParsableEnum]] = [
         ControlOperation,
         MemoryOperation,
         SingleCycleArithmeticOperation,
@@ -196,9 +196,9 @@ class InstructionAssemblyLine(AssemblyLine):
                 pass
         raise ValueError(f"Invalid instruction: {self.opcode}")
 
-    def _parse_arguments(self, arguments: list[str]) -> list:
+    def _parse_arguments(self, arguments: list[str]) -> list[Register | Number | Label]:
         """Parse the arguments of the instruction. Arguments can be a Register, Label or Number."""
-        parsed_arguments = []
+        parsed_arguments: list[Register | Number | Label] = []
         for argument in arguments:
             try:
                 parsed_arguments.append(Register.from_str(argument))
@@ -623,7 +623,7 @@ class InstructionAssemblyLine(AssemblyLine):
 class DataAssemblyLine(AssemblyLine):
     """Class to represent a data line of assembly code"""
 
-    def _parse_code(self):
+    def _parse_code(self) -> None:
         self.data_instruction_values: list[Number] = []
         data_instruction_type_str = self.code_str.split()[0]
 
@@ -636,7 +636,7 @@ class DataAssemblyLine(AssemblyLine):
             self.data_instruction_values.append(Number._from_str(value))
 
     def expand(self) -> list["AssemblyLine"]:
-        expanded_lines = []
+        expanded_lines: list[AssemblyLine] = []
         for value in self.data_instruction_values:
             expanded_lines.append(
                 DataAssemblyLine(

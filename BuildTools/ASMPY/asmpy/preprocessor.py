@@ -23,7 +23,7 @@ class Preprocessor:
         self.already_included_filenames = already_included_filenames
         self.current_directory = file_path.parent
 
-        self.preprocessed_lines = []
+        self.preprocessed_lines: list[SourceLine] = []
 
     @staticmethod
     def _parse_preprocessor_directives(

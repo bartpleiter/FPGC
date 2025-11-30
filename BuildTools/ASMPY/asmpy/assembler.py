@@ -72,9 +72,14 @@ class Assembler:
         if not self._assembly_lines:
             raise ValueError("No assembly lines to reorder.")
 
+        def directive_key(x: AssemblyLine) -> int:
+            if x.directive is None:
+                return len(self.DIRECTIVE_ORDER)  # Put lines without directive at end
+            return self.DIRECTIVE_ORDER.index(x.directive)
+
         self._assembly_lines = sorted(
             self._assembly_lines,
-            key=lambda x: self.DIRECTIVE_ORDER.index(x.directive),
+            key=directive_key,
         )
 
     def _remove_comment_lines(self) -> None:

@@ -51,7 +51,7 @@ def read_input_file(input_file_path: Path) -> list[SourceLine]:
                 SourceLine(
                     line=line.strip(),
                     source_line_number=i + 1,
-                    source_file_name=input_file_path,
+                    source_file_name=str(input_file_path),
                 )
                 for i, line in enumerate(file.readlines())
             ]

@@ -73,7 +73,7 @@ asmpy-clean:
 
 mypy:
 	@echo "Running mypy type checker..."
-	uv run mypy BuildTools/ASMPY/asmpy
+	uv run mypy -p asmpy
 # TODO: add other python dirs to mypy check
 
 ruff-lint:

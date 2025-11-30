@@ -1,12 +1,13 @@
 from enum import Enum
 from dataclasses import dataclass
+from typing import Self
 
 
 class StringParsableEnum(Enum):
     """Base Enum class with a from_str method for easy string parsing."""
 
     @classmethod
-    def from_str(cls, value: str) -> "StringParsableEnum":
+    def from_str(cls, value: str) -> Self:
         """Convert a string to the corresponding Enum value using fast lookup."""
         _lookup = {e.value: e for e in cls.__members__.values()}
         if value in _lookup:
@@ -254,7 +255,9 @@ class Label:
         )
         return f"Label {self.label}{target_address_str}"
 
-    def __eq__(self, value: "Label") -> bool:
+    def __eq__(self, value: object) -> bool:
+        if not isinstance(value, Label):
+            return NotImplemented
         return self.label == value.label
 
     def __hash__(self) -> int:
@@ -263,6 +266,9 @@ class Label:
 
 class Number:
     """Class to represent a number, while keeping its original string representation in binary, hexadecimal or decimal format."""
+
+    value: int
+    original: str | None
 
     def __init__(self, value: int | str, original: str | None = None) -> None:
         if isinstance(value, str):
