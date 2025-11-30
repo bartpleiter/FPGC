@@ -1,6 +1,6 @@
 # Development Workflows
 
-This guide covers the development workflows for the main components of the FPGC project. Each section describes how to make changes, test them, and debug issues.
+This guide covers the development workflows for the main components of the FPGC project: how to make changes, test them, and debug issues.
 
 !!! note
     All commands should be run from the project root directory.
@@ -19,7 +19,21 @@ This guide covers the development workflows for the main components of the FPGC 
 
 ## Verilog
 
-The Verilog sources live in `Hardware/FPGA/Verilog/`. Write or modify modules, then verify via simulation.
+The Verilog sources live in `Hardware/FPGA/Verilog/`. After writing or modifying Verilog code, it's important to run simulations to verify correctness before testing on actual hardware. I would argue that simulation is the most important part of Verilog development as logic quickly becomes too complex to validate by just looking, hardware testing takes really long and most importantly does not give insight into what is actually happening inside the design. Simulations solve all these issues and can be automated.
+
+### Simulation
+
+For simulation iverilog and GTKWave are used to verify the design before running it on an FPGA. I like iverilog because it is fast and simple to use from command line scripts. GTKWave is a fast, simple and intuitive tool to view the resulting waveforms for debugging and verification. I specifically avoided using the integrated simulator from Xilinx and Altera as these are slow, proprietary, unintuitive and way more complex than needed while being more difficult to automate (or at least have a too steep learning curve that quickly made me switch towards iverilog when I was just starting to learn Verilog).
+
+!!! Note
+    It is required to use iverilog >= 12.0 as older versions do not support certain features used in the testbenches.
+
+Running single simulations (via the `make` commands below) will show logs from `vvp` in the terminal and open GTKWave with the generated waveform and some pre-configured configuration file.
+
+![vvp](../images/vvp.png)
+![GTKwave](../images/gtkwave.png)
+
+### Running tests and simulations
 
 **CPU tests:**
 
@@ -44,6 +58,10 @@ make sim-gpu
 ```
 
 Runs the GPU testbench, opens GTKWave, and outputs PPM images of each rendered frame for visual verification.
+
+To test the pixel output of the GPU in simulation, GTKWave is not very useful as it does not show the resulting image that would display on the screen assuming the display connection works. To verify the pixel output the GPU contains some verilog code that creates a new ppm file each vsync pulse and writes the color values per pixel to that file. The ppm file format is an easy way to create an image by just using text in a structured way. Ubuntu supports viewing this image format out of the box. See below for an example frame for a partially completed test signal. Note that you do need to simulate for an entire frame duration to create a complete frame, which can take multiple seconds depending on the included files to simulate. Also, you might have to adjust the GPU clock speed in simulation if you want to avoid partially drawn frames like below.
+
+![gpuframe](../images/gpuframe.png)
 
 **SDRAM controller:**
 
