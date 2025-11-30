@@ -12,6 +12,7 @@ from asmpy.models.data_types import (
     Number,
     SourceLine,
     DirectiveType,
+    BranchOperation,
 )
 
 
@@ -136,12 +137,26 @@ class Assembler:
             self._label_address_mappings[label] = address
 
     def _apply_label_address_mappings(self) -> None:
-        """Replace labels with their addresses in the assembly lines."""
-        for line in self._assembly_lines:
+        """Replace labels with their addresses in the assembly lines.
+        
+        For branch instructions, the label is converted to a relative offset
+        (target_address - current_address). For other instructions (like jump),
+        the absolute address is used.
+        """
+        for idx, line in enumerate(self._assembly_lines):
             if isinstance(line, InstructionAssemblyLine):
+                current_address = idx + self.offset_address.value
+                is_branch = isinstance(line.instruction_type, BranchOperation)
+                
                 for arg in line.arguments:
                     if isinstance(arg, Label):
-                        arg.target_address = self._label_address_mappings[arg]
+                        target_address = self._label_address_mappings[arg]
+                        if is_branch:
+                            # Branch instructions use relative offsets
+                            arg.target_address = target_address - current_address
+                        else:
+                            # Jump instructions use absolute addresses
+                            arg.target_address = target_address
 
     def _process_labels(self) -> None:
         """Process labels in the assembly lines."""

@@ -103,16 +103,16 @@ The following table provides a comprehensive overview of all B32P2 instructions 
 | `loadhi` | C16 | R | - | Load unsigned 16-bit constant from Arg1 into upper bits of Arg2 |
 | `load32` | C32 | R | - | Load signed 32-bit constant from Arg1 into Arg2 (expands to load+loadhi) |
 | `addr2reg` | L | R | - | Load address from label Arg1 to Arg2 (expands to load+loadhi) |
-| `beq` | R | R | C16 | If Arg1 == Arg2, jump to 16-bit signed offset in Arg3 |
-| `bne` | R | R | C16 | If Arg1 != Arg2, jump to 16-bit signed offset in Arg3 |
-| `bgt` | R | R | C16 | If Arg1 > Arg2 (unsigned), jump to 16-bit signed offset in Arg3 |
-| `bge` | R | R | C16 | If Arg1 >= Arg2 (unsigned), jump to 16-bit signed offset in Arg3 |
-| `blt` | R | R | C16 | If Arg1 < Arg2 (unsigned), jump to 16-bit signed offset in Arg3 |
-| `ble` | R | R | C16 | If Arg1 <= Arg2 (unsigned), jump to 16-bit signed offset in Arg3 |
-| `bgts` | R | R | C16 | If Arg1 > Arg2 (signed), jump to 16-bit signed offset in Arg3 |
-| `bges` | R | R | C16 | If Arg1 >= Arg2 (signed), jump to 16-bit signed offset in Arg3 |
-| `blts` | R | R | C16 | If Arg1 < Arg2 (signed), jump to 16-bit signed offset in Arg3 |
-| `bles` | R | R | C16 | If Arg1 <= Arg2 (signed), jump to 16-bit signed offset in Arg3 |
+| `beq` | R | R | C16/L | If Arg1 == Arg2, jump to 16-bit signed offset or label in Arg3 |
+| `bne` | R | R | C16/L | If Arg1 != Arg2, jump to 16-bit signed offset or label in Arg3 |
+| `bgt` | R | R | C16/L | If Arg1 > Arg2 (unsigned), jump to 16-bit signed offset or label in Arg3 |
+| `bge` | R | R | C16/L | If Arg1 >= Arg2 (unsigned), jump to 16-bit signed offset or label in Arg3 |
+| `blt` | R | R | C16/L | If Arg1 < Arg2 (unsigned), jump to 16-bit signed offset or label in Arg3 |
+| `ble` | R | R | C16/L | If Arg1 <= Arg2 (unsigned), jump to 16-bit signed offset or label in Arg3 |
+| `bgts` | R | R | C16/L | If Arg1 > Arg2 (signed), jump to 16-bit signed offset or label in Arg3 |
+| `bges` | R | R | C16/L | If Arg1 >= Arg2 (signed), jump to 16-bit signed offset or label in Arg3 |
+| `blts` | R | R | C16/L | If Arg1 < Arg2 (signed), jump to 16-bit signed offset or label in Arg3 |
+| `bles` | R | R | C16/L | If Arg1 <= Arg2 (signed), jump to 16-bit signed offset or label in Arg3 |
 | `jump` | C27/L | - | - | Jump to label or 27-bit constant address in Arg1 |
 | `jumpo` | C27 | - | - | Jump to unsigned 27-bit constant offset in Arg1 |
 | `jumpr` | C16 | R | - | Jump to Arg2 with 16-bit signed offset in Arg1 |
@@ -189,18 +189,20 @@ The following table provides a comprehensive overview of all B32P2 instructions 
 
 ### Branch Operations
 
+Branch instructions support both numeric offsets and labels. When a label is used, the assembler automatically calculates the relative offset (which is assumed to fit in 16 bits signed).
+
 | Instruction | Arguments | Description | Example |
 |-------------|-----------|-------------|---------|
-| `beq` | reg, reg, const16 | Branch if equal. Args: register 1, register 2, signed 16-bit constant | `beq r1 r2 -4` |
-| `bne` | reg, reg, const16 | Branch if not equal. Args: register 1, register 2, signed 16-bit constant | `bne r1 r0 8` |
-| `bgt` | reg, reg, const16 | Branch if greater (unsigned). Args: register 1, register 2, signed 16-bit constant | `bgt r1 r2 12` |
-| `bge` | reg, reg, const16 | Branch if greater or equal (unsigned). Args: register 1, register 2, signed 16-bit constant | `bge r1 r2 -8` |
-| `blt` | reg, reg, const16 | Branch if less (unsigned). Args: register 1, register 2, signed 16-bit constant | `blt r1 r2 16` |
-| `ble` | reg, reg, const16 | Branch if less or equal (unsigned). Args: register 1, register 2, signed 16-bit constant | `ble r1 r2 -12` |
-| `bgts` | reg, reg, const16 | Branch if greater (signed). Args: register 1, register 2, signed 16-bit constant | `bgts r1 r2 4` |
-| `bges` | reg, reg, const16 | Branch if greater or equal (signed). Args: register 1, register 2, signed 16-bit constant | `bges r1 r0 -16` |
-| `blts` | reg, reg, const16 | Branch if less (signed). Args: register 1, register 2, signed 16-bit constant | `blts r1 r0 20` |
-| `bles` | reg, reg, const16 | Branch if less or equal (signed). Args: register 1, register 2, signed 16-bit constant | `bles r1 r2 -4` |
+| `beq` | reg, reg, const16/label | Branch if equal. Args: register 1, register 2, signed 16-bit offset or label | `beq r1 r2 -4` or `beq r1 r2 MyLabel` |
+| `bne` | reg, reg, const16/label | Branch if not equal. Args: register 1, register 2, signed 16-bit offset or label | `bne r1 r0 8` or `bne r1 r0 Loop` |
+| `bgt` | reg, reg, const16/label | Branch if greater (unsigned). Args: register 1, register 2, signed 16-bit offset or label | `bgt r1 r2 12` |
+| `bge` | reg, reg, const16/label | Branch if greater or equal (unsigned). Args: register 1, register 2, signed 16-bit offset or label | `bge r1 r2 -8` |
+| `blt` | reg, reg, const16/label | Branch if less (unsigned). Args: register 1, register 2, signed 16-bit offset or label | `blt r1 r2 16` |
+| `ble` | reg, reg, const16/label | Branch if less or equal (unsigned). Args: register 1, register 2, signed 16-bit offset or label | `ble r1 r2 -12` |
+| `bgts` | reg, reg, const16/label | Branch if greater (signed). Args: register 1, register 2, signed 16-bit offset or label | `bgts r1 r2 4` |
+| `bges` | reg, reg, const16/label | Branch if greater or equal (signed). Args: register 1, register 2, signed 16-bit offset or label | `bges r1 r0 -16` |
+| `blts` | reg, reg, const16/label | Branch if less (signed). Args: register 1, register 2, signed 16-bit offset or label | `blts r1 r0 20` |
+| `bles` | reg, reg, const16/label | Branch if less or equal (signed). Args: register 1, register 2, signed 16-bit offset or label | `bles r1 r2 -4` |
 
 ### Jump Operations
 
