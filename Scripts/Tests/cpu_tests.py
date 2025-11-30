@@ -338,19 +338,43 @@ class CPUTestRunner:
 
 def main() -> None:
     """Main entry point for the script."""
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Run CPU tests")
+    parser.add_argument(
+        "--rom", action="store_true", help="Run tests from ROM"
+    )
+    parser.add_argument(
+        "--ram", action="store_true", help="Run tests from RAM"
+    )
+    parser.add_argument(
+        "test_file",
+        nargs="?",
+        default=None,
+        help="Optional: specific test file to run (e.g., 1_load.asm)",
+    )
+
+    args = parser.parse_args()
 
     runner = CPUTestRunner()
-    if len(sys.argv) > 1:
-        if sys.argv[1] == "--ram":
-            runner.run_tests_from_ram()
-        elif sys.argv[1] == "--rom":
-            runner.run_tests_from_rom()
-        else:
-            logger.warning("No --rom or --ram specified, defaulting to rom")
-            runner.run_tests_from_rom()
+    use_ram = args.ram
+
+    if args.test_file:
+        # Run a single test
+        memory_type = "RAM" if use_ram else "ROM"
+        logger.info(f"Running single CPU test from {memory_type}: {args.test_file}")
+        try:
+            runner.run_single_test(args.test_file, use_ram=use_ram)
+            logger.info(f"PASS: {args.test_file}")
+        except Exception as e:
+            logger.error(f"FAIL: {args.test_file} -> {e}")
+            sys.exit(1)
     else:
-        logger.warning("No --rom or --ram specified, defaulting to rom")
-        runner.run_tests_from_rom()
+        # Run all tests
+        if use_ram:
+            runner.run_tests_from_ram()
+        else:
+            runner.run_tests_from_rom()
 
 
 if __name__ == "__main__":

@@ -20,40 +20,36 @@ Return_UART:
 
 .code
 Label_main:
-  sub r13         28 r13
-  write         20 r13 r14
-  add r13         20 r14
+  sub r13         12 r13
+  write          4 r13 r14
+  add r13          4 r14
   ;write 4 r14 r15
-  load32 1 r1
-  write -4 r14 r1
   load32 2 r1
-  write -8 r14 r1
-  load32 3 r1
-  write -12 r14 r1
-  load32 4 r1
-  write -16 r14 r1
+  write -4 r14 r1
   read -4 r14 r1
-  read -8 r14 r8
-  add r1 r8 r1
-  read -12 r14 r8
-  read -16 r14 r9
-  add r8 r9 r8
-  mults r1 r8 r1
-  read -4 r14 r8
-  read -8 r14 r9
-  sub r8 r9 r8
-  read -12 r14 r9
-  read -16 r14 r10
-  sub r9 r10 r9
-  mults r8 r9 r8
-  add r1 r8 r1
-  write -20 r14 r1
-  read -20 r14 r1
+  slt r1 2 r1
+  beq r1 r0 Label_L2
+  load32 5 r1
+  write -4 r14 r1
+  jump Label_L3
+Label_L2:
+  read -4 r14 r1
+  xor r1 2 r1
+  bne r1 r0 Label_L4
+  load32 3 r1
+  write -4 r14 r1
+  jump Label_L5
+Label_L4:
+  load32 4 r1
+  write -4 r14 r1
+Label_L5:
+Label_L3:
+  read -4 r14 r1
   jump Label_L1
   load32 0 r1
 Label_L1:
   read 0 r14 r14
-  add r13 28 r13
+  add r13 12 r13
   jumpr 0 r15
 
 .code
@@ -62,7 +58,7 @@ Label_interrupt:
   write          0 r13 r14
   add r13          0 r14
   ;write 4 r14 r15
-Label_L2:
+Label_L6:
   read 0 r14 r14
   add r13 8 r13
   jumpr 0 r15

@@ -9,7 +9,7 @@ This guide covers the development workflows for the main components of the FPGC 
 
 | Component | Test Command | Debug Command |
 |-----------|--------------|---------------|
-| Verilog (CPU) | `make test-cpu` | `make sim-cpu` |
+| Verilog (CPU) | `make test-cpu` | `make debug-cpu file=<test>` |
 | Verilog (GPU) | - | `make sim-gpu` |
 | Verilog (SDRAM) | - | `make sim-sdram` |
 | ASMPY Assembler | `make asmpy-test` | - |
@@ -42,6 +42,22 @@ make test-cpu
 ```
 
 Runs all assembly tests in `Tests/CPU/`, checking UART output. Each test executes twice: once from ROM and once from RAM/SDRAM (to exercise cache and memory controller paths).
+
+**Single CPU test:**
+
+```bash
+make test-cpu-single file=1_load.asm
+```
+
+Runs a single CPU test (both ROM and RAM) for faster iteration when working on a specific test.
+
+**Debug a CPU test:**
+
+```bash
+make debug-cpu file=1_load.asm
+```
+
+Assembles a single CPU test, runs the simulation, and opens GTKWave for waveform inspection.
 
 **Interactive CPU simulation:**
 

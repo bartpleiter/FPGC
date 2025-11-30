@@ -20,7 +20,7 @@ B32CC_OUTPUT = $(B32CC_DIR)/output/b32cc
 .PHONY: asmpy-install asmpy-uninstall asmpy-test asmpy-clean
 .PHONY: docs-serve docs-deploy
 .PHONY: sim-cpu sim-cpu-uart sim-gpu sim-sdram sim-bootloader
-.PHONY: test-cpu
+.PHONY: test-cpu test-cpu-single debug-cpu
 .PHONY: compile-asm compile-bootloader
 .PHONY: flash-asm-uart run-asm-uart
 .PHONY: b32cc test-b32cc test-b32cc-single debug-b32cc clean-b32cc
@@ -175,6 +175,30 @@ test-cpu:
 	@mkdir -p $(SIMULATION_OUTPUT_DIR)
 	./Scripts/Tests/run_cpu_tests.sh
 
+test-cpu-single:
+	@mkdir -p $(SIMULATION_OUTPUT_DIR)
+	@if [ -z "$(file)" ]; then \
+		echo "Usage: make test-cpu-single file=<test_file>"; \
+		echo "Example: make test-cpu-single file=1_load.asm"; \
+		echo ""; \
+		echo "Available tests:"; \
+		ls -1 Tests/CPU/*.asm | xargs -n1 basename; \
+		exit 1; \
+	fi
+	./Scripts/Tests/run_cpu_tests.sh $(file)
+
+debug-cpu:
+	@mkdir -p $(SIMULATION_OUTPUT_DIR)
+	@if [ -z "$(file)" ]; then \
+		echo "Usage: make debug-cpu file=<test_file>"; \
+		echo "Example: make debug-cpu file=1_load.asm"; \
+		echo ""; \
+		echo "Available tests:"; \
+		ls -1 Tests/CPU/*.asm | xargs -n1 basename; \
+		exit 1; \
+	fi
+	./Scripts/Tests/debug_cpu_test.sh $(file)
+
 # =============================================================================
 # Compilation
 # =============================================================================
@@ -261,7 +285,11 @@ help:
 	@echo "  sim-bootloader      - Compile and simulate bootloader"
 	@echo ""
 	@echo "--- Testing (Hardware) ---"
-	@echo "  test-cpu            - Run CPU tests"
+	@echo "  test-cpu            - Run all CPU tests"
+	@echo "  test-cpu-single     - Run a single CPU test"
+	@echo "                        Usage: make test-cpu-single file=<test_file>"
+	@echo "  debug-cpu           - Debug a single CPU test with GTKWave"
+	@echo "                        Usage: make debug-cpu file=<test_file>"
 	@echo ""
 	@echo "--- Compilation ---"
 	@echo "  compile-asm         - Compile ASM file"
