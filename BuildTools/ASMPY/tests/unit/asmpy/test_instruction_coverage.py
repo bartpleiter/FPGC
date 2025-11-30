@@ -160,3 +160,78 @@ def test_halt_with_argument_error():
         # Force argument misuse by manually injecting fake register
         inst.arguments = ["bad"]  # type: ignore
         inst.to_binary_string()
+
+
+def test_branch_with_label_resolution():
+    """Test that branch instructions correctly resolve labels to relative offsets."""
+    # Arrange
+    code_lines = [
+        src(".code"),
+        src("beq r1 r2 Target"),  # Address 0, branch forward to Target
+        src("nop"),  # Address 1
+        src("nop"),  # Address 2
+        src("Target:"),
+        src("halt"),  # Address 3 - Target points here
+    ]
+    out_fd, out_path = tempfile.mkstemp()
+    os.close(out_fd)
+
+    try:
+        assembler = Assembler(
+            preprocessed_input_lines=code_lines, output_file_path=out_path
+        )
+
+        # Act
+        assembler.assemble()
+
+        # Assert
+        with open(out_path) as f:
+            binary_lines = [line.strip() for line in f.readlines() if line.strip()]
+        # Should have: beq, nop, nop, halt
+        assert len(binary_lines) == 4
+        # First instruction is branch - offset should be +3 (from addr 0 to addr 3)
+        beq_binary = binary_lines[0]
+        assert beq_binary.startswith("0110")  # Branch prefix
+    finally:
+        os.remove(out_path)
+
+
+def test_branch_backward_with_label():
+    """Test that branch instructions correctly resolve backward labels (negative offset)."""
+    # Arrange
+    code_lines = [
+        src(".code"),
+        src("Loop:"),
+        src("nop"),  # Address 0 - Loop points here
+        src("nop"),  # Address 1
+        src("bne r1 r2 Loop"),  # Address 2, branch back to Loop (offset -2)
+    ]
+    out_fd, out_path = tempfile.mkstemp()
+    os.close(out_fd)
+
+    try:
+        assembler = Assembler(
+            preprocessed_input_lines=code_lines, output_file_path=out_path
+        )
+
+        # Act
+        assembler.assemble()
+
+        # Assert
+        with open(out_path) as f:
+            binary_lines = [line.strip() for line in f.readlines() if line.strip()]
+        # Should have: nop, nop, bne
+        assert len(binary_lines) == 3
+        # Last instruction is branch with negative offset
+        bne_binary = binary_lines[2]
+        assert bne_binary.startswith("0110")  # Branch prefix
+        # Offset is -2 which in 16-bit two's complement is 0xFFFE
+        # The offset is encoded in bits [31:16] after the opcode
+        offset_bits = bne_binary[4:20]  # 16 bits for offset
+        offset_value = int(offset_bits, 2)
+        # Convert from unsigned to signed
+        if offset_value >= 0x8000:
+            offset_value -= 0x10000
+        assert offset_value == -2
+    finally:
+        os.remove(out_path)

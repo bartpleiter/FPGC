@@ -78,3 +78,20 @@ def test_push_pop():
     # Assert
     assert push.to_binary_string().startswith("1011")
     assert pop.to_binary_string().startswith("1010")
+
+
+def test_add_with_negative_constant():
+    """Test that instruction (ADD) with negative constant encodes correctly (two's complement)."""
+    # Arrange & Act
+    add_neg = make_line("add r1 -5 r3")
+    b = add_neg.to_binary_string()
+
+    # Assert
+    assert b[:4] == "0001"  # ARITHC opcode for constant operands
+    # Extract the 16-bit constant (bits 8-23 after opcode+arith_opcode)
+    const_bits = b[8:24]
+    const_value = int(const_bits, 2)
+    # Convert from unsigned to signed 16-bit
+    if const_value >= 0x8000:
+        const_value -= 0x10000
+    assert const_value == -5

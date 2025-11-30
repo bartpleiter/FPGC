@@ -70,3 +70,38 @@ def test_number_str_conversion():
 
     # Assert
     assert str(num) == "10"
+
+
+def test_number_to_binary_positive():
+    """Test converting positive number to binary string."""
+    # Arrange
+    num = Number("42")
+
+    # Act
+    result = num.to_binary(8)
+
+    # Assert
+    assert result == "00101010"
+
+
+def test_number_to_binary_negative():
+    """Test converting negative number to binary string (two's complement)."""
+    # Arrange
+    num = Number("-1")
+
+    # Act
+    result = num.to_binary(8)
+
+    # Assert
+    assert result == "11111111"  # -1 in 8-bit two's complement
+
+
+def test_number_to_binary_overflow_negative():
+    """Test that negative overflow raises ValueError."""
+    # Arrange
+    num = Number("-129")  # Too small for 8-bit signed
+
+    # Act & Assert
+    with pytest.raises(ValueError) as exc_info:
+        num.to_binary(8)
+    assert "must fit (signed) in 8 bits" in str(exc_info.value)

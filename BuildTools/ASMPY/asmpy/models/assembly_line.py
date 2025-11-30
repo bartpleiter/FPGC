@@ -661,7 +661,7 @@ class DataAssemblyLine(AssemblyLine):
             )
 
         comment_string = f" // {self.comment}" if self.comment else ""
-        return f"{self.data_instruction_values[0].value:032b}{comment_string}"
+        return f"{self.data_instruction_values[0].value & 0xFFFFFFFF:032b}{comment_string}"
 
     def __repr__(self):
         return f"{self.data_instruction_type} {self.data_instruction_values} ({self.directive})"
