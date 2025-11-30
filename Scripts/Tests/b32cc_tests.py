@@ -398,13 +398,33 @@ class B32CCTestRunner:
 
 def main() -> None:
     """Main entry point for the script."""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="B32CC Compiler Test Suite")
+    parser.add_argument(
+        "test_file",
+        nargs="?",
+        help="Specific test file to run (e.g., 3_1_if_statements.c). If not provided, runs all tests."
+    )
+    args = parser.parse_args()
+    
     runner = B32CCTestRunner()
-    _, failed_tests = runner.run_tests()
-    runner._display_results(failed_tests)
-
-    # Exit with non-zero code if tests failed
-    if failed_tests:
-        sys.exit(1)
+    
+    if args.test_file:
+        # Run single test
+        try:
+            os.makedirs(runner.config.TMP_DIRECTORY, exist_ok=True)
+            runner.run_single_test(args.test_file)
+            logger.info(f"PASS: {args.test_file}")
+        except Exception as e:
+            logger.error(f"FAIL: {args.test_file} -> {e}")
+            sys.exit(1)
+    else:
+        # Run all tests
+        _, failed_tests = runner.run_tests()
+        runner._display_results(failed_tests)
+        if failed_tests:
+            sys.exit(1)
 
 
 if __name__ == "__main__":

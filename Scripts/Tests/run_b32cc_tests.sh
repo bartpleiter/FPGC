@@ -4,7 +4,8 @@
 source .venv/bin/activate
 
 # Run the B32CC test suite
-python3 Scripts/Tests/b32cc_tests.py
+# If a test file is provided as argument, run only that test
+python3 Scripts/Tests/b32cc_tests.py "$@"
 
 # Deactivate virtual environment
 deactivate

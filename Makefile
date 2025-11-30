@@ -23,7 +23,7 @@ B32CC_OUTPUT = $(B32CC_DIR)/output/b32cc
 .PHONY: test-cpu
 .PHONY: compile-asm compile-bootloader
 .PHONY: flash-asm-uart run-asm-uart
-.PHONY: b32cc test-b32cc clean-b32cc
+.PHONY: b32cc test-b32cc test-b32cc-single debug-b32cc clean-b32cc
 
 # -----------------------------------------------------------------------------
 # Default Target
@@ -103,6 +103,30 @@ $(B32CC_OUTPUT): $(B32CC_SOURCES) $(B32CC_DIR)/cgb32p2.inc
 test-b32cc: $(B32CC_OUTPUT)
 	@mkdir -p Tests/C/tmp
 	./Scripts/Tests/run_b32cc_tests.sh
+
+test-b32cc-single: $(B32CC_OUTPUT)
+	@mkdir -p Tests/C/tmp
+	@if [ -z "$(file)" ]; then \
+		echo "Usage: make test-b32cc-single file=<test_file>"; \
+		echo "Example: make test-b32cc-single file=3_1_if_statements.c"; \
+		echo ""; \
+		echo "Available tests:"; \
+		ls -1 Tests/C/*.c | xargs -n1 basename; \
+		exit 1; \
+	fi
+	./Scripts/Tests/run_b32cc_tests.sh $(file)
+
+debug-b32cc: $(B32CC_OUTPUT)
+	@mkdir -p Tests/C/tmp
+	@if [ -z "$(file)" ]; then \
+		echo "Usage: make debug-b32cc file=<test_file>"; \
+		echo "Example: make debug-b32cc file=3_1_if_statements.c"; \
+		echo ""; \
+		echo "Available tests:"; \
+		ls -1 Tests/C/*.c | xargs -n1 basename; \
+		exit 1; \
+	fi
+	./Scripts/Tests/debug_b32cc_test.sh $(file)
 
 clean-b32cc:
 	rm -f $(B32CC_OUTPUT)
@@ -218,7 +242,11 @@ help:
 	@echo ""
 	@echo "--- B32CC (C Compiler) ---"
 	@echo "  b32cc               - Build the B32P2 C compiler"
-	@echo "  test-b32cc          - Test the B32P2 C compiler"
+	@echo "  test-b32cc          - Run all B32P2 C compiler tests"
+	@echo "  test-b32cc-single   - Run a single test"
+	@echo "                        Usage: make test-b32cc-single file=<test_file>"
+	@echo "  debug-b32cc         - Debug a single test with GTKWave"
+	@echo "                        Usage: make debug-b32cc file=<test_file>"
 	@echo "  clean-b32cc         - Clean B32CC build artifacts"
 	@echo ""
 	@echo "--- Documentation ---"
