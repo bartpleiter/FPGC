@@ -5,6 +5,22 @@ This guide covers the development workflows for the main components of the FPGC 
 !!! note
     All commands should be run from the project root directory.
 
+## Project Setup and Full Check
+
+Running `make` without arguments will automatically set up the project (create virtual environment, build the compiler, install the assembler) and run all checks:
+
+```bash
+make
+```
+
+To run all checks without setup (format check, lint, and all tests):
+
+```bash
+make check
+```
+
+This is CI-safe and will exit with a non-zero status if any check fails.
+
 ## Quick Reference
 
 | Component | Test Command | Debug Command |
@@ -12,8 +28,9 @@ This guide covers the development workflows for the main components of the FPGC 
 | Verilog (CPU) | `make test-cpu` | `make debug-cpu file=<test>` |
 | Verilog (GPU) | - | `make sim-gpu` |
 | Verilog (SDRAM) | - | `make sim-sdram` |
-| ASMPY Assembler | `make asmpy-test` | - |
+| ASMPY Assembler | `make test-asmpy` | - |
 | B32CC Compiler | `make test-b32cc` | `make debug-b32cc file=<test>` |
+| **All checks** | `make check` | - |
 
 ---
 
@@ -107,7 +124,7 @@ ASMPY (Python-based) is in `BuildTools/ASMPY/`.
 **Run tests:**
 
 ```bash
-make asmpy-test
+make test-asmpy
 ```
 
 **Lint and checks:**

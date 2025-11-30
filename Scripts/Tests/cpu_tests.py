@@ -378,15 +378,25 @@ class CPUTestRunner:
 
         return passed_tests, failed_tests
 
-    def run_tests_from_rom(self) -> None:
-        """Run all tests from ROM and display results."""
+    def run_tests_from_rom(self) -> list[str]:
+        """Run all tests from ROM and display results.
+        
+        Returns:
+            List of failed test names.
+        """
         _, failed_tests = self.run_tests(use_ram=False)
         self._display_results(failed_tests)
+        return failed_tests
 
-    def run_tests_from_ram(self) -> None:
-        """Run all tests from RAM and display results."""
+    def run_tests_from_ram(self) -> list[str]:
+        """Run all tests from RAM and display results.
+        
+        Returns:
+            List of failed test names.
+        """
         _, failed_tests = self.run_tests(use_ram=True)
         self._display_results(failed_tests)
+        return failed_tests
 
     def _display_results(self, failed_tests: list[str]) -> None:
         """Display test results summary."""
@@ -553,14 +563,18 @@ def main() -> None:
         # Run all tests sequentially
         runner = CPUTestRunner()
         if use_ram:
-            runner.run_tests_from_ram()
+            failed_tests = runner.run_tests_from_ram()
         else:
-            runner.run_tests_from_rom()
+            failed_tests = runner.run_tests_from_rom()
+        if failed_tests:
+            sys.exit(1)
     else:
         # Run all tests in parallel (default)
         runner = ParallelCPUTestRunner(max_workers=args.workers)
         _, failed_tests = runner.run_tests_parallel(use_ram=use_ram)
         runner._display_results(failed_tests)
+        if failed_tests:
+            sys.exit(1)
 
 
 if __name__ == "__main__":

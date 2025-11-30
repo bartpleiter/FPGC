@@ -16,19 +16,20 @@ B32CC_OUTPUT = $(B32CC_DIR)/output/b32cc
 # -----------------------------------------------------------------------------
 .PHONY: all clean help
 .PHONY: venv
-.PHONY: lint format mypy ruff-lint ruff-format
-.PHONY: asmpy-install asmpy-uninstall asmpy-test asmpy-clean
+.PHONY: lint format format-check mypy ruff-lint ruff-format ruff-format-check
+.PHONY: asmpy-install asmpy-uninstall test-asmpy asmpy-clean
 .PHONY: docs-serve docs-deploy
 .PHONY: sim-cpu sim-cpu-uart sim-gpu sim-sdram sim-bootloader
 .PHONY: test-cpu test-cpu-sequential test-cpu-single debug-cpu
 .PHONY: compile-asm compile-bootloader
 .PHONY: flash-asm-uart run-asm-uart
 .PHONY: b32cc test-b32cc test-b32cc-sequential test-b32cc-single debug-b32cc clean-b32cc
+.PHONY: check
 
 # -----------------------------------------------------------------------------
 # Default Target
 # -----------------------------------------------------------------------------
-all: venv b32cc asmpy-install
+all: venv b32cc asmpy-install check
 
 # =============================================================================
 # Python Development Environment (General)
@@ -57,7 +58,7 @@ asmpy-uninstall:
 	@echo "Uninstalling ASMPY assembler..."
 	uv pip uninstall fpgc
 
-asmpy-test:
+test-asmpy:
 	@echo "Running ASMPY-specific tests..."
 	uv run pytest BuildTools/ASMPY/tests/ --cov=asmpy
 
@@ -84,11 +85,25 @@ ruff-format:
 	@echo "Running ruff formatter..."
 	uv run ruff format
 
+ruff-format-check:
+	@echo "Checking ruff formatting..."
+	uv run ruff format --check
+
 lint: ruff-lint mypy
 	@echo "Linting complete!"
 
 format: ruff-format
 	@echo "Formatting complete!"
+
+format-check: ruff-format-check
+	@echo "Format check complete!"
+
+# =============================================================================
+# Full Check (Format, Lint, All Tests)
+# =============================================================================
+
+check: format-check lint test-asmpy test-cpu test-b32cc
+	@echo "All checks passed!"
 
 # =============================================================================
 # B32CC (C Compiler)
@@ -263,15 +278,18 @@ help:
 	@echo "--- ASMPY Assembler ---"
 	@echo "  asmpy-install       - Install ASMPY assembler tool"
 	@echo "  asmpy-uninstall     - Uninstall ASMPY assembler tool"
-	@echo "  asmpy-test          - Run ASMPY-specific tests"
+	@echo "  test-asmpy          - Run ASMPY-specific tests"
 	@echo "  asmpy-clean         - Clean ASMPY build artifacts"
 	@echo ""
 	@echo "--- Python Code Quality & Testing ---"
+	@echo "  check               - Run format-check, lint, and all tests (CI-safe)"
 	@echo "  lint                - Run ruff lint and mypy"
-	@echo "  format              - Run ruff format"
+	@echo "  format              - Run ruff format (modifies files)"
+	@echo "  format-check        - Check ruff formatting without modifying"
 	@echo "  mypy                - Run mypy type checker only"
 	@echo "  ruff-lint           - Run ruff linter only"
-	@echo "  ruff-format         - Run ruff formatter only"
+	@echo "  ruff-format         - Run ruff formatter only (modifies files)"
+	@echo "  ruff-format-check   - Check ruff formatting only"
 	@echo ""
 	@echo "--- B32CC (C Compiler) ---"
 	@echo "  b32cc               - Build the B32P2 C compiler"
