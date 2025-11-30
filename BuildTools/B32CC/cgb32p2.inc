@@ -1653,17 +1653,25 @@ void GenExpr0(void)
       }
       if (stack[i - 1][0] == tokIdent)
       {
-        // B32P2: Save return address and jump to function
+        // B32P2: Save return address (PC + offset) and jump to function
         GenPrintInstr1Operand(B32InstrSavpc, 0,
                               B32OpRegRa, 0);
+        GenPrintInstr3Operands(B32InstrAdd, 0,
+                             B32OpRegRa, 0,
+                             B32OpConst, 3,
+                             B32OpRegRa, 0);
         GenPrintInstr1Operand(B32InstrJump, 0,
                               B32OpLabel, stack[i - 1][1]);
       }
       else
       {
-        // B32P2: Save return address and jump to register
+        // B32P2: Save return address (PC + offset) and jump to register
         GenPrintInstr1Operand(B32InstrSavpc, 0,
                               B32OpRegRa, 0);
+        GenPrintInstr3Operands(B32InstrAdd, 0,
+                             B32OpRegRa, 0,
+                             B32OpConst, 3,
+                             B32OpRegRa, 0);
         GenPrintInstr2Operands(B32InstrJumpr, 0,
                               B32OpConst, 0,
                               GenWreg, 0);

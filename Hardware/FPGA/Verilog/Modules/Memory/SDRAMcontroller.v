@@ -422,12 +422,12 @@ begin
                         cpu_done <= 1'b1;
                         cpu_new_request <= 1'b0;
                         state <= STATE_IDLE;
-                        $display("%0t SDRAM RD @%05h: %08h %08h %08h %08h %08h %08h %08h %08h",
-                            $time, cpu_addr_stored,
-                            cpu_q[255:224], cpu_q[223:192],
-                            cpu_q[191:160], cpu_q[159:128],
-                            cpu_q[127:96],  cpu_q[95:64],
-                            cpu_q[63:32],   SDRAM_Q);
+                        // $display("%0t SDRAM RD @%05h: %08h %08h %08h %08h %08h %08h %08h %08h",
+                        //     $time, cpu_addr_stored,
+                        //     cpu_q[255:224], cpu_q[223:192],
+                        //     cpu_q[191:160], cpu_q[159:128],
+                        //     cpu_q[127:96],  cpu_q[95:64],
+                        //     cpu_q[63:32],   SDRAM_Q);
                     end
                     default:
                     begin
