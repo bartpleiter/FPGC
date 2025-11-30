@@ -2,6 +2,10 @@ import os
 import subprocess
 import sys
 import logging
+import shutil
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from dataclasses import dataclass
+from typing import Optional
 
 
 # Configure colored logging
@@ -30,18 +34,25 @@ logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
 
+@dataclass
 class CPUTestConfig:
     """Configuration constants for CPU tests."""
 
-    TESTS_DIRECTORY = "Tests/CPU"
-    ROM_LIST_PATH = "Hardware/FPGA/Verilog/Simulation/MemoryLists/rom.list"
-    RAM_LIST_PATH = "Hardware/FPGA/Verilog/Simulation/MemoryLists/ram.list"
-    MIG7MOCK_LIST_PATH = "Hardware/FPGA/Verilog/Simulation/MemoryLists/mig7mock.list"
-    BOOTLOADER_ROM_PATH = "Software/BareMetalASM/Simulation/sim_jump_to_ram.asm"
-    TESTBENCH_PATH = "Hardware/FPGA/Verilog/Simulation/cpu_tests_tb.v"
-    VERILOG_OUTPUT_PATH = "Hardware/FPGA/Verilog/Simulation/Output/cpu.out"
+    TESTS_DIRECTORY: str = "Tests/CPU"
+    ROM_LIST_PATH: str = "Hardware/FPGA/Verilog/Simulation/MemoryLists/rom.list"
+    RAM_LIST_PATH: str = "Hardware/FPGA/Verilog/Simulation/MemoryLists/ram.list"
+    MIG7MOCK_LIST_PATH: str = (
+        "Hardware/FPGA/Verilog/Simulation/MemoryLists/mig7mock.list"
+    )
+    BOOTLOADER_ROM_PATH: str = "Software/BareMetalASM/Simulation/sim_jump_to_ram.asm"
+    TESTBENCH_PATH: str = "Hardware/FPGA/Verilog/Simulation/cpu_tests_tb.v"
+    VERILOG_OUTPUT_PATH: str = "Hardware/FPGA/Verilog/Simulation/Output/cpu.out"
+    MEMORY_LISTS_DIR: str = "Hardware/FPGA/Verilog/Simulation/MemoryLists"
 
-    CONVERTER_SCRIPT = "Scripts/Simulation/convert_to_256_bit.py"
+    CONVERTER_SCRIPT: str = "Scripts/Simulation/convert_to_256_bit.py"
+
+    # Parallel test temp directory
+    PARALLEL_TMP_DIR: str = "Tests/tmp"
 
 
 class CPUTestError(Exception):
@@ -71,9 +82,54 @@ class ResultParsingError(CPUTestError):
 class CPUTestRunner:
     """Main class for running CPU tests with improved error handling and logging."""
 
-    def __init__(self, config: CPUTestConfig = None):
-        """Initialize the test runner with configuration."""
+    def __init__(self, config: CPUTestConfig = None, temp_dir: Optional[str] = None):
+        """Initialize the test runner with configuration.
+
+        Args:
+            config: Configuration for the test runner
+            temp_dir: Optional temporary directory for isolated test execution
+        """
         self.config = config or CPUTestConfig()
+        self.temp_dir = temp_dir
+
+        # If using temp_dir, override paths for isolation
+        if temp_dir:
+            self._setup_temp_paths()
+
+    def _setup_temp_paths(self):
+        """Set up paths for isolated execution in temp directory."""
+        self.config.ROM_LIST_PATH = os.path.join(self.temp_dir, "rom.list")
+        self.config.RAM_LIST_PATH = os.path.join(self.temp_dir, "ram.list")
+        self.config.MIG7MOCK_LIST_PATH = os.path.join(self.temp_dir, "mig7mock.list")
+        self.config.VERILOG_OUTPUT_PATH = os.path.join(self.temp_dir, "cpu.out")
+        self.testbench_path = os.path.join(self.temp_dir, "cpu_tests_tb.v")
+
+    def _prepare_temp_testbench(self):
+        """Create a modified testbench with paths pointing to temp directory."""
+        with open(self.config.TESTBENCH_PATH, "r") as f:
+            content = f.read()
+
+        # Replace all MemoryLists paths with temp directory paths
+        # The testbench uses relative paths from project root
+        old_base = "Hardware/FPGA/Verilog/Simulation/MemoryLists"
+        content = content.replace(old_base, self.temp_dir)
+
+        with open(self.testbench_path, "w") as f:
+            f.write(content)
+
+        # Copy static memory list files that don't change (vram, spiflash)
+        static_files = [
+            "vram32.list",
+            "vram8.list",
+            "vramPX.list",
+            "spiflash1.list",
+            "spiflash2.list",
+        ]
+        for filename in static_files:
+            src = os.path.join(self.config.MEMORY_LISTS_DIR, filename)
+            dst = os.path.join(self.temp_dir, filename)
+            if os.path.exists(src):
+                shutil.copy(src, dst)
 
     def _run_command(self, command: str, description: str) -> tuple[int, str]:
         """
@@ -146,8 +202,11 @@ class CPUTestRunner:
         Raises:
             SimulationError: If simulation fails
         """
+        # Use temp testbench if in temp directory mode
+        testbench = self.testbench_path if self.temp_dir else self.config.TESTBENCH_PATH
+
         # Compile testbench
-        compile_cmd = f"iverilog -o {self.config.VERILOG_OUTPUT_PATH} {self.config.TESTBENCH_PATH}"
+        compile_cmd = f"iverilog -o {self.config.VERILOG_OUTPUT_PATH} {testbench}"
         exit_code, output = self._run_command(compile_cmd, "Compiling testbench")
 
         if exit_code != 0:
@@ -253,6 +312,10 @@ class CPUTestRunner:
 
         expected_value = self._get_expected_value(lines)
 
+        # Prepare temp testbench if running in isolated mode
+        if self.temp_dir:
+            self._prepare_temp_testbench()
+
         if use_ram:
             self._assemble_code_to_ram(test_path)
         else:
@@ -336,16 +399,133 @@ class CPUTestRunner:
             print("All tests passed")
 
 
+def _run_single_test_parallel(args: tuple) -> tuple[str, bool, str]:
+    """
+    Run a single test in isolation for parallel execution.
+
+    Args:
+        args: Tuple of (test_file, use_ram, temp_base_dir, test_index)
+
+    Returns:
+        Tuple of (test_file, passed, error_message)
+    """
+    test_file, use_ram, temp_base_dir, test_index = args
+
+    # Create a unique temp directory for this test
+    temp_dir = os.path.join(temp_base_dir, f"test_{test_index}")
+    os.makedirs(temp_dir, exist_ok=True)
+
+    try:
+        runner = CPUTestRunner(temp_dir=temp_dir)
+        runner.run_single_test(test_file, use_ram=use_ram)
+        return (test_file, True, "")
+    except Exception as e:
+        return (test_file, False, str(e))
+    finally:
+        # Clean up temp directory
+        try:
+            shutil.rmtree(temp_dir)
+        except Exception:
+            pass
+
+
+class ParallelCPUTestRunner:
+    """Test runner that executes tests in parallel."""
+
+    # Default number of parallel workers, make sure you have enough RAM if increasing
+    DEFAULT_WORKERS = 4
+
+    def __init__(self, max_workers: Optional[int] = None):
+        """
+        Initialize parallel test runner.
+
+        Args:
+            max_workers: Maximum number of parallel workers. Defaults to 4.
+        """
+        self.max_workers = max_workers or self.DEFAULT_WORKERS
+        self.config = CPUTestConfig()
+
+    def run_tests_parallel(self, use_ram: bool = False) -> tuple[list[str], list[str]]:
+        """
+        Run all tests in parallel.
+
+        Args:
+            use_ram: Whether to run tests from RAM
+
+        Returns:
+            Tuple of (passed_tests, failed_tests)
+        """
+        memory_type = "RAM" if use_ram else "ROM"
+        logger.info(
+            f"Running CPU tests from {memory_type} in parallel ({self.max_workers} workers)..."
+        )
+
+        # Create base temp directory
+        temp_base_dir = os.path.abspath(self.config.PARALLEL_TMP_DIR)
+        os.makedirs(temp_base_dir, exist_ok=True)
+
+        runner = CPUTestRunner()
+        tests = runner.get_test_files()
+
+        # Prepare arguments for parallel execution
+        test_args = [(test, use_ram, temp_base_dir, i) for i, test in enumerate(tests)]
+
+        passed_tests = []
+        failed_tests = []
+
+        try:
+            with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
+                futures = {
+                    executor.submit(_run_single_test_parallel, args): args[0]
+                    for args in test_args
+                }
+
+                for future in as_completed(futures):
+                    test_file, passed, error_msg = future.result()
+                    if passed:
+                        logger.info(f"PASS: {test_file}")
+                        passed_tests.append(test_file)
+                    else:
+                        logger.error(f"FAIL: {test_file} -> {error_msg}")
+                        failed_tests.append(test_file)
+        finally:
+            # Clean up base temp directory if empty
+            try:
+                if os.path.exists(temp_base_dir) and not os.listdir(temp_base_dir):
+                    os.rmdir(temp_base_dir)
+            except Exception:
+                pass
+
+        return sorted(passed_tests), sorted(failed_tests)
+
+    def _display_results(self, failed_tests: list[str]) -> None:
+        """Display test results summary."""
+        print("--------------------")
+        if failed_tests:
+            print("Failed tests:")
+            for test in failed_tests:
+                print(test)
+        else:
+            print("All tests passed")
+
+
 def main() -> None:
     """Main entry point for the script."""
     import argparse
 
     parser = argparse.ArgumentParser(description="Run CPU tests")
+    parser.add_argument("--rom", action="store_true", help="Run tests from ROM")
+    parser.add_argument("--ram", action="store_true", help="Run tests from RAM")
     parser.add_argument(
-        "--rom", action="store_true", help="Run tests from ROM"
+        "--sequential",
+        action="store_true",
+        help="Run tests sequentially instead of in parallel",
     )
     parser.add_argument(
-        "--ram", action="store_true", help="Run tests from RAM"
+        "--workers",
+        type=int,
+        default=None,
+        help="Number of parallel workers (default: CPU count)",
     )
     parser.add_argument(
         "test_file",
@@ -356,11 +536,11 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    runner = CPUTestRunner()
     use_ram = args.ram
 
     if args.test_file:
-        # Run a single test
+        # Run a single test (always sequential)
+        runner = CPUTestRunner()
         memory_type = "RAM" if use_ram else "ROM"
         logger.info(f"Running single CPU test from {memory_type}: {args.test_file}")
         try:
@@ -369,12 +549,18 @@ def main() -> None:
         except Exception as e:
             logger.error(f"FAIL: {args.test_file} -> {e}")
             sys.exit(1)
-    else:
-        # Run all tests
+    elif args.sequential:
+        # Run all tests sequentially
+        runner = CPUTestRunner()
         if use_ram:
             runner.run_tests_from_ram()
         else:
             runner.run_tests_from_rom()
+    else:
+        # Run all tests in parallel (default)
+        runner = ParallelCPUTestRunner(max_workers=args.workers)
+        _, failed_tests = runner.run_tests_parallel(use_ram=use_ram)
+        runner._display_results(failed_tests)
 
 
 if __name__ == "__main__":

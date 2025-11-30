@@ -34,18 +34,7 @@ These are potential todos for improving the development workflows.
 
 ### Testing Infrastructure
 
-#### Simulation speed
-
-- [ ] Implement parallel testing (need to make sure there are no file conflicts)
-
 #### CPU Testing Improvements
-
-##### Single Test Execution
-
-Currently `make test-cpu` runs all tests. It would be useful to run individual tests:
-
-- [ ] Add `make test-cpu-single file=<test>` similar to `test-b32cc-single`
-- [ ] Add `make debug-cpu file=<test>` for debugging specific CPU tests with GTKWave
 
 ##### Test Coverage Reporting
 

@@ -20,10 +20,10 @@ B32CC_OUTPUT = $(B32CC_DIR)/output/b32cc
 .PHONY: asmpy-install asmpy-uninstall asmpy-test asmpy-clean
 .PHONY: docs-serve docs-deploy
 .PHONY: sim-cpu sim-cpu-uart sim-gpu sim-sdram sim-bootloader
-.PHONY: test-cpu test-cpu-single debug-cpu
+.PHONY: test-cpu test-cpu-sequential test-cpu-single debug-cpu
 .PHONY: compile-asm compile-bootloader
 .PHONY: flash-asm-uart run-asm-uart
-.PHONY: b32cc test-b32cc test-b32cc-single debug-b32cc clean-b32cc
+.PHONY: b32cc test-b32cc test-b32cc-sequential test-b32cc-single debug-b32cc clean-b32cc
 
 # -----------------------------------------------------------------------------
 # Default Target
@@ -101,8 +101,12 @@ $(B32CC_OUTPUT): $(B32CC_SOURCES) $(B32CC_DIR)/cgb32p2.inc
 	$(CC) $(CFLAGS) -DNO_ANNOTATIONS $(B32CC_SOURCES) -o $@
 
 test-b32cc: $(B32CC_OUTPUT)
-	@mkdir -p Tests/C/tmp
+	@mkdir -p Tests/tmp
 	./Scripts/Tests/run_b32cc_tests.sh
+
+test-b32cc-sequential: $(B32CC_OUTPUT)
+	@mkdir -p Tests/C/tmp
+	./Scripts/Tests/run_b32cc_tests.sh --sequential
 
 test-b32cc-single: $(B32CC_OUTPUT)
 	@mkdir -p Tests/C/tmp
@@ -173,7 +177,12 @@ sim-bootloader:
 
 test-cpu:
 	@mkdir -p $(SIMULATION_OUTPUT_DIR)
+	@mkdir -p Tests/tmp
 	./Scripts/Tests/run_cpu_tests.sh
+
+test-cpu-sequential:
+	@mkdir -p $(SIMULATION_OUTPUT_DIR)
+	./Scripts/Tests/run_cpu_tests.sh --sequential
 
 test-cpu-single:
 	@mkdir -p $(SIMULATION_OUTPUT_DIR)
@@ -266,7 +275,8 @@ help:
 	@echo ""
 	@echo "--- B32CC (C Compiler) ---"
 	@echo "  b32cc               - Build the B32P2 C compiler"
-	@echo "  test-b32cc          - Run all B32P2 C compiler tests"
+	@echo "  test-b32cc          - Run all B32P2 C compiler tests (parallel)"
+	@echo "  test-b32cc-sequential - Run all B32P2 C compiler tests sequentially"
 	@echo "  test-b32cc-single   - Run a single test"
 	@echo "                        Usage: make test-b32cc-single file=<test_file>"
 	@echo "  debug-b32cc         - Debug a single test with GTKWave"
@@ -285,7 +295,8 @@ help:
 	@echo "  sim-bootloader      - Compile and simulate bootloader"
 	@echo ""
 	@echo "--- Testing (Hardware) ---"
-	@echo "  test-cpu            - Run all CPU tests"
+	@echo "  test-cpu            - Run all CPU tests (parallel)"
+	@echo "  test-cpu-sequential - Run all CPU tests sequentially"
 	@echo "  test-cpu-single     - Run a single CPU test"
 	@echo "                        Usage: make test-cpu-single file=<test_file>"
 	@echo "  debug-cpu           - Debug a single CPU test with GTKWave"

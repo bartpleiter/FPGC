@@ -138,7 +138,7 @@ class Assembler:
 
     def _apply_label_address_mappings(self) -> None:
         """Replace labels with their addresses in the assembly lines.
-        
+
         For branch instructions, the label is converted to a relative offset
         (target_address - current_address). For other instructions (like jump),
         the absolute address is used.
@@ -147,7 +147,7 @@ class Assembler:
             if isinstance(line, InstructionAssemblyLine):
                 current_address = idx + self.offset_address.value
                 is_branch = isinstance(line.instruction_type, BranchOperation)
-                
+
                 for arg in line.arguments:
                     if isinstance(arg, Label):
                         target_address = self._label_address_mappings[arg]

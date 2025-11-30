@@ -61,3 +61,4 @@ tmp
 Software/BareMetalASM/Output
 BuildTools/B32CC/output
 Tests/C/tmp
+Tests/tmp
