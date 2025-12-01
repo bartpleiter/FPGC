@@ -18,38 +18,46 @@ Return_UART:
   halt                ; halt
 
 
+.data
+Label_y:
+  .dw 5
+  .dw 6
+  .dw 7
+
 .code
 Label_main:
-  sub r13         12 r13
-  write          4 r13 r14
-  add r13          4 r14
-  ;write 4 r14 r15
-  load32 2 r1
-  write -4 r14 r1
-  read -4 r14 r1
-  slt r1 2 r1
-  beq r1 r0 Label_L2
-  load32 5 r1
-  write -4 r14 r1
-  jump Label_L3
+  sub r13         11 r13
+  write          3 r13 r14
+  add r13          3 r14
+   write 4 r14 r15
+
+.data
 Label_L2:
-  read -4 r14 r1
-  xor r1 2 r1
-  bne r1 r0 Label_L4
-  load32 3 r1
-  write -4 r14 r1
-  jump Label_L5
-Label_L4:
-  load32 4 r1
-  write -4 r14 r1
-Label_L5:
-Label_L3:
-  read -4 r14 r1
+  .dw 1
+  .dw 2
+  .dw 3
+
+.code
+  add r14 -3 r6
+  addr2reg Label_L2 r5
+  load32 3 r4
+  sub r13 16 r13
+  savpc r15
+  add r15 3 r15
+  jump Label_L3
+  sub r13 -16 r13
+  read -1 r14 r1
+  addr2reg Label_y r8
+  add r8 1 r8
+  read 0 r8 r8
+  add r1 r8 r1
+  sub r1 2 r1
   jump Label_L1
   load32 0 r1
 Label_L1:
+  read 4 r14 r15
   read 0 r14 r14
-  add r13 12 r13
+  add r13 11 r13
   jumpr 0 r15
 
 .code
@@ -58,10 +66,24 @@ Label_interrupt:
   write          0 r13 r14
   add r13          0 r14
   ;write 4 r14 r15
-Label_L6:
+Label_L4:
   read 0 r14 r14
   add r13 8 r13
   jumpr 0 r15
+
+.code
+Label_L3:
+  or r0 r6 r2
+  or r0 r6 r3
+Label_L5:
+  read 0 r5 r6
+  add r5 1 r5
+  sub r4 1 r4
+  write 0 r3 r6
+  add r3 1 r3
+  beq r4 r0 2
+  jump Label_L5
+ jumpr 0 r15
 
 .code
 ; Interrupt handlers

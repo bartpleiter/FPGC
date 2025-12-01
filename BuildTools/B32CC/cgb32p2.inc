@@ -35,6 +35,7 @@ void GenInit(void)
   // initialization of target-specific code generator
   // Assembler is responsible to move all non-.code parts away from the code
   SizeOfWord = 4;
+  WordAddressable = 1; // B32P2 uses word-addressable memory (each address = 1 word)
   OutputFormat = FormatSegmented;
   CodeHeaderFooter[0] = ".code";
   DataHeaderFooter[0] = ".data";
@@ -430,6 +431,10 @@ void GenPrintInstr3Operands(int instr, int instrval,
 STATIC
 void GenExtendRegIfNeeded(int reg, int opSz)
 {
+  // In word-addressable mode, all values are full 32-bit words, no extension needed
+  if (WordAddressable)
+    return;
+
   if (opSz == -1)
   {
     // Sign extend byte: shift left 24, then arithmetic right shift 24

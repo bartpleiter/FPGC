@@ -550,6 +550,7 @@ char** CurHeaderFooter;
 
 int CharIsSigned = 1;
 int SizeOfWord = 2; // in chars (char can be a multiple of octets); ints and pointers are of word size
+int WordAddressable = 0; // 1 if memory is word-addressable (each address = 1 word, not 1 byte)
 int SizeOfWideChar = 2; // in chars/bytes, 2 or 4
 int WideCharIsSigned = 0; // 0 or 1
 int WideCharType1;
@@ -3043,7 +3044,11 @@ int AllocLocal(unsigned size)
   int oldOfs = CurFxnLocalOfs;
 
   // Note: local vars are word-aligned on the stack
-  CurFxnLocalOfs = (int)((CurFxnLocalOfs - size) & ~(SizeOfWord - 1u));
+  // In word-addressable mode, size is already in words and alignment is 1
+  if (WordAddressable)
+    CurFxnLocalOfs = (int)(CurFxnLocalOfs - size);
+  else
+    CurFxnLocalOfs = (int)((CurFxnLocalOfs - size) & ~(SizeOfWord - 1u));
   if (CurFxnLocalOfs >= oldOfs ||
       CurFxnLocalOfs != truncInt(CurFxnLocalOfs) ||
       CurFxnLocalOfs < -GenMaxLocalsSize())
@@ -4989,7 +4994,7 @@ int GetDeclSize(int SyntaxPtr, int SizeForDeref)
   int arr = 0;
 
   if (SyntaxPtr < 0) // pointer?
-    return SizeOfWord;
+    return WordAddressable ? 1 : SizeOfWord;
 
   for (i = SyntaxPtr; i < SyntaxStackCnt; i++)
   {
@@ -5001,35 +5006,42 @@ int GetDeclSize(int SyntaxPtr, int SizeForDeref)
       break;
     case tokChar:
     case tokSChar:
-      if (!arr && ((tok == tokSChar) || CharIsSigned) && SizeForDeref)
+      // In word-addressable mode, each char takes a full word, no sign extension needed
+      if (!WordAddressable && !arr && ((tok == tokSChar) || CharIsSigned) && SizeForDeref)
         return -1; // 1 byte, needing sign extension when converted to int/unsigned int
       // fallthrough
     case tokUChar:
+      // In word-addressable mode, char takes 1 word (1 address unit)
       return (int)size;
     case tokShort:
-      if (!arr && SizeForDeref)
+      // In word-addressable mode, each short takes a full word, no sign extension needed
+      if (!WordAddressable && !arr && SizeForDeref)
         return -2; // 2 bytes, needing sign extension when converted to int/unsigned int
       // fallthrough
     case tokUShort:
-      if (size * 2 / 2 != size)
-        //error("Variable too big\n");
-        errorVarSize();
-      size *= 2;
-      if (size != truncUint(size))
-        //error("Variable too big\n");
-        errorVarSize();
+      // In word-addressable mode, short takes 1 word (1 address unit)
+      if (!WordAddressable)
+      {
+        if (size * 2 / 2 != size)
+          errorVarSize();
+        size *= 2;
+        if (size != truncUint(size))
+          errorVarSize();
+      }
       return (int)size;
     case tokInt:
     case tokUnsigned:
     case '*':
     case '(': // size of fxn = size of ptr for now
-      if (size * SizeOfWord / SizeOfWord != size)
-        //error("Variable too big\n");
-        errorVarSize();
-      size *= SizeOfWord;
-      if (size != truncUint(size))
-        //error("Variable too big\n");
-        errorVarSize();
+      // In word-addressable mode, int/ptr takes 1 word (1 address unit)
+      if (!WordAddressable)
+      {
+        if (size * SizeOfWord / SizeOfWord != size)
+          errorVarSize();
+        size *= SizeOfWord;
+        if (size != truncUint(size))
+          errorVarSize();
+      }
       return (int)size;
     case '[':
       if (SyntaxStack0[i + 1] != tokNumInt && SyntaxStack0[i + 1] != tokNumUint)
@@ -5077,6 +5089,10 @@ STATIC
 int GetDeclAlignment(int SyntaxPtr)
 {
   int i;
+
+  // In word-addressable mode, everything is 1-word aligned
+  if (WordAddressable)
+    return 1;
 
   if (SyntaxPtr < 0) // pointer?
     return SizeOfWord;
