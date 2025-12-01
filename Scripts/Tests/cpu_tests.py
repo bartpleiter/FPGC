@@ -329,19 +329,27 @@ class CPUTestRunner:
 
     def get_test_files(self) -> list[str]:
         """
-        Get a sorted list of test files.
+        Get a sorted list of test files, recursively searching subdirectories.
 
         Returns:
-            List of test file names
+            List of test file paths relative to TESTS_DIRECTORY
 
         Raises:
             CPUTestError: If tests directory cannot be read
         """
         try:
             tests = []
-            for file in os.listdir(self.config.TESTS_DIRECTORY):
-                if file.endswith(".asm"):
-                    tests.append(file)
+            for root, dirs, files in os.walk(self.config.TESTS_DIRECTORY):
+                # Skip 'tmp' directory
+                dirs[:] = [d for d in dirs if d not in ("tmp",)]
+                for file in files:
+                    if file.endswith(".asm"):
+                        # Get path relative to TESTS_DIRECTORY
+                        full_path = os.path.join(root, file)
+                        rel_path = os.path.relpath(
+                            full_path, self.config.TESTS_DIRECTORY
+                        )
+                        tests.append(rel_path)
             return sorted(tests)
         except FileNotFoundError:
             raise CPUTestError(
@@ -350,7 +358,9 @@ class CPUTestRunner:
         except Exception as e:
             raise CPUTestError(f"Failed to read tests directory: {e}")
 
-    def run_tests(self, use_ram: bool = False) -> tuple[list[str], list[str]]:
+    def run_tests(
+        self, use_ram: bool = False
+    ) -> tuple[list[str], list[tuple[str, str]]]:
         """
         Run all tests.
 
@@ -358,55 +368,62 @@ class CPUTestRunner:
             use_ram: Whether to run tests from RAM
 
         Returns:
-            Tuple of (passed_tests, failed_tests)
+            Tuple of (passed_tests, failed_tests_with_errors)
         """
+        GREEN = "\033[92m"
+        RED = "\033[91m"
+        RESET = "\033[0m"
+
         memory_type = "RAM" if use_ram else "ROM"
-        logger.info(f"Running CPU tests from {memory_type}...")
+        print(f"Running CPU tests from {memory_type}...\n")
 
         tests = self.get_test_files()
-        passed_tests = []
-        failed_tests = []
+        total = len(tests)
+        passed_tests: list[str] = []
+        failed_tests: list[tuple[str, str]] = []
+        completed = 0
 
         for test in tests:
+            completed += 1
             try:
                 self.run_single_test(test, use_ram=use_ram)
-                logger.info(f"PASS: {test}")
+                print(f"{GREEN}.{RESET}", end="", flush=True)
                 passed_tests.append(test)
             except Exception as e:
-                logger.error(f"FAIL: {test} -> {e}")
-                failed_tests.append(test)
+                print(f"{RED}F{RESET}", end="", flush=True)
+                failed_tests.append((test, str(e)))
+
+            # Line break every 50 tests
+            if completed % 50 == 0:
+                print(f" [{completed}/{total}]")
+
+        # Final line break if needed
+        if completed % 50 != 0:
+            print(f" [{completed}/{total}]")
 
         return passed_tests, failed_tests
 
-    def run_tests_from_rom(self) -> list[str]:
+    def run_tests_from_rom(self) -> list[tuple[str, str]]:
         """Run all tests from ROM and display results.
 
         Returns:
-            List of failed test names.
+            List of failed tests with errors.
         """
-        _, failed_tests = self.run_tests(use_ram=False)
-        self._display_results(failed_tests)
-        return failed_tests
+        passed, failed = self.run_tests(use_ram=False)
+        total = len(passed) + len(failed)
+        _display_results_grouped(passed, failed, total, "ROM")
+        return failed
 
-    def run_tests_from_ram(self) -> list[str]:
+    def run_tests_from_ram(self) -> list[tuple[str, str]]:
         """Run all tests from RAM and display results.
 
         Returns:
-            List of failed test names.
+            List of failed tests with errors.
         """
-        _, failed_tests = self.run_tests(use_ram=True)
-        self._display_results(failed_tests)
-        return failed_tests
-
-    def _display_results(self, failed_tests: list[str]) -> None:
-        """Display test results summary."""
-        print("--------------------")
-        if failed_tests:
-            print("Failed tests:")
-            for test in failed_tests:
-                print(test)
-        else:
-            print("All tests passed")
+        passed, failed = self.run_tests(use_ram=True)
+        total = len(passed) + len(failed)
+        _display_results_grouped(passed, failed, total, "RAM")
+        return failed
 
 
 def _run_single_test_parallel(args: tuple) -> tuple[str, bool, str]:
@@ -439,6 +456,196 @@ def _run_single_test_parallel(args: tuple) -> tuple[str, bool, str]:
             pass
 
 
+def _display_results_grouped(
+    passed: list[str], failed: list[tuple[str, str]], total_tests: int, memory_type: str
+) -> None:
+    """Display test results grouped by category with pytest-style formatting."""
+    GREEN = "\033[92m"
+    RED = "\033[91m"
+    YELLOW = "\033[93m"
+    BOLD = "\033[1m"
+    RESET = "\033[0m"
+
+    # Group results by category (first directory component)
+    from collections import defaultdict
+
+    categories: dict[str, dict] = defaultdict(lambda: {"passed": [], "failed": []})
+
+    for test in passed:
+        cat = test.split(os.sep)[0] if os.sep in test else "root"
+        categories[cat]["passed"].append(test)
+
+    for test, error in failed:
+        cat = test.split(os.sep)[0] if os.sep in test else "root"
+        categories[cat]["failed"].append((test, error))
+
+    # Print grouped results
+    print(f"\n{BOLD}{'=' * 60}{RESET}")
+    print(f"{BOLD}CPU TEST RESULTS ({memory_type}){RESET}")
+    print(f"{'=' * 60}\n")
+
+    for cat in sorted(categories.keys()):
+        cat_passed = categories[cat]["passed"]
+        cat_failed = categories[cat]["failed"]
+        cat_total = len(cat_passed) + len(cat_failed)
+
+        # Category header with pass/fail counts
+        if cat_failed:
+            status_color = RED if len(cat_passed) == 0 else YELLOW
+        else:
+            status_color = GREEN
+
+        cat_display = cat.replace("_", " ").title()
+        print(
+            f"{status_color}{BOLD}{cat_display}{RESET} "
+            f"[{GREEN}{len(cat_passed)}{RESET}/{cat_total}]"
+        )
+
+        # Show individual test results (compact)
+        for test in sorted(cat_passed):
+            name = os.path.basename(test).replace(".asm", "")
+            print(f"  {GREEN}✓{RESET} {name}")
+
+        for test, error in sorted(cat_failed):
+            name = os.path.basename(test).replace(".asm", "")
+            short_error = error.split("\n")[0][:50]
+            print(f"  {RED}✗{RESET} {name}: {short_error}")
+
+        print()
+
+    # Summary line
+    passed_count = len(passed)
+    failed_count = len(failed)
+    print(f"{'=' * 60}")
+    if failed_count == 0:
+        print(f"{GREEN}{BOLD}All {passed_count} tests passed!{RESET}")
+    else:
+        print(
+            f"{BOLD}{GREEN}{passed_count} passed{RESET}, "
+            f"{BOLD}{RED}{failed_count} failed{RESET} "
+            f"(out of {total_tests} tests)"
+        )
+    print(f"{'=' * 60}\n")
+
+
+def _display_results_combined(
+    rom_results: dict[str, tuple[bool, str]],
+    ram_results: dict[str, tuple[bool, str]],
+) -> int:
+    """Display combined ROM and RAM test results in a single overview.
+    
+    Args:
+        rom_results: Dict mapping test path to (passed, error_msg) for ROM tests
+        ram_results: Dict mapping test path to (passed, error_msg) for RAM tests
+        
+    Returns:
+        Number of failed test scenarios (each test counts as 2: ROM + RAM)
+    """
+    GREEN = "\033[92m"
+    RED = "\033[91m"
+    YELLOW = "\033[93m"
+    BOLD = "\033[1m"
+    RESET = "\033[0m"
+    
+    from collections import defaultdict
+    
+    # Get all test files
+    all_tests = sorted(set(rom_results.keys()) | set(ram_results.keys()))
+    
+    # Group by category
+    categories: dict[str, list[str]] = defaultdict(list)
+    for test in all_tests:
+        cat = test.split(os.sep)[0] if os.sep in test else "root"
+        categories[cat].append(test)
+    
+    # Print header
+    print(f"\n{BOLD}{'=' * 70}{RESET}")
+    print(f"{BOLD}CPU TEST RESULTS (ROM + RAM){RESET}")
+    print(f"{'=' * 70}\n")
+    
+    total_scenarios = 0
+    passed_scenarios = 0
+    failed_details: list[tuple[str, str, str]] = []  # (test, type, error)
+    
+    for cat in sorted(categories.keys()):
+        cat_tests = sorted(categories[cat])
+        cat_all_pass = True
+        cat_any_pass = False
+        
+        # Check category status
+        for test in cat_tests:
+            rom_pass = rom_results.get(test, (False, ""))[0]
+            ram_pass = ram_results.get(test, (False, ""))[0]
+            if rom_pass and ram_pass:
+                cat_any_pass = True
+            else:
+                cat_all_pass = False
+                if rom_pass or ram_pass:
+                    cat_any_pass = True
+        
+        # Category header
+        if cat_all_pass:
+            status_color = GREEN
+        elif cat_any_pass:
+            status_color = YELLOW
+        else:
+            status_color = RED
+        
+        cat_display = cat.replace("_", " ").title()
+        print(f"{status_color}{BOLD}{cat_display}{RESET}")
+        
+        # Show individual test results
+        for test in cat_tests:
+            name = os.path.basename(test).replace(".asm", "")
+            rom_pass, rom_err = rom_results.get(test, (False, "Not run"))
+            ram_pass, ram_err = ram_results.get(test, (False, "Not run"))
+            
+            # Track statistics
+            total_scenarios += 2
+            if rom_pass:
+                passed_scenarios += 1
+            else:
+                failed_details.append((test, "ROM", rom_err))
+            if ram_pass:
+                passed_scenarios += 1
+            else:
+                failed_details.append((test, "RAM", ram_err))
+            
+            # Format status indicators
+            rom_status = f"{GREEN}✓ROM{RESET}" if rom_pass else f"{RED}✗ROM{RESET}"
+            ram_status = f"{GREEN}✓RAM{RESET}" if ram_pass else f"{RED}✗RAM{RESET}"
+            
+            print(f"  {rom_status} {ram_status}  {name}")
+        
+        print()
+    
+    # Summary
+    failed_scenarios = total_scenarios - passed_scenarios
+    total_tests = len(all_tests)
+    
+    print(f"{'=' * 70}")
+    
+    if failed_scenarios == 0:
+        print(f"{GREEN}{BOLD}All {total_tests} tests passed both ROM and RAM!{RESET}")
+    else:
+        print(
+            f"{BOLD}{GREEN}{passed_scenarios} passed{RESET}, "
+            f"{BOLD}{RED}{failed_scenarios} failed{RESET} "
+            f"(across {total_tests} tests × 2 scenarios)"
+        )
+        
+        # Show failed test details
+        if failed_details:
+            print(f"\n{RED}{BOLD}Failed tests:{RESET}")
+            for test, mem_type, error in failed_details:
+                short_error = error.split("\n")[0][:50] if error else "Unknown error"
+                print(f"  {RED}✗{RESET} {test} ({mem_type}): {short_error}")
+    
+    print(f"{'=' * 70}\n")
+    
+    return failed_scenarios
+
+
 class ParallelCPUTestRunner:
     """Test runner that executes tests in parallel."""
 
@@ -456,7 +663,9 @@ class ParallelCPUTestRunner:
         self.max_workers = max_workers or self.DEFAULT_WORKERS
         self.config = CPUTestConfig()
 
-    def run_tests_parallel(self, use_ram: bool = False) -> tuple[list[str], list[str]]:
+    def run_tests_parallel(
+        self, use_ram: bool = False
+    ) -> tuple[list[str], list[tuple[str, str]]]:
         """
         Run all tests in parallel.
 
@@ -464,11 +673,15 @@ class ParallelCPUTestRunner:
             use_ram: Whether to run tests from RAM
 
         Returns:
-            Tuple of (passed_tests, failed_tests)
+            Tuple of (passed_tests, failed_tests_with_errors)
         """
+        GREEN = "\033[92m"
+        RED = "\033[91m"
+        RESET = "\033[0m"
+
         memory_type = "RAM" if use_ram else "ROM"
-        logger.info(
-            f"Running CPU tests from {memory_type} in parallel ({self.max_workers} workers)..."
+        print(
+            f"Running CPU tests from {memory_type} in parallel ({self.max_workers} workers)...\n"
         )
 
         # Create base temp directory
@@ -477,12 +690,14 @@ class ParallelCPUTestRunner:
 
         runner = CPUTestRunner()
         tests = runner.get_test_files()
+        total = len(tests)
 
         # Prepare arguments for parallel execution
         test_args = [(test, use_ram, temp_base_dir, i) for i, test in enumerate(tests)]
 
-        passed_tests = []
-        failed_tests = []
+        passed_tests: list[str] = []
+        failed_tests: list[tuple[str, str]] = []
+        completed = 0
 
         try:
             with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
@@ -493,12 +708,24 @@ class ParallelCPUTestRunner:
 
                 for future in as_completed(futures):
                     test_file, passed, error_msg = future.result()
+                    completed += 1
+
+                    # Print progress dot
                     if passed:
-                        logger.info(f"PASS: {test_file}")
+                        print(f"{GREEN}.{RESET}", end="", flush=True)
                         passed_tests.append(test_file)
                     else:
-                        logger.error(f"FAIL: {test_file} -> {error_msg}")
-                        failed_tests.append(test_file)
+                        print(f"{RED}F{RESET}", end="", flush=True)
+                        failed_tests.append((test_file, error_msg))
+
+                    # Line break every 50 tests
+                    if completed % 50 == 0:
+                        print(f" [{completed}/{total}]")
+
+            # Final line break if needed
+            if completed % 50 != 0:
+                print(f" [{completed}/{total}]")
+
         finally:
             # Clean up base temp directory if empty
             try:
@@ -509,15 +736,80 @@ class ParallelCPUTestRunner:
 
         return sorted(passed_tests), sorted(failed_tests)
 
-    def _display_results(self, failed_tests: list[str]) -> None:
-        """Display test results summary."""
-        print("--------------------")
-        if failed_tests:
-            print("Failed tests:")
-            for test in failed_tests:
-                print(test)
-        else:
-            print("All tests passed")
+    def run_tests_combined(self) -> tuple[dict[str, tuple[bool, str]], dict[str, tuple[bool, str]]]:
+        """
+        Run all tests for both ROM and RAM in parallel.
+
+        Returns:
+            Tuple of (rom_results, ram_results) where each is a dict mapping
+            test path to (passed, error_msg)
+        """
+        GREEN = "\033[92m"
+        RED = "\033[91m"
+        CYAN = "\033[96m"
+        RESET = "\033[0m"
+
+        print(f"Running CPU tests (ROM + RAM) in parallel ({self.max_workers} workers)...\n")
+
+        # Create base temp directory
+        temp_base_dir = os.path.abspath(self.config.PARALLEL_TMP_DIR)
+        os.makedirs(temp_base_dir, exist_ok=True)
+
+        runner = CPUTestRunner()
+        tests = runner.get_test_files()
+        total = len(tests) * 2  # ROM + RAM for each test
+
+        # Prepare arguments for parallel execution - both ROM and RAM
+        test_args = []
+        for i, test in enumerate(tests):
+            test_args.append((test, False, temp_base_dir, i * 2))      # ROM
+            test_args.append((test, True, temp_base_dir, i * 2 + 1))   # RAM
+
+        rom_results: dict[str, tuple[bool, str]] = {}
+        ram_results: dict[str, tuple[bool, str]] = {}
+        completed = 0
+
+        try:
+            with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
+                futures = {
+                    executor.submit(_run_single_test_parallel, args): (args[0], args[1])
+                    for args in test_args
+                }
+
+                for future in as_completed(futures):
+                    test_file, passed, error_msg = future.result()
+                    _, use_ram = futures[future]
+                    completed += 1
+
+                    # Print progress dot with memory type indicator
+                    if passed:
+                        print(f"{GREEN}.{RESET}", end="", flush=True)
+                    else:
+                        print(f"{RED}F{RESET}", end="", flush=True)
+
+                    # Store result
+                    if use_ram:
+                        ram_results[test_file] = (passed, error_msg)
+                    else:
+                        rom_results[test_file] = (passed, error_msg)
+
+                    # Line break every 50 tests
+                    if completed % 50 == 0:
+                        print(f" [{completed}/{total}]")
+
+            # Final line break if needed
+            if completed % 50 != 0:
+                print(f" [{completed}/{total}]")
+
+        finally:
+            # Clean up base temp directory if empty
+            try:
+                if os.path.exists(temp_base_dir) and not os.listdir(temp_base_dir):
+                    os.rmdir(temp_base_dir)
+            except Exception:
+                pass
+
+        return rom_results, ram_results
 
 
 def main() -> None:
@@ -525,8 +817,12 @@ def main() -> None:
     import argparse
 
     parser = argparse.ArgumentParser(description="Run CPU tests")
-    parser.add_argument("--rom", action="store_true", help="Run tests from ROM")
-    parser.add_argument("--ram", action="store_true", help="Run tests from RAM")
+    parser.add_argument("--rom", action="store_true", help="Run tests from ROM only")
+    parser.add_argument("--ram", action="store_true", help="Run tests from RAM only")
+    parser.add_argument(
+        "--combined", action="store_true", 
+        help="Run both ROM and RAM tests with combined output (default)"
+    )
     parser.add_argument(
         "--sequential",
         action="store_true",
@@ -547,34 +843,67 @@ def main() -> None:
 
     args = parser.parse_args()
 
+    # If neither --rom nor --ram is specified, use combined mode
+    use_combined = args.combined or (not args.rom and not args.ram)
     use_ram = args.ram
 
     if args.test_file:
         # Run a single test (always sequential)
         runner = CPUTestRunner()
-        memory_type = "RAM" if use_ram else "ROM"
-        logger.info(f"Running single CPU test from {memory_type}: {args.test_file}")
-        try:
-            runner.run_single_test(args.test_file, use_ram=use_ram)
-            logger.info(f"PASS: {args.test_file}")
-        except Exception as e:
-            logger.error(f"FAIL: {args.test_file} -> {e}")
-            sys.exit(1)
+        if use_combined:
+            # Run both ROM and RAM for single test
+            print(f"Running single CPU test: {args.test_file}")
+            rom_passed = True
+            ram_passed = True
+            try:
+                print("  ROM: ", end="")
+                runner.run_single_test(args.test_file, use_ram=False)
+                print("\033[92m✓ PASS\033[0m")
+            except Exception as e:
+                print(f"\033[91m✗ FAIL: {e}\033[0m")
+                rom_passed = False
+            try:
+                print("  RAM: ", end="")
+                runner.run_single_test(args.test_file, use_ram=True)
+                print("\033[92m✓ PASS\033[0m")
+            except Exception as e:
+                print(f"\033[91m✗ FAIL: {e}\033[0m")
+                ram_passed = False
+            if not (rom_passed and ram_passed):
+                sys.exit(1)
+        else:
+            memory_type = "RAM" if use_ram else "ROM"
+            print(f"Running single CPU test from {memory_type}: {args.test_file}")
+            try:
+                runner.run_single_test(args.test_file, use_ram=use_ram)
+                logger.info(f"PASS: {args.test_file}")
+            except Exception as e:
+                logger.error(f"FAIL: {args.test_file} -> {e}")
+                sys.exit(1)
     elif args.sequential:
         # Run all tests sequentially
         runner = CPUTestRunner()
         if use_ram:
-            failed_tests = runner.run_tests_from_ram()
+            failed = runner.run_tests_from_ram()
         else:
-            failed_tests = runner.run_tests_from_rom()
-        if failed_tests:
+            failed = runner.run_tests_from_rom()
+        if failed:
+            sys.exit(1)
+    elif use_combined:
+        # Run all tests in parallel with combined ROM+RAM output (default)
+        runner = ParallelCPUTestRunner(max_workers=args.workers)
+        rom_results, ram_results = runner.run_tests_combined()
+        failed_count = _display_results_combined(rom_results, ram_results)
+        if failed_count > 0:
             sys.exit(1)
     else:
-        # Run all tests in parallel (default)
+        # Run all tests in parallel (single memory type)
         runner = ParallelCPUTestRunner(max_workers=args.workers)
-        _, failed_tests = runner.run_tests_parallel(use_ram=use_ram)
-        runner._display_results(failed_tests)
-        if failed_tests:
+        memory_type = "RAM" if use_ram else "ROM"
+        passed, failed = runner.run_tests_parallel(use_ram=use_ram)
+        total = len(passed) + len(failed)
+        _display_results_grouped(passed, failed, total, memory_type)
+        if failed:
             sys.exit(1)
 
 

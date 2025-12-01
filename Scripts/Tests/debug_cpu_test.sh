@@ -7,10 +7,10 @@ set -e
 
 if [ -z "$1" ]; then
     echo "Usage: $0 <test_file>"
-    echo "Example: $0 1_load.asm"
+    echo "Example: $0 01_load/load.asm"
     echo ""
     echo "Available tests:"
-    ls -1 Tests/CPU/*.asm | xargs -n1 basename
+    find Tests/CPU -name "*.asm" -type f | grep -v "tmp" | sed 's|Tests/CPU/||' | sort
     exit 1
 fi
 

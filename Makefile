@@ -203,10 +203,10 @@ test-cpu-single:
 	@mkdir -p $(SIMULATION_OUTPUT_DIR)
 	@if [ -z "$(file)" ]; then \
 		echo "Usage: make test-cpu-single file=<test_file>"; \
-		echo "Example: make test-cpu-single file=1_load.asm"; \
+		echo "Example: make test-cpu-single file=01_load/load.asm"; \
 		echo ""; \
 		echo "Available tests:"; \
-		ls -1 Tests/CPU/*.asm | xargs -n1 basename; \
+		find Tests/CPU -name "*.asm" -type f | grep -v "tmp" | sed 's|Tests/CPU/||' | sort; \
 		exit 1; \
 	fi
 	./Scripts/Tests/run_cpu_tests.sh $(file)
@@ -215,10 +215,10 @@ debug-cpu:
 	@mkdir -p $(SIMULATION_OUTPUT_DIR)
 	@if [ -z "$(file)" ]; then \
 		echo "Usage: make debug-cpu file=<test_file>"; \
-		echo "Example: make debug-cpu file=1_load.asm"; \
+		echo "Example: make debug-cpu file=01_load/load.asm"; \
 		echo ""; \
 		echo "Available tests:"; \
-		ls -1 Tests/CPU/*.asm | xargs -n1 basename; \
+		find Tests/CPU -name "*.asm" -type f | grep -v "tmp" | sed 's|Tests/CPU/||' | sort; \
 		exit 1; \
 	fi
 	./Scripts/Tests/debug_cpu_test.sh $(file)

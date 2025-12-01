@@ -6,13 +6,11 @@ set -e
 # Activate the virtual environment
 source .venv/bin/activate
 
-# Track overall failure status
-FAILED=0
-
 # Parse arguments
 SEQUENTIAL=""
 WORKERS=""
 TEST_FILE=""
+MODE=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -24,6 +22,14 @@ while [[ $# -gt 0 ]]; do
             WORKERS="--workers $2"
             shift 2
             ;;
+        --rom)
+            MODE="--rom"
+            shift
+            ;;
+        --ram)
+            MODE="--ram"
+            shift
+            ;;
         *)
             TEST_FILE="$1"
             shift
@@ -32,19 +38,13 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Run the CPU tests
-# If a test file is provided as argument, run only that test
+# Default is combined mode (both ROM and RAM with merged output)
+# Use --rom or --ram to run only one memory type
 if [ -n "$TEST_FILE" ]; then
-    python3 Scripts/Tests/cpu_tests.py --rom $SEQUENTIAL $WORKERS "$TEST_FILE" || FAILED=1
-    echo
-    python3 Scripts/Tests/cpu_tests.py --ram $SEQUENTIAL $WORKERS "$TEST_FILE" || FAILED=1
+    python3 Scripts/Tests/cpu_tests.py $MODE $SEQUENTIAL $WORKERS "$TEST_FILE"
 else
-    python3 Scripts/Tests/cpu_tests.py --rom $SEQUENTIAL $WORKERS || FAILED=1
-    echo
-    python3 Scripts/Tests/cpu_tests.py --ram $SEQUENTIAL $WORKERS || FAILED=1
+    python3 Scripts/Tests/cpu_tests.py $MODE $SEQUENTIAL $WORKERS
 fi
 
 # Deactivate virtual environment
 deactivate
-
-# Exit with failure if any test failed
-exit $FAILED
