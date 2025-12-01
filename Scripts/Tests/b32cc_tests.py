@@ -418,7 +418,9 @@ class B32CCTestRunner:
                     if file.endswith(".c"):
                         # Get path relative to TESTS_DIRECTORY
                         full_path = os.path.join(root, file)
-                        rel_path = os.path.relpath(full_path, self.config.TESTS_DIRECTORY)
+                        rel_path = os.path.relpath(
+                            full_path, self.config.TESTS_DIRECTORY
+                        )
                         tests.append(rel_path)
             return sorted(tests)
         except FileNotFoundError:
@@ -428,43 +430,47 @@ class B32CCTestRunner:
         except Exception as e:
             raise B32CCTestError(f"Failed to read tests directory: {e}")
 
-    def run_tests(self) -> tuple[list[str], list[str]]:
+    def run_tests(self) -> tuple[list[str], list[tuple[str, str]]]:
         """
         Run all tests.
 
         Returns:
-            Tuple of (passed_tests, failed_tests)
+            Tuple of (passed_tests, failed_tests_with_errors)
         """
-        logger.info("Running B32CC compiler tests...")
+        GREEN = "\033[92m"
+        RED = "\033[91m"
+        RESET = "\033[0m"
+
+        print("Running B32CC compiler tests...\n")
 
         # Ensure tmp directory exists
         os.makedirs(self.config.TMP_DIRECTORY, exist_ok=True)
 
         tests = self.get_test_files()
-        passed_tests = []
-        failed_tests = []
+        total = len(tests)
+        passed_tests: list[str] = []
+        failed_tests: list[tuple[str, str]] = []
+        completed = 0
 
         for test in tests:
+            completed += 1
             try:
                 self.run_single_test(test)
-                logger.info(f"PASS: {test}")
+                print(f"{GREEN}.{RESET}", end="", flush=True)
                 passed_tests.append(test)
             except Exception as e:
-                logger.error(f"FAIL: {test} -> {e}")
-                failed_tests.append(test)
+                print(f"{RED}F{RESET}", end="", flush=True)
+                failed_tests.append((test, str(e)))
+
+            # Line break every 50 tests
+            if completed % 50 == 0:
+                print(f" [{completed}/{total}]")
+
+        # Final line break if needed
+        if completed % 50 != 0:
+            print(f" [{completed}/{total}]")
 
         return passed_tests, failed_tests
-
-    def _display_results(self, failed_tests: list[str]) -> None:
-        """Display test results summary."""
-        print("-" * 20)
-
-        if failed_tests:
-            print("Failed tests:")
-            for test in failed_tests:
-                print(f"  {test}")
-        else:
-            print("All tests passed!")
 
 
 def _run_single_test_parallel(args: tuple) -> tuple[str, bool, str]:
@@ -497,6 +503,78 @@ def _run_single_test_parallel(args: tuple) -> tuple[str, bool, str]:
             pass
 
 
+def _display_results_grouped(
+    passed: list[str], failed: list[tuple[str, str]], total_tests: int
+) -> None:
+    """Display test results grouped by category with pytest-style formatting."""
+    GREEN = "\033[92m"
+    RED = "\033[91m"
+    YELLOW = "\033[93m"
+    BOLD = "\033[1m"
+    RESET = "\033[0m"
+
+    # Group results by category (first directory component)
+    from collections import defaultdict
+
+    categories: dict[str, dict] = defaultdict(lambda: {"passed": [], "failed": []})
+
+    for test in passed:
+        cat = test.split(os.sep)[0] if os.sep in test else "root"
+        categories[cat]["passed"].append(test)
+
+    for test, error in failed:
+        cat = test.split(os.sep)[0] if os.sep in test else "root"
+        categories[cat]["failed"].append((test, error))
+
+    # Print grouped results
+    print(f"\n{BOLD}{'=' * 60}{RESET}")
+    print(f"{BOLD}TEST RESULTS{RESET}")
+    print(f"{'=' * 60}\n")
+
+    for cat in sorted(categories.keys()):
+        cat_passed = categories[cat]["passed"]
+        cat_failed = categories[cat]["failed"]
+        cat_total = len(cat_passed) + len(cat_failed)
+
+        # Category header with pass/fail counts
+        if cat_failed:
+            status_color = RED if len(cat_passed) == 0 else YELLOW
+        else:
+            status_color = GREEN
+
+        cat_display = cat.replace("_", " ").title()
+        print(
+            f"{status_color}{BOLD}{cat_display}{RESET} "
+            f"[{GREEN}{len(cat_passed)}{RESET}/{cat_total}]"
+        )
+
+        # Show individual test results (compact)
+        for test in sorted(cat_passed):
+            name = os.path.basename(test).replace(".c", "")
+            print(f"  {GREEN}✓{RESET} {name}")
+
+        for test, error in sorted(cat_failed):
+            name = os.path.basename(test).replace(".c", "")
+            short_error = error.split("\n")[0][:127]
+            print(f"  {RED}✗{RESET} {name}: {short_error}")
+
+        print()
+
+    # Summary line
+    passed_count = len(passed)
+    failed_count = len(failed)
+    print(f"{'=' * 60}")
+    if failed_count == 0:
+        print(f"{GREEN}{BOLD}All {passed_count} tests passed!{RESET}")
+    else:
+        print(
+            f"{BOLD}{GREEN}{passed_count} passed{RESET}, "
+            f"{BOLD}{RED}{failed_count} failed{RESET} "
+            f"(out of {total_tests} tests)"
+        )
+    print(f"{'=' * 60}\n")
+
+
 class ParallelB32CCTestRunner:
     """Test runner that executes tests in parallel."""
 
@@ -514,15 +592,19 @@ class ParallelB32CCTestRunner:
         self.max_workers = max_workers or self.DEFAULT_WORKERS
         self.config = B32CCTestConfig()
 
-    def run_tests_parallel(self) -> tuple[list[str], list[str]]:
+    def run_tests_parallel(self) -> tuple[list[str], list[tuple[str, str]]]:
         """
         Run all tests in parallel.
 
         Returns:
-            Tuple of (passed_tests, failed_tests)
+            Tuple of (passed_tests, failed_tests_with_errors)
         """
-        logger.info(
-            f"Running B32CC compiler tests in parallel ({self.max_workers} workers)..."
+        GREEN = "\033[92m"
+        RED = "\033[91m"
+        RESET = "\033[0m"
+
+        print(
+            f"Running B32CC compiler tests in parallel ({self.max_workers} workers)...\n"
         )
 
         # Create base temp directory
@@ -531,12 +613,14 @@ class ParallelB32CCTestRunner:
 
         runner = B32CCTestRunner()
         tests = runner.get_test_files()
+        total = len(tests)
 
         # Prepare arguments for parallel execution
         test_args = [(test, temp_base_dir, i) for i, test in enumerate(tests)]
 
-        passed_tests = []
-        failed_tests = []
+        passed_tests: list[str] = []
+        failed_tests: list[tuple[str, str]] = []
+        completed = 0
 
         try:
             with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
@@ -547,12 +631,24 @@ class ParallelB32CCTestRunner:
 
                 for future in as_completed(futures):
                     test_file, passed, error_msg = future.result()
+                    completed += 1
+
+                    # Print progress dot
                     if passed:
-                        logger.info(f"PASS: {test_file}")
+                        print(f"{GREEN}.{RESET}", end="", flush=True)
                         passed_tests.append(test_file)
                     else:
-                        logger.error(f"FAIL: {test_file} -> {error_msg}")
-                        failed_tests.append(test_file)
+                        print(f"{RED}F{RESET}", end="", flush=True)
+                        failed_tests.append((test_file, error_msg))
+
+                    # Line break every 50 tests
+                    if completed % 50 == 0:
+                        print(f" [{completed}/{total}]")
+
+            # Final line break if needed
+            if completed % 50 != 0:
+                print(f" [{completed}/{total}]")
+
         finally:
             # Clean up base temp directory if empty
             try:
@@ -562,16 +658,6 @@ class ParallelB32CCTestRunner:
                 pass
 
         return sorted(passed_tests), sorted(failed_tests)
-
-    def _display_results(self, failed_tests: list[str]) -> None:
-        """Display test results summary."""
-        print("-" * 20)
-        if failed_tests:
-            print("Failed tests:")
-            for test in failed_tests:
-                print(f"  {test}")
-        else:
-            print("All tests passed!")
 
 
 def main() -> None:
@@ -593,7 +679,7 @@ def main() -> None:
     parser.add_argument(
         "test_file",
         nargs="?",
-        help="Specific test file to run (e.g., 3_1_if_statements.c). If not provided, runs all tests.",
+        help="Specific test file to run (e.g., 04_control_flow/if_statements.c). If not provided, runs all tests.",
     )
     args = parser.parse_args()
 
@@ -610,16 +696,19 @@ def main() -> None:
     elif args.sequential:
         # Run all tests sequentially
         runner = B32CCTestRunner()
-        _, failed_tests = runner.run_tests()
-        runner._display_results(failed_tests)
-        if failed_tests:
+        passed, failed = runner.run_tests()
+        failed_with_errors = [(t, "") for t in failed]
+        total = len(passed) + len(failed)
+        _display_results_grouped(passed, failed_with_errors, total)
+        if failed:
             sys.exit(1)
     else:
         # Run all tests in parallel (default)
         runner = ParallelB32CCTestRunner(max_workers=args.workers)
-        _, failed_tests = runner.run_tests_parallel()
-        runner._display_results(failed_tests)
-        if failed_tests:
+        passed, failed = runner.run_tests_parallel()
+        total = len(passed) + len(failed)
+        _display_results_grouped(passed, failed, total)
+        if failed:
             sys.exit(1)
 
 
