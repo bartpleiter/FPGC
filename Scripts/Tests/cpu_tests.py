@@ -533,11 +533,11 @@ def _display_results_combined(
     ram_results: dict[str, tuple[bool, str]],
 ) -> int:
     """Display combined ROM and RAM test results in a single overview.
-    
+
     Args:
         rom_results: Dict mapping test path to (passed, error_msg) for ROM tests
         ram_results: Dict mapping test path to (passed, error_msg) for RAM tests
-        
+
     Returns:
         Number of failed test scenarios (each test counts as 2: ROM + RAM)
     """
@@ -546,32 +546,32 @@ def _display_results_combined(
     YELLOW = "\033[93m"
     BOLD = "\033[1m"
     RESET = "\033[0m"
-    
+
     from collections import defaultdict
-    
+
     # Get all test files
     all_tests = sorted(set(rom_results.keys()) | set(ram_results.keys()))
-    
+
     # Group by category
     categories: dict[str, list[str]] = defaultdict(list)
     for test in all_tests:
         cat = test.split(os.sep)[0] if os.sep in test else "root"
         categories[cat].append(test)
-    
+
     # Print header
     print(f"\n{BOLD}{'=' * 70}{RESET}")
     print(f"{BOLD}CPU TEST RESULTS (ROM + RAM){RESET}")
     print(f"{'=' * 70}\n")
-    
+
     total_scenarios = 0
     passed_scenarios = 0
     failed_details: list[tuple[str, str, str]] = []  # (test, type, error)
-    
+
     for cat in sorted(categories.keys()):
         cat_tests = sorted(categories[cat])
         cat_all_pass = True
         cat_any_pass = False
-        
+
         # Check category status
         for test in cat_tests:
             rom_pass = rom_results.get(test, (False, ""))[0]
@@ -582,7 +582,7 @@ def _display_results_combined(
                 cat_all_pass = False
                 if rom_pass or ram_pass:
                     cat_any_pass = True
-        
+
         # Category header
         if cat_all_pass:
             status_color = GREEN
@@ -590,16 +590,16 @@ def _display_results_combined(
             status_color = YELLOW
         else:
             status_color = RED
-        
+
         cat_display = cat.replace("_", " ").title()
         print(f"{status_color}{BOLD}{cat_display}{RESET}")
-        
+
         # Show individual test results
         for test in cat_tests:
             name = os.path.basename(test).replace(".asm", "")
             rom_pass, rom_err = rom_results.get(test, (False, "Not run"))
             ram_pass, ram_err = ram_results.get(test, (False, "Not run"))
-            
+
             # Track statistics
             total_scenarios += 2
             if rom_pass:
@@ -610,21 +610,21 @@ def _display_results_combined(
                 passed_scenarios += 1
             else:
                 failed_details.append((test, "RAM", ram_err))
-            
+
             # Format status indicators
             rom_status = f"{GREEN}✓ROM{RESET}" if rom_pass else f"{RED}✗ROM{RESET}"
             ram_status = f"{GREEN}✓RAM{RESET}" if ram_pass else f"{RED}✗RAM{RESET}"
-            
+
             print(f"  {rom_status} {ram_status}  {name}")
-        
+
         print()
-    
+
     # Summary
     failed_scenarios = total_scenarios - passed_scenarios
     total_tests = len(all_tests)
-    
+
     print(f"{'=' * 70}")
-    
+
     if failed_scenarios == 0:
         print(f"{GREEN}{BOLD}All {total_tests} tests passed both ROM and RAM!{RESET}")
     else:
@@ -633,16 +633,16 @@ def _display_results_combined(
             f"{BOLD}{RED}{failed_scenarios} failed{RESET} "
             f"(across {total_tests} tests × 2 scenarios)"
         )
-        
+
         # Show failed test details
         if failed_details:
             print(f"\n{RED}{BOLD}Failed tests:{RESET}")
             for test, mem_type, error in failed_details:
                 short_error = error.split("\n")[0][:50] if error else "Unknown error"
                 print(f"  {RED}✗{RESET} {test} ({mem_type}): {short_error}")
-    
+
     print(f"{'=' * 70}\n")
-    
+
     return failed_scenarios
 
 
@@ -736,7 +736,9 @@ class ParallelCPUTestRunner:
 
         return sorted(passed_tests), sorted(failed_tests)
 
-    def run_tests_combined(self) -> tuple[dict[str, tuple[bool, str]], dict[str, tuple[bool, str]]]:
+    def run_tests_combined(
+        self,
+    ) -> tuple[dict[str, tuple[bool, str]], dict[str, tuple[bool, str]]]:
         """
         Run all tests for both ROM and RAM in parallel.
 
@@ -746,10 +748,11 @@ class ParallelCPUTestRunner:
         """
         GREEN = "\033[92m"
         RED = "\033[91m"
-        CYAN = "\033[96m"
         RESET = "\033[0m"
 
-        print(f"Running CPU tests (ROM + RAM) in parallel ({self.max_workers} workers)...\n")
+        print(
+            f"Running CPU tests (ROM + RAM) in parallel ({self.max_workers} workers)...\n"
+        )
 
         # Create base temp directory
         temp_base_dir = os.path.abspath(self.config.PARALLEL_TMP_DIR)
@@ -762,8 +765,8 @@ class ParallelCPUTestRunner:
         # Prepare arguments for parallel execution - both ROM and RAM
         test_args = []
         for i, test in enumerate(tests):
-            test_args.append((test, False, temp_base_dir, i * 2))      # ROM
-            test_args.append((test, True, temp_base_dir, i * 2 + 1))   # RAM
+            test_args.append((test, False, temp_base_dir, i * 2))  # ROM
+            test_args.append((test, True, temp_base_dir, i * 2 + 1))  # RAM
 
         rom_results: dict[str, tuple[bool, str]] = {}
         ram_results: dict[str, tuple[bool, str]] = {}
@@ -820,8 +823,9 @@ def main() -> None:
     parser.add_argument("--rom", action="store_true", help="Run tests from ROM only")
     parser.add_argument("--ram", action="store_true", help="Run tests from RAM only")
     parser.add_argument(
-        "--combined", action="store_true", 
-        help="Run both ROM and RAM tests with combined output (default)"
+        "--combined",
+        action="store_true",
+        help="Run both ROM and RAM tests with combined output (default)",
     )
     parser.add_argument(
         "--sequential",
