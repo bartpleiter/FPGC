@@ -52,6 +52,9 @@ Running single simulations (via the `make` commands below) will show logs from `
 
 ### Running tests and simulations
 
+!!! Note
+    By default, the CPU and B32CC tests run in parallel with 4 workers to prevent crashes on machines with low RAM (<16GB), as each simulation uses quite a bit of RAM. To adjust the worker count, set the `FPGC_TEST_WORKERS` environment variable (e.g. `export FPGC_TEST_WORKERS=12` in `~/.bashrc`)
+
 **CPU tests:**
 
 ```bash

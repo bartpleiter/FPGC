@@ -443,7 +443,8 @@ class ParallelCPUTestRunner:
     """Test runner that executes tests in parallel."""
 
     # Default number of parallel workers, make sure you have enough RAM if increasing
-    DEFAULT_WORKERS = 4
+    # Can be overridden via FPGC_TEST_WORKERS environment variable
+    DEFAULT_WORKERS = int(os.environ.get("FPGC_TEST_WORKERS", 4))
 
     def __init__(self, max_workers: Optional[int] = None):
         """
