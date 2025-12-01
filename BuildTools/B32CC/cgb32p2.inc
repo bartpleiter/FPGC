@@ -154,7 +154,7 @@ void GenIntData(int Size, int Val)
 STATIC
 void GenStartAsciiString(void)
 {
-  printf2("  .dw "); // String should be converted into 1 character per word
+  printf2("  .dsw "); // Each character gets its own 32-bit word (word-addressable)
 }
 
 STATIC

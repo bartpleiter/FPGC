@@ -631,16 +631,81 @@ class DataAssemblyLine(AssemblyLine):
             data_instruction_type_str
         )
 
-        data_instruction_values = self.code_str.split()[1:]
-        for value in data_instruction_values:
-            self.data_instruction_values.append(Number._from_str(value))
+        # Get everything after the instruction type
+        rest_of_line = self.code_str[len(data_instruction_type_str):].strip()
+
+        # Handle .dsw (string spaced) - each character becomes a separate word
+        if self.data_instruction_type == DataInstructionType.STRING_SPACED:
+            self._parse_string_values(rest_of_line)
+        else:
+            # Original behavior for .dw and other data types
+            data_instruction_values = rest_of_line.split()
+            for value in data_instruction_values:
+                self.data_instruction_values.append(Number._from_str(value))
+
+    def _parse_string_values(self, rest_of_line: str) -> None:
+        """Parse a string literal and convert each character to a Number."""
+        # Find the quoted string
+        if '"' not in rest_of_line:
+            raise ValueError(f"Expected quoted string for .dsw directive: {rest_of_line}")
+
+        # Find the start and end of the string
+        first_quote = rest_of_line.index('"')
+        last_quote = rest_of_line.rindex('"')
+
+        if first_quote == last_quote:
+            raise ValueError(f"Unterminated string literal: {rest_of_line}")
+
+        string_content = rest_of_line[first_quote + 1:last_quote]
+
+        # Process escape sequences and convert each character to a number
+        i = 0
+        while i < len(string_content):
+            if string_content[i] == '\\' and i + 1 < len(string_content):
+                # Handle escape sequences
+                next_char = string_content[i + 1]
+                if next_char == 'n':
+                    self.data_instruction_values.append(Number(ord('\n')))
+                    i += 2
+                elif next_char == 'r':
+                    self.data_instruction_values.append(Number(ord('\r')))
+                    i += 2
+                elif next_char == 't':
+                    self.data_instruction_values.append(Number(ord('\t')))
+                    i += 2
+                elif next_char == '0':
+                    self.data_instruction_values.append(Number(0))
+                    i += 2
+                elif next_char == '\\':
+                    self.data_instruction_values.append(Number(ord('\\')))
+                    i += 2
+                elif next_char == '"':
+                    self.data_instruction_values.append(Number(ord('"')))
+                    i += 2
+                elif next_char.isdigit():
+                    # Octal escape sequence (e.g., \000)
+                    octal_str = ""
+                    j = i + 1
+                    while j < len(string_content) and len(octal_str) < 3 and string_content[j].isdigit():
+                        octal_str += string_content[j]
+                        j += 1
+                    self.data_instruction_values.append(Number(int(octal_str, 8)))
+                    i = j
+                else:
+                    # Unknown escape, treat backslash as literal
+                    self.data_instruction_values.append(Number(ord('\\')))
+                    i += 1
+            else:
+                # Regular character
+                self.data_instruction_values.append(Number(ord(string_content[i])))
+                i += 1
 
     def expand(self) -> list["AssemblyLine"]:
         expanded_lines: list[AssemblyLine] = []
         for value in self.data_instruction_values:
             expanded_lines.append(
                 DataAssemblyLine(
-                    code_str=f"{self.data_instruction_type.value} {value}",
+                    code_str=f"{DataInstructionType.WORD.value} {value}",
                     comment=self.comment,
                     original=self.original,
                     source_line_number=self.source_line_number,
@@ -650,9 +715,9 @@ class DataAssemblyLine(AssemblyLine):
         return expanded_lines
 
     def to_binary_string(self) -> str:
-        if self.data_instruction_type != DataInstructionType.WORD:
+        if self.data_instruction_type not in (DataInstructionType.WORD, DataInstructionType.STRING_SPACED):
             raise NotImplementedError(
-                "Only word data instructions are currently supported"
+                "Only word and string spaced data instructions are currently supported"
             )
 
         if len(self.data_instruction_values) != 1:
