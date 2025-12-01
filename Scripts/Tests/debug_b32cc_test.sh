@@ -7,15 +7,16 @@ set -e
 
 if [ -z "$1" ]; then
     echo "Usage: $0 <test_file>"
-    echo "Example: $0 3_1_if_statements.c"
+    echo "Example: $0 04_control_flow/if_statements.c"
     echo ""
     echo "Available tests:"
-    ls -1 Tests/C/*.c | xargs -n1 basename
+    find Tests/C -name "*.c" -type f | grep -v "old_tests" | grep -v "tmp" | sed 's|Tests/C/||' | sort
     exit 1
 fi
 
 TEST_FILE="$1"
-TEST_NAME="${TEST_FILE%.c}"
+# Convert path separators to underscores for output filename (e.g., 04_control_flow/if_statements -> 04_control_flow_if_statements)
+TEST_NAME=$(echo "${TEST_FILE%.c}" | tr '/' '_')
 
 # Paths
 TEST_PATH="Tests/C/${TEST_FILE}"

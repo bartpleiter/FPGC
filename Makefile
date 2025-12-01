@@ -127,10 +127,10 @@ test-b32cc-single: $(B32CC_OUTPUT)
 	@mkdir -p Tests/C/tmp
 	@if [ -z "$(file)" ]; then \
 		echo "Usage: make test-b32cc-single file=<test_file>"; \
-		echo "Example: make test-b32cc-single file=3_1_if_statements.c"; \
+		echo "Example: make test-b32cc-single file=04_control_flow/if_statements.c"; \
 		echo ""; \
 		echo "Available tests:"; \
-		ls -1 Tests/C/*.c | xargs -n1 basename; \
+		find Tests/C -name "*.c" -type f | grep -v "old_tests" | grep -v "tmp" | sed 's|Tests/C/||' | sort; \
 		exit 1; \
 	fi
 	./Scripts/Tests/run_b32cc_tests.sh $(file)
@@ -139,10 +139,10 @@ debug-b32cc: $(B32CC_OUTPUT)
 	@mkdir -p Tests/C/tmp
 	@if [ -z "$(file)" ]; then \
 		echo "Usage: make debug-b32cc file=<test_file>"; \
-		echo "Example: make debug-b32cc file=3_1_if_statements.c"; \
+		echo "Example: make debug-b32cc file=04_control_flow/if_statements.c"; \
 		echo ""; \
 		echo "Available tests:"; \
-		ls -1 Tests/C/*.c | xargs -n1 basename; \
+		find Tests/C -name "*.c" -type f | grep -v "old_tests" | grep -v "tmp" | sed 's|Tests/C/||' | sort; \
 		exit 1; \
 	fi
 	./Scripts/Tests/debug_b32cc_test.sh $(file)

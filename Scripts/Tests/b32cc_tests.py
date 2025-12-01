@@ -356,15 +356,16 @@ class B32CCTestRunner:
         Run a single test.
 
         Args:
-            test_file: Name of the test file
+            test_file: Path to test file relative to TESTS_DIRECTORY (e.g., '01_return/return.c')
 
         Raises:
             B32CCTestError: If test fails
         """
         test_path = os.path.join(self.config.TESTS_DIRECTORY, test_file)
 
-        # Determine temporary assembly file path
-        base_name = os.path.splitext(test_file)[0]
+        # Determine temporary assembly file path (flatten subdirectory structure)
+        # Convert 'subdir/file.c' to 'subdir_file.asm'
+        base_name = os.path.splitext(test_file)[0].replace(os.sep, "_")
         asm_path = os.path.join(self.config.TMP_DIRECTORY, f"{base_name}.asm")
 
         try:
@@ -400,19 +401,25 @@ class B32CCTestRunner:
 
     def get_test_files(self) -> list[str]:
         """
-        Get a sorted list of test files.
+        Get a sorted list of test files, recursively searching subdirectories.
 
         Returns:
-            List of test file names
+            List of test file paths relative to TESTS_DIRECTORY
 
         Raises:
             B32CCTestError: If tests directory cannot be read
         """
         try:
             tests = []
-            for file in os.listdir(self.config.TESTS_DIRECTORY):
-                if file.endswith(".c"):
-                    tests.append(file)
+            for root, dirs, files in os.walk(self.config.TESTS_DIRECTORY):
+                # Skip 'tmp' directory
+                dirs[:] = [d for d in dirs if d not in ("tmp")]
+                for file in files:
+                    if file.endswith(".c"):
+                        # Get path relative to TESTS_DIRECTORY
+                        full_path = os.path.join(root, file)
+                        rel_path = os.path.relpath(full_path, self.config.TESTS_DIRECTORY)
+                        tests.append(rel_path)
             return sorted(tests)
         except FileNotFoundError:
             raise B32CCTestError(
