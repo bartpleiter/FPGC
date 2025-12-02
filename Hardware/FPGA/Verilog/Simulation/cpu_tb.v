@@ -12,6 +12,8 @@
 `include "Hardware/FPGA/Verilog/Modules/CPU/MultiCycleALU.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/MultiCycleAluOps/MultuPipelined.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/MultiCycleAluOps/MultsPipelined.v"
+`include "Hardware/FPGA/Verilog/Modules/CPU/MultiCycleAluOps/IDivider.v"
+`include "Hardware/FPGA/Verilog/Modules/CPU/MultiCycleAluOps/FPDivider.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/ControlUnit.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/Stack.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/BranchJumpUnit.v"

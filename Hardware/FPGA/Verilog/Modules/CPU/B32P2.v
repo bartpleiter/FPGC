@@ -119,9 +119,9 @@ wire flush_FE2;
 wire flush_REG;
 wire flush_EXMEM1;
 
-assign flush_FE1 = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid || multicycle_hazard || exmem1_uses_exmem2_result_hazard; // || hazard_pc1_pc2 || hazard_pc2_pc1
-assign flush_FE2 = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid || multicycle_hazard || exmem1_uses_exmem2_result_hazard; // || hazard_pc1_pc2 || hazard_pc2_pc1
-assign flush_REG = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid || multicycle_hazard || exmem1_uses_exmem2_result_hazard; // || hazard_pc1_pc2 || hazard_pc2_pc1
+assign flush_FE1 = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid || multicycle_hazard || exmem1_uses_exmem2_result_hazard;
+assign flush_FE2 = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid || multicycle_hazard || exmem1_uses_exmem2_result_hazard;
+assign flush_REG = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid || multicycle_hazard || exmem1_uses_exmem2_result_hazard;
 assign flush_EXMEM1 = exmem1_uses_exmem2_result || exmem1_uses_exmem2_result_hazard;
 
 assign l1i_cache_controller_flush = l1i_cache_controller_flush_reg;
@@ -152,10 +152,12 @@ assign cc_stall = clearCache_EXMEM2 && !cc_request_finished_EXMEM2;
 // When adding support for more multicycle memory, add here as well!
 // NOTE: the stall and flush cause issues when there is also a dependency on PC-2
 //        then we need to flush the entire pipeline to resolve the hazard
+// NOTE: malu_request_finished_EXMEM2 is NOT included here because data_d_EXMEM2
+//       provides correct forwarding for multicycle ALU results
 wire exmem1_uses_exmem2_result;
 assign exmem1_uses_exmem2_result =
     (pop_EXMEM2 || (mem_read_EXMEM2 && (l1d_cache_hit_EXMEM2 || !mem_multicycle_EXMEM2)) ||
-    was_cache_miss_EXMEM2 || mu_request_finished_EXMEM2 || malu_request_finished_EXMEM2) && 
+    was_cache_miss_EXMEM2 || mu_request_finished_EXMEM2) && 
     ( 
         ( (dreg_EXMEM2 == areg_EXMEM1) && areg_EXMEM1 != 4'd0) ||
         ( (dreg_EXMEM2 == breg_EXMEM1) && breg_EXMEM1 != 4'd0)
@@ -166,10 +168,14 @@ assign exmem1_uses_exmem2_result =
     );
 
 
+// This hazard signal handles the case where EXMEM2 has a pop instruction (whose result
+// isn't available until WB) AND WB also has a result that EXMEM1 needs.
+// In this case, forwarding from EXMEM2 would give wrong data, so we must flush and refetch.
+// Note: Memory reads with cache hit DO have their result available in EXMEM2 (via l1d_cache_hit_q),
+// so forwarding works and we don't need to trigger the hazard for those.
 wire exmem1_uses_exmem2_result_hazard;
 assign exmem1_uses_exmem2_result_hazard =
-    (pop_EXMEM2 || (mem_read_EXMEM2 && (l1d_cache_hit_EXMEM2 || !mem_multicycle_EXMEM2)) ||
-    was_cache_miss_EXMEM2 || mu_request_finished_EXMEM2 || malu_request_finished_EXMEM2) && 
+    (pop_EXMEM2) &&  // Only pop - memory reads with cache hit have result available in data_d_EXMEM2
     ( 
         ( (dreg_EXMEM2 == areg_EXMEM1) && areg_EXMEM1 != 4'd0) ||
         ( (dreg_EXMEM2 == breg_EXMEM1) && breg_EXMEM1 != 4'd0)
@@ -259,7 +265,7 @@ begin
             PC_FE1 <= PC_backup;
         end
         // Flushes have priority over jumps
-        else if (multicycle_hazard || exmem1_uses_exmem2_result_hazard) //(hazard_pc1_pc2 || hazard_pc2_pc1)
+        else if (multicycle_hazard || exmem1_uses_exmem2_result_hazard)
         begin
             PC_FE1 <= PC_EXMEM1;
         end
@@ -673,11 +679,11 @@ assign forward_b =  (breg_EXMEM1 == dreg_EXMEM2 && breg_EXMEM1 != 4'd0) ? 2'd1 :
                     (breg_EXMEM1 == addr_d_WB && breg_EXMEM1 != 4'd0) ? 2'd2 :
                     2'd0;
 
-assign alu_a_EXMEM1 =   (forward_a == 2'd1) ? alu_y_EXMEM2 :
+assign alu_a_EXMEM1 =   (forward_a == 2'd1) ? data_d_EXMEM2 :
                         (forward_a == 2'd2) ? data_d_WB :
                         data_a_EXMEM1;
 
-assign alu_b_EXMEM1 =   (forward_b == 2'd1) ? alu_y_EXMEM2 :
+assign alu_b_EXMEM1 =   (forward_b == 2'd1) ? data_d_EXMEM2 :
                         (forward_b == 2'd2) ? data_d_WB :
                         (alu_use_constu_EXMEM1) ? constAluu_EXMEM1:
                         (alu_use_const_EXMEM1)  ? constAlu_EXMEM1:
@@ -1124,6 +1130,15 @@ always @(posedge clk) begin
         endcase
     end
 end
+
+// EXMEM2 result for forwarding
+// Note: pop_EXMEM2 (stack) result isn't available until WB, so it's not included here.
+wire [31:0] data_d_EXMEM2;
+assign data_d_EXMEM2 = (mem_sdram_EXMEM2 && was_cache_miss_EXMEM2) ? l1d_cache_controller_result :
+                       (l1d_cache_hit_EXMEM2) ? l1d_cache_hit_q_EXMEM2 :
+                       (arithm_EXMEM2 && malu_request_finished_EXMEM2) ? malu_q_EXMEM2 :
+                       (mem_io_EXMEM2) ? mu_q_EXMEM2 :
+                       alu_y_EXMEM2;
 
 // Forward to next stage
 wire [31:0] instr_WB;
