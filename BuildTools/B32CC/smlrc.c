@@ -3598,10 +3598,11 @@ int exprval(int* idx, int* ExprTypeSynPtr, int* ConstExpr)
           StructCpyLabel = LabelCnt++;
         ins2(oldIdxRight + 2 - (oldSpRight - sp), tokIdent, AddNumericIdent(StructCpyLabel));
 
-        ins2(oldIdxRight + 2 - (oldSpRight - sp), ')', SizeOfWord * 3);
+        // Struct copy takes 3 arguments (dest, src, size)
+        ins2(oldIdxRight + 2 - (oldSpRight - sp), ')', WordAddressable ? 3 : SizeOfWord * 3);
         ins2(oldIdxRight + 2 - (oldSpRight - sp), tokUnaryStar, 0); // use 0 deref size to drop meaningless dereferences
 
-        ins2(*idx + 1, '(', SizeOfWord * 3);
+        ins2(*idx + 1, '(', WordAddressable ? 3 : SizeOfWord * 3);
       }
       else
       {
@@ -4018,10 +4019,11 @@ int exprval(int* idx, int* ExprTypeSynPtr, int* ConstExpr)
         error("Too few function arguments\n");
 
       // store the cumulative argument size in the function call operators
+      // In word-addressable mode, each argument is 1 word (1 address unit)
       {
         int i = oldIdxRight + 1 - (oldSpRight - sp);
 
-        stack[1 + *idx][1] = stack[i][1] = c * SizeOfWord;
+        stack[1 + *idx][1] = stack[i][1] = WordAddressable ? c : c * SizeOfWord;
 
       }
 
@@ -6794,7 +6796,8 @@ int ParseDecl(int tok, unsigned structInfo[4], int cast, int label)
 
           sp = 0;
 
-          push2('(', SizeOfWord * 3);
+          // Struct copy takes 3 arguments (dest, src, size)
+          push2('(', WordAddressable ? 3 : SizeOfWord * 3);
           push2(tokLocalOfs, SyntaxStack1[lastSyntaxPtr + 1]);
           push(',');
           push2(tokIdent, AddNumericIdent(initLabel));
@@ -6802,7 +6805,7 @@ int ParseDecl(int tok, unsigned structInfo[4], int cast, int label)
           push2(tokNumUint, sz);
           push(',');
           push2(tokIdent, AddNumericIdent(StructCpyLabel));
-          push2(')', SizeOfWord * 3);
+          push2(')', WordAddressable ? 3 : SizeOfWord * 3);
 
           GenExpr();
         }
@@ -7060,7 +7063,8 @@ STATIC
 void AddFxnParamSymbols(int SyntaxPtr)
 {
   int i;
-  unsigned paramOfs = 2 * SizeOfWord; // ret addr, xbp
+  // In word-addressable mode, each address is 1 word, so RA + FP = 2 words
+  unsigned paramOfs = WordAddressable ? 2 : 2 * SizeOfWord; // ret addr, xbp
 
   if (SyntaxPtr < 0 ||
       SyntaxPtr > SyntaxStackCnt - 3 ||
@@ -7105,9 +7109,13 @@ void AddFxnParamSymbols(int SyntaxPtr)
       PushSyntax2(SyntaxStack0[i], SyntaxStack1[i]);
       PushSyntax2(tokLocalOfs, paramOfs);
 
-      if (sz + SizeOfWord - 1 < sz)
-        errorVarSize();
-      sz = (sz + SizeOfWord - 1) & ~(SizeOfWord - 1u);
+      // In word-addressable mode, sz is already in words (1 word each), no rounding needed
+      if (!WordAddressable)
+      {
+        if (sz + SizeOfWord - 1 < sz)
+          errorVarSize();
+        sz = (sz + SizeOfWord - 1) & ~(SizeOfWord - 1u);
+      }
       if (paramOfs + sz < paramOfs)
         errorVarSize();
       paramOfs += sz;

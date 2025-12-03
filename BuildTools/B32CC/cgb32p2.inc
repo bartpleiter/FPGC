@@ -531,11 +531,12 @@ int GenLeaf;
 STATIC
 void GenWriteFrameSize(void)
 {
-  unsigned size = 8/*RA + FP*/ - CurFxnMinLocalOfs;
+  // In word-addressable mode, RA + FP take 2 words (addresses), not 8 bytes
+  unsigned size = 2/*RA + FP*/ - CurFxnMinLocalOfs;
   printf2("  sub r13 %10u r13\n", size); // Adjust stack pointer
-  printf2("  write %10u r13 r14\n", size - 8); // Save frame pointer
-  printf2("  add r13 %10u r14\n", size - 8); // Set up new frame pointer
-  printf2("  %cwrite 4 r14 r15\n", GenLeaf ? ';' : ' '); // Save return address if not leaf
+  printf2("  write %10u r13 r14\n", size - 2); // Save frame pointer
+  printf2("  add r13 %10u r14\n", size - 2); // Set up new frame pointer
+  printf2("  %cwrite 1 r14 r15\n", GenLeaf ? ';' : ' '); // Save return address if not leaf (offset 1, not 4)
 }
 
 STATIC
@@ -557,9 +558,10 @@ void GenFxnProlog(void)
     if (cnt > 4)
       cnt = 4;
     // Save argument registers to stack for local access
+    // In word-addressable mode, each parameter is at offset i (not 4 * i)
     for (i = 0; i < cnt; i++)
       GenPrintInstr3Operands(B32InstrWrite, 0,
-                             B32OpConst, 4 * i,
+                             B32OpConst, i,
                              B32OpRegSp, 0,
                              B32OpRegA0 + i, 0);
   }
@@ -586,9 +588,10 @@ void GenFxnEpilog(void)
 {
   GenUpdateFrameSize();
 
+  // In word-addressable mode, RA is at offset 1 (not 4)
   if (!GenLeaf)
     GenPrintInstr3Operands(B32InstrRead, 0,
-                           B32OpConst, 4,
+                           B32OpConst, 1,
                            B32OpRegFp, 0,
                            B32OpRegRa, 0);
 
@@ -597,9 +600,10 @@ void GenFxnEpilog(void)
                          B32OpRegFp, 0,
                          B32OpRegFp, 0);
 
+  // In word-addressable mode, RA + FP take 2 words (not 8 bytes)
   GenPrintInstr3Operands(B32InstrAdd, 0,
                          B32OpRegSp, 0,
-                         B32OpConst, 8/*RA + FP*/ - CurFxnMinLocalOfs,
+                         B32OpConst, 2/*RA + FP*/ - CurFxnMinLocalOfs,
                          B32OpRegSp, 0);
 
   GenPrintInstr2Operands(B32InstrJumpr, 0,
@@ -1594,27 +1598,29 @@ void GenExpr0(void)
       if (gotUnary)
         GenPushReg();
       gotUnary = 0;
-      if (maxCallDepth != 1 && v < 16)
-        GenGrowStack(16 - v);
-      paramOfs = v - 4;
-      if (maxCallDepth == 1 && paramOfs >= 0 && paramOfs <= 12)
+      // In word-addressable mode, v is count of args, max 4 args in registers
+      // Allocate stack space for parameters if needed
+      if (maxCallDepth != 1 && v < 4)
+        GenGrowStack(4 - v);
+      paramOfs = v - 1;
+      if (maxCallDepth == 1 && paramOfs >= 0 && paramOfs <= 3)
       {
         // Work directly in A0-A3 instead of working in V0 and avoid copying V0 to A0-A3
-        GenWreg = B32OpRegA0 + paramOfs / 4;
+        GenWreg = B32OpRegA0 + paramOfs;
       }
       break;
 
     case ',':
       if (maxCallDepth == 1)
       {
-        if (paramOfs == 16)
+        if (paramOfs == 4)
         {
           // Got the last on-stack parameter, the rest will go in A0-A3
           GenPushReg();
           gotUnary = 0;
           GenWreg = B32OpRegA3;
         }
-        if (paramOfs >= 0 && paramOfs <= 12)
+        if (paramOfs >= 0 && paramOfs <= 3)
         {
           // Advance to the next An reg or revert to V0
           if (paramOfs)
@@ -1623,7 +1629,7 @@ void GenExpr0(void)
             GenWreg = B32OpRegV0;
           gotUnary = 0;
         }
-        paramOfs -= 4;
+        paramOfs -= 1;
       }
       break;
 
@@ -1631,30 +1637,31 @@ void GenExpr0(void)
       GenLeaf = 0;
       if (maxCallDepth != 1)
       {
-        if (v >= 4)
+        // In word-addressable mode, v is count of args (1, 2, 3, 4, ...)
+        if (v >= 1)
           GenPrintInstr3Operands(B32InstrRead, 0,
                                  B32OpConst, 0,
                                  B32OpRegSp, 0,
                                  B32OpRegA0, 0);
-        if (v >= 8)
+        if (v >= 2)
           GenPrintInstr3Operands(B32InstrRead, 0,
-                                 B32OpConst, 4,
+                                 B32OpConst, 1,
                                  B32OpRegSp, 0,
                                  B32OpRegA1, 0);
-        if (v >= 12)
+        if (v >= 3)
           GenPrintInstr3Operands(B32InstrRead, 0,
-                                 B32OpConst, 8,
+                                 B32OpConst, 2,
                                  B32OpRegSp, 0,
                                  B32OpRegA2, 0);
-        if (v >= 16)
+        if (v >= 4)
           GenPrintInstr3Operands(B32InstrRead, 0,
-                                 B32OpConst, 12,
+                                 B32OpConst, 3,
                                  B32OpRegSp, 0,
                                  B32OpRegA3, 0);
       }
       else
       {
-        GenGrowStack(16);
+        GenGrowStack(4);
       }
       if (stack[i - 1][0] == tokIdent)
       {
@@ -1681,8 +1688,9 @@ void GenExpr0(void)
                               B32OpConst, 0,
                               GenWreg, 0);
       }
-      if (v < 16)
-        v = 16;
+      // In word-addressable mode, always allocate at least 4 words for args
+      if (v < 4)
+        v = 4;
       GenGrowStack(-v);
       break;
 
