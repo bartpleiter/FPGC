@@ -119,10 +119,10 @@ wire flush_FE2;
 wire flush_REG;
 wire flush_EXMEM1;
 
-assign flush_FE1 = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid || multicycle_hazard || exmem1_uses_exmem2_result_hazard;
-assign flush_FE2 = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid || multicycle_hazard || exmem1_uses_exmem2_result_hazard;
-assign flush_REG = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid || multicycle_hazard || exmem1_uses_exmem2_result_hazard;
-assign flush_EXMEM1 = exmem1_uses_exmem2_result || exmem1_uses_exmem2_result_hazard;
+assign flush_FE1 = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid || hazard_multicycle_dep || hazard_pop_wb_conflict;
+assign flush_FE2 = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid || hazard_multicycle_dep || hazard_pop_wb_conflict;
+assign flush_REG = jump_valid_EXMEM1 || reti_EXMEM1 || interrupt_valid || hazard_multicycle_dep || hazard_pop_wb_conflict;
+assign flush_EXMEM1 = hazard_load_use || hazard_pop_wb_conflict;
 
 assign l1i_cache_controller_flush = l1i_cache_controller_flush_reg;
 
@@ -132,79 +132,72 @@ wire stall_REG;
 wire stall_EXMEM1;
 
 // Stall all previous stages on EXMEM2 busy
-assign stall_FE1 = exmem1_uses_exmem2_result || multicycle_alu_stall || l1i_cache_miss_FE2 || l1d_cache_wait_EXMEM2 || mu_stall || cc_stall;
-assign stall_FE2 = exmem1_uses_exmem2_result || multicycle_alu_stall || l1d_cache_wait_EXMEM2 || mu_stall || cc_stall;
-assign stall_REG = exmem1_uses_exmem2_result || multicycle_alu_stall || l1d_cache_wait_EXMEM2 || mu_stall || cc_stall;
-assign stall_EXMEM1 = multicycle_alu_stall || l1d_cache_wait_EXMEM2 || mu_stall || cc_stall;
+assign stall_FE1 = hazard_load_use || malu_stall || l1i_cache_miss_FE2 || l1d_cache_wait_EXMEM2 || mu_stall || cc_stall;
+assign stall_FE2 = hazard_load_use || malu_stall || l1d_cache_wait_EXMEM2 || mu_stall || cc_stall;
+assign stall_REG = hazard_load_use || malu_stall || l1d_cache_wait_EXMEM2 || mu_stall || cc_stall;
+assign stall_EXMEM1 = malu_stall || l1d_cache_wait_EXMEM2 || mu_stall || cc_stall;
 
-wire multicycle_alu_stall;
-assign multicycle_alu_stall = arithm_EXMEM2 && !malu_request_finished_EXMEM2;
-
+wire malu_stall;
+assign malu_stall = arithm_EXMEM2 && !malu_request_finished_EXMEM2;
 wire mu_stall;
 assign mu_stall = mem_io_EXMEM2 && !mu_request_finished_EXMEM2;
 wire cc_stall;
 assign cc_stall = clearCache_EXMEM2 && !cc_request_finished_EXMEM2;
 
-// Possible hazard situations:
+// Hazard Detection helper signals
+wire dep_exmem1_on_exmem2 = 
+    ((dreg_EXMEM2 == areg_EXMEM1) && areg_EXMEM1 != 4'd0) ||
+    ((dreg_EXMEM2 == breg_EXMEM1) && breg_EXMEM1 != 4'd0);
 
-// - EXMEM1 uses result of non-ALU (single cycle) operation from EXMEM2 -> stall
-// Note: in case of multi cycle operation (cache miss or ALU), only set this signal high on the last cycle!
-// When adding support for more multicycle memory, add here as well!
-// NOTE: the stall and flush cause issues when there is also a dependency on PC-2
-//        then we need to flush the entire pipeline to resolve the hazard
-// NOTE: malu_request_finished_EXMEM2 is NOT included here because data_d_EXMEM2
-//       provides correct forwarding for multicycle ALU results
-wire exmem1_uses_exmem2_result;
-assign exmem1_uses_exmem2_result =
-    (pop_EXMEM2 || (mem_read_EXMEM2 && (l1d_cache_hit_EXMEM2 || !mem_multicycle_EXMEM2)) ||
-    was_cache_miss_EXMEM2 || mu_request_finished_EXMEM2) && 
-    ( 
-        ( (dreg_EXMEM2 == areg_EXMEM1) && areg_EXMEM1 != 4'd0) ||
-        ( (dreg_EXMEM2 == breg_EXMEM1) && breg_EXMEM1 != 4'd0)
-    ) &&
-    ( 
-        ( (addr_d_WB != areg_EXMEM1) || areg_EXMEM1 == 4'd0) &&
-        ( (addr_d_WB != breg_EXMEM1) || breg_EXMEM1 == 4'd0)
-    );
+wire dep_exmem1_on_wb = 
+    ((dreg_WB == areg_EXMEM1) && areg_EXMEM1 != 4'd0) ||
+    ((dreg_WB == breg_EXMEM1) && breg_EXMEM1 != 4'd0);
 
+wire dep_only_on_exmem2 = 
+    dep_exmem1_on_exmem2 && !dep_exmem1_on_wb;
 
-// This hazard signal handles the case where EXMEM2 has a pop instruction (whose result
-// isn't available until WB) AND WB also has a result that EXMEM1 needs.
-// In this case, forwarding from EXMEM2 would give wrong data, so we must flush and refetch.
-// Note: Memory reads with cache hit DO have their result available in EXMEM2 (via l1d_cache_hit_q),
-// so forwarding works and we don't need to trigger the hazard for those.
-wire exmem1_uses_exmem2_result_hazard;
-assign exmem1_uses_exmem2_result_hazard =
-    (pop_EXMEM2) &&  // Only pop - memory reads with cache hit have result available in data_d_EXMEM2
-    ( 
-        ( (dreg_EXMEM2 == areg_EXMEM1) && areg_EXMEM1 != 4'd0) ||
-        ( (dreg_EXMEM2 == breg_EXMEM1) && breg_EXMEM1 != 4'd0)
-    ) &&
-    ( 
-        ( (addr_d_WB == areg_EXMEM1) && areg_EXMEM1 != 4'd0) ||
-        ( (addr_d_WB == breg_EXMEM1) && breg_EXMEM1 != 4'd0)
-    );
+// EXMEM2 result availability signals
+wire exmem2_result_in_wb = pop_EXMEM2;  // Pop result only available in WB
+wire exmem2_multicycle_busy = 
+    (mem_multicycle_EXMEM2 && !l1d_cache_hit_EXMEM2 && !was_cache_miss_EXMEM2) ||
+    (arithm_EXMEM2 && !malu_request_finished_EXMEM2);
+wire exmem2_result_ready = 
+    (mem_read_EXMEM2 && (l1d_cache_hit_EXMEM2 || !mem_multicycle_EXMEM2)) ||
+    was_cache_miss_EXMEM2 || mu_request_finished_EXMEM2;
 
-// - EXMEM1 uses result of multicycle EXMEM2 or WB at PC-1 or PC-2 -> flush
-wire multicycle_hazard;
-assign multicycle_hazard =
-    ( 
-        // EXMEM1 uses result from multicycle EXMEM2
-        (
-            ( (areg_EXMEM1 == dreg_EXMEM2) && areg_EXMEM1 != 4'd0) || 
-            ( (breg_EXMEM1 == dreg_EXMEM2) && breg_EXMEM1 != 4'd0)
-        ) && 
-        ( (mem_multicycle_EXMEM2 && !l1d_cache_hit_EXMEM2) || arithm_EXMEM2 )
-    ) ||
-    (
-        // EXMEM1 uses result from WB where EXMEM2 was multicycle
-        (
-            ( (areg_EXMEM1 == addr_d_WB) && areg_EXMEM1 != 4'd0) || 
-            ( (breg_EXMEM1 == addr_d_WB) && breg_EXMEM1 != 4'd0)
-        ) && 
-        ( 
-            ((mem_multicycle_EXMEM2 && !l1d_cache_hit_EXMEM2) || arithm_EXMEM2)
-        )
+//-----------------------------------------------------------------------------
+// Hazard 1: Load-use hazard (stall + flush EXMEM1)
+// Triggers when EXMEM2 has a result that's available for forwarding but
+// requires a stall cycle. Does not trigger when WB can provide the data.
+//-----------------------------------------------------------------------------
+wire hazard_load_use;
+assign hazard_load_use =
+    (exmem2_result_in_wb || exmem2_result_ready) && 
+    dep_only_on_exmem2;
+
+//-----------------------------------------------------------------------------
+// Hazard 2: Pop + WB forwarding conflict (flush entire pipeline)
+// Triggers when EXMEM2 has pop (result in WB) and WB also has data EXMEM1 needs.
+//-----------------------------------------------------------------------------
+wire hazard_pop_wb_conflict;
+assign hazard_pop_wb_conflict =
+    exmem2_result_in_wb &&
+    dep_exmem1_on_exmem2 &&
+    dep_exmem1_on_wb;
+
+//-----------------------------------------------------------------------------
+// Hazard 3: Multi-cycle dependency (flush early pipeline stages)
+// Triggers when EXMEM1 depends on a multi-cycle operation in EXMEM2.
+// Also handles WB dependencies during multi-cycle stalls because WB gets
+// bubbles during stalls, making WB forwarding unreliable.
+//-----------------------------------------------------------------------------
+wire hazard_multicycle_dep;
+assign hazard_multicycle_dep =
+    exmem2_multicycle_busy && (
+        // Direct dependency on EXMEM2's result
+        dep_exmem1_on_exmem2 ||
+        // WB dependency while EXMEM2 is stalling (WB gets bubbles during stall)
+        dep_exmem1_on_wb
     );
 
 // Forwarding situations
@@ -265,7 +258,7 @@ begin
             PC_FE1 <= PC_backup;
         end
         // Flushes have priority over jumps
-        else if (multicycle_hazard || exmem1_uses_exmem2_result_hazard)
+        else if (hazard_multicycle_dep || hazard_pop_wb_conflict)
         begin
             PC_FE1 <= PC_EXMEM1;
         end
@@ -494,8 +487,8 @@ Regr #(
  * Stage 3: Register Read
  */
 
-wire [3:0] addr_a_REG;
-wire [3:0] addr_b_REG;
+wire [3:0] areg_REG;
+wire [3:0] breg_REG;
 
 // Obtain register addresses from instruction
 InstructionDecoder instrDec_REG (
@@ -511,8 +504,8 @@ InstructionDecoder instrDec_REG (
     .const16u(),
     .const27(),
 
-    .areg(addr_a_REG),
-    .breg(addr_b_REG),
+    .areg(areg_REG),
+    .breg(breg_REG),
     .dreg(),
 
     .he(),
@@ -525,7 +518,7 @@ wire [31:0] data_a_EXMEM1;
 wire [31:0] data_b_EXMEM1;
 
 // Signals already defined for WB stage
-wire [3:0] addr_d_WB;
+wire [3:0] dreg_WB;
 wire [31:0] data_d_WB;
 wire we_WB;
 
@@ -534,14 +527,14 @@ Regbank regbank (
     .clk(clk),
     .reset(reset),
 
-    .addr_a(addr_a_REG),
-    .addr_b(addr_b_REG),
+    .addr_a(areg_REG),
+    .addr_b(breg_REG),
     .clear(flush_REG || reset),
     .hold(stall_REG),
     .data_a(data_a_EXMEM1),
     .data_b(data_b_EXMEM1),
 
-    .addr_d(addr_d_WB),
+    .addr_d(dreg_WB),
     .data_d(data_d_WB),
     // When EXMEM2 is stalling, we keep the data in the pipeline in case of forwarding
     .we(we_WB)
@@ -673,10 +666,10 @@ AddressDecoder addressDecoder_EXMEM1 (
 );
 
 assign forward_a =  (areg_EXMEM1 == dreg_EXMEM2 && areg_EXMEM1 != 4'd0) ? 2'd1 :
-                    (areg_EXMEM1 == addr_d_WB && areg_EXMEM1 != 4'd0) ? 2'd2 :
+                    (areg_EXMEM1 == dreg_WB && areg_EXMEM1 != 4'd0) ? 2'd2 :
                     2'd0;
 assign forward_b =  (breg_EXMEM1 == dreg_EXMEM2 && breg_EXMEM1 != 4'd0) ? 2'd1 :
-                    (breg_EXMEM1 == addr_d_WB && breg_EXMEM1 != 4'd0) ? 2'd2 :
+                    (breg_EXMEM1 == dreg_WB && breg_EXMEM1 != 4'd0) ? 2'd2 :
                     2'd0;
 
 assign alu_a_EXMEM1 =   (forward_a == 2'd1) ? data_d_EXMEM2 :
@@ -1149,7 +1142,7 @@ Regr #(
     .in(instr_EXMEM2),
     .out(instr_WB),
     .hold(1'b0),
-    .clear(l1d_cache_wait_EXMEM2 || multicycle_alu_stall || mu_stall || cc_stall || reset) // Insert bubble if EXMEM2 is stalling
+    .clear(l1d_cache_wait_EXMEM2 || malu_stall || mu_stall || cc_stall || reset) // Insert bubble if EXMEM2 is stalling
 );
 
 wire [31:0] alu_y_WB;
@@ -1262,7 +1255,7 @@ InstructionDecoder instrDec_WB (
 
     .areg(),
     .breg(),
-    .dreg(addr_d_WB),
+    .dreg(dreg_WB),
 
     .he(),
     .oe(),

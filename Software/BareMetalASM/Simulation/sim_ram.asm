@@ -26,10 +26,10 @@ Label_y:
 
 .code
 Label_main:
-  sub r13         11 r13
+  sub r13          5 r13
   write          3 r13 r14
   add r13          3 r14
-   write 4 r14 r15
+   write 1 r14 r15
 
 .data
 Label_L2:
@@ -38,14 +38,17 @@ Label_L2:
   .dw 3
 
 .code
-  add r14 -3 r6
-  addr2reg Label_L2 r5
-  load32 3 r4
-  sub r13 16 r13
+  add r14 -3 r1
+  push r1
+  addr2reg Label_L2 r1
+  push r1
+  load32 3 r1
+  push r1
+  sub r13 4 r13
   savpc r15
   add r15 3 r15
   jump Label_L3
-  sub r13 -16 r13
+  sub r13 -12 r13
   read -1 r14 r1
   addr2reg Label_y r8
   add r8 1 r8
@@ -55,20 +58,20 @@ Label_L2:
   jump Label_L1
   load32 0 r1
 Label_L1:
-  read 4 r14 r15
+  read 1 r14 r15
   read 0 r14 r14
-  add r13 11 r13
+  add r13 5 r13
   jumpr 0 r15
 
 .code
 Label_interrupt:
-  sub r13          8 r13
+  sub r13          2 r13
   write          0 r13 r14
   add r13          0 r14
-  ;write 4 r14 r15
+  ;write 1 r14 r15
 Label_L4:
   read 0 r14 r14
-  add r13 8 r13
+  add r13 2 r13
   jumpr 0 r15
 
 .code

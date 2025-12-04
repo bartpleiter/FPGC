@@ -88,3 +88,17 @@ Currently, the simulation is hardcoded to use either SDRAM or MIG7mock.
 - [ ] Instruction execution counts in simulation
 - [ ] Cycle-accurate performance measurement
 - [ ] Cache hit/miss statistics
+
+---
+
+## Verilog/Hardware Improvements
+
+### Refactor and Cleanup
+
+- [ ] Extract Repeated Logic into Functions/Modules (possibly L1i and L1d cache miss handlers, or refactor them somewhere else)
+- [ ] Consolidate State Machine Constants (they are scattered now)
+- [ ] Add Stage Comments to Wire Declarations (Group wires by pipeline stage for easier navigation
+- [ ] Consider Prefix Conventions (hazard_, dep_, stall conditions, flush conditions, etc
+- [ ] Use forwarding logic for AddressDecoder and controlUnit so that there is no need for instantiating them in different stages
+- [ ] Document Magic Numbers (named constants for magic numbers)
+- [ ] Perhaps, split B32P2 into smaller modules like _hazards, _forwarding, _pipeline, _top
