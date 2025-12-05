@@ -7889,9 +7889,9 @@ int ParseStatement(int tok, int BrkCntTarget[2], int casesIdx)
       do
       {
         GetString('"', 0, 'a');
+        printf2("\n"); // each string literal becomes its own line
         tok = GetToken();
-      } while (tok == tokLitStr); // concatenate adjacent string literals
-      printf2("\n");
+      } while (tok == tokLitStr); // process adjacent string literals as separate lines
 
       if (tok != ')')
         //error("ParseStatement(): ')' expected after 'asm ( expression'\n");
