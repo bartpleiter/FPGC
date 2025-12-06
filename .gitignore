@@ -58,7 +58,7 @@ Hardware/PCB/FPGC-CycloneIV-AIO_backup/
 
 # Others
 tmp
-Software/BareMetalASM/Output
+Software/ASM/Output
 BuildTools/B32CC/output
 Tests/C/tmp
 Tests/tmp

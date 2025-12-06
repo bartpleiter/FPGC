@@ -214,7 +214,7 @@ def parse_arguments() -> argparse.Namespace:
         "-f",
         "--file",
         type=Path,
-        default=Path("Software/BareMetalASM/Output/code.bin"),
+        default=Path("Software/ASM/Output/code.bin"),
         help="Path to binary file to flash",
     )
 

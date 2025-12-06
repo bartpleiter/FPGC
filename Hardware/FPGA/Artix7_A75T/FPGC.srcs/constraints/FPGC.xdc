@@ -36,14 +36,14 @@ set_property -dict {PACKAGE_PIN H17 IOSTANDARD LVCMOS33} [get_ports SPI1_miso]
 set_property -dict {PACKAGE_PIN M22 IOSTANDARD LVCMOS33} [get_ports SPI1_mosi]
 set_property -dict {PACKAGE_PIN N22 IOSTANDARD LVCMOS33} [get_ports SPI1_cs]
 
-# MAX3421E USB Host 1
+# USB Host 1
 set_property -dict {PACKAGE_PIN L20 IOSTANDARD LVCMOS33} [get_ports SPI2_clk]
 set_property -dict {PACKAGE_PIN L19 IOSTANDARD LVCMOS33} [get_ports SPI2_mosi]
 set_property -dict {PACKAGE_PIN L18 IOSTANDARD LVCMOS33} [get_ports SPI2_miso]
 set_property -dict {PACKAGE_PIN M18 IOSTANDARD LVCMOS33} [get_ports SPI2_cs]
 set_property -dict {PACKAGE_PIN H22 IOSTANDARD LVCMOS33} [get_ports SPI2_nint]
 
-# MAX3421E USB Host 2
+# USB Host 2
 set_property -dict {PACKAGE_PIN H19 IOSTANDARD LVCMOS33} [get_ports SPI3_clk]
 set_property -dict {PACKAGE_PIN J19 IOSTANDARD LVCMOS33} [get_ports SPI3_mosi]
 set_property -dict {PACKAGE_PIN J21 IOSTANDARD LVCMOS33} [get_ports SPI3_miso]

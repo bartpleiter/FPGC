@@ -13,11 +13,11 @@ ASM_FILENAME="$1"
 source .venv/bin/activate
 
 # Create output directory if it does not exist yet
-mkdir -p Software/BareMetalASM/Output
+mkdir -p Software/ASM/Output
 
 # Compile code
 echo "Compiling code"
-if asmpy "Software/BareMetalASM/Programs/${ASM_FILENAME}.asm" "Software/BareMetalASM/Output/code.list" -h
+if asmpy "Software/ASM/Programs/${ASM_FILENAME}.asm" "Software/ASM/Output/code.list" -h
 then
     echo "Code compiled successfully"
 else
@@ -27,11 +27,11 @@ fi
 
 # Convert to binary
 echo "Converting output to binary"
-perl -ne 'print pack("B32", $_)' < Software/BareMetalASM/Output/code.list > Software/BareMetalASM/Output/code.bin
+perl -ne 'print pack("B32", $_)' < Software/ASM/Output/code.list > Software/ASM/Output/code.bin
 echo "Converted to binary"
 
 # If you want to inspect the binary for debugging this script, you can use:
-# xxd -b -c4 Software/BareMetalASM/Output/code.bin
+# xxd -b -c4 Software/ASM/Output/code.bin
 
 # Deactivate virtual environment
 deactivate

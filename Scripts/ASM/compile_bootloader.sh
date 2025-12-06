@@ -7,7 +7,7 @@ source .venv/bin/activate
 
 # Compile UART bootloader for RAM
 echo "Compiling UART bootloader for RAM"
-if asmpy Software/BareMetalASM/Bootloaders/uart_bootloader_ram_only.asm Hardware/FPGA/Verilog/Simulation/MemoryLists/ram.list -h -o 0x3FF000
+if asmpy Software/ASM/Bootloaders/uart_bootloader_ram_only.asm Hardware/FPGA/Verilog/Simulation/MemoryLists/ram.list -h -o 0x3FF000
 then
     echo "UART bootloader code compiled successfully"
 else
@@ -20,7 +20,7 @@ echo ""
 # Replace the first word of ram.list with 32 1s (in hex: FFFFFFFF)
 sed -i '1s/.*/11111111111111111111111111111111/' Hardware/FPGA/Verilog/Simulation/MemoryLists/ram.list
 
-# Convert the ram.list into assembly code with .dw 0b format in Software/BareMetalASM/Bootloaders/uart_bootloader_ram_compiled.asm using UART_Bootloader_RAM_code: as label
+# Convert the ram.list into assembly code with .dw 0b format in Software/ASM/Bootloaders/uart_bootloader_ram_compiled.asm using UART_Bootloader_RAM_code: as label
 echo "Converting RAM list to assembly format"
 {
     echo "; To be used as import"
@@ -37,14 +37,14 @@ echo "Converting RAM list to assembly format"
             fi
         fi
     done < Hardware/FPGA/Verilog/Simulation/MemoryLists/ram.list
-} > Software/BareMetalASM/Bootloaders/uart_bootloader_ram_compiled.asm
+} > Software/ASM/Bootloaders/uart_bootloader_ram_compiled.asm
 echo "RAM list converted to assembly format successfully"
 
 echo ""
 
 # Compile the resulting ROM bootloader code
 echo "Compiling complete ROM bootloader"
-if asmpy Software/BareMetalASM/Bootloaders/uart_bootloader_rom_ram.asm Hardware/FPGA/Verilog/Simulation/MemoryLists/rom.list -o 0x7800000
+if asmpy Software/ASM/Bootloaders/uart_bootloader_rom_ram.asm Hardware/FPGA/Verilog/Simulation/MemoryLists/rom.list -o 0x7800000
 then
     echo "Complete ROM bootloader code compiled successfully"
 else
@@ -59,7 +59,7 @@ cp Hardware/FPGA/Verilog/Simulation/MemoryLists/rom.list Hardware/FPGA/Verilog/M
 if [ "$arg" == "--simulate" ]; then
     echo ""
     echo "Compiling UART Program code"
-    if asmpy Software/BareMetalASM/Simulation/sim_uartprog.asm Hardware/FPGA/Verilog/Simulation/MemoryLists/uartprog.list -h
+    if asmpy Software/ASM/Simulation/sim_uartprog.asm Hardware/FPGA/Verilog/Simulation/MemoryLists/uartprog.list -h
     then
         echo "UART Program code compiled successfully"
         # Convert to 8 bit lines for UART data

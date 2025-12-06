@@ -65,7 +65,7 @@ class B32CCTestConfig:
     MIG7MOCK_LIST_PATH: str = (
         "Hardware/FPGA/Verilog/Simulation/MemoryLists/mig7mock.list"
     )
-    BOOTLOADER_ROM_PATH: str = "Software/BareMetalASM/Simulation/sim_jump_to_ram.asm"
+    BOOTLOADER_ROM_PATH: str = "Software/ASM/Simulation/sim_jump_to_ram.asm"
     TESTBENCH_PATH: str = "Hardware/FPGA/Verilog/Simulation/cpu_tests_tb.v"
     VERILOG_OUTPUT_PATH: str = "Hardware/FPGA/Verilog/Simulation/Output/cpu.out"
     MEMORY_LISTS_DIR: str = "Hardware/FPGA/Verilog/Simulation/MemoryLists"

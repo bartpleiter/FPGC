@@ -42,7 +42,7 @@ source .venv/bin/activate
 
 # Compile ROM code
 echo "Compiling ROM code"
-if asmpy Software/BareMetalASM/Simulation/sim_rom.asm Hardware/FPGA/Verilog/Simulation/MemoryLists/rom.list -o 0x7800000
+if asmpy Software/ASM/Simulation/sim_rom.asm Hardware/FPGA/Verilog/Simulation/MemoryLists/rom.list -o 0x7800000
 then
     echo "ROM code compiled successfully"
 else
@@ -55,7 +55,7 @@ echo ""
 # Compile RAM code (optional)
 if [ "$COMPILE_RAM" = true ]; then
     echo "Compiling RAM code"
-    if asmpy Software/BareMetalASM/Simulation/sim_ram.asm Hardware/FPGA/Verilog/Simulation/MemoryLists/ram.list -h
+    if asmpy Software/ASM/Simulation/sim_ram.asm Hardware/FPGA/Verilog/Simulation/MemoryLists/ram.list -h
     then
         echo "RAM code compiled successfully"
         # Convert to 256 bit lines for mig7 mock
@@ -71,7 +71,7 @@ fi
 # Compile SPI Flash code (optional)
 if [ "$COMPILE_FLASH" = true ]; then
     echo "Compiling SPI Flash code"
-    if asmpy Software/BareMetalASM/Simulation/sim_spiflash1.asm Hardware/FPGA/Verilog/Simulation/MemoryLists/spiflash1_32.list -h
+    if asmpy Software/ASM/Simulation/sim_spiflash1.asm Hardware/FPGA/Verilog/Simulation/MemoryLists/spiflash1_32.list -h
     then
         echo "SPI Flash code compiled successfully"
         # Convert to 8 bit lines for spiflash model
@@ -87,7 +87,7 @@ fi
 # Compile UART Program code (optional)
 if [ "$COMPILE_UART" = true ]; then
     echo "Compiling UART Program code"
-    if asmpy Software/BareMetalASM/Simulation/sim_uartprog.asm Hardware/FPGA/Verilog/Simulation/MemoryLists/uartprog.list -h
+    if asmpy Software/ASM/Simulation/sim_uartprog.asm Hardware/FPGA/Verilog/Simulation/MemoryLists/uartprog.list -h
     then
         echo "UART Program code compiled successfully"
         # Convert to 8 bit lines for UART data

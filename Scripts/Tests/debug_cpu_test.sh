@@ -21,7 +21,7 @@ TEST_PATH="Tests/CPU/${TEST_FILE}"
 ROM_LIST="Hardware/FPGA/Verilog/Simulation/MemoryLists/rom.list"
 RAM_LIST="Hardware/FPGA/Verilog/Simulation/MemoryLists/ram.list"
 MIG7MOCK_LIST="Hardware/FPGA/Verilog/Simulation/MemoryLists/mig7mock.list"
-BOOTLOADER_ROM="Software/BareMetalASM/Simulation/sim_jump_to_ram.asm"
+BOOTLOADER_ROM="Software/ASM/Simulation/sim_jump_to_ram.asm"
 
 # Activate the virtual environment
 source .venv/bin/activate

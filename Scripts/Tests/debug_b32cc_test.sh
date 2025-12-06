@@ -22,9 +22,9 @@ TEST_NAME=$(echo "${TEST_FILE%.c}" | tr '/' '_')
 TEST_PATH="Tests/C/${TEST_FILE}"
 TMP_DIR="Tests/C/tmp"
 ASM_OUTPUT="${TMP_DIR}/${TEST_NAME}.asm"
-SIM_RAM="Software/BareMetalASM/Simulation/sim_ram.asm"
-SIM_ROM="Software/BareMetalASM/Simulation/sim_rom.asm"
-JUMP_TO_RAM="Software/BareMetalASM/Simulation/sim_jump_to_ram.asm"
+SIM_RAM="Software/ASM/Simulation/sim_ram.asm"
+SIM_ROM="Software/ASM/Simulation/sim_rom.asm"
+JUMP_TO_RAM="Software/ASM/Simulation/sim_jump_to_ram.asm"
 B32CC="BuildTools/B32CC/output/b32cc"
 
 # Activate the virtual environment

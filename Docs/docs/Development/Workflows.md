@@ -85,7 +85,7 @@ Assembles a single CPU test, runs the simulation, and opens GTKWave for waveform
 make sim-cpu
 ```
 
-Builds `Software/BareMetalASM/Simulation/sim_rom.asm` (ROM), `sim_ram.asm` (RAM), and `sim_spiflash1.asm` (SPI Flash 1), runs the simulation, and opens GTKWave with preconfigured views. To simulate running a program via the UART bootloader (`sim_uartprog.asm`), use `make sim-cpu-uart`.
+Builds `Software/ASM/Simulation/sim_rom.asm` (ROM), `sim_ram.asm` (RAM), and `sim_spiflash1.asm` (SPI Flash 1), runs the simulation, and opens GTKWave with preconfigured views. To simulate running a program via the UART bootloader (`sim_uartprog.asm`), use `make sim-cpu-uart`.
 
 **GPU-only simulation:**
 
@@ -179,7 +179,7 @@ Faster when iterating on one feature.
 make debug-b32cc file=3_1_if_statements.c
 ```
 
-Workflow: compile C to assembly, copy to `Software/BareMetalASM/Simulation/sim_ram.asm`, set ROM to jump to RAM, then open simulation via `make sim-cpu`.
+Workflow: compile C to assembly, copy to `Software/ASM/Simulation/sim_ram.asm`, set ROM to jump to RAM, then open simulation via `make sim-cpu`.
 
 **Add a C test:**
 
