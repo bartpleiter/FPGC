@@ -1,8 +1,7 @@
 /*
 * Contains default ASCII table with default palette table.
-* Assembly is used as workaround to store them.
-* The data is placed in separate asm blocks with labels that can be
-* referenced using addr2reg instruction.
+* Assembly is used as workaround to store them for now.
+* An offset of 3 words should be used to get to the actual data because of the function prologue.
 */
 
 // Palette data - 32 palettes, each is a 32-bit word
@@ -10,8 +9,6 @@
 // Palette 0: black background (0x00), white foreground (0xFF)
 void DATA_PALETTE_DEFAULT(){
 asm(
-"jump DATA_PALETTE_DEFAULT_end"
-"DATA_PALETTE_DEFAULT_data:"
 ".dw 0b00000000000000001111111111111111 ; black, black, white, white"
 ".dw 0b00000000000000000000000000000000"
 ".dw 0b00000000000000000000000000000000"
@@ -44,15 +41,12 @@ asm(
 ".dw 0b00000000000000000000000000000000"
 ".dw 0b00000000000000000000000000000000"
 ".dw 0b00000000000000000000000000000000"
-"DATA_PALETTE_DEFAULT_end:"
 );
 }
 
 // ASCII pattern data - 256 characters, each is 4 words (8x8 pixels, 2bpp)
 void DATA_ASCII_DEFAULT(){
 asm(
-"jump DATA_ASCII_DEFAULT_end"
-"DATA_ASCII_DEFAULT_data:"
 ".dw 0b00000000000000000000000000000000"
 ".dw 0b00000000000000000000000000000000"
 ".dw 0b00000000000000000000000000000000"
@@ -1077,6 +1071,5 @@ asm(
 ".dw 0b00000000000000000000000000000000"
 ".dw 0b00000000000000000000000000000000"
 ".dw 0b00000000000000000000000000000000"
-"DATA_ASCII_DEFAULT_end:"
 );
 }

@@ -23,11 +23,6 @@
 /*                                                                           */
 /*****************************************************************************/
 
-// TODO's:
-// - update command line argument parsing to be only relevant for B32P2
-// - enforce char size of 32 bits and word size of 1 char
-
-
 // Making most functions static helps with code optimization,
 // use that to further reduce compiler's code size on RetroBSD.
 #define STATIC
@@ -594,30 +589,34 @@ int SyntaxStackCnt;
 STATIC
 unsigned truncUint(unsigned n)
 {
-  // Truncate n to SizeOfWord * 8 bits
-  if (SizeOfWord == 2)
-    n &= ~(~0u << 8 << 8);
-  else if (SizeOfWord == 4)
-    n &= ~(~0u << 8 << 12 << 12);
+  // Test: As we are using word-addressable memory for B32P2, lets disable truncation
   return n;
+  // // Truncate n to SizeOfWord * 8 bits
+  // if (SizeOfWord == 2)
+  //   n &= ~(~0u << 8 << 8);
+  // else if (SizeOfWord == 4)
+  //   n &= ~(~0u << 8 << 12 << 12);
+  // return n;
 }
 
 STATIC
 int truncInt(int n)
 {
-  // Truncate n to SizeOfWord * 8 bits and then sign-extend it
-  unsigned un = n;
-  if (SizeOfWord == 2)
-  {
-    un &= ~(~0u << 8 << 8);
-    un |= (((un >> 8 >> 7) & 1) * ~0u) << 8 << 8;
-  }
-  else if (SizeOfWord == 4)
-  {
-    un &= ~(~0u << 8 << 12 << 12);
-    un |= (((un >> 8 >> 12 >> 11) & 1) * ~0u) << 8 << 12 << 12;
-  }
-  return (int)un;
+  // Test: As we are using word-addressable memory for B32P2, lets disable truncation
+  return n;
+  // // Truncate n to SizeOfWord * 8 bits and then sign-extend it
+  // unsigned un = n;
+  // if (SizeOfWord == 2)
+  // {
+  //   un &= ~(~0u << 8 << 8);
+  //   un |= (((un >> 8 >> 7) & 1) * ~0u) << 8 << 8;
+  // }
+  // else if (SizeOfWord == 4)
+  // {
+  //   un &= ~(~0u << 8 << 12 << 12);
+  //   un |= (((un >> 8 >> 12 >> 11) & 1) * ~0u) << 8 << 12 << 12;
+  // }
+  // return (int)un;
 }
 
 // prep.c code
@@ -3180,45 +3179,60 @@ int exprval(int* idx, int* ExprTypeSynPtr, int* ConstExpr)
         // insertion of tokUChar, tokSChar and tokUnaryPlus transforms
         // lvalues (values formed by dereferences) into rvalues
         // (by hiding the dereferences), just as casts should do
-        switch (castSize)
+        // In word-addressable mode, all types have size 1, so we need to check the actual type
+        if (!WordAddressable)
         {
-        case 1:
-          // cast to unsigned char
-          stack[oldIdxRight + 1 - (oldSpRight - sp)][0] = tokUChar;
-          s &= 0xFFu;
-          break;
-        case -1:
-          // cast to signed char
-          stack[oldIdxRight + 1 - (oldSpRight - sp)][0] = tokSChar;
-          if ((s &= 0xFFu) >= 0x80)
-            s -= 0x100;
-          break;
-        default:
-          if (castSize && castSize != SizeOfWord)
+          switch (castSize)
           {
-            // cast not to void and not to word-sized type (int/unsigned/pointer/float)
-            if (castSize == 2)
+          case 1:
+            // cast to unsigned char
+            stack[oldIdxRight + 1 - (oldSpRight - sp)][0] = tokUChar;
+            s &= 0xFFu;
+            break;
+          case -1:
+            // cast to signed char
+            stack[oldIdxRight + 1 - (oldSpRight - sp)][0] = tokSChar;
+            if ((s &= 0xFFu) >= 0x80)
+              s -= 0x100;
+            break;
+          default:
+            if (castSize && castSize != SizeOfWord)
             {
-              // cast to unsigned short
-              stack[oldIdxRight + 1 - (oldSpRight - sp)][0] = tokUShort;
-              s &= 0xFFFFu;
+              // cast not to void and not to word-sized type (int/unsigned/pointer/float)
+              if (castSize == 2)
+              {
+                // cast to unsigned short
+                stack[oldIdxRight + 1 - (oldSpRight - sp)][0] = tokUShort;
+                s &= 0xFFFFu;
+              }
+              else
+              {
+                // cast to signed short
+                stack[oldIdxRight + 1 - (oldSpRight - sp)][0] = tokShort;
+                if ((s &= 0xFFFFu) >= 0x8000)
+                  s -= 0x10000;
+              }
             }
-            else
+            else // fallthrough
             {
-              // cast to signed short
-              stack[oldIdxRight + 1 - (oldSpRight - sp)][0] = tokShort;
-              if ((s &= 0xFFFFu) >= 0x8000)
-                s -= 0x10000;
+              // cast to void or word-sized type (int/unsigned/pointer/float)
+              if (stack[oldIdxRight - (oldSpRight - sp)][0] == tokUnaryStar)
+                // hide the dereference
+                stack[oldIdxRight + 1 - (oldSpRight - sp)][0] = tokUnaryPlus;
             }
+            break;
           }
-          else // fallthrough
+        }
+        else
+        {
+          // Word-addressable mode: all casts are word-sized, no truncation needed
+          if (castSize)
           {
             // cast to void or word-sized type (int/unsigned/pointer/float)
             if (stack[oldIdxRight - (oldSpRight - sp)][0] == tokUnaryStar)
               // hide the dereference
               stack[oldIdxRight + 1 - (oldSpRight - sp)][0] = tokUnaryPlus;
           }
-          break;
         }
 
         if (*ConstExpr)

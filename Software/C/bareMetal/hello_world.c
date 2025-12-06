@@ -1,24 +1,24 @@
 // First C program to run on the FPGC, testing the character graphics library
-
 #include "libs/kernel/gfx.c"
 #include "libs/kernel/ascii_data.c"
 
 int main() {
-    char *s = "Hello FPGC!";
 
-    // Initialize the graphics system
+    char* msg = "Yo Waddup!\nThis is a test of the\ngraphics library.\n";
+
     GFX_init();
 
     // Copy the ASCII pattern table to VRAM
-    GFX_copy_pattern_table();
+    unsigned int* pattern_table = (unsigned int*)&DATA_ASCII_DEFAULT;
+    GFX_copy_pattern_table(pattern_table + 3); // +3 to skip function prologue
 
-    // Set up the default palette (white text on black background)
-    GFX_copy_palette_table();
+    // Copy the palette table to VRAM
+    unsigned int* palette_table = (unsigned int*)&DATA_PALETTE_DEFAULT;
+    GFX_copy_palette_table(palette_table + 3); // +3 to skip function prologue
 
-    // Print the hello message
-    GFX_puts(s);
+    GFX_puts(msg);
 
-    return 0;
+    return 37;
 }
 
 void interrupt()

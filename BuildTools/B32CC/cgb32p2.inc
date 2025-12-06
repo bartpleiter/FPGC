@@ -21,14 +21,6 @@
 /*                                                                           */
 /*****************************************************************************/
 
-/*
- * TODO's:
- * - (MAJOR) support word addressing only (no byte addressing)
- * - define 0x77FFFF stack address as a constant somewhere
- * - define 0x7000000 IO address as a constant somewhere
- * - add BDOS user program option with custom wrapper
-*/
-
 STATIC
 void GenInit(void)
 {
@@ -478,6 +470,64 @@ void GenExtendRegIfNeeded(int reg, int opSz)
 }
 
 STATIC
+int GenIsImm16(int val)
+{
+  // Check if value fits in 16-bit signed immediate (-32768 to 32767)
+  return (val >= -32768 && val <= 32767);
+}
+
+STATIC
+void GenLoadLargeConstant(int destReg, int val)
+{
+  // Load a 32-bit constant into a register
+  // This uses load32 instruction which can handle full 32-bit values
+  GenPrintInstr2Operands(B32InstrLoad32, 0,
+                         B32OpConst, val,
+                         destReg, 0);
+}
+
+STATIC
+void GenPrintInstr3OperandsWithLargeImm(int instr, int instrval,
+                                         int operand1, int operand1val,
+                                         int operand2, int operand2val,
+                                         int operand3, int operand3val)
+{
+  // Handle 3-operand instructions where operand2 might be a large immediate
+  // If operand2 is a constant that doesn't fit in 16 bits, load it into a temp register first
+  
+  if (operand2 == B32OpConst && !GenIsImm16(operand2val))
+  {
+    // Large immediate - need to load into temp register
+    // We use TEMP_REG_B (r12) which is a momentary register
+    // We need to save and restore it to be safe
+    int tempReg = TEMP_REG_B;
+    
+    // Save TEMP_REG_B
+    GenPrintInstr1Operand(B32InstrPush, 0, tempReg, 0);
+    
+    // Load the large constant into temp register
+    GenLoadLargeConstant(tempReg, operand2val);
+    
+    // Now use the temp register instead of the immediate
+    GenPrintInstr3Operands(instr, instrval,
+                          operand1, operand1val,
+                          tempReg, 0,
+                          operand3, operand3val);
+    
+    // Restore TEMP_REG_B
+    GenPrintInstr1Operand(B32InstrPop, 0, tempReg, 0);
+  }
+  else
+  {
+    // Normal case - immediate fits in 16 bits or not a constant
+    GenPrintInstr3Operands(instr, instrval,
+                          operand1, operand1val,
+                          operand2, operand2val,
+                          operand3, operand3val);
+  }
+}
+
+STATIC
 void GenJumpUncond(int label)
 {
   GenPrintInstr1Operand(B32InstrJump, 0,
@@ -496,7 +546,6 @@ void GenJumpIfEqual(int val, int label)
                          GenWreg, 0,
                          TEMP_REG_B, 0,
                          B32OpNumLabel, label);
-  // TODO: most likely need to use an inverted check with jump 2 and a static jump afterwards
 }
 
 STATIC
@@ -509,7 +558,6 @@ void GenJumpIfZero(int label)
                          GenWreg, 0,
                          B32OpRegZero, 0,
                          B32OpNumLabel, label);
-  // TODO: most likely need to use an inverted check with jump 2 and a static jump afterwards
 }
 
 STATIC
@@ -522,7 +570,6 @@ void GenJumpIfNotZero(int label)
                          GenWreg, 0,
                          B32OpRegZero, 0,
                          B32OpNumLabel, label);
-  // TODO: most likely need to use an inverted check with jump 2 and a static jump afterwards
 }
 
 fpos_t GenPrologPos;
@@ -1416,7 +1463,7 @@ void GenCmp(int* idx, int op)
       constval++;
       // fallthrough
     case 'm':
-      GenPrintInstr3Operands(slt, 0,
+      GenPrintInstr3OperandsWithLargeImm(slt, 0,
                              GenWreg, 0,
                              B32OpConst, constval,
                              GenWreg, 0);
@@ -1452,7 +1499,7 @@ void GenCmp(int* idx, int op)
                              GenWreg, 0);
       break;
     case 't':
-      GenPrintInstr3Operands(B32InstrXor, 0,
+      GenPrintInstr3OperandsWithLargeImm(B32InstrXor, 0,
                              GenWreg, 0,
                              B32OpConst, constval,
                              GenWreg, 0);
@@ -1729,7 +1776,7 @@ void GenExpr0(void)
       if (stack[i - 1][0] == tokNumInt && tok != '*')
       {
         int instr = GenGetBinaryOperatorInstr(tok);
-        GenPrintInstr3Operands(instr, 0,
+        GenPrintInstr3OperandsWithLargeImm(instr, 0,
                                GenWreg, 0,
                                B32OpConst, stack[i - 1][1],
                                GenWreg, 0);

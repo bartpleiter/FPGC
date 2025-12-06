@@ -128,7 +128,6 @@ test-b32cc-single: $(B32CC_OUTPUT)
 	@if [ -z "$(file)" ]; then \
 		echo "Usage: make test-b32cc-single file=<test_file>"; \
 		echo "Example: make test-b32cc-single file=04_control_flow/if_statements.c"; \
-		echo ""; \
 		echo "Available tests:"; \
 		find Tests/C -name "*.c" -type f | grep -v "old_tests" | grep -v "tmp" | sed 's|Tests/C/||' | sort; \
 		exit 1; \
@@ -140,7 +139,6 @@ debug-b32cc: $(B32CC_OUTPUT)
 	@if [ -z "$(file)" ]; then \
 		echo "Usage: make debug-b32cc file=<test_file>"; \
 		echo "Example: make debug-b32cc file=04_control_flow/if_statements.c"; \
-		echo ""; \
 		echo "Available tests:"; \
 		find Tests/C -name "*.c" -type f | grep -v "old_tests" | grep -v "tmp" | sed 's|Tests/C/||' | sort; \
 		exit 1; \
@@ -204,7 +202,6 @@ test-cpu-single:
 	@if [ -z "$(file)" ]; then \
 		echo "Usage: make test-cpu-single file=<test_file>"; \
 		echo "Example: make test-cpu-single file=01_load/load.asm"; \
-		echo ""; \
 		echo "Available tests:"; \
 		find Tests/CPU -name "*.asm" -type f | grep -v "tmp" | sed 's|Tests/CPU/||' | sort; \
 		exit 1; \
@@ -216,7 +213,6 @@ debug-cpu:
 	@if [ -z "$(file)" ]; then \
 		echo "Usage: make debug-cpu file=<test_file>"; \
 		echo "Example: make debug-cpu file=01_load/load.asm"; \
-		echo ""; \
 		echo "Available tests:"; \
 		find Tests/CPU -name "*.asm" -type f | grep -v "tmp" | sed 's|Tests/CPU/||' | sort; \
 		exit 1; \
@@ -228,12 +224,26 @@ debug-cpu:
 # =============================================================================
 
 compile-asm:
+	@if [ -z "$(file)" ]; then \
+		echo "Usage: make compile-asm file=<asm_filename_in_programs_dir_without_extension>"; \
+		echo "Example: make compile-asm file=pixel_loop"; \
+		echo "Available programs:"; \
+		find Software/ASM/Programs -name "*.asm" -type f | grep -v "tmp" | sed 's|Software/ASM/Programs/||' | sed 's|.asm||' | sort; \
+		exit 1; \
+	fi
 	./Scripts/ASM/compile_bare_metal_asm.sh $(file)
 
 compile-bootloader:
 	./Scripts/ASM/compile_bootloader.sh
 
 compile-c-baremetal: $(B32CC_OUTPUT)
+	@if [ -z "$(file)" ]; then \
+		echo "Usage: make compile-c-baremetal file=<c_filename_in_bareMetal_dir_without_extension>"; \
+		echo "Example: make compile-c-baremetal file=hello_world"; \
+		echo "Available programs:"; \
+		find Software/C/bareMetal -name "*.c" -type f | grep -v "tmp" | sed 's|Software/C/bareMetal/||' | sed 's|.c||' | sort; \
+		exit 1; \
+	fi
 	./Scripts/BCC/compile_bare_metal_c.sh $(file)
 
 # =============================================================================
