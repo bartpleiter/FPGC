@@ -1,3 +1,4 @@
+
 // Graphics library for the kernel to allow terminal-like text output
 // Uses the Window layer of the FSX2 GPU for text rendering
 // Window layer: 40x25 tiles, each tile 8x8 pixels = 320x200 pixels
@@ -53,6 +54,13 @@ void GFX_copy_palette_table(unsigned int* palette_table)
     }
 }
 
+void GFX_debug_uart_putchar(unsigned int c)
+{
+    // Send character over UART (memory-mapped I/O)
+    unsigned int* uart_tx_addr = (unsigned int*)0x7000000; // UART TX address
+    *uart_tx_addr = c;
+}
+
 // Copy the provided pattern table to VRAM
 // Each character is 8x8 pixels, 2 bits per pixel = 16 bits per line
 // 8 lines per char, but stored as 2 lines per word = 4 words per character
@@ -100,7 +108,7 @@ void GFX_cursor_restore(void)
     gfx_cursor_y = gfx_saved_cursor_y;
 }
 
-// Print a character at specific position without moving cursor
+// Prunsigned int a character at specific position without moving cursor
 void GFX_putchar_at(char c, unsigned int x, unsigned int y)
 {
     unsigned int tile_addr;
@@ -122,7 +130,7 @@ void GFX_putchar_at(char c, unsigned int x, unsigned int y)
     *(int*)color_addr = gfx_fg_color;
 }
 
-// Print a character at cursor and advance
+// Prunsigned int a character at cursor and advance
 void GFX_putchar(char c)
 {
     // Handle special characters
@@ -168,23 +176,14 @@ void GFX_putchar(char c)
     }
 }
 
-// Print a null-terminated string
+// Prunsigned int a null-terminated string
 void GFX_puts(char *str)
 {
     while (*str)
     {
         GFX_putchar(*str);
         str++;
-    }
-}
-
-// Write a buffer of specific length
-void GFX_write(char *buf, unsigned int len)
-{
-    unsigned int i;
-    for (i = 0; i < len; i++)
-    {
-        GFX_putchar(buf[i]);
+        GFX_debug_uart_putchar(0x42);
     }
 }
 
@@ -230,38 +229,6 @@ void GFX_clear_line(unsigned int y)
     }
 }
 
-// Clear from cursor to end of screen
-void GFX_clear_from_cursor(void)
-{
-    unsigned int i;
-    unsigned int y;
-
-    // Clear rest of current line
-    GFX_clear_line_from_cursor();
-
-    // Clear all lines below
-    for (y = gfx_cursor_y + 1; y < GFX_ROWS; y++)
-    {
-        GFX_clear_line(y);
-    }
-}
-
-// Clear from cursor to end of line
-void GFX_clear_line_from_cursor(void)
-{
-    unsigned int i;
-    unsigned int tile_addr;
-    unsigned int color_addr;
-
-    tile_addr = GFX_WINDOW_TILE_ADDR + (gfx_cursor_y * GFX_COLS) + gfx_cursor_x;
-    color_addr = GFX_WINDOW_COLOR_ADDR + (gfx_cursor_y * GFX_COLS) + gfx_cursor_x;
-
-    for (i = gfx_cursor_x; i < GFX_COLS; i++)
-    {
-        *(int*)(tile_addr + (i - gfx_cursor_x)) = 0;
-        *(int*)(color_addr + (i - gfx_cursor_x)) = gfx_fg_color;
-    }
-}
 
 // Scroll up by N lines
 void GFX_scroll_up(unsigned int lines)
@@ -298,61 +265,20 @@ void GFX_scroll_up(unsigned int lines)
     }
 }
 
-// Scroll down by N lines
-void GFX_scroll_down(unsigned int lines)
-{
-    unsigned int y, x;
-    unsigned int src_tile, dst_tile;
-    unsigned int src_color, dst_color;
-    unsigned int tile_val, color_val;
+int main() {
 
-    if (lines <= 0)
-        return;
+    char* msg = "abcd";
 
-    // Move lines down (start from bottom)
-    for (y = gfx_scroll_bottom; y >= gfx_scroll_top + lines; y--)
-    {
-        src_tile = GFX_WINDOW_TILE_ADDR + ((y - lines) * GFX_COLS);
-        dst_tile = GFX_WINDOW_TILE_ADDR + (y * GFX_COLS);
-        src_color = GFX_WINDOW_COLOR_ADDR + ((y - lines) * GFX_COLS);
-        dst_color = GFX_WINDOW_COLOR_ADDR + (y * GFX_COLS);
+    GFX_puts(msg);
 
-        for (x = 0; x < GFX_COLS; x++)
-        {
-            tile_val = *(unsigned int*)(src_tile + x);
-            color_val = *(unsigned int*)(src_color + x);
-            *(int*)(dst_tile + x) = tile_val;
-            *(int*)(dst_color + x) = color_val;
-        }
-    }
+    GFX_debug_uart_putchar(0x37);
 
-    // Clear the top lines
-    for (y = gfx_scroll_top; y < gfx_scroll_top + lines; y++)
-    {
-        GFX_clear_line(y);
-    }
+    // While the expected output might seem weird, it is actually correct,
+    // as it is being checked against the first UART output, which is 0x42 within GFX_puts().
+    return 0x39; // expected=0x42
 }
 
-// Set the palette index for text
-void GFX_set_color(unsigned int palette_idx)
+void interrupt()
 {
-    if (palette_idx >= 0 && palette_idx < 32)
-        gfx_fg_color = palette_idx;
-}
-
-// Get terminal dimensions
-void GFX_get_dimensions(unsigned int *width, unsigned int *height)
-{
-    *width = GFX_COLS;
-    *height = GFX_ROWS;
-}
-
-// Set scrolling region
-void GFX_set_scroll_region(unsigned int top, unsigned int bottom)
-{
-    if (top >= 0 && top < GFX_ROWS && bottom >= top && bottom < GFX_ROWS)
-    {
-        gfx_scroll_top = top;
-        gfx_scroll_bottom = bottom;
-    }
+    // No need to handle interrupts
 }

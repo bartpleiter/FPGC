@@ -294,7 +294,9 @@ assign rom_fe_oe = mem_rom_FE1 && !flush_FE1;
 assign rom_fe_hold = stall_FE1;
 
 // Instruction Cache
-assign l1i_pipe_addr = PC_FE1[9:3]; // Address of the cache line
+// When FE1 is stalled (due to cache miss or other), we need to keep reading the same cache line
+// that FE2 is waiting for, not the next line. Use PC_FE2 when stalled.
+assign l1i_pipe_addr = stall_FE1 ? PC_FE2[9:3] : PC_FE1[9:3];
 
 // Forward to next stage
 wire [31:0] PC_FE2;

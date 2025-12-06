@@ -18,7 +18,7 @@ int main() {
 
     GFX_puts(msg);
 
-    return 37;
+    return 0x39;
 }
 
 void interrupt()

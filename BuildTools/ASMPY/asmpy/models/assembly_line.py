@@ -675,9 +675,6 @@ class DataAssemblyLine(AssemblyLine):
                 elif next_char == "t":
                     self.data_instruction_values.append(Number(ord("\t")))
                     i += 2
-                elif next_char == "0":
-                    self.data_instruction_values.append(Number(0))
-                    i += 2
                 elif next_char == "\\":
                     self.data_instruction_values.append(Number(ord("\\")))
                     i += 2
@@ -685,13 +682,15 @@ class DataAssemblyLine(AssemblyLine):
                     self.data_instruction_values.append(Number(ord('"')))
                     i += 2
                 elif next_char.isdigit():
-                    # Octal escape sequence (e.g., \000)
+                    # Octal escape sequence (e.g., \012 for newline, \000 for null)
+                    # This handles \0, \00, \000, \012, etc.
                     octal_str = ""
                     j = i + 1
                     while (
                         j < len(string_content)
                         and len(octal_str) < 3
                         and string_content[j].isdigit()
+                        and string_content[j] in "01234567"  # Valid octal digits
                     ):
                         octal_str += string_content[j]
                         j += 1
