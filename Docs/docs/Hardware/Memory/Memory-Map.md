@@ -82,19 +82,19 @@ $7A00000    +------------------------+
             |         VRAM8          |
             |                        |
             | $000                   |
-            |    BG Pattern Table    |
+            |      BG Tile Table     |
             |                  $7FF  |
             |                        |
             | $800                   |
-            |    BG Palette Table    |
+            |     BG Color Table     |
             |                  $FFF  |
             |                        |
             | $1000                  |
-            |  Window Pattern Table  |
+            |    Window Tile Table   |
             |                  $17FF |
             |                        |
             | $1800                  |
-            |  Window Palette Table  |
+            |    Window Color Table  |
             |                  $1FFF |
             | $2000                  |
             |       Parameters       |

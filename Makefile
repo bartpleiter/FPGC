@@ -21,8 +21,8 @@ B32CC_OUTPUT = $(B32CC_DIR)/output/b32cc
 .PHONY: docs-serve docs-deploy
 .PHONY: sim-cpu sim-cpu-uart sim-gpu sim-sdram sim-bootloader
 .PHONY: test-cpu test-cpu-sequential test-cpu-single debug-cpu
-.PHONY: compile-asm compile-bootloader
-.PHONY: flash-asm-uart run-asm-uart
+.PHONY: compile-asm compile-bootloader compile-c-baremetal
+.PHONY: flash-asm-uart run-asm-uart flash-c-baremetal-uart run-c-baremetal-uart
 .PHONY: b32cc test-b32cc test-b32cc-sequential test-b32cc-single debug-b32cc clean-b32cc
 .PHONY: check
 
@@ -233,6 +233,9 @@ compile-asm:
 compile-bootloader:
 	./Scripts/ASM/compile_bootloader.sh
 
+compile-c-baremetal: $(B32CC_OUTPUT)
+	./Scripts/BCC/compile_bare_metal_c.sh $(file)
+
 # =============================================================================
 # Hardware Programming
 # =============================================================================
@@ -241,6 +244,11 @@ flash-asm-uart:
 	./Scripts/Programmer/UART/flash_uart.sh
 
 run-asm-uart: compile-asm flash-asm-uart
+
+flash-c-baremetal-uart:
+	./Scripts/Programmer/UART/flash_uart.sh
+
+run-c-baremetal-uart: compile-c-baremetal flash-c-baremetal-uart
 
 # =============================================================================
 # Cleanup
@@ -323,11 +331,15 @@ help:
 	@echo "--- Compilation ---"
 	@echo "  compile-asm         - Compile ASM file"
 	@echo "                        Usage: make compile-asm file=<filename>"
+	@echo "  compile-c-baremetal - Compile bare-metal C file"
+	@echo "                        Usage: make compile-c-baremetal file=<filename>"
 	@echo "  compile-bootloader  - Compile bootloader"
 	@echo ""
 	@echo "--- Hardware Programming ---"
 	@echo "  flash-asm-uart      - Flash compiled ASM binary via UART"
 	@echo "  run-asm-uart        - Compile and flash ASM binary via UART"
+	@echo "  flash-c-baremetal-uart - Flash compiled C binary via UART"
+	@echo "  run-c-baremetal-uart   - Compile and flash C binary via UART"
 	@echo ""
 	@echo "--- Cleanup ---"
 	@echo "  clean               - Clean all build artifacts and environments"
