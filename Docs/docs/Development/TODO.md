@@ -5,7 +5,7 @@
 
 ## Verilog/FPGA design
 
-- [x] Create top level module for EP4CE40 (custom PCB)
+- [ ] Test Xilinx implementation with external UART bridge to see if this solves the instability issues (or different UART speed). If not, potentially drop support and focus on Altera only, clean up mig7 related code.
 - [ ] Rewrite regbank to just use logic cells instead of attempting block RAM inference
 - [ ] Rewrite stack to force use of block RAM
 - [ ] Look into reducing path from CacheController|EXMEM2_result into cpu|PC_FE1
@@ -23,8 +23,8 @@
 
 ## Documentation
 
-- [ ] Write getting started for Altera FPGAs (memory programming, Quartus setup, etc)
-- [x] Move modules in PCB documentation down the page
+- [ ] Document bootloader with current implementation
+- [ ] Check for further outdated information in docs, or docs that can be written given project state/progress
 
 ---
 
@@ -34,35 +34,18 @@ These are potential todos for improving the development workflows.
 
 ### Testing Infrastructure
 
-#### CPU Testing Improvements
-
-##### Test Coverage Reporting
-
-- [ ] Generate coverage reports showing which instructions are tested
-
 #### Memory Controller Testing
 
-##### Memory Configuration Switching
+##### Memory Configuration Switching (depends on Xilinx board stability status)
 
 - [ ] Easy switching between MIG7 mock and real SDRAM controller in tests
 - [ ] Configuration flag: `make test-cpu MEMORY=mig7mock` vs `make test-cpu MEMORY=sdram`
-
-#### C Compiler Testing
-
-##### Extended Test Coverage
-
-- [ ] Pointer and array tests
-- [ ] Struct tests
-- [ ] Global variable tests
-- [ ] Multi-file compilation tests
-- [ ] Standard library function tests
-- [ ] Look at FPGC6 for more examples
 
 ### Simulation Infrastructure
 
 #### Simulation Mode Switching
 
-##### Memory Backend Selection
+##### Memory Backend Selection (depends on Xilinx board stability status)
 
 Currently, the simulation is hardcoded to use either SDRAM or MIG7mock.
 
@@ -71,15 +54,6 @@ Currently, the simulation is hardcoded to use either SDRAM or MIG7mock.
 ##### Peripheral Inclusion
 
 - [ ] Modular peripheral inclusion in simulation (`make sim-cpu UART=on SPI=off GPIO=on`) to reduce simulation complexity when not testing specific peripherals
-
-### Build System
-
-#### Makefile Improvements
-
-##### Target Discovery
-
-- [ ] `make list-tests` - List all available tests
-- [ ] `make list-sim` - List all simulation targets
 
 ### Performance Profiling
 

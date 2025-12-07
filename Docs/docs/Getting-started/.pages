@@ -1,4 +1,5 @@
 nav:
     - FPGA-Simulation.md
-    - FPGA-Implementation.md
+    - FPGA-Implementation-Altera.md
+    - FPGA-Implementation-Xilinx.md
     - Hardware.md

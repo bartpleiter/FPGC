@@ -1,4 +1,4 @@
-# FPGA Implementation
+# FPGA Implementation (Xilinx)
 
 After the design has been tested in simulation, the next step is to test the design on the actual hardware. This involves synthesizing the design, generating a bitstream, and then programming the FPGA and SPI flash memory. This guide assumes you use a Linux (tested Ubuntu 25.04) system, with Vivado (tested 2025.1) installed.
 
