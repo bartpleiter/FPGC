@@ -2,7 +2,7 @@
 // Bare metal version as BDOS is not available yet as of writing
 // Very messy code as the goal is to quickly get the numbers, a refactor will be done as UserBDOS program
 #include "libs/kernel/gfx.c"
-#include "libs/kernel/ascii_data.c"
+#include "libs/kernel/gpu_data_ascii.c"
 
 #define N    256  // Decimals of pi to compute.
 #define LEN  854  // (10*N) / 3 + 1

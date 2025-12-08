@@ -7,7 +7,7 @@ This directory contains a modified version of SmallerC, originally created by Al
 - **Original Project**: SmallerC
 - **Original Author**: Alexey Frunze
 - **Original License**: BSD 2-Clause (see ORIGINAL_LICENSE.txt)
-- **Original Repository**: https://github.com/alexfru/SmallerC
+- **Original Repository**: [alexfru/SmallerC](https://github.com/alexfru/SmallerC)
 
 ## Modifications
 

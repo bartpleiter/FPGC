@@ -1,6 +1,6 @@
 // First C program to run on the FPGC, testing the character graphics library
 #include "libs/kernel/gfx.c"
-#include "libs/kernel/ascii_data.c"
+#include "libs/kernel/gpu_data_ascii.c"
 
 int main() {
 
