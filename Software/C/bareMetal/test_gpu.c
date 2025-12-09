@@ -1,6 +1,7 @@
 // Test program for GPU graphics library
-#include "libs/kernel/gpu_hal.c"
-#include "libs/kernel/gpu_data_ascii.c"
+#define KERNEL_GPU_FB
+#define KERNEL_GPU_DATA_ASCII
+#include "libs/kernel/kernel.h"
 
 int main() {
     // Reset GPU VRAM

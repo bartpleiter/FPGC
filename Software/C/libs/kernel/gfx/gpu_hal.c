@@ -1,25 +1,10 @@
-/*
- * GPU Hardware Abstraction Layer (HAL)
- * Provides an abstraction for GPU VRAM memory access.
- * If more speed is needed, inline assembly could be used in these functions.
- * For writing entire frames to the pixel plane, consider not using this library and accessing VRAM directly.
- */
+// GPU Hardware Abstraction Layer (HAL) - Implementation
+// Included via libs/kernel/kernel.h when KERNEL_GPU_HAL is defined
 
-// GPU VRAM memory addresses
-#define GPU_PATTERN_TABLE_ADDR      0x7900000 // 256 patterns × 4 words each
-#define GPU_PALETTE_TABLE_ADDR      0x7900400 // 32 palettes × 1 word each
-#define GPU_BG_WINDOW_TILE_ADDR     0x7A00000 // Background plane tile table
-#define GPU_BG_WINDOW_COLOR_ADDR    0x7A00800 // Background plane color table
-#define GPU_WINDOW_TILE_ADDR        0x7A01000 // Window plane tile table
-#define GPU_WINDOW_COLOR_ADDR       0x7A01800 // Window plane color table
-#define GPU_PARAMETERS_ADDR         0x7A02000 // GPU parameters
-#define GPU_PIXEL_DATA_ADDR         0x7B00000 // Pixel plane data
-
-void gpu_clear_vram()
+void gpu_clear_tables()
 {
-  int i;
-
   // Clear pattern and palette tables
+  int i;
   unsigned int *vram_ptr = (unsigned int *)GPU_PATTERN_TABLE_ADDR;
   for (i = 0; i < 1024; i++)
   {
@@ -30,9 +15,13 @@ void gpu_clear_vram()
   {
     vram_ptr[i] = 0;
   }
+}
 
-  // Clear background and window tile/color tables
-  vram_ptr = (unsigned int *)GPU_BG_WINDOW_TILE_ADDR;
+void gpu_clear_bg()
+{
+  // Clear background tile/color tables
+  int i;
+  unsigned int *vram_ptr = (unsigned int *)GPU_BG_WINDOW_TILE_ADDR;
   for (i = 0; i < (40 * 25); i++)
   {
     vram_ptr[i] = 0;
@@ -42,7 +31,19 @@ void gpu_clear_vram()
   {
     vram_ptr[i] = 0;
   }
-  vram_ptr = (unsigned int *)GPU_WINDOW_TILE_ADDR;
+  // Current parameters only affect bg scroll
+  vram_ptr = (unsigned int *)GPU_PARAMETERS_ADDR;
+  for (i = 0; i < 2; i++)
+  {
+    vram_ptr[i] = 0;
+  }
+}
+
+void gpu_clear_window()
+{
+  // Clear window tile/color tables
+  int i;
+  unsigned int *vram_ptr = (unsigned int *)GPU_WINDOW_TILE_ADDR;
   for (i = 0; i < (60 * 25); i++)
   {
     vram_ptr[i] = 0;
@@ -52,23 +53,28 @@ void gpu_clear_vram()
   {
     vram_ptr[i] = 0;
   }
+}
 
-  // Clear parameters
-  vram_ptr = (unsigned int *)GPU_PARAMETERS_ADDR;
-  for (i = 0; i < 2; i++)
-  {
-    vram_ptr[i] = 0;
-  }
-
-  // Clear pixel data
-  vram_ptr = (unsigned int *)GPU_PIXEL_DATA_ADDR;
+void gpu_clear_pixel()
+{
+  // Clear pixel plane
+  int i;
+  unsigned int *vram_ptr = (unsigned int *)GPU_PIXEL_DATA_ADDR;
   for (i = 0; i < (320 * 240); i++)
   {
     vram_ptr[i] = 0;
   }
 }
 
-void gpu_load_pattern_table(const unsigned int* pattern_table)
+void gpu_clear_vram()
+{
+  gpu_clear_tables();
+  gpu_clear_bg();
+  gpu_clear_window();
+  gpu_clear_pixel();
+}
+
+void gpu_load_pattern_table(const unsigned int *pattern_table)
 {
   int i;
   unsigned int *vram_pattern_table = (unsigned int *)GPU_PATTERN_TABLE_ADDR;
@@ -80,7 +86,7 @@ void gpu_load_pattern_table(const unsigned int* pattern_table)
   }
 }
 
-void gpu_load_palette_table(const unsigned int* palette_table)
+void gpu_load_palette_table(const unsigned int *palette_table)
 {
   int i;
   unsigned int *vram_palette_table = (unsigned int *)GPU_PALETTE_TABLE_ADDR;
