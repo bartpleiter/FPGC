@@ -9,7 +9,8 @@
         "bdos",
         "userbdos"
     ],
+    // Hack as the C/C++ extension cannot be easily configured to ignore cgb32p2.inc
     "files.associations": {
-        "*.inc": "c"
+        "**/cgb32p2.inc": "rust"
     }
 }

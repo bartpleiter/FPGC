@@ -336,6 +336,7 @@ void GenPrintInstr(int instr, int val)
 #define MAX_TEMP_REGS 3 // B32P2: use r8-r10 as temp registers (5 total)
 #define TEMP_REG_A B32OpReg11 // use r11 for momentary operations
 #define TEMP_REG_B B32OpReg12 // use r12 for momentary operations
+#define MAX_STACK_DEPTH 100 // Maximum depth for expression evaluation stack
 
 
 STATIC
@@ -923,6 +924,7 @@ void GenPostIncDecIndirect(int regDst, int regSrc, int opSz, int tok)
 
 int CanUseTempRegs;
 int TempsUsed;
+int StackDepth; // current stack depth for expression evaluation
 int GenWreg = B32OpRegV0; // current working register (V0 or Tn or An)
 int GenLreg, GenRreg; // left operand register and right operand register after GenPopReg()
 
@@ -1001,12 +1003,17 @@ void GenPushReg(void)
     return;
   }
 
-  // TODO: keep track of stack depth and error when exceeding limit
+  // Track stack depth and error when exceeding limit
+  if (StackDepth >= MAX_STACK_DEPTH)
+    error("Expression too complex, stack depth exceeded\n");
 
   GenPrintInstr1Operand(B32InstrPush, 0,
                         GenWreg, 0);
 
   TempsUsed++;
+
+  StackDepth++;
+  printf2("; Stack depth: %d\n", StackDepth);
 }
 
 STATIC
@@ -1020,14 +1027,15 @@ void GenPopReg(void)
     GenWregInc(-1);
     GenLreg = GenWreg;
     return;
-  }
-
-  // TODO: keep track of stack depth
+  }  
 
   GenPrintInstr1Operand(B32InstrPop, 0,
                         TEMP_REG_A, 0);
   GenLreg = TEMP_REG_A;
   GenRreg = GenWreg;
+
+  StackDepth--;
+  printf2("; Stack depth: %d\n", StackDepth);
 }
 
 #define tokRevIdent    0x100
@@ -1555,6 +1563,7 @@ void GenExpr0(void)
 
   CanUseTempRegs = maxCallDepth == 0;
   TempsUsed = 0;
+  StackDepth = 0;
   if (GenWreg != B32OpRegV0)
     errorInternal(102);
 
