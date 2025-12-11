@@ -603,15 +603,33 @@ void GenFxnProlog(void)
   if (CurFxnParamCntMin && CurFxnParamCntMax)
   {
     int i, cnt = CurFxnParamCntMax;
-    if (cnt > 4)
-      cnt = 4;
+    int regCnt = cnt;
+    if (regCnt > 4)
+      regCnt = 4;
     // Save argument registers to stack for local access
     // In word-addressable mode, each parameter is at offset i (not 4 * i)
-    for (i = 0; i < cnt; i++)
+    for (i = 0; i < regCnt; i++)
       GenPrintInstr3Operands(B32InstrWrite, 0,
                              B32OpConst, i,
                              B32OpRegSp, 0,
                              B32OpRegA0 + i, 0);
+    
+    // Pop stack-based arguments (beyond the first 4) from hardware stack to memory
+    // Arguments are pushed right-to-left, so last arg is pushed first, first extra arg pushed last
+    // Therefore, first pop gets arg 5 (index 4), second pop gets arg 6 (index 5), etc.
+    if (cnt > 4)
+    {
+      // Pop from hardware stack and write to memory at sp+4, sp+5, etc.
+      for (i = 4; i < cnt; i++)
+      {
+        GenPrintInstr1Operand(B32InstrPop, 0,
+                              TEMP_REG_A, 0);
+        GenPrintInstr3Operands(B32InstrWrite, 0,
+                               B32OpConst, i,
+                               B32OpRegSp, 0,
+                               TEMP_REG_A, 0);
+      }
+    }
   }
 
   GenLeaf = 1; // will be reset to 0 if a call is generated
