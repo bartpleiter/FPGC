@@ -1,3 +1,5 @@
+#include "libs/kernel/gfx/gpu_fb.h"
+
 void fb_clear()
 {
   gpu_clear_pixel();

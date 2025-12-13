@@ -14,6 +14,12 @@
 #endif
 #endif
 
+#ifdef KERNEL_TERM
+#ifndef KERNEL_GPU_HAL
+#define KERNEL_GPU_HAL
+#endif
+#endif
+
 // Flag based inclusion of libraries
 // Header files
 #ifdef KERNEL_GPU_HAL
@@ -28,6 +34,10 @@
 #include "libs/kernel/gfx/gpu_data_ascii.h"
 #endif
 
+#ifdef KERNEL_TERM
+#include "libs/kernel/term/term.h"
+#endif
+
 // Implementation files
 #ifdef KERNEL_GPU_HAL
 #include "libs/kernel/gfx/gpu_hal.c"
@@ -39,6 +49,10 @@
 
 #ifdef KERNEL_GPU_DATA_ASCII
 #include "libs/kernel/gfx/gpu_data_ascii.c"
+#endif
+
+#ifdef KERNEL_TERM
+#include "libs/kernel/term/term.c"
 #endif
 
 #endif // KERNEL_H

@@ -1,5 +1,4 @@
-// GPU Hardware Abstraction Layer (HAL) - Implementation
-// Included via libs/kernel/kernel.h when KERNEL_GPU_HAL is defined
+#include "libs/kernel/gfx/gpu_hal.h"
 
 void gpu_clear_tables()
 {

@@ -119,7 +119,8 @@ void GenZeroData(unsigned Size, int bss)
 {
   (void)bss;
   // B32P2: Generate zero words for uninitialized data
-  unsigned words = (Size + 3) / 4; // Round up to words
+  // In word-addressable mode, Size is already in words, not bytes
+  unsigned words = WordAddressable ? Size : (Size + 3) / 4;
   unsigned i;
   if (words > 0)
   {

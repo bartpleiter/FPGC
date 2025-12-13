@@ -1,3 +1,5 @@
+#include "libs/kernel/gfx/gpu_data_ascii.h"
+
 // Palette data - 32 palettes, each is a 32-bit word
 // Format: [color0:8][color1:8][color2:8][color3:8] where each color is R3G3B2
 void DATA_PALETTE_DEFAULT()
