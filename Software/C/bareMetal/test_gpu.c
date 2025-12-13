@@ -30,6 +30,15 @@ int main() {
     gpu_write_pixel_data(161, 120, 0xFF);
     gpu_write_pixel_data(161, 121, 0xFF);
 
+    fb_draw_circle(160, 120, 50, 0xF0);
+
+    fb_fill_rect(10, 10, 50, 50, 0xAA);
+
+    fb_draw_line(100, 100, 20, 20, 0x03);
+
+    fb_draw_rect(150, 150, 40, 30, 0x0F);
+    
+    
     return 1;
 }
 

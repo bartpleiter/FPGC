@@ -1735,7 +1735,8 @@ void GenExpr0(void)
       }
       else
       {
-        GenGrowStack(4);
+        // Allocate at least 4 words, or v words if more than 4 arguments
+        GenGrowStack(v > 4 ? v : 4);
       }
       if (stack[i - 1][0] == tokIdent)
       {

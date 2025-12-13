@@ -8,9 +8,8 @@ void fb_set_pixel(unsigned int x, unsigned int y, unsigned int color)
   gpu_write_pixel_data(x, y, color);
 }
 
-void fb_draw_line(unsigned int x0, unsigned int y0, unsigned int x1, unsigned int y1, unsigned int color)
+void fb_draw_line(int x0, int y0, int x1, int y1, unsigned int color)
 {
-  // Bresenham's line algorithm
   int dx = x1 > x0 ? x1 - x0 : x0 - x1;
   int dy = y1 > y0 ? y1 - y0 : y0 - y1;
   int sx = x0 < x1 ? 1 : -1;
@@ -39,7 +38,7 @@ void fb_draw_line(unsigned int x0, unsigned int y0, unsigned int x1, unsigned in
   }
 }
 
-void fb_draw_rect(unsigned int x, unsigned int y, unsigned int w, unsigned int h, unsigned int color)
+void fb_draw_rect(int x, int y, int w, int h, unsigned int color)
 {
   // Draw rectangle outline using four lines
   if (w == 0 || h == 0)
@@ -68,7 +67,7 @@ void fb_fill_rect(unsigned int x, unsigned int y, unsigned int w, unsigned int h
   }
 }
 
-void fb_draw_circle(unsigned int x, unsigned int y, unsigned int radius, unsigned int color)
+void fb_draw_circle(int x, int y, int radius, unsigned int color)
 {
   // Midpoint Circle Algorithm
   int x_pos = radius;
