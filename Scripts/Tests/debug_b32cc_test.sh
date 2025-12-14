@@ -47,7 +47,13 @@ mkdir -p "$TMP_DIR"
 
 # Step 1: Compile C to assembly
 echo "=== Step 1: Compiling ${TEST_FILE} to assembly ==="
-$B32CC "$TEST_PATH" "$ASM_OUTPUT"
+# Run compiler from Software/C directory to enable library includes
+cd Software/C
+REL_TEST_PATH="../../${TEST_PATH}"
+REL_ASM_OUTPUT="../../${ASM_OUTPUT}"
+REL_B32CC="../../${B32CC}"
+$REL_B32CC "$REL_TEST_PATH" "$REL_ASM_OUTPUT"
+cd ../..
 echo "Assembly output: $ASM_OUTPUT"
 echo ""
 

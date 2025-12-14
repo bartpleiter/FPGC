@@ -1,6 +1,14 @@
-# FPGC Architecture and Debugging Guide
+# FPGC Architecture and Development Guide
 
-This document provides comprehensive context for understanding the FPGC (FPGA Computer) project architecture, designed to assist with debugging complex issues across the CPU, compiler, assembler, and other components.
+This document provides comprehensive context for understanding the FPGC (FPGA Computer) project architecture. It covers CPU internals, compiler capabilities and limitations, C programming guidelines, library structure, testing infrastructure, and debugging techniques.
+
+**Use this document as essential context when:**
+- Writing C code for FPGC
+- Implementing new library functions
+- Debugging compilation or runtime issues
+- Understanding compiler limitations
+- Creating and running tests
+- Working with the custom toolchain (B32CC, ASMPY)
 
 ## Project Overview
 
@@ -386,6 +394,588 @@ Hardware stack prints:
 **Fix:** Changed `GenGrowStack(4)` to `GenGrowStack(v > 4 ? v : 4)` to allocate enough space for all arguments.
 
 **Lesson:** Always verify that allocated stack space (caller) matches actual usage (callee). The caller must allocate space for the callee's argument saving.
+
+---
+
+## C Programming Guide
+
+### B32CC Compiler Capabilities and Limitations
+
+B32CC is a single-pass C compiler based on Smaller C. Understanding its capabilities and limitations is essential for effective C programming on FPGC.
+
+**Supported C Features:**
+
+- Basic data types: `int` (32-bit), `char` (8-bit), pointers, arrays
+- Structs and unions (with limitations)
+- Functions with up to ~8 parameters efficiently
+- Single-dimensional arrays and pointer arithmetic
+- Basic operators: arithmetic, logical, bitwise, comparison
+- Control flow: `if`, `else`, `while`, `for`, `do-while`, `switch`, `break`, `continue`, `return`
+- Global and local variables
+- Function pointers
+- Inline assembly via `asm()` statements
+- Preprocessor: `#define`, `#include`, `#ifdef`, `#ifndef`, `#if`, `#else`, `#endif`
+- Type casting
+- Forward declarations
+
+**Critical Limitations Discovered:**
+
+1. **No Complex Macro Expressions**
+   - Ternary operators in `#define` macros do NOT work
+   - Example: `#define MAX(a,b) ((a) > (b) ? (a) : (b))` - **FAILS**
+   - Workaround: Implement as static inline function or regular function
+   
+   ```c
+   // WRONG - will not compile
+   #define int_max(a, b) ((a) > (b) ? (a) : (b))
+   
+   // CORRECT - use function instead
+   int int_max(int a, int b) {
+       if (a > b) return a;
+       return b;
+   }
+   ```
+
+2. **No Struct Return Values**
+   - Functions cannot return structs by value
+   - Standard functions like `div()` that return `div_t` cannot be implemented
+   - Workaround: Return via pointer parameter or use separate output variables
+   
+   ```c
+   // WRONG - will not compile
+   typedef struct { int quot; int rem; } div_t;
+   div_t div(int a, int b) { ... }
+   
+   // CORRECT - use output parameters
+   void div(int a, int b, int* quot, int* rem) {
+       *quot = a / b;
+       *rem = a % b;
+   }
+   ```
+
+3. **Limited Static Initializers**
+   - Complex static variable initialization is not supported
+   - Static arrays with non-constant initializers fail
+   - Workaround: Initialize at runtime via initialization function
+   
+   ```c
+   // WRONG - complex static init
+   static FILE _stdout = { .fd = 1, .mode = 2, .error = 0, .eof = 0 };
+   
+   // CORRECT - runtime initialization
+   static FILE _stdout;
+   void _init_stdio(void) {
+       _stdout.fd = 1;
+       _stdout.mode = 2;
+       _stdout.error = 0;
+       _stdout.eof = 0;
+   }
+   ```
+
+4. **Variadic Functions Limitations**
+   - `va_list`, `va_start`, `va_arg`, `va_end` have limited support
+   - Complex format strings in `printf`/`sprintf` may not work correctly
+   - Workaround: Test thoroughly, use simple format strings, or avoid variadic functions
+   
+   ```c
+   // RISKY - complex variadic usage
+   printf("Value: %d, String: %s, Hex: 0x%x\n", val, str, hex);
+   
+   // SAFER - simple format strings
+   printf("Value: %d\n", val);
+   printf("String: %s\n", str);
+   ```
+
+5. **No Floating-Point Support**
+   - CPU has no FPU, compiler has no `float` or `double` support
+   - All floating-point math must use fixed-point arithmetic
+   - See Fixed-Point Math Library section below
+
+6. **Limited Type Support**
+   - No `long long` (64-bit integers)
+   - `long` is same as `int` (32-bit)
+   - No `unsigned long long`
+
+**Additional Limitations:**
+
+- No function overloading (C doesn't support this anyway)
+- Limited optimization (single-pass compiler)
+- No inline functions (except via macro hacks)
+- Limited string literal handling
+- No wide character support (`wchar_t`)
+- No standard library by default (must implement yourself)
+
+### C Library Structure
+
+The FPGC project uses a unique library structure due to the absence of a linker. Understanding this structure is crucial for using and extending libraries.
+
+**Directory Layout:**
+
+```
+Software/C/libs/
+├── common/          # Libraries shared between kernel and user programs
+│   ├── common.h     # Orchestrator header (includes all common libraries)
+│   ├── stddef.h     # Standard definitions (NULL, size_t, ptrdiff_t)
+│   ├── string.h/c   # String and memory functions
+│   ├── stdlib.h/c   # Standard library (malloc, atoi, rand, qsort)
+│   ├── stdio.h/c    # Standard I/O (printf, file stubs)
+│   ├── ctype.h/c    # Character classification
+│   └── fixedmath.h/c # Fixed-point arithmetic
+├── kernel/          # Kernel-specific libraries
+│   └── kernel.h     # Kernel orchestrator
+└── user/            # User program libraries
+    └── user.h       # User orchestrator
+```
+
+**Orchestrator Pattern (No Linker Workaround):**
+
+Since B32CC doesn't support linking, all library code must be included directly in the compilation unit. The orchestrator headers provide flag-based inclusion:
+
+```c
+// In your C file, define what you need BEFORE including common.h
+#define COMMON_STRING    // Include string functions
+#define COMMON_STDLIB    // Include stdlib functions
+#define COMMON_STDIO     // Include stdio functions (also pulls in STRING)
+
+#include "libs/common/common.h"
+
+int main() {
+    char* str = malloc(100);  // malloc from stdlib
+    strcpy(str, "Hello");     // strcpy from string
+    printf("%s\n", str);      // printf from stdio
+    free(str);
+    return 0;
+}
+```
+
+**How common.h Works:**
+
+```c
+// libs/common/common.h orchestrator
+#ifndef COMMON_H
+#define COMMON_H
+
+// Auto-resolve dependencies
+#ifdef COMMON_STDIO
+  #ifndef COMMON_STRING
+    #define COMMON_STRING  // stdio depends on string
+  #endif
+#endif
+
+#ifdef COMMON_STDLIB
+  #ifndef COMMON_STRING
+    #define COMMON_STRING  // stdlib depends on string
+  #endif
+#endif
+
+// Include headers and implementations based on flags
+#ifdef COMMON_STRING
+  #include "libs/common/string.h"
+  #include "libs/common/string.c"
+#endif
+
+#ifdef COMMON_STDLIB
+  #include "libs/common/stdlib.h"
+  #include "libs/common/stdlib.c"
+#endif
+
+// ... more libraries ...
+
+#endif
+```
+
+**Best Practices:**
+
+1. **Define flags before including**: Always `#define` library flags before `#include "common.h"`
+2. **Don't include .c files directly**: Use the orchestrator header instead
+3. **Minimize includes**: Only include what you need to reduce compilation time
+4. **Be aware of dependencies**: stdio automatically includes string, stdlib includes string
+5. **Use include guards**: All .h files use `#ifndef HEADER_H` guards
+
+### C Standard Library Implementation
+
+The project includes custom implementations of essential C standard library functions, tailored to work without an OS and without floating-point support.
+
+**Available Libraries:**
+
+1. **stddef.h** - Standard definitions
+   - `NULL`, `size_t`, `ptrdiff_t`
+   - Uses `_SIZE_T_DEFINED` guard to avoid typedef redefinition
+
+2. **string.h** - String and memory manipulation
+   - Memory: `memcpy`, `memset`, `memmove`, `memcmp`
+   - String: `strlen`, `strcpy`, `strncpy`, `strcmp`, `strncmp`
+   - Concatenation: `strcat`, `strncat`
+   - Search: `strchr`, `strrchr`, `strstr`
+
+3. **stdlib.h** - Standard utilities
+   - Memory: `malloc`, `free`, `calloc`, `realloc` (see Memory Allocation below)
+   - Conversion: `atoi`, `atol`
+   - Math: `abs`, `labs`, `int_min`, `int_max`, `int_clamp`
+   - Random: `rand`, `srand` (Linear Congruential Generator)
+   - Sorting: `qsort` (quicksort), `bsearch` (binary search)
+   - Program: `exit` (halts CPU in bare-metal mode)
+
+4. **stdio.h** - Standard I/O
+   - Character: `putchar`, `puts`, `getchar` (stub)
+   - Formatted: `printf`, `sprintf`, `snprintf`, `fprintf`
+   - Format specifiers: `%d`, `%i`, `%u`, `%x`, `%X`, `%o`, `%c`, `%s`, `%p`, `%%`
+   - File I/O: `fopen`, `fclose`, `fread`, `fwrite`, `fseek`, `ftell`, `feof`, etc. (stubs)
+   - Note: File functions are stubs awaiting filesystem implementation
+
+5. **ctype.h** - Character classification
+   - Classification: `isdigit`, `isalpha`, `isalnum`, `isspace`, `isupper`, `islower`
+   - More: `isxdigit`, `isprint`, `iscntrl`, `ispunct`, `isgraph`
+   - Conversion: `toupper`, `tolower`
+
+6. **fixedmath.h** - Fixed-point arithmetic (16.16 format)
+   - See Fixed-Point Math section below
+
+### Memory Allocation Details
+
+The custom malloc implementation is a simple free-list allocator designed for bare-metal operation.
+
+**Heap Layout:**
+
+```
+0x00100000 (HEAP_START)
+    |
+    v
+[Block Header: 8 bytes]
+    - size (4 bytes, word 0): size of data area in words
+    - next (4 bytes, word 1): pointer to next free block (0 if allocated)
+[Data Area: size * 4 bytes]
+[Block Header: 8 bytes]
+[Data Area: ...]
+...
+```
+
+**Allocation Strategy:**
+
+- **First-fit**: Searches free list for first block large enough
+- **Splitting**: Large blocks are split if remainder is >= 8 words
+- **Coalescing**: Adjacent free blocks are merged on `free()`
+- **Alignment**: All blocks are word-aligned (4-byte boundary)
+
+**Memory Functions:**
+
+```c
+void* malloc(size_t size);     // Allocate size bytes
+void free(void* ptr);          // Free allocated memory
+void* calloc(size_t n, size_t size); // Allocate and zero n*size bytes
+void* realloc(void* ptr, size_t size); // Resize allocation
+```
+
+**Usage Example:**
+
+```c
+#define COMMON_STDLIB
+#include "libs/common/common.h"
+
+int* array = malloc(100 * sizeof(int));
+if (array == NULL) {
+    // Allocation failed
+    return -1;
+}
+
+// Use array...
+for (int i = 0; i < 100; i++) {
+    array[i] = i * 2;
+}
+
+free(array);
+```
+
+**Important Notes:**
+
+- Heap never returns memory to system (no OS to return to)
+- No memory protection or bounds checking
+- No garbage collection
+- Fragmentation can occur with many small allocations
+- Initial heap is empty; grows on demand
+
+### Fixed-Point Math Library
+
+Since the CPU has no FPU and the compiler doesn't support floating-point, all fractional math uses 16.16 fixed-point format.
+
+**Fixed-Point Format:**
+
+```
+32-bit integer representation:
+[SSSSSSSS SSSSSSSS . FFFFFFFF FFFFFFFF]
+ ^^^^^^^^ ^^^^^^^^   ^^^^^^^^ ^^^^^^^^
+ 16 integer bits     16 fractional bits
+
+Value = integer_part + (fractional_part / 65536)
+FRACUNIT = 65536 (1 << 16)
+```
+
+**Type Definition:**
+
+```c
+typedef int fixed_t;
+#define FRACBITS 16
+#define FRACUNIT 65536  // (1 << FRACBITS)
+```
+
+**Conversion Functions:**
+
+```c
+fixed_t int2fixed(int x);           // Integer to fixed: x << 16
+int fixed2int(fixed_t x);           // Fixed to integer: x >> 16
+int fixed_frac(fixed_t x);          // Get fractional part
+```
+
+**Arithmetic Operations:**
+
+```c
+fixed_t fixed_mul(fixed_t a, fixed_t b);  // Multiply with overflow handling
+fixed_t fixed_div(fixed_t a, fixed_t b);  // Divide with precision
+```
+
+**Mathematical Functions:**
+
+```c
+fixed_t fixed_sqrt(fixed_t x);     // Square root (Newton-Raphson, 10 iterations)
+fixed_t fixed_sin(int angle);      // Sine, angle in degrees (lookup table)
+fixed_t fixed_cos(int angle);      // Cosine, angle in degrees (lookup table)
+fixed_t fixed_tan(int angle);      // Tangent: sin/cos
+fixed_t fixed_atan2(fixed_t y, fixed_t x); // Arctangent for angles (lookup table)
+```
+
+**Utility Functions:**
+
+```c
+fixed_t fixed_abs(fixed_t x);
+int fixed_sign(fixed_t x);
+fixed_t fixed_min(fixed_t a, fixed_t b);
+fixed_t fixed_max(fixed_t a, fixed_t b);
+fixed_t fixed_clamp(fixed_t x, fixed_t min, fixed_t max);
+fixed_t fixed_lerp(fixed_t a, fixed_t b, fixed_t t);
+fixed_t fixed_dist_approx(fixed_t dx, fixed_t dy);
+fixed_t fixed_dot2d(fixed_t x1, fixed_t y1, fixed_t x2, fixed_t y2);
+```
+
+**Lookup Tables:**
+
+- **Sine table**: 91 entries covering 0-90°, uses symmetry for other quadrants
+- **Arctangent table**: 256 entries for fast angle calculation
+
+**Usage Example:**
+
+```c
+#define COMMON_FIXEDMATH
+#include "libs/common/common.h"
+
+// Convert 5 to fixed-point
+fixed_t a = int2fixed(5);  // 5.0
+
+// Multiply by 0.5 (represented as 32768)
+fixed_t half = 32768;  // 0.5 in 16.16 format
+fixed_t b = fixed_mul(a, half);  // 2.5
+
+// Convert back to integer
+int result = fixed2int(b);  // 2
+
+// Trigonometry
+fixed_t angle_sin = fixed_sin(45);  // sin(45°)
+fixed_t angle_cos = fixed_cos(45);  // cos(45°)
+```
+
+**Performance Considerations:**
+
+- Multiplication and division are slower than integer ops
+- Lookup tables provide fast trigonometry
+- Square root uses 10 Newton-Raphson iterations
+- All operations are deterministic (no floating-point rounding issues)
+
+### Testing C Code
+
+**Test Directory Structure:**
+
+```
+Tests/C/
+├── 01_return/           # Basic return value tests
+├── 02_variables/        # Variable declaration tests
+├── ...
+├── 24_libc_tests/       # C library function tests
+│   ├── string_basic.c
+│   ├── stdlib_basic.c
+│   ├── ctype_basic.c
+│   ├── fixedmath_basic.c
+│   └── sprintf_basic.c
+└── tmp/                 # Temporary test outputs
+```
+
+**Test File Format:**
+
+```c
+// Test file: Tests/C/XX_category/test_name.c
+#define COMMON_STDLIB  // Include needed libraries
+#include "libs/common/common.h"
+
+int main() {
+    // Test code
+    int result = some_function();
+    
+    // Return expected value for test verification
+    return result; // expected=42
+}
+```
+
+**Expected Value Comment:**
+
+The test runner checks the return value against the expected value in the comment:
+
+```c
+return 5; // expected=5
+```
+
+**Running Tests:**
+
+```bash
+# Run all C tests (parallel)
+make test-b32cc
+
+# Run all C tests (sequential, easier to debug)
+make test-b32cc-sequential
+
+# Run single test
+make test-b32cc-single file=Tests/C/24_libc_tests/string_basic.c
+
+# Debug single test (opens GTKWave, shows register/memory traces)
+make debug-b32cc file=Tests/C/24_libc_tests/string_basic.c
+```
+
+**Test Workflow:**
+
+1. **Compilation**: C source → B32CC → Assembly
+2. **Assembly**: Assembly → ASMPY → Binary
+3. **Simulation**: Binary → Icarus Verilog → UART output
+4. **Verification**: UART output compared to expected value
+5. **Success**: UART transmits expected value before timeout
+
+**Test Compilation Path:**
+
+Tests must be compiled from `Software/C/` directory to access library includes:
+
+```bash
+cd Software/C
+../../BuildTools/B32CC/output/b32cc ../../Tests/C/XX_test/test.c > out.asm
+```
+
+**Writing Good Tests:**
+
+1. **Keep tests focused**: Test one feature per file
+2. **Use simple return values**: Avoid complex outputs
+3. **Test important cases**: Boundary conditions, edge cases
+4. **Avoid variadic functions**: They may not work correctly
+5. **Include expected value**: Always add `// expected=X` comment
+6. **Test incrementally**: Start simple, add complexity
+
+**Example Test:**
+
+```c
+// Tests/C/24_libc_tests/string_basic.c
+#define COMMON_STRING
+#include "libs/common/common.h"
+
+int main() {
+    char str1[20] = "Hello";
+    char str2[20] = "World";
+    
+    // Test strlen
+    if (strlen(str1) != 5) return 1;
+    
+    // Test strcpy
+    strcpy(str2, str1);
+    if (strcmp(str1, str2) != 0) return 2;
+    
+    // Test strcat
+    strcat(str1, " World");
+    if (strlen(str1) != 11) return 3;
+    
+    return 42; // expected=42
+}
+```
+
+**Debugging Failed Tests:**
+
+1. Check assembly output: `cat Software/ASM/Simulation/sim_ram.asm`
+2. Run with debug: `make debug-b32cc file=<test>`
+3. Look for register traces in output
+4. Check UART output timing
+5. Verify stack pointer and frame pointer values
+6. Examine memory writes to suspected addresses
+
+**Test Infrastructure Files:**
+
+- `Scripts/Tests/b32cc_tests.py` - Python test runner
+- `Scripts/Tests/debug_b32cc_test.sh` - Debug script for single tests
+- `Scripts/Tests/run_b32cc_tests.sh` - Bash wrapper for all tests
+- `Hardware/FPGA/Verilog/Simulation/cpu_tb.v` - Verilog testbench
+
+### Compilation Workflow
+
+Understanding the full compilation workflow helps debug issues and optimize code.
+
+**Step-by-Step Process:**
+
+1. **C Source** (`test.c`)
+   ```c
+   #define COMMON_STDLIB
+   #include "libs/common/common.h"
+   int main() { return 42; }
+   ```
+
+2. **B32CC Compilation** (C → Assembly)
+   ```bash
+   BuildTools/B32CC/output/b32cc test.c > out.asm
+   ```
+   Output: `out.asm` with B32P2 assembly
+
+3. **ASMPY Assembly** (Assembly → Binary)
+   ```bash
+   python -m BuildTools.ASMPY.asmpy.app out.asm
+   ```
+   Output: 
+   - `Software/ASM/Simulation/sim_ram.asm` (formatted assembly)
+   - `Hardware/FPGA/Verilog/Simulation/MemoryLists/ram.list` (binary)
+
+4. **Verilog Simulation** (Binary → Execution)
+   ```bash
+   iverilog -o cpu_sim cpu_tb.v ...
+   vvp cpu_sim
+   ```
+   Output: Register traces, UART output
+
+5. **Verification** (Check Result)
+   - UART output checked for expected value
+   - Timeout if no output or wrong value
+
+**Intermediate Files:**
+
+- `Software/ASM/Simulation/sim_ram.asm` - Human-readable assembly
+- `Hardware/FPGA/Verilog/Simulation/MemoryLists/ram.list` - Binary machine code
+- `out.asm` - Raw compiler output (before assembler formatting)
+
+**Compilation from Different Directories:**
+
+```bash
+# From project root
+make test-b32cc-single file=Tests/C/XX_test/test.c
+
+# From Software/C (for manual compilation)
+../../BuildTools/B32CC/output/b32cc ../../Tests/C/XX_test/test.c > out.asm
+python -m BuildTools.ASMPY.asmpy.app out.asm
+```
+
+**Common Compilation Issues:**
+
+1. **Include path errors**: Compile from `Software/C/` to access `libs/` includes
+2. **Undefined symbols**: Missing library includes or typos in function names
+3. **Assembler errors**: Invalid instruction syntax from compiler
+4. **Binary size**: Large programs may exceed memory (SDRAM ends at ROM_ADDRESS)
 
 ## Tips for Future Debugging
 

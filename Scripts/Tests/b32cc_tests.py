@@ -161,13 +161,16 @@ class B32CCTestRunner:
             if os.path.exists(src):
                 shutil.copy(src, dst)
 
-    def _run_command(self, command: str, description: str) -> tuple[int, str]:
+    def _run_command(
+        self, command: str, description: str, cwd: Optional[str] = None
+    ) -> tuple[int, str]:
         """
         Run a shell command and return the exit code and output.
 
         Args:
             command: The command to execute
             description: Description of what the command does for logging
+            cwd: Working directory to run command in (optional)
 
         Returns:
             Tuple of (exit_code, output)
@@ -178,7 +181,7 @@ class B32CCTestRunner:
         logger.debug(f"Running command: {command}")
         try:
             result = subprocess.run(
-                command, shell=True, capture_output=True, text=True, timeout=60
+                command, shell=True, capture_output=True, text=True, timeout=60, cwd=cwd
             )
             return result.returncode, result.stdout + result.stderr
         except subprocess.TimeoutExpired:
@@ -250,15 +253,25 @@ class B32CCTestRunner:
         """
         Compile C code to assembly using B32CC.
 
+        Compilation runs from Software/C directory to enable library includes.
+
         Args:
-            c_path: Path to C source file
-            asm_path: Path to output assembly file
+            c_path: Path to C source file (relative to project root)
+            asm_path: Path to output assembly file (relative to project root)
 
         Raises:
             CompilerError: If compilation fails
         """
-        compile_cmd = f"{self.config.COMPILER_PATH} {c_path} {asm_path}"
-        exit_code, output = self._run_command(compile_cmd, f"Compiling {c_path}")
+        # Run compiler from Software/C directory to enable library includes
+        # Convert paths to be relative to Software/C
+        rel_c_path = os.path.relpath(c_path, "Software/C")
+        rel_asm_path = os.path.relpath(asm_path, "Software/C")
+        rel_compiler = os.path.relpath(self.config.COMPILER_PATH, "Software/C")
+        
+        compile_cmd = f"{rel_compiler} {rel_c_path} {rel_asm_path}"
+        exit_code, output = self._run_command(
+            compile_cmd, f"Compiling {c_path}", cwd="Software/C"
+        )
 
         if exit_code != 0:
             raise CompilerError(f"B32CC compilation failed for {c_path}: {output}")
