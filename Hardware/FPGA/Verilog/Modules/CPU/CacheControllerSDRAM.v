@@ -8,7 +8,7 @@
  * - DPRAM for L1 data cache (hardcoded to 7 bits, or 128 lines)
  * - CPU pipeline for commands from FE2 and EXMEM2 stages
  * - SDRAM controller for memory access
- * NOTE: In contrast to the MIG7, the SDRAM controller uses 256 bit addressing
+ * NOTE: The SDRAM controller uses 256 bit addressing
  */
 module CacheController (
     //========================

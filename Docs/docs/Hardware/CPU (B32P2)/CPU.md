@@ -43,7 +43,7 @@ The B32P2 is mostly optimized to handle specifically different types of memory e
 
 ### Memory Types
 
-- **(DDR3) SDRAM**: Main system memory via MIG 7 controller, cached in L1
+- **SDRAM**: Main system memory via SDRAM controller, cached in L1
 - **ROM**: Boot memory for initial program loading
 - **VRAM32**: 32-bit video memory for tile-based graphics
 - **VRAM8**: 8-bit video memory for tile-based graphics
@@ -77,7 +77,6 @@ The CPU supports forwarding from:
 
 ### Design Goals
 
-- **50MHz target frequency** to keep aligned with the 100MHz MIG 7 controller clock
 - **Single-cycle execution** for most instructions
 - **Minimal pipeline stalls** through efficient hazard handling
 - **Cache-optimized memory access** to reduce the huge SDRAM latency performance hit

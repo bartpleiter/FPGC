@@ -87,10 +87,10 @@ To output a HDMI signal, the timing signals and R8G8B8 color output have to be T
 
 After generating the TMDS registers for the clock, R, G and B (+sync) signals, it is required to serialize them and create differential signals. The method for doing this varies depending on the FPGA platform:
 
-#### Xilinx Artix 7 (PZ-A75T StarLite)
+#### Xilinx (Spartan, Artix)
 
-Xilinx FPGAs like the Artix 7 have native TMDS support, containing serializers, differential output buffers and hardware outputs for TMDS signals at 3.3V. This makes HDMI output relatively straightforward.
+Xilinx FPGAs like the Spartan and Artix 7 have native TMDS support, containing serializers, differential output buffers and hardware outputs for TMDS signals at 3.3V. This makes HDMI output relatively straightforward. As at some point in this project the Artix 7 XC7A75T was supported, there still is code available to output TMDS on this platform.
 
 #### Intel/Altera Cyclone IV and Cyclone 10 (Custom PCB and QMTECH module)
 
-The Cyclone IV (used on the custom PCB) and Cyclone 10 LP (used on the QMTECH module) do not support the TMDS IO standard natively. Adding an HDMI encoder IC is expensive, more difficult to solder, increases PCB complexity and costs more I/O pins. At the fixed output resolution of the FPGC (480p), the clock speeds are low enough to use regular output pins with some serialization logic in the FPGA, in combination with AC coupling capacitors (100nF). This works perfect for the two different monitors I tested on.
+The Cyclone IV (used on the custom PCB) and Cyclone 10 LP (used on the QMTECH module) do not support the TMDS IO standard natively. Adding an HDMI encoder IC is expensive, more difficult to solder, increases PCB complexity and costs more I/O pins. At the fixed output resolution of the FPGC (480p), the clock speeds are low enough to use regular output pins with some serialization logic in the FPGA, in combination with AC coupling capacitors (100nF). This works perfect for the few different monitors I tested on.

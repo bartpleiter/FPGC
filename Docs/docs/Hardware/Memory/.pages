@@ -4,6 +4,5 @@ nav:
     - ROM.md
     - VRAM.md
     - SDRAM.md
-    - MIG7.md
     - SPI-Flash.md
     - SD-Card.md

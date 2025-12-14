@@ -3,7 +3,7 @@
 Previous versions of the FPGC used an FPGA development board or module with a custom designed I/O PCB. This was mainly done as soldering a BGA FPGA was not easy given the equipment and BGA soldering experience. This actually worked really well since the QMTECH modules used were cheap, compact, contained SDRAM and a lot of I/O pins on headers. However, at this stage of the project I am able to spend more money on the project (as I am not a student anymore), and these days it is exceptionally easy to order a custom PCB with assembly of (BGA) components for a reasonable price. Therefore I designed a complete custom PCB for the FPGC.
 
 !!! Note
-    The FPGC still supports using the PZ-A75T StarLite development board and the QMTECH Cyclone 10 10CL120 module as alternative to the custom PCB. However, the main focus of the project is now on the custom PCB.
+    The FPGC still supports using the QMTECH Cyclone 10 10CL120 module as alternative to the custom PCB. However, the main focus of the project is now on the custom PCB.
 
 ## Main PCB features
 
@@ -29,7 +29,7 @@ The custom PCB contains the following main components:
 The result is a 120mm x 88.3mm 6 layer PCB designed with EasyEDA, and manufactured and assembled by JLCPCB (with parts from LCSC/JLCPCB). The project file is available in the `Hardware/PCB` folder of the project.
 
 !!! Note
-    The SRAM IC was chosen to move the framebuffer from the internal FPGA block RAM to external SRAM, freeing up a lot of block RAM, which is relatively limited on the EP4CE40 FPGA. While using external SRAM requires more complex logic to interface with it as it is not dual port, it does make the design more realistic as this is how most computers work, especially in the era of similar performing systems.
+    The SRAM IC was chosen to move the framebuffer from the internal FPGA block RAM to external SRAM, freeing up a lot of block RAM, which is relatively limited on the EP4CE40 FPGA (although it does have enough). While using external SRAM requires more complex logic to interface with it as it is not dual port, it does make the design more realistic as this is how most computers work, especially in the era of similar performing systems.
 
 ## Schematic
 
@@ -54,26 +54,6 @@ The following 3d renders show the top and bottom layers of the assembled PCB (in
 ![3d_render_pcb_bottom](../images/bottom.png)
 
 ## Alternative platforms
-
-### PZ-A75T StarLite Development Board
-
-The PZ-A75T StarLite development board contains a Xilinx Artix 7 XC7A75T FPGA and was used during early development. It has the following features:
-
-- HDMI port connected to TMDS pins on the FPGA
-- Two USB C ports (one for UART, one for JTAG programming)
-- MicroSD card slot
-- 1GB of DDR3 SDRAM (which is insane for this project)
-- A reasonable amount of I/O on two pin headers to support a custom I/O board.
-
-However, this board has some disadvantages:
-
-- The DDR3 SDRAM requires the MIG 7 memory controller IP from Xilinx, which complicates simulation and is costly in terms of logic gates and latency (note that simulation has been solved by creating a custom simulation model of the MIG 7).
-- The USB to UART bridge cannot use control signals (not wired, and either the IC or Linux driver does not support it)
-- The Gigabit Ethernet PHY is complex to interface with, and can better be ignored in favour of a simpler 10Mbit PHY such as the ENC28J60.
-
-![StarLite Development board](../images/starlite.png){ width="80%" }
-
-(Source: [PuZhi](https://www.puzhi.com/en/detail/433.html))
 
 ### QMTECH Cyclone 10 10CL120 Module
 

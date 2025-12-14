@@ -2,8 +2,8 @@
 
 As the main performance bottleneck slowing down the CPU (even at 50MHz) is RAM, a cache is needed to keep the CPU fed with instructions and avoid stalls. Specifically, the FPGC contains an L1 instruction (L1i) and L1 data (L1d) cache. This is even more needed for newer types of memory like DDR3, which require a burst length of 8. Instead of trying to write a single word and ignoring the other seven words, using a cache line of 8 words is much more efficient, especially since DRAM is very fast sequentially.
 
-!!! note
-    The cache design has been made specifically for DDR3 with a bus width of 32 bits (two 16 bit chips in parallel), as this is what is present on the FPGA core PCB I am using currently. This means my own SDRAM controller has to be replaced by a MIG 7 IP from Xilinx, as DDR3 is currently too complex for me to write my own controller for. If you want to use a different type/configuration of memory, you should only have to change the memory write/read state in the cache controller, and replace the MIG 7 for your own SDRAM controller, as the controller will only do a simple 8 word burst read or write when the DRAM interface indicates it is ready to receive a command.
+!!! TODO
+    This was written originally for the MIG 7 DDR3 controller, but now has been fully replaced by a simple SDRAM controller. I need to update this page (and the design to reduce the number of bits).
 
 ## Specifications
 

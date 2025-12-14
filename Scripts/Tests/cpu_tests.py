@@ -41,8 +41,8 @@ class CPUTestConfig:
     TESTS_DIRECTORY: str = "Tests/CPU"
     ROM_LIST_PATH: str = "Hardware/FPGA/Verilog/Simulation/MemoryLists/rom.list"
     RAM_LIST_PATH: str = "Hardware/FPGA/Verilog/Simulation/MemoryLists/ram.list"
-    MIG7MOCK_LIST_PATH: str = (
-        "Hardware/FPGA/Verilog/Simulation/MemoryLists/mig7mock.list"
+    SDRAM_INIT_LIST_PATH: str = (
+        "Hardware/FPGA/Verilog/Simulation/MemoryLists/sdram.list"
     )
     BOOTLOADER_ROM_PATH: str = "Software/ASM/Simulation/sim_jump_to_ram.asm"
     TESTBENCH_PATH: str = "Hardware/FPGA/Verilog/Simulation/cpu_tests_tb.v"
@@ -100,7 +100,7 @@ class CPUTestRunner:
         """Set up paths for isolated execution in temp directory."""
         self.config.ROM_LIST_PATH = os.path.join(self.temp_dir, "rom.list")
         self.config.RAM_LIST_PATH = os.path.join(self.temp_dir, "ram.list")
-        self.config.MIG7MOCK_LIST_PATH = os.path.join(self.temp_dir, "mig7mock.list")
+        self.config.SDRAM_INIT_LIST_PATH = os.path.join(self.temp_dir, "sdram.list")
         self.config.VERILOG_OUTPUT_PATH = os.path.join(self.temp_dir, "cpu.out")
         self.testbench_path = os.path.join(self.temp_dir, "cpu_tests_tb.v")
 
@@ -256,8 +256,8 @@ class CPUTestRunner:
         # Now compile the test code for RAM
         self._assemble_code(path, self.config.RAM_LIST_PATH, "RAM code")
 
-        # Convert to 256 bit lines for mig7 mock
-        convert_cmd = f"python3 {self.config.CONVERTER_SCRIPT} {self.config.RAM_LIST_PATH} {self.config.MIG7MOCK_LIST_PATH}"
+        # Convert to 256 bit lines for SDRAM memory init file
+        convert_cmd = f"python3 {self.config.CONVERTER_SCRIPT} {self.config.RAM_LIST_PATH} {self.config.SDRAM_INIT_LIST_PATH}"
         exit_code, output = self._run_command(
             convert_cmd, "Converting to 256-bit format"
         )

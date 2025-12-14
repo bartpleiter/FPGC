@@ -2,8 +2,8 @@
  * SDRAMcontroller
  * Custom made for FPGC with l1 cache (8 32-bit words per cache line), having two W9825G6KH-6 chips
  * Should run at 100MHz (with the SDRAM_CLK outside of this module at 180 degrees phase shifted)
- * Uses a 256 bit bus to the CPU/Cache controller, similar to a MIG 7
- * In contrast to MIG 7, the address is given in 256 bit words, not in bytes
+ * Uses a 256 bit bus to the CPU/Cache controller
+ * The address is given in 256 bit words, not in bytes
  *
  * Some calculations:
  * - SDRAMx2 size: 64MiB (16M x 32 x 4 banks) -> 16 MiWords -> 2 MiLines (256 bits per line)

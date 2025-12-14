@@ -58,8 +58,8 @@ if [ "$COMPILE_RAM" = true ]; then
     if asmpy Software/ASM/Simulation/sim_ram.asm Hardware/FPGA/Verilog/Simulation/MemoryLists/ram.list -h
     then
         echo "RAM code compiled successfully"
-        # Convert to 256 bit lines for mig7 mock
-        python3 Scripts/Simulation/convert_to_256_bit.py Hardware/FPGA/Verilog/Simulation/MemoryLists/ram.list Hardware/FPGA/Verilog/Simulation/MemoryLists/mig7mock.list
+        # Convert to 256 bit lines for sdram memory init file
+        python3 Scripts/Simulation/convert_to_256_bit.py Hardware/FPGA/Verilog/Simulation/MemoryLists/ram.list Hardware/FPGA/Verilog/Simulation/MemoryLists/sdram.list
     else
         echo "RAM compilation failed"
         exit

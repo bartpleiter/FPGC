@@ -20,7 +20,7 @@ TEST_FILE="$1"
 TEST_PATH="Tests/CPU/${TEST_FILE}"
 ROM_LIST="Hardware/FPGA/Verilog/Simulation/MemoryLists/rom.list"
 RAM_LIST="Hardware/FPGA/Verilog/Simulation/MemoryLists/ram.list"
-MIG7MOCK_LIST="Hardware/FPGA/Verilog/Simulation/MemoryLists/mig7mock.list"
+SDRAM_INIT_LIST="Hardware/FPGA/Verilog/Simulation/MemoryLists/sdram.list"
 BOOTLOADER_ROM="Software/ASM/Simulation/sim_jump_to_ram.asm"
 
 # Activate the virtual environment
@@ -42,8 +42,8 @@ echo "Bootloader assembled to ROM"
 asmpy "$TEST_PATH" "$RAM_LIST"
 echo "Test code assembled to RAM"
 
-# Convert to 256 bit lines for mig7 mock
-python3 Scripts/Simulation/convert_to_256_bit.py "$RAM_LIST" "$MIG7MOCK_LIST"
+# Convert to 256 bit lines for SDRAM memory init file
+python3 Scripts/Simulation/convert_to_256_bit.py "$RAM_LIST" "$SDRAM_INIT_LIST"
 echo "Converted to 256-bit format"
 echo ""
 

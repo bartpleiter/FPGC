@@ -81,7 +81,7 @@ always @(clk100) begin
 end
 
 mt48lc16m16a2 #(
-    .LIST("Hardware/FPGA/Verilog/Simulation/MemoryLists/mig7mock.list"),
+    .LIST("Hardware/FPGA/Verilog/Simulation/MemoryLists/sdram.list"),
     .HIGH_HALF(0)
 ) sdram1 (
 .Dq     (SDRAM_DQ[15:0]), 
@@ -97,7 +97,7 @@ mt48lc16m16a2 #(
 );
 
 mt48lc16m16a2 #(
-    .LIST("Hardware/FPGA/Verilog/Simulation/MemoryLists/mig7mock.list"),
+    .LIST("Hardware/FPGA/Verilog/Simulation/MemoryLists/sdram.list"),
     .HIGH_HALF(1)
 ) sdram2 (
 .Dq     (SDRAM_DQ[31:16]), 

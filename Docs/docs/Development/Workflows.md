@@ -40,7 +40,7 @@ The Verilog sources live in `Hardware/FPGA/Verilog/`. After writing or modifying
 
 ### Simulation
 
-For simulation iverilog and GTKWave are used to verify the design before running it on an FPGA. I like iverilog because it is fast and simple to use from command line scripts. GTKWave is a fast, simple and intuitive tool to view the resulting waveforms for debugging and verification. I specifically avoided using the integrated simulator from Xilinx and Altera as these are slow, proprietary, unintuitive and way more complex than needed while being more difficult to automate (or at least have a too steep learning curve that quickly made me switch towards iverilog when I was just starting to learn Verilog).
+For simulation iverilog and GTKWave are used to verify the design before running it on an FPGA. I like iverilog because it is fast and simple to use from command line scripts. GTKWave is a fast, simple and intuitive tool to view the resulting waveforms for debugging and verification. I specifically avoided using the integrated simulator from Quartus as these are slow, proprietary, unintuitive and way more complex than needed while being more difficult to automate (or at least have a too steep learning curve that quickly made me switch towards iverilog when I was just starting to learn Verilog).
 
 !!! Note
     It is required to use iverilog >= 12.0 as older versions do not support certain features used in the testbenches.

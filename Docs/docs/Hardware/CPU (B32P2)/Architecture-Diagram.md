@@ -1,6 +1,6 @@
 # Architecture diagrams
 
-This document provides a comprehensive visual representation of the B32P2 CPU architecture, showing the pipeline stages, data flow, and module relationships.
+This document provides a visual representation of the B32P2 CPU architecture, showing the pipeline stages, data flow, and module relationships.
 
 ## Complete CPU Architecture
 
@@ -41,7 +41,7 @@ This document provides a comprehensive visual representation of the B32P2 CPU ar
 │  L1i Cache: Instruction cache for read hit detection                                                     │
 │  L1d Cache: Data cache for read hit detectio                                                             │
 │  Video Memory: VRAM32, VRAM8, VRAMPX for GPU communication                                               │
-│  Cache Controller: DDR3 SDRAM interface via MIG 7                                                        │
+│  Cache Controller: 2x SDRAM interface via SDRAM Controller                                               │
 │                                                                                                          │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -98,14 +98,14 @@ This document provides a comprehensive visual representation of the B32P2 CPU ar
                                                  │
                                                  ▼
     ┌─────────────────────────────────────────────────────────────────────────────────────────┐
-    │                               MIG 7 DDR3 Controller                                     │
-    │Complex Xilinx IP, could be replaced by simpler SDRAM controller for simpler memory types│
+    │                                    SDRAM Controller                                     │
+    │                Simple SDRAM controller for single burst reads and writes                │
     │                                                                                         │
     └─────────────────────────────────────────────────────────────────────────────────────────┘
                                                  │
                                                  ▼
                                            ┌─────────────┐
-                                           │   DDR3      │
+                                           │   2x16bit   │
                                            │   SDRAM     │
                                            │   Memory    │
                                            └─────────────┘

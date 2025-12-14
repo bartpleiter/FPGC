@@ -3,9 +3,14 @@
 !!! Warning
     This is my TODO list for development purposes, not really documentation for how to do development.
 
+## Copilot stories
+
+- [ ] Convert the l1 cache design to reflect the SDRAM controller instead of MIG7 (less addresses)
+- [ ] Given longest path is from CacheController|EXMEM2_result into cpu|PC_FE1, look into reducing this path
+- [ ] Find a way to benchmark the l1i and l1d cache performance, and optimize them (especially l1d)
+
 ## Verilog/FPGA design
 
-- [ ] Test Xilinx implementation with external UART bridge to see if this solves the instability issues (or different UART speed). If not, potentially drop support and focus on Altera only, clean up mig7 related code.
 - [ ] Rewrite regbank to just use logic cells instead of attempting block RAM inference
 - [ ] Rewrite stack to force use of block RAM
 - [ ] Look into reducing path from CacheController|EXMEM2_result into cpu|PC_FE1
@@ -32,26 +37,10 @@
 
 These are potential todos for improving the development workflows.
 
-### Testing Infrastructure
-
-#### Memory Controller Testing
-
-##### Memory Configuration Switching (depends on Xilinx board stability status)
-
-- [ ] Easy switching between MIG7 mock and real SDRAM controller in tests
-- [ ] Configuration flag: `make test-cpu MEMORY=mig7mock` vs `make test-cpu MEMORY=sdram`
 
 ### Simulation Infrastructure
 
-#### Simulation Mode Switching
-
-##### Memory Backend Selection (depends on Xilinx board stability status)
-
-Currently, the simulation is hardcoded to use either SDRAM or MIG7mock.
-
-- [ ] Add makefile options and verilog ifdefs to select memory backend for simulation
-
-##### Peripheral Inclusion
+#### Peripheral Inclusion
 
 - [ ] Modular peripheral inclusion in simulation (`make sim-cpu UART=on SPI=off GPIO=on`) to reduce simulation complexity when not testing specific peripherals
 

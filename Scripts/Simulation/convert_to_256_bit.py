@@ -1,4 +1,5 @@
-# This script is used mainly to convert the assembly output into a 256-bit format for the MIG7 mock.
+# This script is used mainly to convert the assembly output into
+# a 256-bit format for the SDRAM memory init file (simulation).
 
 import sys
 import os

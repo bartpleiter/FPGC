@@ -29,13 +29,3 @@ The Cyclone 10 LP 10CL120 is supported via the QMTECH Cyclone 10 module. This is
 | Logic Elements | 119,088 |
 | Block RAM | 3.9Mb |
 | HW multipliers | 288 |
-
-### Xilinx Artix 7 XC7A75T
-
-The Artix 7 XC7A75T is supported via the PZ-A75T StarLite development board. This is a more modern FPGA from Xilinx focussed on performance (like the Cyclone V from Altera), and has native TMDS support for HDMI output.
-
-| Specification | Value |
-|---------------|-------|
-| Logic Cells | 75,520 |
-| Block RAM | 3.7Mb |
-| DSP Slices | 180 |
