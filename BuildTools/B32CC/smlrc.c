@@ -5022,20 +5022,25 @@ int GetDeclSize(int SyntaxPtr, int SizeForDeref)
       break;
     case tokChar:
     case tokSChar:
-      // In word-addressable mode, each char takes a full word, no sign extension needed
-      if (!WordAddressable && !arr && ((tok == tokSChar) || CharIsSigned) && SizeForDeref)
-        return -1; // 1 byte, needing sign extension when converted to int/unsigned int
+      // Return extension indicator for signed char even in word-addressable mode
+      if (!arr && ((tok == tokSChar) || CharIsSigned) && SizeForDeref)
+        return -1; // needs sign extension when converted to int/unsigned int
       // fallthrough
     case tokUChar:
-      // In word-addressable mode, char takes 1 word (1 address unit)
+      // Return 1 as extension indicator for unsigned char (AND with 0xFF)
+      // In word-addressable mode, char still takes 1 word, but we need the extension indicator for SizeForDeref
+      if (SizeForDeref && !arr)
+        return 1; // needs zero extension (AND 0xFF)
       return (int)size;
     case tokShort:
-      // In word-addressable mode, each short takes a full word, no sign extension needed
-      if (!WordAddressable && !arr && SizeForDeref)
-        return -2; // 2 bytes, needing sign extension when converted to int/unsigned int
+      // Return extension indicator for signed short even in word-addressable mode
+      if (!arr && SizeForDeref)
+        return -2; // needs sign extension when converted to int/unsigned int
       // fallthrough
     case tokUShort:
-      // In word-addressable mode, short takes 1 word (1 address unit)
+      // Return 2 as extension indicator for unsigned short (AND with 0xFFFF)
+      if (SizeForDeref && !arr)
+        return 2; // needs zero extension (AND 0xFFFF)
       if (!WordAddressable)
       {
         if (size * 2 / 2 != size)
@@ -5049,7 +5054,8 @@ int GetDeclSize(int SyntaxPtr, int SizeForDeref)
     case tokUnsigned:
     case '*':
     case '(': // size of fxn = size of ptr for now
-      // In word-addressable mode, int/ptr takes 1 word (1 address unit)
+      // Return SizeOfWord (4) even in word-addressable mode to avoid GenExtendRegIfNeeded
+      // misinterpreting size 1 as unsigned char extension indicator
       if (!WordAddressable)
       {
         if (size * SizeOfWord / SizeOfWord != size)
@@ -5057,6 +5063,13 @@ int GetDeclSize(int SyntaxPtr, int SizeForDeref)
         size *= SizeOfWord;
         if (size != truncUint(size))
           errorVarSize();
+      }
+      else
+      {
+        // In word-addressable mode, return SizeOfWord for dereferencing so that
+        // GenExtendRegIfNeeded ignores it (only handles values -2, -1, 1, 2)
+        if (SizeForDeref)
+          return SizeOfWord;
       }
       return (int)size;
     case '[':

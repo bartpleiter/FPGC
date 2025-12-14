@@ -25,13 +25,10 @@ void *memset(void *s, int c, size_t n)
 {
     unsigned int *p = (unsigned int *)s;
     size_t i;
-    /* Replicate the low byte to all 4 bytes of the word */
-    unsigned int val = (unsigned int)(c & 0xFF);
-    val = val | (val << 8) | (val << 16) | (val << 24);
 
     for (i = 0; i < n; i++)
     {
-        p[i] = val;
+        p[i] = c;
     }
 
     return s;

@@ -425,9 +425,9 @@ void GenPrintInstr3Operands(int instr, int instrval,
 STATIC
 void GenExtendRegIfNeeded(int reg, int opSz)
 {
-  // In word-addressable mode, all values are full 32-bit words, no extension needed
-  if (WordAddressable)
-    return;
+  // Handle extension for char/short types.
+  // Even in word-addressable mode, char/short need masking to preserve C semantics
+  // opSz values: -1 = signed char, 1 = unsigned char, -2 = signed short, 2 = unsigned short
 
   if (opSz == -1)
   {
