@@ -42,7 +42,7 @@ set_global_assignment -name DEVICE 10CL120YF484I7G
 set_global_assignment -name TOP_LEVEL_ENTITY FPGC
 set_global_assignment -name ORIGINAL_QUARTUS_VERSION 24.1STD.0
 set_global_assignment -name PROJECT_CREATION_TIME_DATE "20:52:15  OCTOBER 25, 2025"
-set_global_assignment -name LAST_QUARTUS_VERSION "25.1std.0 Lite Edition"
+set_global_assignment -name LAST_QUARTUS_VERSION "24.1std.0 Lite Edition"
 set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
 set_global_assignment -name MIN_CORE_JUNCTION_TEMP "-40"
 set_global_assignment -name MAX_CORE_JUNCTION_TEMP 100
@@ -140,17 +140,67 @@ set_location_assignment PIN_C18 -to SDRAM1_DQ[13]
 set_location_assignment PIN_C17 -to SDRAM1_DQ[14]
 set_location_assignment PIN_B19 -to SDRAM1_DQ[15]
 
-set_location_assignment PIN_Y2 -to HDMI_CLK_P
-set_location_assignment PIN_Y1 -to HDMI_CLK_N
-set_location_assignment PIN_Y4 -to HDMI_D0_P
-set_location_assignment PIN_Y3 -to HDMI_D0_N
-set_location_assignment PIN_AB6 -to HDMI_D1_P
-set_location_assignment PIN_AB5 -to HDMI_D1_N
-set_location_assignment PIN_AA7 -to HDMI_D2_P
-set_location_assignment PIN_AB7 -to HDMI_D2_N
+set_location_assignment PIN_E1 -to HDMI_CLK_P
+set_location_assignment PIN_D2 -to HDMI_CLK_N
+set_location_assignment PIN_B1 -to HDMI_D0_P
+set_location_assignment PIN_B2 -to HDMI_D0_N
+set_location_assignment PIN_A5 -to HDMI_D1_P
+set_location_assignment PIN_A4 -to HDMI_D1_N
+set_location_assignment PIN_B7 -to HDMI_D2_P
+set_location_assignment PIN_A7 -to HDMI_D2_N
 
-set_location_assignment PIN_AA5 -to uart_rx
-set_location_assignment PIN_AA6 -to uart_tx
+set_location_assignment PIN_B4 -to uart_rx
+set_location_assignment PIN_B5 -to uart_tx
+
+set_location_assignment PIN_AA16 -to SPI0_clk
+set_location_assignment PIN_W17 -to SPI0_miso
+set_location_assignment PIN_AA18 -to SPI0_mosi
+set_location_assignment PIN_AA19 -to SPI0_cs
+
+set_location_assignment PIN_AB16 -to SPI1_clk
+set_location_assignment PIN_Y17 -to SPI1_miso
+set_location_assignment PIN_AB18 -to SPI1_mosi
+set_location_assignment PIN_AB19 -to SPI1_cs
+
+set_location_assignment PIN_AA8 -to SPI2_clk
+set_location_assignment PIN_W8 -to SPI2_mosi
+set_location_assignment PIN_AB8 -to SPI2_miso
+set_location_assignment PIN_Y8 -to SPI2_cs
+set_location_assignment PIN_W10 -to SPI2_nint
+
+set_location_assignment PIN_AB10 -to SPI4_clk
+set_location_assignment PIN_V14 -to SPI4_mosi
+set_location_assignment PIN_AB13 -to SPI4_miso
+set_location_assignment PIN_Y13 -to SPI4_cs
+set_location_assignment PIN_V12 -to SPI4_nint
+
+set_location_assignment PIN_AA15 -to sw1
+set_location_assignment PIN_AB15 -to sw2
+
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SPI0_clk
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SPI0_mosi
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SPI0_miso
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SPI0_cs
+
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SPI1_clk
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SPI1_mosi
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SPI1_miso
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SPI1_cs
+
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SPI2_clk
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SPI2_mosi
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SPI2_miso
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SPI2_cs
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SPI2_nint
+
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SPI4_clk
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SPI4_mosi
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SPI4_miso
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SPI4_cs
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SPI4_nint
+
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to sw1
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to sw2
 
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to sys_clk_50
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to sys_clk_27
@@ -311,4 +361,5 @@ set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/ALU.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/AddressDecoder.v
 set_global_assignment -name QIP_FILE pll1.qip
 set_global_assignment -name QIP_FILE ddr.qip
+
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

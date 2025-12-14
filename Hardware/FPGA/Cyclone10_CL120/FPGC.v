@@ -42,10 +42,38 @@ module FPGC (
     // UART
     input wire          uart_rx,
     output wire         uart_tx,
-    
+
+    // SPI flash 1
+    output wire         SPI0_clk,
+    output wire         SPI0_mosi,
+    input wire          SPI0_miso,
+    output wire         SPI0_cs,
+
+    // SPI flash 2
+    output wire         SPI1_clk,
+    output wire         SPI1_mosi,
+    input wire          SPI1_miso,
+    output wire         SPI1_cs,
+
+    // SPI USB Host
+    output wire         SPI2_clk,
+    output wire         SPI2_mosi,
+    input wire          SPI2_miso,
+    output wire         SPI2_cs,
+    input wire          SPI2_nint,
+
+    // SPI Ethernet
+    output wire         SPI4_clk,
+    output wire         SPI4_mosi,
+    input wire          SPI4_miso,
+    output wire         SPI4_cs,
+    input wire          SPI4_nint,
+
     // Buttons
     input wire          key1,
     input wire          key2,
+    input wire          sw1,
+    input wire          sw2,
 
     // LEDs
     output wire         led1,
@@ -55,33 +83,11 @@ module FPGC (
 wire boot_mode = 1'b0 ; // TODO: connect to switch when available
 
 // SPI signals that are not yet connected to pins
-wire SPI0_clk;
-wire SPI0_mosi;
-wire SPI0_miso = 1'b1;
-wire SPI0_cs;
-
-wire SPI1_clk;
-wire SPI1_mosi;
-wire SPI1_miso = 1'b1;
-wire SPI1_cs;
-
-wire SPI2_clk;
-wire SPI2_mosi;
-wire SPI2_miso = 1'b1;
-wire SPI2_cs;
-wire SPI2_nint = 1'b1;
-
 wire SPI3_clk;
 wire SPI3_mosi;
 wire SPI3_miso = 1'b1;
 wire SPI3_cs;
 wire SPI3_nint = 1'b1;
-
-wire SPI4_clk;
-wire SPI4_mosi;
-wire SPI4_miso = 1'b1;
-wire SPI4_cs;
-wire SPI4_nint = 1'b1;
 
 wire SPI5_clk;
 wire SPI5_mosi;
