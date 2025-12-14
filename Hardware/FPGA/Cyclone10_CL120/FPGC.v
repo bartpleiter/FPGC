@@ -534,25 +534,25 @@ MemoryUnit memory_unit (
     .SPI1_miso(SPI1_miso),
     .SPI1_cs(SPI1_cs),
 
-    .SPI2_clk(SPI2_clk),
-    .SPI2_mosi(SPI2_mosi),
-    .SPI2_miso(SPI2_miso),
-    .SPI2_cs(SPI2_cs),
+    // .SPI2_clk(SPI2_clk),
+    // .SPI2_mosi(SPI2_mosi),
+    // .SPI2_miso(SPI2_miso),
+    // .SPI2_cs(SPI2_cs),
 
-    .SPI3_clk(SPI3_clk),
-    .SPI3_mosi(SPI3_mosi),
-    .SPI3_miso(SPI3_miso),
-    .SPI3_cs(SPI3_cs),
+    // .SPI3_clk(SPI3_clk),
+    // .SPI3_mosi(SPI3_mosi),
+    // .SPI3_miso(SPI3_miso),
+    // .SPI3_cs(SPI3_cs),
 
     .SPI4_clk(SPI4_clk),
     .SPI4_mosi(SPI4_mosi),
     .SPI4_miso(SPI4_miso),
-    .SPI4_cs(SPI4_cs),
+    .SPI4_cs(SPI4_cs)
 
-    .SPI5_clk(SPI5_clk),
-    .SPI5_mosi(SPI5_mosi),
-    .SPI5_miso(SPI5_miso),
-    .SPI5_cs(SPI5_cs)
+    // .SPI5_clk(SPI5_clk),
+    // .SPI5_mosi(SPI5_mosi),
+    // .SPI5_miso(SPI5_miso),
+    // .SPI5_cs(SPI5_cs)
 );
 
 //-----------------------CPU-------------------------
