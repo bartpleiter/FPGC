@@ -1,13 +1,6 @@
 #include "libs/common/fixedmath.h"
 
 /*
- * Fixed-Point Math Library Implementation
- * 
- * Uses 16.16 fixed-point format.
- * Optimized for systems without FPU.
- */
-
-/*
  * Sine lookup table (0-90 degrees, in fixed-point).
  * Values are sin(angle) * FRACUNIT.
  * The table covers 0-90 degrees in 1-degree increments.

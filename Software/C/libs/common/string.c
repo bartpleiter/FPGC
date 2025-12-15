@@ -1,10 +1,5 @@
 #include "libs/common/string.h"
 
-/*
- * String and Memory Functions Implementation
- * Minimal implementation for FPGC (word-addressable architecture).
- */
-
 /* Memory functions */
 
 void *memcpy(void *dest, const void *src, size_t n)

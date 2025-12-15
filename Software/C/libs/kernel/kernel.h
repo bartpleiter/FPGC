@@ -38,6 +38,14 @@
 #include "libs/kernel/term/term.h"
 #endif
 
+#ifdef KERNEL_SPI
+#include "libs/kernel/io/spi.h"
+#endif
+
+#ifdef KERNEL_MALLOC
+#include "libs/kernel/mem/malloc.h"
+#endif
+
 // Implementation files
 #ifdef KERNEL_GPU_HAL
 #include "libs/kernel/gfx/gpu_hal.c"
@@ -53,6 +61,14 @@
 
 #ifdef KERNEL_TERM
 #include "libs/kernel/term/term.c"
+#endif
+
+#ifdef KERNEL_SPI
+#include "libs/kernel/io/spi.c"
+#endif
+
+#ifdef KERNEL_MALLOC
+#include "libs/kernel/mem/malloc.c"
 #endif
 
 #endif // KERNEL_H

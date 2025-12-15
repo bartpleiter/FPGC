@@ -4,13 +4,12 @@
 /*
  * Terminal Library
  * Provides text output capabilities on the window plane of the GPU.
- * Emulates basic terminal behavior with cursor management, scrolling, and character handling.
+ * Emulates basic terminal behavior.
  */
 
 #define TERM_WIDTH  40
 #define TERM_HEIGHT 25
 #define TAB_WIDTH   4
-#define SPACE_CHAR  32
 
 // Initialize the terminal library
 void term_init(void);

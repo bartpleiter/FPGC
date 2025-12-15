@@ -3,7 +3,6 @@
 
 /*
  * Character Classification Functions
- * Minimal implementation for FPGC.
  */
 
 /**

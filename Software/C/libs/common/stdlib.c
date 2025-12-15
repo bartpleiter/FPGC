@@ -1,271 +1,5 @@
 #include "libs/common/stdlib.h"
 
-/*
- * Standard Library Functions Implementation
- * Minimal implementation for FPGC.
- */
-
-/*
- * Memory Allocator
- * 
- * Simple free-list allocator. Each block has a header containing:
- * - size: Number of words in the block (including header)
- * - next: Pointer to next free block (or NULL if allocated/last)
- * 
- * Memory layout of a block:
- * [header (2 words)] [user data...]
- * 
- * Note: The heap must be initialized before use by calling malloc_init().
- * The heap start and end addresses depend on the memory map.
- */
-
-#define HEAP_HEADER_SIZE 2  /* Size of block header in words */
-
-/* Block header structure */
-typedef struct block_header
-{
-    size_t size;                 /* Block size including header */
-    struct block_header *next;   /* Next free block (NULL if allocated) */
-} block_header_t;
-
-/* Heap management variables */
-static block_header_t *free_list = NULL;  /* Head of free list */
-static int heap_initialized = 0;
-
-/* 
- * Heap configuration 
- * These values should be adjusted based on the actual memory map.
- * For FPGC, the main memory is SDRAM at 0x0000000.
- * We'll use a portion of SDRAM for the heap.
- * 
- * TODO: Adjust these values based on actual program needs and memory layout.
- */
-#define HEAP_START  0x00100000  /* Start of heap (after code/data) */
-#define HEAP_SIZE   0x00100000  /* 1M words = 4MB of heap */
-#define HEAP_END    (HEAP_START + HEAP_SIZE)
-
-/**
- * Initialize the heap allocator.
- * Called automatically on first malloc if not initialized.
- */
-static void malloc_init(void)
-{
-    if (heap_initialized)
-    {
-        return;
-    }
-
-    /* Create initial free block spanning entire heap */
-    free_list = (block_header_t *)HEAP_START;
-    free_list->size = HEAP_SIZE;
-    free_list->next = NULL;
-
-    heap_initialized = 1;
-}
-
-void *malloc(size_t size)
-{
-    block_header_t *curr;
-    block_header_t *prev;
-    block_header_t *new_block;
-    size_t total_size;
-
-    if (size == 0)
-    {
-        return NULL;
-    }
-
-    /* Initialize heap if needed */
-    if (!heap_initialized)
-    {
-        malloc_init();
-    }
-
-    /* Calculate total size needed (user size + header) */
-    total_size = size + HEAP_HEADER_SIZE;
-
-    /* Find first fit block */
-    prev = NULL;
-    curr = free_list;
-
-    while (curr != NULL)
-    {
-        if (curr->size >= total_size)
-        {
-            /* Found a suitable block */
-            
-            /* Check if we should split the block */
-            if (curr->size >= total_size + HEAP_HEADER_SIZE + 1)
-            {
-                /* Split: create new free block after this allocation */
-                new_block = (block_header_t *)((unsigned int *)curr + total_size);
-                new_block->size = curr->size - total_size;
-                new_block->next = curr->next;
-
-                curr->size = total_size;
-                curr->next = new_block;
-            }
-
-            /* Remove block from free list */
-            if (prev == NULL)
-            {
-                free_list = curr->next;
-            }
-            else
-            {
-                prev->next = curr->next;
-            }
-
-            /* Mark as allocated (next = NULL means allocated) */
-            curr->next = NULL;
-
-            /* Return pointer to user data (after header) */
-            return (void *)((unsigned int *)curr + HEAP_HEADER_SIZE);
-        }
-
-        prev = curr;
-        curr = curr->next;
-    }
-
-    /* No suitable block found */
-    return NULL;
-}
-
-void free(void *ptr)
-{
-    block_header_t *block;
-    block_header_t *curr;
-    block_header_t *prev;
-
-    if (ptr == NULL)
-    {
-        return;
-    }
-
-    /* Get block header */
-    block = (block_header_t *)((unsigned int *)ptr - HEAP_HEADER_SIZE);
-
-    /* Find insertion point in free list (keep list sorted by address) */
-    prev = NULL;
-    curr = free_list;
-
-    while (curr != NULL && curr < block)
-    {
-        prev = curr;
-        curr = curr->next;
-    }
-
-    /* Insert block into free list */
-    block->next = curr;
-
-    if (prev == NULL)
-    {
-        free_list = block;
-    }
-    else
-    {
-        prev->next = block;
-    }
-
-    /* Coalesce with next block if adjacent */
-    if (curr != NULL && 
-        (unsigned int *)block + block->size == (unsigned int *)curr)
-    {
-        block->size += curr->size;
-        block->next = curr->next;
-    }
-
-    /* Coalesce with previous block if adjacent */
-    if (prev != NULL && 
-        (unsigned int *)prev + prev->size == (unsigned int *)block)
-    {
-        prev->size += block->size;
-        prev->next = block->next;
-    }
-}
-
-void *calloc(size_t nmemb, size_t size)
-{
-    size_t total;
-    void *ptr;
-    unsigned int *p;
-    size_t i;
-
-    total = nmemb * size;
-
-    if (total == 0)
-    {
-        return NULL;
-    }
-
-    ptr = malloc(total);
-
-    if (ptr != NULL)
-    {
-        /* Zero the memory */
-        p = (unsigned int *)ptr;
-        for (i = 0; i < total; i++)
-        {
-            p[i] = 0;
-        }
-    }
-
-    return ptr;
-}
-
-void *realloc(void *ptr, size_t size)
-{
-    block_header_t *old_block;
-    size_t old_size;
-    void *new_ptr;
-    unsigned int *src;
-    unsigned int *dst;
-    size_t i;
-    size_t copy_size;
-
-    if (ptr == NULL)
-    {
-        return malloc(size);
-    }
-
-    if (size == 0)
-    {
-        free(ptr);
-        return NULL;
-    }
-
-    /* Get old block info */
-    old_block = (block_header_t *)((unsigned int *)ptr - HEAP_HEADER_SIZE);
-    old_size = old_block->size - HEAP_HEADER_SIZE;
-
-    /* If new size fits in current block, return same pointer */
-    if (size <= old_size)
-    {
-        return ptr;
-    }
-
-    /* Allocate new block */
-    new_ptr = malloc(size);
-
-    if (new_ptr != NULL)
-    {
-        /* Copy old data */
-        src = (unsigned int *)ptr;
-        dst = (unsigned int *)new_ptr;
-        copy_size = (old_size < size) ? old_size : size;
-
-        for (i = 0; i < copy_size; i++)
-        {
-            dst[i] = src[i];
-        }
-
-        /* Free old block */
-        free(ptr);
-    }
-
-    return new_ptr;
-}
-
 /* Conversion functions */
 
 int atoi(const char *nptr)
@@ -300,36 +34,49 @@ int atoi(const char *nptr)
     return sign * result;
 }
 
-long atol(const char *nptr)
+int *utoa(unsigned int value, int *buf, int base, int uppercase)
 {
-    long result = 0;
-    int sign = 1;
+    static const char digits_lower[] = "0123456789abcdef";
+    static const char digits_upper[] = "0123456789ABCDEF";
+    const char *digits = uppercase ? digits_upper : digits_lower;
+    int *p = buf;
+    int *first = buf;
+    int tmp;
 
-    /* Skip whitespace */
-    while (*nptr == ' ' || *nptr == '\t' || *nptr == '\n')
+    /* Generate digits in reverse order */
+    do
     {
-        nptr++;
+        *p++ = digits[value % base];
+        value /= base;
+    } while (value > 0);
+
+    *p = '\0';
+
+    /* Reverse the string */
+    p--;
+    while (first < p)
+    {
+        tmp = *first;
+        *first++ = *p;
+        *p-- = tmp;
     }
 
-    /* Handle sign */
-    if (*nptr == '-')
+    return buf;
+}
+
+int *itoa(int value, int *buf, int base)
+{
+    int *p = buf;
+
+    if (value < 0 && base == 10)
     {
-        sign = -1;
-        nptr++;
-    }
-    else if (*nptr == '+')
-    {
-        nptr++;
+        *p++ = '-';
+        value = -value;
     }
 
-    /* Convert digits */
-    while (*nptr >= '0' && *nptr <= '9')
-    {
-        result = result * 10 + (*nptr - '0');
-        nptr++;
-    }
+    utoa((unsigned int)value, p, base, 0);
 
-    return sign * result;
+    return buf;
 }
 
 /* Utility functions */
@@ -345,18 +92,18 @@ long labs(long j)
 }
 
 /* Random number generator (Linear Congruential Generator) */
-static unsigned int rand_seed = 1;
+static unsigned int stdlib_rand_seed = 1;
 
 int rand(void)
 {
     /* LCG parameters (same as glibc) */
-    rand_seed = rand_seed * 1103515245 + 12345;
-    return (int)((rand_seed >> 16) & RAND_MAX);
+    stdlib_rand_seed = stdlib_rand_seed * 1103515245 + 12345;
+    return (int)((stdlib_rand_seed >> 16) & RAND_MAX);
 }
 
 void srand(unsigned int seed)
 {
-    rand_seed = seed;
+    stdlib_rand_seed = seed;
 }
 
 /* Quicksort implementation */
@@ -448,25 +195,6 @@ void *bsearch(const void *key, const void *base, size_t nmemb, size_t size,
     }
 
     return NULL;
-}
-
-/* Program termination */
-
-void exit(int status)
-{
-    /* 
-     * In bare-metal mode, we halt the CPU.
-     * The status is stored in r1 (return value register).
-     * 
-     * TODO: When OS is implemented, this should make a syscall.
-     */
-    (void)status; /* Use status to avoid warning */
-    
-    /* Inline assembly to halt the CPU */
-    asm("halt");
-    
-    /* Should never reach here, but prevent compiler warning */
-    while (1) {}
 }
 
 /* Utility functions */

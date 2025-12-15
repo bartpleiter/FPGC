@@ -3,42 +3,9 @@
 
 /*
  * Standard Library Functions
- * Minimal implementation for FPGC.
- * Note: Memory allocation uses a simple heap allocator.
  */
 
 #include "libs/common/stddef.h"
-
-/* Memory allocation functions */
-
-/**
- * Allocate size words of memory.
- * @param size Number of words to allocate
- * @return Pointer to allocated memory, or NULL if allocation fails
- */
-void *malloc(size_t size);
-
-/**
- * Free previously allocated memory.
- * @param ptr Pointer to memory to free
- */
-void free(void *ptr);
-
-/**
- * Allocate and zero-initialize memory for an array.
- * @param nmemb Number of elements
- * @param size Size of each element in words
- * @return Pointer to allocated memory, or NULL if allocation fails
- */
-void *calloc(size_t nmemb, size_t size);
-
-/**
- * Resize previously allocated memory.
- * @param ptr Pointer to memory to resize (can be NULL)
- * @param size New size in words
- * @return Pointer to resized memory, or NULL if allocation fails
- */
-void *realloc(void *ptr, size_t size);
 
 /* Conversion functions */
 
@@ -50,11 +17,23 @@ void *realloc(void *ptr, size_t size);
 int atoi(const char *nptr);
 
 /**
- * Convert string to long integer.
- * @param nptr String to convert
- * @return Long integer value
+ * Convert unsigned integer to string.
+ * @param value Unsigned integer value
+ * @param buf Buffer to store string (must be large enough)
+ * @param base Numerical base (e.g., 10 for decimal, 16 for hex)
+ * @param uppercase Non-zero for uppercase hex digits, zero for lowercase
+ * @return Pointer to buffer containing the string
  */
-long atol(const char *nptr);
+int *utoa(unsigned int value, int *buf, int base, int uppercase);
+
+/**
+ * Convert signed integer to string.
+ * @param value Signed integer value
+ * @param buf Buffer to store string (must be large enough)
+ * @param base Numerical base (e.g., 10 for decimal, 16 for hex)
+ * @return Pointer to buffer containing the string
+ */
+int *itoa(int value, int *buf, int base);
 
 /* Utility functions */
 
@@ -114,15 +93,6 @@ void qsort(void *base, size_t nmemb, size_t size,
  */
 void *bsearch(const void *key, const void *base, size_t nmemb, size_t size,
               int (*compar)(const void *, const void *));
-
-/* Program termination */
-
-/**
- * Exit program with status code.
- * Note: In bare-metal, this halts the CPU.
- * @param status Exit status code
- */
-void exit(int status);
 
 /* Utility functions - inline functions instead of macros */
 

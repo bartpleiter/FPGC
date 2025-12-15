@@ -8,12 +8,6 @@
  */
 
 // Dependency resolution
-#ifdef COMMON_STDIO
-#ifndef COMMON_STRING
-#define COMMON_STRING
-#endif
-#endif
-
 #ifdef COMMON_STDLIB
 #ifndef COMMON_STRING
 #define COMMON_STRING
@@ -34,10 +28,6 @@
 #include "libs/common/ctype.h"
 #endif
 
-#ifdef COMMON_STDIO
-#include "libs/common/stdio.h"
-#endif
-
 #ifdef COMMON_FIXEDMATH
 #include "libs/common/fixedmath.h"
 #endif
@@ -53,10 +43,6 @@
 
 #ifdef COMMON_CTYPE
 #include "libs/common/ctype.c"
-#endif
-
-#ifdef COMMON_STDIO
-#include "libs/common/stdio.c"
 #endif
 
 #ifdef COMMON_FIXEDMATH

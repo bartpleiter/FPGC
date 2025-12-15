@@ -3,7 +3,6 @@
 
 /*
  * String and Memory Functions
- * Minimal implementation of standard C string library functions.
  * Note: This system is word-addressable (32-bit), so sizes are in words.
  */
 
