@@ -146,6 +146,25 @@ void term_puts(char *str) {
     }
 }
 
+// Output an integer as a string
+void term_putint(int value)
+{
+    char buffer[12];
+    itoa(value, buffer, 10);
+    term_puts(buffer);
+}
+
+// Output an unsigned integer as a hexadecimal string, with optional "0x" prefix
+void term_puthex(unsigned int value, int prefix)
+{
+    if (prefix) {
+        term_puts("0x");
+    }
+    char buffer[9];
+    itoa(value, buffer, 16);
+    term_puts(buffer);
+}
+
 // Output a buffer of specified length
 void term_write(char *buf, unsigned int len) {
     unsigned int i;

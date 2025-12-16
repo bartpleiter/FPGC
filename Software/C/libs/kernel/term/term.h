@@ -32,6 +32,12 @@ void term_putchar(char c);
 // Output a null-terminated string
 void term_puts(char *str);
 
+// Output an integer as a string
+void term_putint(int value);
+
+// Output an unsigned integer as a hexadecimal string, with optional "0x" prefix
+void term_puthex(unsigned int value, int prefix);
+
 // Output a buffer of specified length
 void term_write(char *buf, unsigned int len);
 

@@ -22,34 +22,43 @@ void init()
     term_init();
 }
 
-// TODO create functions like this in stdlib
-void write_int(int value)
+void print_jedec_id(int m, int n, int o)
 {
-    char buffer[14];
-    buffer[0] = '0';
-    buffer[1] = 'x';
-    itoa(value, &buffer[2], 16);
-    term_puts(buffer);
-    term_putchar('\n');
+    term_puts("JEDEC ID: ");
+    term_puthex(m, 1);
+    term_puts(" ");
+    term_puthex(n, 1);
+    term_puts(" ");
+    term_puthex(o, 1);
+    term_puts("\n");
 }
+
+
 
 int main() {
     init();
 
     int cmd = 0x9f; // Read JEDEC ID command
+
+    spi_0_select();
+    spi_0_transfer(cmd);
+    int m0 = spi_0_transfer(0x00);
+    int n0 = spi_0_transfer(0x00);
+    int o0 =spi_0_transfer(0x00);
+    spi_0_deselect();
+    
     spi_1_select();
-
-
     spi_1_transfer(cmd);
-    int m = spi_1_transfer(0x00);
-    write_int(m);
-    m = spi_1_transfer(0x00);
-    write_int(m);
-    m = spi_1_transfer(0x00);
-    write_int(m);
-
-
+    int m1 = spi_1_transfer(0x00);
+    int n1 = spi_1_transfer(0x00);
+    int o1 =spi_1_transfer(0x00);
     spi_1_deselect();
+
+    term_puts("SPI Flash 0:\n");
+    print_jedec_id(m0, n0, o0);
+    term_puts("SPI Flash 1:\n");
+    print_jedec_id(m1, n1, o1);
+
     return 1;
 }
 
