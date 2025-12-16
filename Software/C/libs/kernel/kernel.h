@@ -20,6 +20,12 @@
 #endif
 #endif
 
+#ifdef KERNEL_SPI_FLASH
+#ifndef KERNEL_SPI
+#define KERNEL_SPI
+#endif
+#endif
+
 // Flag based inclusion of libraries
 // Header files
 #ifdef KERNEL_GPU_HAL
@@ -46,6 +52,10 @@
 #include "libs/kernel/mem/malloc.h"
 #endif
 
+#ifdef KERNEL_SPI_FLASH
+#include "libs/kernel/io/spi_flash.h"
+#endif
+
 // Implementation files
 #ifdef KERNEL_GPU_HAL
 #include "libs/kernel/gfx/gpu_hal.c"
@@ -69,6 +79,10 @@
 
 #ifdef KERNEL_MALLOC
 #include "libs/kernel/mem/malloc.c"
+#endif
+
+#ifdef KERNEL_SPI_FLASH
+#include "libs/kernel/io/spi_flash.c"
 #endif
 
 #endif // KERNEL_H
