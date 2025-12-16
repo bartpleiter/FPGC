@@ -40,19 +40,19 @@ int main() {
 
     int cmd = 0x9f; // Read JEDEC ID command
 
-    spi_0_select();
-    spi_0_transfer(cmd);
-    int m0 = spi_0_transfer(0x00);
-    int n0 = spi_0_transfer(0x00);
-    int o0 =spi_0_transfer(0x00);
-    spi_0_deselect();
+    spi_select(SPI_ID_FLASH_0);
+    spi_transfer(SPI_ID_FLASH_0, cmd);
+    int m0 = spi_transfer(SPI_ID_FLASH_0, 0x00);
+    int n0 = spi_transfer(SPI_ID_FLASH_0, 0x00);
+    int o0 =spi_transfer(SPI_ID_FLASH_0, 0x00);
+    spi_deselect(SPI_ID_FLASH_0);
     
-    spi_1_select();
-    spi_1_transfer(cmd);
-    int m1 = spi_1_transfer(0x00);
-    int n1 = spi_1_transfer(0x00);
-    int o1 =spi_1_transfer(0x00);
-    spi_1_deselect();
+    spi_select(SPI_ID_FLASH_1);
+    spi_transfer(SPI_ID_FLASH_1, cmd);
+    int m1 = spi_transfer(SPI_ID_FLASH_1, 0x00);
+    int n1 = spi_transfer(SPI_ID_FLASH_1, 0x00);
+    int o1 =spi_transfer(SPI_ID_FLASH_1, 0x00);
+    spi_deselect(SPI_ID_FLASH_1);
 
     term_puts("SPI Flash 0:\n");
     print_jedec_id(m0, n0, o0);

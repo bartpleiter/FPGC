@@ -6,28 +6,15 @@
  * Provides functions to select/deselect the SPI device and transfer data.
  */
 
-int spi_0_transfer(int data);
-void spi_0_select();
-void spi_0_deselect();
+#define SPI_ID_FLASH_0 0
+#define SPI_ID_FLASH_1 1
+#define SPI_ID_USB_0   2
+#define SPI_ID_USB_1   3
+#define SPI_ID_ETH     4
+#define SPI_ID_SD_CARD 5
 
-int spi_1_transfer(int data);
-void spi_1_select();
-void spi_1_deselect();
-
-int spi_2_transfer(int data);
-void spi_2_select();
-void spi_2_deselect();
-
-int spi_3_transfer(int data);
-void spi_3_select();
-void spi_3_deselect();
-
-int spi_4_transfer(int data);
-void spi_4_select();
-void spi_4_deselect();
-
-int spi_5_transfer(int data);
-void spi_5_select();
-void spi_5_deselect();
+int spi_transfer(int spi_id, int data);
+void spi_select(int spi_id);
+void spi_deselect(int spi_id);
 
 #endif // SPI_H

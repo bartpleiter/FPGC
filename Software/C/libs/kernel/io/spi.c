@@ -175,3 +175,86 @@ int spi_5_transfer(int data)
     );
     return retval;
 }
+
+int spi_transfer(int spi_id, int data)
+{
+    int retval = 0;
+    switch (spi_id) {
+        case 0:
+            retval = spi_0_transfer(data);
+            break;
+        case 1:
+            retval = spi_1_transfer(data);
+            break;
+        case 2:
+            retval = spi_2_transfer(data);
+            break;
+        case 3:
+            retval = spi_3_transfer(data);
+            break;
+        case 4:
+            retval = spi_4_transfer(data);
+            break;
+        case 5:
+            retval = spi_5_transfer(data);
+            break;
+        default:
+            // Invalid SPI ID
+            break;
+    }
+    return retval;
+}
+
+void spi_select(int spi_id)
+{
+    switch (spi_id) {
+        case 0:
+            spi_0_select();
+            break;
+        case 1:
+            spi_1_select();
+            break;
+        case 2:
+            spi_2_select();
+            break;
+        case 3:
+            spi_3_select();
+            break;
+        case 4:
+            spi_4_select();
+            break;
+        case 5:
+            spi_5_select();
+            break;
+        default:
+            // Invalid SPI ID
+            break;
+    }
+}
+
+void spi_deselect(int spi_id)
+{
+    switch (spi_id) {
+        case 0:
+            spi_0_deselect();
+            break;
+        case 1:
+            spi_1_deselect();
+            break;
+        case 2:
+            spi_2_deselect();
+            break;
+        case 3:
+            spi_3_deselect();
+            break;
+        case 4:
+            spi_4_deselect();
+            break;
+        case 5:
+            spi_5_deselect();
+            break;
+        default:
+            // Invalid SPI ID
+            break;
+    }
+}
