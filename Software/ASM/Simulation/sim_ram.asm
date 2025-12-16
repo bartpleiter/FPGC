@@ -64,49 +64,35 @@ Label_memset:
   write 0 r13 r4
   write 1 r13 r5
   write 2 r13 r6
-  sub r13          5 r13
-  write          3 r13 r14
-  add r13          3 r14
+  sub r13          4 r13
+  write          2 r13 r14
+  add r13          2 r14
   ;write 1 r14 r15
   read 2 r14 r1
   write -1 r14 r1
-  read 3 r14 r1
-  and r1 255 r1
-  write -3 r14 r1
-  read -3 r14 r1
-  read -3 r14 r8
-  shiftl r8 8 r8
-  or r1 r8 r1
-  read -3 r14 r8
-  shiftl r8 16 r8
-  or r1 r8 r1
-  read -3 r14 r8
-  shiftl r8 24 r8
-  or r1 r8 r1
-  write -3 r14 r1
   write -2 r14 r0
-Label_L11:
+Label_L10:
   read -2 r14 r1
   read 4 r14 r8
   sltu r1 r8 r1
-  beq r1 r0 Label_L14
+  beq r1 r0 Label_L13
   read -1 r14 r1
   read -2 r14 r8
   add r1 r8 r1
-  read -3 r14 r8
+  read 3 r14 r8
   write 0 r1 r8
   or r8 r0 r1
-Label_L12:
+Label_L11:
   read -2 r14 r1
   add r1 1 r1
   write -2 r14 r1
   add r1 -1 r1
-  jump Label_L11
-Label_L14:
+  jump Label_L10
+Label_L13:
   read 2 r14 r1
 Label_L8:
   read 0 r14 r14
-  add r13 5 r13
+  add r13 4 r13
   jumpr 0 r15
 
 .code
@@ -125,13 +111,13 @@ Label_memmove:
   read -1 r14 r1
   read -2 r14 r8
   sltu r1 r8 r1
-  beq r1 r0 Label_L18
+  beq r1 r0 Label_L17
   write -3 r14 r0
-Label_L20:
+Label_L19:
   read -3 r14 r1
   read 4 r14 r8
   sltu r1 r8 r1
-  beq r1 r0 Label_L23
+  beq r1 r0 Label_L22
   read -1 r14 r1
   read -3 r14 r8
   add r1 r8 r1
@@ -141,24 +127,24 @@ Label_L20:
   read 0 r8 r8
   write 0 r1 r8
   or r8 r0 r1
-Label_L21:
+Label_L20:
   read -3 r14 r1
   add r1 1 r1
   write -3 r14 r1
   add r1 -1 r1
-  jump Label_L20
-Label_L23:
   jump Label_L19
-Label_L18:
+Label_L22:
+  jump Label_L18
+Label_L17:
   read -1 r14 r1
   read -2 r14 r8
   sltu r8 r1 r1
-  beq r1 r0 Label_L24
+  beq r1 r0 Label_L23
   read 4 r14 r1
   write -3 r14 r1
-Label_L26:
+Label_L25:
   read -3 r14 r1
-  beq r1 r0 Label_L29
+  beq r1 r0 Label_L28
   read -1 r14 r1
   read -3 r14 r8
   sub r8 1 r8
@@ -170,17 +156,17 @@ Label_L26:
   read 0 r8 r8
   write 0 r1 r8
   or r8 r0 r1
-Label_L27:
+Label_L26:
   read -3 r14 r1
   sub r1 1 r1
   write -3 r14 r1
   sub r1 -1 r1
-  jump Label_L26
-Label_L29:
-Label_L24:
-Label_L19:
+  jump Label_L25
+Label_L28:
+Label_L23:
+Label_L18:
   read 2 r14 r1
-Label_L15:
+Label_L14:
   read 0 r14 r14
   add r13 5 r13
   jumpr 0 r15
@@ -199,11 +185,11 @@ Label_memcmp:
   read 3 r14 r1
   write -2 r14 r1
   write -3 r14 r0
-Label_L33:
+Label_L32:
   read -3 r14 r1
   read 4 r14 r8
   sltu r1 r8 r1
-  beq r1 r0 Label_L36
+  beq r1 r0 Label_L35
   read -1 r14 r1
   read -3 r14 r8
   add r1 r8 r1
@@ -213,10 +199,10 @@ Label_L33:
   add r8 r9 r8
   read 0 r8 r8
   sltu r1 r8 r1
-  beq r1 r0 Label_L37
+  beq r1 r0 Label_L36
   load32 -1 r1
-  jump Label_L30
-Label_L37:
+  jump Label_L29
+Label_L36:
   read -1 r14 r1
   read -3 r14 r8
   add r1 r8 r1
@@ -226,19 +212,19 @@ Label_L37:
   add r8 r9 r8
   read 0 r8 r8
   sltu r8 r1 r1
-  beq r1 r0 Label_L39
+  beq r1 r0 Label_L38
   load32 1 r1
-  jump Label_L30
-Label_L39:
-Label_L34:
+  jump Label_L29
+Label_L38:
+Label_L33:
   read -3 r14 r1
   add r1 1 r1
   write -3 r14 r1
   add r1 -1 r1
-  jump Label_L33
-Label_L36:
+  jump Label_L32
+Label_L35:
   load32 0 r1
-Label_L30:
+Label_L29:
   read 0 r14 r14
   add r13 5 r13
   jumpr 0 r15
@@ -251,20 +237,22 @@ Label_strlen:
   add r13          1 r14
   ;write 1 r14 r15
   write -1 r14 r0
-Label_L42:
+Label_L41:
   read 2 r14 r1
   read -1 r14 r8
   add r1 r8 r1
   read 0 r1 r1
-  beq r1 r0 Label_L43
+  shiftl r1 24 r1
+  shiftrs r1 24 r1
+  beq r1 r0 Label_L42
   read -1 r14 r1
   add r1 1 r1
   write -1 r14 r1
   add r1 -1 r1
-  jump Label_L42
-Label_L43:
+  jump Label_L41
+Label_L42:
   read -1 r14 r1
-Label_L41:
+Label_L40:
   read 0 r14 r14
   add r13 3 r13
   jumpr 0 r15
@@ -279,10 +267,12 @@ Label_strcpy:
   ;write 1 r14 r15
   read 2 r14 r1
   write -1 r14 r1
-Label_L45:
+Label_L44:
   read 3 r14 r1
   read 0 r1 r1
-  beq r1 r0 Label_L46
+  shiftl r1 24 r1
+  shiftrs r1 24 r1
+  beq r1 r0 Label_L45
   read -1 r14 r1
   add r1 1 r1
   write -1 r14 r1
@@ -292,14 +282,18 @@ Label_L45:
   write 3 r14 r8
   add r8 -1 r8
   read 0 r8 r8
+  shiftl r8 24 r8
+  shiftrs r8 24 r8
   write 0 r1 r8
   or r8 r0 r1
-  jump Label_L45
-Label_L46:
+  shiftl r1 24 r1
+  shiftrs r1 24 r1
+  jump Label_L44
+Label_L45:
   read -1 r14 r1
   write 0 r1 r0
   read 2 r14 r1
-Label_L44:
+Label_L43:
   read 0 r14 r14
   add r13 3 r13
   jumpr 0 r15
@@ -314,18 +308,20 @@ Label_strncpy:
   add r13          1 r14
   ;write 1 r14 r15
   write -1 r14 r0
-Label_L48:
+Label_L47:
   read -1 r14 r1
   read 4 r14 r8
   sltu r1 r8 r1
-  beq r1 r0 Label_L52
+  beq r1 r0 Label_L51
   read 3 r14 r1
   read -1 r14 r8
   add r1 r8 r1
   read 0 r1 r1
+  shiftl r1 24 r1
+  shiftrs r1 24 r1
   sltu r0 r1 r1
-Label_L52:
-  beq r1 r0 Label_L51
+Label_L51:
+  beq r1 r0 Label_L50
   read 2 r14 r1
   read -1 r14 r8
   add r1 r8 r1
@@ -333,33 +329,37 @@ Label_L52:
   read -1 r14 r9
   add r8 r9 r8
   read 0 r8 r8
+  shiftl r8 24 r8
+  shiftrs r8 24 r8
   write 0 r1 r8
   or r8 r0 r1
-Label_L49:
+  shiftl r1 24 r1
+  shiftrs r1 24 r1
+Label_L48:
   read -1 r14 r1
   add r1 1 r1
   write -1 r14 r1
   add r1 -1 r1
-  jump Label_L48
-Label_L51:
-Label_L53:
+  jump Label_L47
+Label_L50:
+Label_L52:
   read -1 r14 r1
   read 4 r14 r8
   sltu r1 r8 r1
-  beq r1 r0 Label_L56
+  beq r1 r0 Label_L55
   read 2 r14 r1
   read -1 r14 r8
   add r1 r8 r1
   write 0 r1 r0
-Label_L54:
+Label_L53:
   read -1 r14 r1
   add r1 1 r1
   write -1 r14 r1
   add r1 -1 r1
-  jump Label_L53
-Label_L56:
+  jump Label_L52
+Label_L55:
   read 2 r14 r1
-Label_L47:
+Label_L46:
   read 0 r14 r14
   add r13 3 r13
   jumpr 0 r15
@@ -372,19 +372,25 @@ Label_strcmp:
   write          0 r13 r14
   add r13          0 r14
   ;write 1 r14 r15
-Label_L58:
+Label_L57:
   read 2 r14 r1
   read 0 r1 r1
+  shiftl r1 24 r1
+  shiftrs r1 24 r1
   sltu r0 r1 r1
-  beq r1 r0 Label_L60
+  beq r1 r0 Label_L59
   read 2 r14 r1
   read 0 r1 r1
+  shiftl r1 24 r1
+  shiftrs r1 24 r1
   read 3 r14 r8
   read 0 r8 r8
+  shiftl r8 24 r8
+  shiftrs r8 24 r8
   xor r1 r8 r1
   sltu r1 1 r1
-Label_L60:
-  beq r1 r0 Label_L59
+Label_L59:
+  beq r1 r0 Label_L58
   read 2 r14 r1
   add r1 1 r1
   write 2 r14 r1
@@ -393,14 +399,18 @@ Label_L60:
   add r1 1 r1
   write 3 r14 r1
   add r1 -1 r1
-  jump Label_L58
-Label_L59:
+  jump Label_L57
+Label_L58:
   read 2 r14 r1
   read 0 r1 r1
+  shiftl r1 24 r1
+  shiftrs r1 24 r1
   read 3 r14 r8
   read 0 r8 r8
+  shiftl r8 24 r8
+  shiftrs r8 24 r8
   sub r1 r8 r1
-Label_L57:
+Label_L56:
   read 0 r14 r14
   add r13 2 r13
   jumpr 0 r15
@@ -415,48 +425,58 @@ Label_strncmp:
   add r13          1 r14
   ;write 1 r14 r15
   write -1 r14 r0
-Label_L64:
+Label_L63:
   read -1 r14 r1
   read 4 r14 r8
   sltu r1 r8 r1
-  beq r1 r0 Label_L67
+  beq r1 r0 Label_L66
   read 2 r14 r1
   read -1 r14 r8
   add r1 r8 r1
   read 0 r1 r1
+  shiftl r1 24 r1
+  shiftrs r1 24 r1
   read 3 r14 r8
   read -1 r14 r9
   add r8 r9 r8
   read 0 r8 r8
-  beq r1 r8 Label_L68
+  shiftl r8 24 r8
+  shiftrs r8 24 r8
+  beq r1 r8 Label_L67
   read 2 r14 r1
   read -1 r14 r8
   add r1 r8 r1
   read 0 r1 r1
+  shiftl r1 24 r1
+  shiftrs r1 24 r1
   read 3 r14 r8
   read -1 r14 r9
   add r8 r9 r8
   read 0 r8 r8
+  shiftl r8 24 r8
+  shiftrs r8 24 r8
   sub r1 r8 r1
-  jump Label_L63
-Label_L68:
+  jump Label_L62
+Label_L67:
   read 2 r14 r1
   read -1 r14 r8
   add r1 r8 r1
   read 0 r1 r1
-  bne r1 r0 Label_L72
+  shiftl r1 24 r1
+  shiftrs r1 24 r1
+  bne r1 r0 Label_L71
   load32 0 r1
-  jump Label_L63
-Label_L72:
-Label_L65:
+  jump Label_L62
+Label_L71:
+Label_L64:
   read -1 r14 r1
   add r1 1 r1
   write -1 r14 r1
   add r1 -1 r1
-  jump Label_L64
-Label_L67:
+  jump Label_L63
+Label_L66:
   load32 0 r1
-Label_L63:
+Label_L62:
   read 0 r14 r14
   add r13 3 r13
   jumpr 0 r15
@@ -471,20 +491,24 @@ Label_strcat:
   ;write 1 r14 r15
   read 2 r14 r1
   write -1 r14 r1
-Label_L75:
+Label_L74:
   read -1 r14 r1
   read 0 r1 r1
-  beq r1 r0 Label_L76
+  shiftl r1 24 r1
+  shiftrs r1 24 r1
+  beq r1 r0 Label_L75
   read -1 r14 r1
   add r1 1 r1
   write -1 r14 r1
   add r1 -1 r1
-  jump Label_L75
+  jump Label_L74
+Label_L75:
 Label_L76:
-Label_L77:
   read 3 r14 r1
   read 0 r1 r1
-  beq r1 r0 Label_L78
+  shiftl r1 24 r1
+  shiftrs r1 24 r1
+  beq r1 r0 Label_L77
   read -1 r14 r1
   add r1 1 r1
   write -1 r14 r1
@@ -494,14 +518,18 @@ Label_L77:
   write 3 r14 r8
   add r8 -1 r8
   read 0 r8 r8
+  shiftl r8 24 r8
+  shiftrs r8 24 r8
   write 0 r1 r8
   or r8 r0 r1
-  jump Label_L77
-Label_L78:
+  shiftl r1 24 r1
+  shiftrs r1 24 r1
+  jump Label_L76
+Label_L77:
   read -1 r14 r1
   write 0 r1 r0
   read 2 r14 r1
-Label_L74:
+Label_L73:
   read 0 r14 r14
   add r13 3 r13
   jumpr 0 r15
@@ -517,29 +545,33 @@ Label_strncat:
   ;write 1 r14 r15
   read 2 r14 r1
   write -1 r14 r1
-Label_L80:
+Label_L79:
   read -1 r14 r1
   read 0 r1 r1
-  beq r1 r0 Label_L81
+  shiftl r1 24 r1
+  shiftrs r1 24 r1
+  beq r1 r0 Label_L80
   read -1 r14 r1
   add r1 1 r1
   write -1 r14 r1
   add r1 -1 r1
-  jump Label_L80
-Label_L81:
+  jump Label_L79
+Label_L80:
   write -2 r14 r0
-Label_L82:
+Label_L81:
   read -2 r14 r1
   read 4 r14 r8
   sltu r1 r8 r1
-  beq r1 r0 Label_L86
+  beq r1 r0 Label_L85
   read 3 r14 r1
   read -2 r14 r8
   add r1 r8 r1
   read 0 r1 r1
+  shiftl r1 24 r1
+  shiftrs r1 24 r1
   sltu r0 r1 r1
-Label_L86:
-  beq r1 r0 Label_L85
+Label_L85:
+  beq r1 r0 Label_L84
   read -1 r14 r1
   read -2 r14 r8
   add r1 r8 r1
@@ -547,21 +579,25 @@ Label_L86:
   read -2 r14 r9
   add r8 r9 r8
   read 0 r8 r8
+  shiftl r8 24 r8
+  shiftrs r8 24 r8
   write 0 r1 r8
   or r8 r0 r1
-Label_L83:
+  shiftl r1 24 r1
+  shiftrs r1 24 r1
+Label_L82:
   read -2 r14 r1
   add r1 1 r1
   write -2 r14 r1
   add r1 -1 r1
-  jump Label_L82
-Label_L85:
+  jump Label_L81
+Label_L84:
   read -1 r14 r1
   read -2 r14 r8
   add r1 r8 r1
   write 0 r1 r0
   read 2 r14 r1
-Label_L79:
+Label_L78:
   read 0 r14 r14
   add r13 4 r13
   jumpr 0 r15
@@ -576,30 +612,38 @@ Label_strchr:
   ;write 1 r14 r15
   read 3 r14 r1
   write -1 r14 r1
-Label_L89:
+Label_L88:
   read 2 r14 r1
   read 0 r1 r1
-  beq r1 r0 Label_L90
+  shiftl r1 24 r1
+  shiftrs r1 24 r1
+  beq r1 r0 Label_L89
   read 2 r14 r1
   read 0 r1 r1
+  shiftl r1 24 r1
+  shiftrs r1 24 r1
   read -1 r14 r8
-  bne r1 r8 Label_L91
+  shiftl r8 24 r8
+  shiftrs r8 24 r8
+  bne r1 r8 Label_L90
   read 2 r14 r1
-  jump Label_L87
-Label_L91:
+  jump Label_L86
+Label_L90:
   read 2 r14 r1
   add r1 1 r1
   write 2 r14 r1
   add r1 -1 r1
-  jump Label_L89
-Label_L90:
+  jump Label_L88
+Label_L89:
   read -1 r14 r1
-  bne r1 r0 Label_L94
+  shiftl r1 24 r1
+  shiftrs r1 24 r1
+  bne r1 r0 Label_L93
   read 2 r14 r1
-  jump Label_L87
-Label_L94:
+  jump Label_L86
+Label_L93:
   load32 0 r1
-Label_L87:
+Label_L86:
   read 0 r14 r14
   add r13 3 r13
   jumpr 0 r15
@@ -615,30 +659,38 @@ Label_strrchr:
   read 3 r14 r1
   write -1 r14 r1
   write -2 r14 r0
-Label_L101:
+Label_L100:
   read 2 r14 r1
   read 0 r1 r1
-  beq r1 r0 Label_L102
+  shiftl r1 24 r1
+  shiftrs r1 24 r1
+  beq r1 r0 Label_L101
   read 2 r14 r1
   read 0 r1 r1
+  shiftl r1 24 r1
+  shiftrs r1 24 r1
   read -1 r14 r8
-  bne r1 r8 Label_L103
+  shiftl r8 24 r8
+  shiftrs r8 24 r8
+  bne r1 r8 Label_L102
   read 2 r14 r1
   write -2 r14 r1
-Label_L103:
+Label_L102:
   read 2 r14 r1
   add r1 1 r1
   write 2 r14 r1
   add r1 -1 r1
-  jump Label_L101
-Label_L102:
+  jump Label_L100
+Label_L101:
   read -1 r14 r1
-  bne r1 r0 Label_L105
+  shiftl r1 24 r1
+  shiftrs r1 24 r1
+  bne r1 r0 Label_L104
   read 2 r14 r1
-  jump Label_L98
-Label_L105:
+  jump Label_L97
+Label_L104:
   read -2 r14 r1
-Label_L98:
+Label_L97:
   read 0 r14 r14
   add r13 4 r13
   jumpr 0 r15
@@ -653,31 +705,41 @@ Label_strstr:
   ;write 1 r14 r15
   read 3 r14 r1
   read 0 r1 r1
-  bne r1 r0 Label_L110
+  shiftl r1 24 r1
+  shiftrs r1 24 r1
+  bne r1 r0 Label_L109
   read 2 r14 r1
-  jump Label_L109
-Label_L110:
-Label_L113:
+  jump Label_L108
+Label_L109:
+Label_L112:
   read 2 r14 r1
   read 0 r1 r1
-  beq r1 r0 Label_L114
+  shiftl r1 24 r1
+  shiftrs r1 24 r1
+  beq r1 r0 Label_L113
   read 2 r14 r1
   write -1 r14 r1
   read 3 r14 r1
   write -2 r14 r1
-Label_L115:
+Label_L114:
   read -1 r14 r1
   read 0 r1 r1
+  shiftl r1 24 r1
+  shiftrs r1 24 r1
   read -2 r14 r8
   read 0 r8 r8
+  shiftl r8 24 r8
+  shiftrs r8 24 r8
   xor r1 r8 r1
   sltu r1 1 r1
-  beq r1 r0 Label_L117
+  beq r1 r0 Label_L116
   read -2 r14 r1
   read 0 r1 r1
+  shiftl r1 24 r1
+  shiftrs r1 24 r1
   sltu r0 r1 r1
-Label_L117:
-  beq r1 r0 Label_L116
+Label_L116:
+  beq r1 r0 Label_L115
   read -1 r14 r1
   add r1 1 r1
   write -1 r14 r1
@@ -686,60 +748,102 @@ Label_L117:
   add r1 1 r1
   write -2 r14 r1
   add r1 -1 r1
-  jump Label_L115
-Label_L116:
+  jump Label_L114
+Label_L115:
   read -2 r14 r1
   read 0 r1 r1
-  bne r1 r0 Label_L118
+  shiftl r1 24 r1
+  shiftrs r1 24 r1
+  bne r1 r0 Label_L117
   read 2 r14 r1
-  jump Label_L109
-Label_L118:
+  jump Label_L108
+Label_L117:
   read 2 r14 r1
   add r1 1 r1
   write 2 r14 r1
   add r1 -1 r1
-  jump Label_L113
-Label_L114:
+  jump Label_L112
+Label_L113:
   load32 0 r1
-Label_L109:
+Label_L108:
   read 0 r14 r14
   add r13 4 r13
   jumpr 0 r15
 
 .code
-Label_main:
-  sub r13         12 r13
-  write         10 r13 r14
-  add r13         10 r14
+Label_test_strlen:
+  write 0 r13 r4
+  write 1 r13 r5
+  write 2 r13 r6
+  sub r13          3 r13
+  write          1 r13 r14
+  add r13          1 r14
    write 1 r14 r15
-  load32 4 r6
-  load32 120 r5
-  add r14 -10 r4
+  read 3 r14 r4
   sub r13 4 r13
   savpc r15
   add r15 3 r15
-  jump Label_memset
+  jump Label_strlen
   sub r13 -4 r13
-  write -6 r14 r0
-  read -10 r14 r1
-  xor r1 120 r1
-  beq r1 r0 Label_L123
-  load32 5 r1
-  jump Label_L122
+  write -1 r14 r1
+  read -1 r14 r1
+  read 4 r14 r8
+  add r1 r8 r1
+Label_L121:
+  read 1 r14 r15
+  read 0 r14 r14
+  add r13 3 r13
+  jumpr 0 r15
+
+.code
+Label_main:
+  sub r13          3 r13
+  write          1 r13 r14
+  add r13          1 r14
+   write 1 r14 r15
+
+.rdata
 Label_L123:
-  read -7 r14 r1
-  xor r1 120 r1
-  beq r1 r0 Label_L125
-  load32 6 r1
-  jump Label_L122
-Label_L125:
-  load32 7 r1
+  .dsw "Hello"
+  .dw 0
+
+.code
+  addr2reg Label_L123 r1
+  write -1 r14 r1
+  sub r13 1 r13
+  sub r13 3 r13
+  read -1 r14 r1
+  push r1
+; Stack depth: 1
+  pop r4
+  sub r13 4 r13
+  savpc r15
+  add r15 3 r15
+  jump Label_strlen
+  sub r13 -4 r13
+  push r1
+; Stack depth: 2
+  read -1 r14 r1
+  push r1
+; Stack depth: 3
+  load32 0 r1
+  push r1
+; Stack depth: 4
+  pop r4
+  pop r5
+  pop r6
+  sub r13 4 r13
+  savpc r15
+  add r15 3 r15
+  jump Label_test_strlen
+  sub r13 -4 r13
+  load32 10 r1
   jump Label_L122
   load32 0 r1
 Label_L122:
   read 1 r14 r15
   read 0 r14 r14
-  add r13 12 r13
+  add r13 3 r13
   jumpr 0 r15
 
 .code
@@ -748,7 +852,7 @@ Label_interrupt:
   write          0 r13 r14
   add r13          0 r14
   ;write 1 r14 r15
-Label_L127:
+Label_L124:
   read 0 r14 r14
   add r13 2 r13
   jumpr 0 r15

@@ -1712,27 +1712,18 @@ void GenExpr0(void)
       GenLeaf = 0;
       if (maxCallDepth != 1)
       {
-        // In word-addressable mode, v is count of args (1, 2, 3, 4, ...)
+        // Pop arguments from hardware stack (pushed in reverse order)
+        // Args were pushed right-to-left, so we pop into A0, A1, A2, A3 in that order
         if (v >= 1)
-          GenPrintInstr3Operands(B32InstrRead, 0,
-                                 B32OpConst, 0,
-                                 B32OpRegSp, 0,
-                                 B32OpRegA0, 0);
+          GenPrintInstr1Operand(B32InstrPop, 0, B32OpRegA0, 0);
         if (v >= 2)
-          GenPrintInstr3Operands(B32InstrRead, 0,
-                                 B32OpConst, 1,
-                                 B32OpRegSp, 0,
-                                 B32OpRegA1, 0);
+          GenPrintInstr1Operand(B32InstrPop, 0, B32OpRegA1, 0);
         if (v >= 3)
-          GenPrintInstr3Operands(B32InstrRead, 0,
-                                 B32OpConst, 2,
-                                 B32OpRegSp, 0,
-                                 B32OpRegA2, 0);
+          GenPrintInstr1Operand(B32InstrPop, 0, B32OpRegA2, 0);
         if (v >= 4)
-          GenPrintInstr3Operands(B32InstrRead, 0,
-                                 B32OpConst, 3,
-                                 B32OpRegSp, 0,
-                                 B32OpRegA3, 0);
+          GenPrintInstr1Operand(B32InstrPop, 0, B32OpRegA3, 0);
+        // Allocate stack space for callee to save arguments
+        GenGrowStack(v > 4 ? v : 4);
       }
       else
       {
