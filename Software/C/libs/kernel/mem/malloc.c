@@ -20,6 +20,7 @@ static int heap_initialized = 0;
  * We'll use a portion of SDRAM for the heap.
  * 
  * TODO: Adjust these values based on actual program needs and memory layout.
+ * and move them to mem_defs.h
  */
 #define HEAP_START  0x00100000  /* Start of heap (after code/data) */
 #define HEAP_SIZE   0x00100000  /* 1M words = 4MB of heap */

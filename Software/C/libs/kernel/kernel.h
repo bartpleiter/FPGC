@@ -20,6 +20,12 @@
 #endif
 #endif
 
+#ifdef KERNEL_BRFS
+#ifndef KERNEL_SPI_FLASH
+#define KERNEL_SPI_FLASH
+#endif
+#endif
+
 #ifdef KERNEL_SPI_FLASH
 #ifndef KERNEL_SPI
 #define KERNEL_SPI
@@ -56,6 +62,10 @@
 #include "libs/kernel/io/spi_flash.h"
 #endif
 
+#ifdef KERNEL_BRFS
+#include "libs/kernel/fs/brfs.h"
+#endif
+
 // Implementation files
 #ifdef KERNEL_GPU_HAL
 #include "libs/kernel/gfx/gpu_hal.c"
@@ -83,6 +93,10 @@
 
 #ifdef KERNEL_SPI_FLASH
 #include "libs/kernel/io/spi_flash.c"
+#endif
+
+#ifdef KERNEL_BRFS
+#include "libs/kernel/fs/brfs.c"
 #endif
 
 #endif // KERNEL_H
