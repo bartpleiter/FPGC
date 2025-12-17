@@ -51,6 +51,31 @@ int abs(int j);
  */
 long labs(long j);
 
+/**
+ * Return minimum of two values.
+ * @param a First value
+ * @param b Second value
+ * @return Minimum value
+ */
+int int_min(int a, int b);
+
+/**
+ * Return maximum of two values.
+ * @param a First value
+ * @param b Second value
+ * @return Maximum value
+ */
+int int_max(int a, int b);
+
+/**
+ * Clamp value between min and max.
+ * @param x Value to clamp
+ * @param lo Minimum value
+ * @param hi Maximum value
+ * @return Clamped value
+ */
+int int_clamp(int x, int lo, int hi);
+
 /* Random number generator */
 
 /**
@@ -93,32 +118,5 @@ void qsort(void *base, size_t nmemb, size_t size,
  */
 void *bsearch(const void *key, const void *base, size_t nmemb, size_t size,
               int (*compar)(const void *, const void *));
-
-/* Utility functions - inline functions instead of macros */
-
-/**
- * Return minimum of two values.
- * @param a First value
- * @param b Second value
- * @return Minimum value
- */
-int int_min(int a, int b);
-
-/**
- * Return maximum of two values.
- * @param a First value
- * @param b Second value
- * @return Maximum value
- */
-int int_max(int a, int b);
-
-/**
- * Clamp value between min and max.
- * @param x Value to clamp
- * @param lo Minimum value
- * @param hi Maximum value
- * @return Clamped value
- */
-int int_clamp(int x, int lo, int hi);
 
 #endif /* STDLIB_H */

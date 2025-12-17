@@ -32,6 +32,12 @@
 #endif
 #endif
 
+#ifdef KERNEL_MEM_DEBUG
+#ifndef KERNEL_UART
+#define KERNEL_UART
+#endif
+#endif
+
 // Flag based inclusion of libraries
 // Header files
 #ifdef KERNEL_GPU_HAL
@@ -70,6 +76,10 @@
 #include "libs/kernel/fs/brfs.h"
 #endif
 
+#ifdef KERNEL_MEM_DEBUG
+#include "libs/kernel/mem/debug.h"
+#endif
+
 // Implementation files
 #ifdef KERNEL_GPU_HAL
 #include "libs/kernel/gfx/gpu_hal.c"
@@ -105,6 +115,10 @@
 
 #ifdef KERNEL_BRFS
 #include "libs/kernel/fs/brfs.c"
+#endif
+
+#ifdef KERNEL_MEM_DEBUG
+#include "libs/kernel/mem/debug.c"
 #endif
 
 #endif // KERNEL_H
