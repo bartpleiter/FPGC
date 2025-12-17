@@ -600,8 +600,8 @@ int brfs_format(unsigned int total_blocks, unsigned int words_per_block,
     
     // Write superblock to flash immediately
     spi_flash_erase_sector(brfs.flash_id, brfs.flash_superblock_addr);
-    spi_flash_write_page(brfs.flash_id, brfs.flash_superblock_addr, 
-                         (int*)sb, BRFS_SUPERBLOCK_SIZE);
+    spi_flash_write_words(brfs.flash_id, brfs.flash_superblock_addr, 
+                         (unsigned int*)sb, BRFS_SUPERBLOCK_SIZE);
     
     brfs.initialized = 1;
     
@@ -652,8 +652,8 @@ int brfs_mount(void)
     
     // Read superblock from flash
     sb = (struct brfs_superblock*)brfs_get_superblock();
-    spi_flash_read_data(brfs.flash_id, brfs.flash_superblock_addr,
-                        (int*)sb, BRFS_SUPERBLOCK_SIZE);
+    spi_flash_read_words(brfs.flash_id, brfs.flash_superblock_addr,
+                        (unsigned int*)sb, BRFS_SUPERBLOCK_SIZE);
     
     // Validate superblock
     result = brfs_validate_superblock(sb);
@@ -672,14 +672,14 @@ int brfs_mount(void)
     
     // Read FAT from flash
     fat = brfs_get_fat();
-    spi_flash_read_data(brfs.flash_id, brfs.flash_fat_addr,
-                        (int*)fat, sb->total_blocks);
+    spi_flash_read_words(brfs.flash_id, brfs.flash_fat_addr,
+                        fat, sb->total_blocks);
     
     // Read data blocks from flash
     data = brfs_get_data_block(0);
     data_size = sb->total_blocks * sb->words_per_block;
-    spi_flash_read_data(brfs.flash_id, brfs.flash_data_addr,
-                        (int*)data, data_size);
+    spi_flash_read_words(brfs.flash_id, brfs.flash_data_addr,
+                        data, data_size);
     
     // Clear dirty flags - everything is in sync with flash
     for (i = 0; i < sizeof(brfs.dirty_blocks) / sizeof(brfs.dirty_blocks[0]); i++)
@@ -751,9 +751,9 @@ static void brfs_write_fat_sector(unsigned int sector_idx)
     // Write 16 pages of 64 words each
     for (page = 0; page < 16; page++)
     {
-        spi_flash_write_page(brfs.flash_id, 
+        spi_flash_write_words(brfs.flash_id, 
                             flash_addr + (page * BRFS_FLASH_PAGE_SIZE),
-                            (int*)(fat + fat_offset + (page * BRFS_FLASH_WORDS_PER_PAGE)),
+                            fat + fat_offset + (page * BRFS_FLASH_WORDS_PER_PAGE),
                             BRFS_FLASH_WORDS_PER_PAGE);
     }
 }
@@ -776,10 +776,10 @@ static void brfs_write_data_sector(unsigned int sector_idx)
     // Write 16 pages of 64 words each
     for (page = 0; page < 16; page++)
     {
-        spi_flash_write_page(brfs.flash_id,
+        spi_flash_write_words(brfs.flash_id,
                             flash_addr + (page * BRFS_FLASH_PAGE_SIZE),
-                            (int*)(data + (sector_idx * BRFS_FLASH_WORDS_PER_SECTOR) + 
-                                   (page * BRFS_FLASH_WORDS_PER_PAGE)),
+                            data + (sector_idx * BRFS_FLASH_WORDS_PER_SECTOR) + 
+                                   (page * BRFS_FLASH_WORDS_PER_PAGE),
                             BRFS_FLASH_WORDS_PER_PAGE);
     }
 }

@@ -15,8 +15,7 @@
 #include "libs/common/common.h"
 
 #define KERNEL_BRFS
-#define KERNEL_TERM
-#define KERNEL_GPU_DATA_ASCII
+#define KERNEL_MEM_DEBUG
 #include "libs/kernel/kernel.h"
 
 /* Test data */
@@ -24,41 +23,32 @@
 unsigned int test_data[TEST_DATA_SIZE];
 unsigned int read_buffer[TEST_DATA_SIZE];
 
-void init()
+void dump_fs_hex_uart()
 {
-    /* Reset GPU VRAM */
-    gpu_clear_vram();
-
-    /* Load default pattern and palette tables */
-    unsigned int* pattern_table = (unsigned int*)&DATA_ASCII_DEFAULT;
-    gpu_load_pattern_table(pattern_table + 3); /* +3 to skip function prologue */
-
-    unsigned int* palette_table = (unsigned int*)&DATA_PALETTE_DEFAULT;
-    gpu_load_palette_table(palette_table + 3); /* +3 to skip function prologue */
-
-    /* Initialize terminal */
-    term_init();
+    uart_puts("\nFilesystem Superblock Dump:\n");
+    debug_mem_dump(brfs_get_superblock(), 16);
+    uart_puts("\nFilesystem FAT Dump (first 64 words):\n");
+    debug_mem_dump(brfs_get_fat(), 64);
+    uart_puts("\nFilesystem Data Block 0 Dump (first 64 words):\n");
+    debug_mem_dump(brfs_get_data_block(0), 64);
 }
 
 /* Print test result */
 void print_result(const char* test_name, int result)
 {
-    term_puts(test_name);
-    term_puts(": ");
+    uart_puts(test_name);
+    uart_puts(": ");
     if (result >= 0)
     {
-        term_set_palette(2); /* Green */
-        term_puts("PASS");
+        uart_puts("PASS");
     }
     else
     {
-        term_set_palette(1); /* Red */
-        term_puts("FAIL (");
-        term_puts(brfs_strerror(result));
-        term_puts(")");
+        uart_puts("FAIL (");
+        uart_puts(brfs_strerror(result));
+        uart_puts(")");
     }
-    term_set_palette(0); /* Default */
-    term_putchar('\n');
+    uart_putchar('\n');
 }
 
 /* Print filesystem statistics */
@@ -70,13 +60,13 @@ void print_fs_stats()
     
     if (brfs_statfs(&total, &free_blk, &blk_size) == BRFS_OK)
     {
-        term_puts("  Blocks: ");
-        term_putint(free_blk);
-        term_puts("/");
-        term_putint(total);
-        term_puts(" free, ");
-        term_putint(blk_size);
-        term_puts(" words/block\n");
+        uart_puts("  Blocks: ");
+        uart_putint(free_blk);
+        uart_puts("/");
+        uart_putint(total);
+        uart_puts(" free, ");
+        uart_putint(blk_size);
+        uart_puts(" words/block\n");
     }
 }
 
@@ -88,36 +78,36 @@ void list_directory(const char* path)
     int i;
     char filename[BRFS_MAX_FILENAME_LENGTH + 1];
     
-    term_puts("Directory ");
-    term_puts(path);
-    term_puts(":\n");
+    uart_puts("Directory ");
+    uart_puts(path);
+    uart_puts(":\n");
     
     count = brfs_read_dir(path, entries, 32);
     
     if (count < 0)
     {
-        term_puts("  Error: ");
-        term_puts(brfs_strerror(count));
-        term_putchar('\n');
+        uart_puts("  Error: ");
+        uart_puts(brfs_strerror(count));
+        uart_putchar('\n');
         return;
     }
     
     for (i = 0; i < count; i++)
     {
         brfs_decompress_string(filename, entries[i].filename, 4);
-        term_puts("  ");
+        uart_puts("  ");
         if (entries[i].flags & BRFS_FLAG_DIRECTORY)
         {
-            term_puts("[DIR]  ");
+            uart_puts("[DIR]  ");
         }
         else
         {
-            term_puts("[FILE] ");
+            uart_puts("[FILE] ");
         }
-        term_puts(filename);
-        term_puts(" (");
-        term_putint(entries[i].filesize);
-        term_puts(" words)\n");
+        uart_puts(filename);
+        uart_puts(" (");
+        uart_putint(entries[i].filesize);
+        uart_puts(" words)\n");
     }
 }
 
@@ -130,9 +120,7 @@ int main()
     int words_read;
     int verify_ok;
     
-    init();
-    
-    term_puts("=== BRFS Filesystem Test ===\n\n");
+    uart_puts("=== BRFS Filesystem Test ===\n\n");
     
     /* Initialize test data */
     for (i = 0; i < TEST_DATA_SIZE; i++)
@@ -141,30 +129,30 @@ int main()
     }
     
     /* === Test 1: Initialize BRFS === */
-    term_puts("1. Initializing BRFS...\n");
+    uart_puts("1. Initializing BRFS...\n");
     result = brfs_init(SPI_FLASH_1);
     print_result("   brfs_init", result);
     if (result != BRFS_OK)
     {
-        term_puts("Cannot continue without init!\n");
+        uart_puts("Cannot continue without init!\n");
         return 1;
     }
     
     /* === Test 2: Format filesystem === */
-    term_puts("\n2. Formatting filesystem...\n");
+    uart_puts("\n2. Formatting filesystem...\n");
     /* 256 blocks * 256 words = 64K words = 256KB data
      * Plus 256 word FAT and 16 word superblock */
     result = brfs_format(256, 256, "TESTFS", 1);
     print_result("   brfs_format", result);
     if (result != BRFS_OK)
     {
-        term_puts("Cannot continue without format!\n");
+        uart_puts("Cannot continue without format!\n");
         return 1;
     }
     print_fs_stats();
     
     /* === Test 3: Create directory === */
-    term_puts("\n3. Creating directories...\n");
+    uart_puts("\n3. Creating directories...\n");
     result = brfs_create_dir("/testdir");
     print_result("   brfs_create_dir /testdir", result);
     
@@ -175,21 +163,17 @@ int main()
     result = brfs_create_dir("/testdir");
     if (result == BRFS_ERR_EXISTS)
     {
-        term_puts("   Duplicate check: ");
-        term_set_palette(2);
-        term_puts("PASS\n");
-        term_set_palette(0);
+        uart_puts("   Duplicate check: ");
+        uart_puts("PASS\n");
     }
     else
     {
-        term_puts("   Duplicate check: ");
-        term_set_palette(1);
-        term_puts("FAIL\n");
-        term_set_palette(0);
+        uart_puts("   Duplicate check: ");
+        uart_puts("FAIL\n");
     }
     
     /* === Test 4: Create files === */
-    term_puts("\n4. Creating files...\n");
+    uart_puts("\n4. Creating files...\n");
     result = brfs_create_file("/test.txt");
     print_result("   brfs_create_file /test.txt", result);
     
@@ -197,33 +181,29 @@ int main()
     print_result("   brfs_create_file /testdir/data.bin", result);
     
     /* List root directory */
-    term_putchar('\n');
+    uart_putchar('\n');
     list_directory("/");
-    term_putchar('\n');
+    uart_putchar('\n');
     list_directory("/testdir");
     
     /* === Test 5: Open and write file === */
-    term_puts("\n5. Writing to file...\n");
+    uart_puts("\n5. Writing to file...\n");
     fd = brfs_open("/testdir/data.bin");
     print_result("   brfs_open", fd);
     
     if (fd >= 0)
     {
         words_written = brfs_write(fd, test_data, TEST_DATA_SIZE);
-        term_puts("   brfs_write: ");
+        uart_puts("   brfs_write: ");
         if (words_written == TEST_DATA_SIZE)
         {
-            term_set_palette(2);
-            term_puts("PASS (");
-            term_putint(words_written);
-            term_puts(" words)\n");
-            term_set_palette(0);
+            uart_puts("PASS (");
+            uart_putint(words_written);
+            uart_puts(" words)\n");
         }
         else
         {
-            term_set_palette(1);
-            term_puts("FAIL\n");
-            term_set_palette(0);
+            uart_puts("FAIL\n");
         }
         
         result = brfs_close(fd);
@@ -231,7 +211,7 @@ int main()
     }
     
     /* === Test 6: Read and verify file === */
-    term_puts("\n6. Reading and verifying...\n");
+    uart_puts("\n6. Reading and verifying...\n");
     fd = brfs_open("/testdir/data.bin");
     print_result("   brfs_open", fd);
     
@@ -239,26 +219,22 @@ int main()
     {
         /* Check file size */
         result = brfs_file_size(fd);
-        term_puts("   File size: ");
-        term_putint(result);
-        term_puts(" words\n");
+        uart_puts("   File size: ");
+        uart_putint(result);
+        uart_puts(" words\n");
         
         /* Read data */
         words_read = brfs_read(fd, read_buffer, TEST_DATA_SIZE);
-        term_puts("   brfs_read: ");
+        uart_puts("   brfs_read: ");
         if (words_read == TEST_DATA_SIZE)
         {
-            term_set_palette(2);
-            term_puts("PASS (");
-            term_putint(words_read);
-            term_puts(" words)\n");
-            term_set_palette(0);
+            uart_puts("PASS (");
+            uart_putint(words_read);
+            uart_puts(" words)\n");
         }
         else
         {
-            term_set_palette(1);
-            term_puts("FAIL\n");
-            term_set_palette(0);
+            uart_puts("FAIL\n");
         }
         
         /* Verify data */
@@ -268,42 +244,39 @@ int main()
             if (read_buffer[i] != test_data[i])
             {
                 verify_ok = 0;
-                term_puts("   Mismatch at ");
-                term_putint(i);
-                term_puts(": ");
-                term_puthex(read_buffer[i], 1);
-                term_puts(" != ");
-                term_puthex(test_data[i], 1);
-                term_putchar('\n');
+                uart_puts("   Mismatch at ");
+                uart_putint(i);
+                uart_puts(": ");
+                uart_puthex(read_buffer[i], 1);
+                uart_puts(" != ");
+                uart_puthex(test_data[i], 1);
+                uart_putchar('\n');
                 break;
             }
         }
-        term_puts("   Data verify: ");
+        uart_puts("   Data verify: ");
         if (verify_ok)
         {
-            term_set_palette(2);
-            term_puts("PASS\n");
+            uart_puts("PASS\n");
         }
         else
         {
-            term_set_palette(1);
-            term_puts("FAIL\n");
+            uart_puts("FAIL\n");
         }
-        term_set_palette(0);
         
         result = brfs_close(fd);
         print_result("   brfs_close", result);
     }
 
-    return 1; // Stop here for now
+    dump_fs_hex_uart();
     
     /* === Test 7: Sync to flash === */
-    term_puts("\n7. Syncing to flash...\n");
+    uart_puts("\n7. Syncing to flash...\n");
     result = brfs_sync();
     print_result("   brfs_sync", result);
     
     /* === Test 8: Unmount and remount === */
-    term_puts("\n8. Testing persistence...\n");
+    uart_puts("\n8. Testing persistence...\n");
     result = brfs_unmount();
     print_result("   brfs_unmount", result);
     
@@ -326,28 +299,25 @@ int main()
                     break;
                 }
             }
-            term_puts("   Persistence verify: ");
+            uart_puts("   Persistence verify: ");
             if (verify_ok && words_read == TEST_DATA_SIZE)
             {
-                term_set_palette(2);
-                term_puts("PASS\n");
+                uart_puts("PASS\n");
             }
             else
             {
-                term_set_palette(1);
-                term_puts("FAIL\n");
+                uart_puts("FAIL\n");
             }
-            term_set_palette(0);
             brfs_close(fd);
         }
         
         /* List directory after remount */
-        term_putchar('\n');
+        uart_putchar('\n');
         list_directory("/");
     }
     
     /* === Test 9: Delete file === */
-    term_puts("\n9. Testing delete...\n");
+    uart_puts("\n9. Testing delete...\n");
     result = brfs_delete("/test.txt");
     print_result("   brfs_delete /test.txt", result);
     
@@ -355,25 +325,21 @@ int main()
     result = brfs_delete("/testdir");
     if (result == BRFS_ERR_NOT_EMPTY)
     {
-        term_puts("   Non-empty dir check: ");
-        term_set_palette(2);
-        term_puts("PASS\n");
-        term_set_palette(0);
+        uart_puts("   Non-empty dir check: ");
+        uart_puts("PASS\n");
     }
     else
     {
-        term_puts("   Non-empty dir check: ");
-        term_set_palette(1);
-        term_puts("FAIL\n");
-        term_set_palette(0);
+        uart_puts("   Non-empty dir check: ");
+        uart_puts("FAIL\n");
     }
     
     /* Print final stats */
-    term_puts("\nFinal filesystem state:\n");
+    uart_puts("\nFinal filesystem state:\n");
     print_fs_stats();
     list_directory("/");
     
-    term_puts("\n=== Test Complete ===\n");
+    uart_puts("\n=== Test Complete ===\n");
     
     return 1;
 }

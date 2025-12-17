@@ -51,4 +51,18 @@ void spi_flash_write_status(int spi_id, int status);
 // Read unique ID
 void spi_flash_read_unique_id(int spi_id, int* id_buffer);
 
+/*
+ * Word-based operations for 32-bit data
+ * These functions handle the conversion between 32-bit words and bytes.
+ * Addresses are in bytes, but data is 32-bit words (4 bytes each, big-endian).
+ */
+
+// Write words to flash (max 64 words = 256 bytes per page)
+// Each word is written as 4 bytes in big-endian order
+void spi_flash_write_words(int spi_id, int address, unsigned int* data, int word_count);
+
+// Read words from flash
+// Each word is read as 4 bytes in big-endian order
+void spi_flash_read_words(int spi_id, int address, unsigned int* buffer, int word_count);
+
 #endif // SPI_FLASH_H

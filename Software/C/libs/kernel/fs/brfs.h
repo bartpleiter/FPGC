@@ -45,10 +45,13 @@
 #define BRFS_CACHE_ADDR             MEM_BRFS_CACHE_START    // Start address of RAM cache
 #define BRFS_MAX_CACHE_SIZE         0x800000                // 8 MiW (32 MiB) max cache
 
-// SPI Flash Configuration - Default addresses
-#define BRFS_FLASH_SUPERBLOCK_ADDR  0x00       // Superblock sector
-#define BRFS_FLASH_FAT_ADDR         0x10       // FAT starts here
-#define BRFS_FLASH_DATA_ADDR        0x10000    // Data blocks start here
+// SPI Flash Configuration - Default addresses (in bytes)
+// Superblock: 16 words = 64 bytes, stored in first sector
+// FAT: stored starting at 4KB (next sector)
+// Data: stored starting at 64KB
+#define BRFS_FLASH_SUPERBLOCK_ADDR  0x00000     // Superblock at byte 0
+#define BRFS_FLASH_FAT_ADDR         0x01000     // FAT starts at byte 4096 (4KB)
+#define BRFS_FLASH_DATA_ADDR        0x10000     // Data blocks start at byte 65536 (64KB)
 
 // SPI Flash Geometry
 #define BRFS_FLASH_SECTOR_SIZE      4096        // 4KB sector size in bytes

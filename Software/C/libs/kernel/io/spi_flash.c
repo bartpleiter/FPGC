@@ -268,3 +268,74 @@ void spi_flash_read_unique_id(int spi_id, int* id_buffer)
     
     spi_deselect(spi_id);
 }
+
+void spi_flash_write_words(int spi_id, int address, unsigned int* data, int word_count)
+{
+    int i;
+    unsigned int word;
+    
+    /* Max 64 words (256 bytes) per page */
+    if (word_count > 64)
+    {
+        word_count = 64;
+    }
+    
+    /* Enable write operations */
+    spi_flash_enable_write(spi_id);
+    
+    spi_select(spi_id);
+    
+    /* Send page program command */
+    spi_transfer(spi_id, SPIFLASH_CMD_PAGE_PROGRAM);
+    
+    /* Send 24-bit address (big endian) */
+    spi_transfer(spi_id, (address >> 16) & 0xFF);
+    spi_transfer(spi_id, (address >> 8) & 0xFF);
+    spi_transfer(spi_id, address & 0xFF);
+    
+    /* Write data words as 4 bytes each (big-endian) */
+    for (i = 0; i < word_count; i++)
+    {
+        word = data[i];
+        spi_transfer(spi_id, (word >> 24) & 0xFF);
+        spi_transfer(spi_id, (word >> 16) & 0xFF);
+        spi_transfer(spi_id, (word >> 8) & 0xFF);
+        spi_transfer(spi_id, word & 0xFF);
+    }
+    
+    spi_deselect(spi_id);
+    
+    /* Wait for write to complete */
+    spi_flash_wait_busy(spi_id);
+}
+
+void spi_flash_read_words(int spi_id, int address, unsigned int* buffer, int word_count)
+{
+    int i;
+    unsigned int b0;
+    unsigned int b1;
+    unsigned int b2;
+    unsigned int b3;
+    
+    spi_select(spi_id);
+    
+    /* Send read data command */
+    spi_transfer(spi_id, SPIFLASH_CMD_READ_DATA);
+    
+    /* Send 24-bit address (big endian) */
+    spi_transfer(spi_id, (address >> 16) & 0xFF);
+    spi_transfer(spi_id, (address >> 8) & 0xFF);
+    spi_transfer(spi_id, address & 0xFF);
+    
+    /* Read data words as 4 bytes each (big-endian) */
+    for (i = 0; i < word_count; i++)
+    {
+        b0 = spi_transfer(spi_id, SPIFLASH_DUMMY_BYTE);
+        b1 = spi_transfer(spi_id, SPIFLASH_DUMMY_BYTE);
+        b2 = spi_transfer(spi_id, SPIFLASH_DUMMY_BYTE);
+        b3 = spi_transfer(spi_id, SPIFLASH_DUMMY_BYTE);
+        buffer[i] = (b0 << 24) | (b1 << 16) | (b2 << 8) | b3;
+    }
+    
+    spi_deselect(spi_id);
+}
