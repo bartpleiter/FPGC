@@ -7,6 +7,7 @@ A tool to flash binary files to FPGC via UART communication.
 import argparse
 import logging
 import sys
+import time
 from pathlib import Path
 from time import sleep
 from typing import Optional
@@ -176,21 +177,45 @@ class UARTFlasher:
 
         return 0
 
-    def monitor_serial(self):
-        """Continuously read from the serial port and print received bytes to the terminal."""
+    def monitor_serial(self, duration: int = 0):
+        """Continuously read from the serial port and print received bytes to the terminal.
+
+        Args:
+            duration: Duration in seconds to monitor (0 for indefinite)
+        """
         if not self.serial_port:
             raise UARTFlasherError("Serial port not initialized")
-        print("--- Serial monitor started. Press Ctrl+C to exit. ---")
+
+        if duration > 0:
+            print(
+                f"--- Serial monitor started for {duration} seconds. Press Ctrl+C to exit early. ---"
+            )
+        else:
+            print("--- Serial monitor started. Press Ctrl+C to exit. ---")
+
+        # Save original timeout and set a short timeout for non-blocking behavior
+        original_timeout = self.serial_port.timeout
+        self.serial_port.timeout = 0.1  # 100ms timeout
+
+        start_time = time.time()
         try:
             while True:
+                # Check if duration has elapsed
+                if duration > 0 and (time.time() - start_time) >= duration:
+                    print("\n--- Serial monitor duration expired. ---")
+                    break
+
                 data = self.serial_port.read(1)
                 if data:
-                    # Print as hex
-                    print(f"0x{data.hex()}", end=" ", flush=True)
+                    # Print received byte as character
+                    print(data.decode(errors="ignore"), end="", flush=True)
         except KeyboardInterrupt:
             print("\n--- Serial monitor stopped. ---")
         except SerialException as e:
             raise UARTFlasherError(f"Serial communication error during monitoring: {e}")
+        finally:
+            # Restore original timeout
+            self.serial_port.timeout = original_timeout
 
 
 def setup_logging(verbose: bool = False) -> None:
@@ -240,9 +265,17 @@ def parse_arguments() -> argparse.Namespace:
         "-v", "--verbose", action="store_true", help="Enable verbose logging"
     )
     parser.add_argument(
+        "-m",
         "--monitor",
         action="store_true",
         help="After flashing, monitor and print serial output",
+    )
+
+    parser.add_argument(
+        "--monitor-duration",
+        type=int,
+        default=0,
+        help="Duration in seconds to monitor serial output after flashing (0 for indefinite)",
     )
 
     return parser.parse_args()
@@ -266,7 +299,7 @@ def main() -> int:
         with UARTFlasher(args.port, args.baudrate) as flasher:
             result = flasher.flash_program(args.file, args.test_mode)
             if args.monitor:
-                flasher.monitor_serial()
+                flasher.monitor_serial(args.monitor_duration)
             return result
     except UARTFlasherError as e:
         logging.error(f"Flasher error: {e}")

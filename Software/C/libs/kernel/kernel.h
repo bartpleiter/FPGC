@@ -46,6 +46,10 @@
 #include "libs/kernel/gfx/gpu_data_ascii.h"
 #endif
 
+#ifdef KERNEL_UART
+#include "libs/kernel/io/uart.h"
+#endif
+
 #ifdef KERNEL_TERM
 #include "libs/kernel/term/term.h"
 #endif
@@ -77,6 +81,10 @@
 
 #ifdef KERNEL_GPU_DATA_ASCII
 #include "libs/kernel/gfx/gpu_data_ascii.c"
+#endif
+
+#ifdef KERNEL_UART
+#include "libs/kernel/io/uart.c"
 #endif
 
 #ifdef KERNEL_TERM
