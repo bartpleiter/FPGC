@@ -123,10 +123,14 @@ int main()
     uart_puts("=== BRFS Filesystem Test ===\n\n");
     
     /* Initialize test data */
-    for (i = 0; i < TEST_DATA_SIZE; i++)
-    {
-        test_data[i] = 0xDEADBEEF + i;
-    }
+    // for (i = 0; i < TEST_DATA_SIZE; i++)
+    // {
+    //     test_data[i] = 0xDEADBEEF + i;
+    // }
+
+    // New vesion with just strings (does not fully test the 32-bit wide words)
+    const char* test_data_str = "Hello world! This is a test of the BRFS filesystem. Very cool!!";
+    memcpy(test_data, test_data_str, TEST_DATA_SIZE);
     
     /* === Test 1: Initialize BRFS === */
     uart_puts("1. Initializing BRFS...\n");

@@ -1,4 +1,7 @@
 // Test program for Terminal Library
+#define COMMON_STDLIB
+#include "libs/common/common.h"
+
 #define KERNEL_TERM
 #define KERNEL_GPU_DATA_ASCII
 #include "libs/kernel/kernel.h"
