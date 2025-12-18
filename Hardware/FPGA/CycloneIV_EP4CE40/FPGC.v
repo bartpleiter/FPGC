@@ -173,10 +173,11 @@ assign SDRAM_CLK = clkSDRAM;
  * Reset
  ******************************************************************************/
 wire reset;
+wire reset_dtr;
 
 DtrReset dtr_reset (
     .clk(clk50),
-    .dtr(~uart_dtr_n),
+    .dtr(uart_dtr_n),
     .reset_dtr(reset_dtr)
 );
 
@@ -632,6 +633,18 @@ MemoryUnit memory_unit (
 /******************************************************************************
  * CPU (50MHz)
  ******************************************************************************/
+// Convert frameDrawn to CPU clock domain
+wire frameDrawn_CPU; // Interuupt synchronized to 50MHz clock
+reg frameDrawn_ff1, frameDrawn_ff2;
+
+always @(posedge clk50)
+begin
+    frameDrawn_ff1 <= frameDrawn;
+    frameDrawn_ff2 <= frameDrawn_ff1;
+end
+
+assign frameDrawn_CPU = frameDrawn_ff2;
+
 B32P2 cpu (
     // Clock and reset
     .clk(clk50),

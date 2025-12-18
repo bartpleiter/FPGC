@@ -25,18 +25,20 @@ class UARTFlasherError(Exception):
 class UARTFlasher:
     """UART flasher for FPGC."""
 
-    def __init__(self, port: str, baudrate: int, timeout: Optional[float] = None):
+    def __init__(self, port: str, baudrate: int, timeout: Optional[float] = None, reset: bool = False):
         """Initialize the UART flasher.
 
         Args:
             port: Serial port path
             baudrate: Communication baudrate
             timeout: Serial timeout in seconds
+            reset: Whether to reset FPGC via magic sequence on connect
         """
         self.port_path = port
         self.baudrate = baudrate
         self.timeout = timeout
         self.serial_port: Optional[serial.Serial] = None
+        self.reset = reset
 
     def __enter__(self):
         """Context manager entry."""
@@ -46,14 +48,15 @@ class UARTFlasher:
             )
             logging.info(f"Connected to {self.port_path} at {self.baudrate} baud")
 
-            logging.info("Resetting FPGC via magic sequence")
-            # Send magic reset sequence
-            magic_sequence = bytes.fromhex(
-                "5C6A7408D53522204F5BE72AFC0F9FCE119BE20DAB4E910E61D73E1F0F99F684"
-            )
-            self.serial_port.write(magic_sequence)
-            sleep(0.1)  # Give FPGC time to reset
-            logging.info("FPGC reset complete")
+            if self.reset:
+                logging.info("Resetting FPGC via magic sequence")
+                # Send magic reset sequence
+                magic_sequence = bytes.fromhex(
+                    "5C6A7408D53522204F5BE72AFC0F9FCE119BE20DAB4E910E61D73E1F0F99F684"
+                )
+                self.serial_port.write(magic_sequence)
+                sleep(0.1)  # Give FPGC time to reset
+                logging.info("FPGC reset complete")
             return self
         except SerialException as e:
             raise UARTFlasherError(f"Failed to open serial port {self.port_path}: {e}")
@@ -278,6 +281,13 @@ def parse_arguments() -> argparse.Namespace:
         help="Duration in seconds to monitor serial output after flashing (0 for indefinite)",
     )
 
+    parser.add_argument(
+        "-r",
+        "--reset",
+        action="store_true",
+        help="Reset FPGC via magic sequence before flashing",
+    )
+
     return parser.parse_args()
 
 
@@ -296,7 +306,7 @@ def main() -> int:
         return 1
 
     try:
-        with UARTFlasher(args.port, args.baudrate) as flasher:
+        with UARTFlasher(args.port, args.baudrate, reset=args.reset) as flasher:
             result = flasher.flash_program(args.file, args.test_mode)
             if args.monitor:
                 flasher.monitor_serial(args.monitor_duration)
