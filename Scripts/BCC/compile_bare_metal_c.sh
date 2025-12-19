@@ -10,8 +10,9 @@ if [ $# -ne 1 ]; then
 fi
 
 C_FILENAME="$1"
+C_FILENAME_WITHOUT_DIR="${C_FILENAME##*/}"
 C_SOURCE="Software/C/bareMetal/${C_FILENAME}.c"
-ASM_OUTPUT="Software/ASM/Output/${C_FILENAME}.asm"
+ASM_OUTPUT="Software/ASM/Output/${C_FILENAME_WITHOUT_DIR}.asm"
 LIST_OUTPUT="Software/ASM/Output/code.list"
 BIN_OUTPUT="Software/ASM/Output/code.bin"
 

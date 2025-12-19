@@ -125,7 +125,7 @@ Main:
         read 0x19 r1 r2     ; Boot mode
         bne r2 r0 2         ; On low, jump to copy UART bootloader
             jump CopyUARTbootloader
-        jump CopyUARTbootloader ; For testing, always jump to UART bootloader
+        jump SPIflashBootloader ; For testing, always jump to UART bootloader
     
 
     CopyUARTbootloader:
@@ -220,9 +220,7 @@ Main:
                 bles r4 r0 2         ; If length <= 0 (signed), exit loop
                     jump SPIreadCopyLoop
 
-        jump BootRAM
-
-
+        ;jump BootRAM ; Not needed as long as the next section is BootRAM
 
     BootRAM:
         load 0 r1

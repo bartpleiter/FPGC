@@ -1,15 +1,6 @@
 # Documentation site
 Docs/site
 
-# Vivado
-Hardware/FPGA/Artix7_A75T/FPGC.cache
-Hardware/FPGA/Artix7_A75T/FPGC.hw
-Hardware/FPGA/Artix7_A75T/FPGC.gen
-Hardware/FPGA/Artix7_A75T/FPGC.ip_user_files
-Hardware/FPGA/Artix7_A75T/FPGC.runs
-Hardware/FPGA/Artix7_A75T/FPGC.sim
-Hardware/FPGA/Artix7_A75T/*.log
-
 # Quartus
 Hardware/FPGA/Cyclone10_CL120/db
 Hardware/FPGA/Cyclone10_CL120/incremental_db
@@ -39,7 +30,6 @@ Hardware/FPGA/CycloneIV_EP4CE40/*.summary
 Hardware/FPGA/CycloneIV_EP4CE40/*.jdi
 Hardware/FPGA/CycloneIV_EP4CE40/*.sld
 
-
 # Verilog
 Hardware/FPGA/Verilog/Simulation/Output
 
@@ -59,7 +49,8 @@ Hardware/PCB/FPGC-CycloneIV-AIO_backup/
 # Others
 tmp
 Software/ASM/Output
-Software/C/newlib
+Software/C/bareMetal/flash_writer/flash_binary.c
 BuildTools/B32CC/output
 Tests/C/tmp
 Tests/tmp
+

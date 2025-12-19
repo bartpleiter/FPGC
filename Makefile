@@ -23,6 +23,7 @@ B32CC_OUTPUT = $(B32CC_DIR)/output/b32cc
 .PHONY: test-cpu test-cpu-sequential test-cpu-single debug-cpu
 .PHONY: compile-asm compile-bootloader compile-c-baremetal
 .PHONY: flash-asm-uart run-asm-uart flash-c-baremetal-uart run-c-baremetal-uart
+.PHONY: flash-c-baremetal-spi
 .PHONY: b32cc test-b32cc test-b32cc-sequential test-b32cc-single debug-b32cc clean-b32cc
 .PHONY: check
 
@@ -260,6 +261,16 @@ flash-c-baremetal-uart:
 
 run-c-baremetal-uart: compile-c-baremetal flash-c-baremetal-uart
 
+flash-c-baremetal-spi: $(B32CC_OUTPUT)
+	@if [ -z "$(file)" ]; then \
+		echo "Usage: make flash-c-baremetal-spi file=<c_filename_in_bareMetal_dir_without_extension>"; \
+		echo "Example: make flash-c-baremetal-spi file=libtests/test_term"; \
+		echo "Available programs:"; \
+		find Software/C/bareMetal -name "*.c" -type f | grep -v "tmp" | grep -v "flash_writer" | sed 's|Software/C/bareMetal/||' | sed 's|.c||' | sort; \
+		exit 1; \
+	fi
+	./Scripts/Programmer/flash_spi.sh $(file)
+
 # =============================================================================
 # Cleanup
 # =============================================================================
@@ -350,6 +361,8 @@ help:
 	@echo "  run-asm-uart        - Compile and flash ASM binary via UART"
 	@echo "  flash-c-baremetal-uart - Flash compiled C binary via UART"
 	@echo "  run-c-baremetal-uart   - Compile and flash C binary via UART"
+	@echo "  flash-c-baremetal-spi  - Flash C binary to SPI flash (persistent)"
+	@echo "                          Usage: make flash-c-baremetal-spi file=<filename>"
 	@echo ""
 	@echo "--- Cleanup ---"
 	@echo "  clean               - Clean all build artifacts and environments"
