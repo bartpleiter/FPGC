@@ -1,16 +1,59 @@
 #include "libs/kernel/io/uart.h"
 
-// Output a single character
-void uart_putchar(char c)
+/* Hardware register addresses */
+#define UART_TX_ADDR  0x7000000
+#define UART_RX_ADDR  0x7000001
+
+/*
+ * ============================================================
+ * RX Ring Buffer
+ * ============================================================
+ */
+
+/* Ring buffer structure */
+static volatile char rx_buffer[UART_RX_BUFFER_SIZE];
+static volatile int rx_head = 0;  /* Write position (ISR writes here) */
+static volatile int rx_tail = 0;  /* Read position (user reads here) */
+static volatile int rx_overflow_flag = 0;  /* Set if data was dropped */
+
+/* Helper: Get number of bytes in buffer */
+static int rx_count(void)
 {
-    asm(
-        "load32 0x7000000 r11 ; r11 = UART TX register"
-        "write 0 r11 r4       ; Write data to UART"
-    );
+    int head = rx_head;
+    int tail = rx_tail;
+    if (head >= tail) {
+        return head - tail;
+    }
+    return UART_RX_BUFFER_SIZE - tail + head;
 }
 
-// Output a null-terminated string
-void uart_puts(char *str) {
+/*
+ * ============================================================
+ * Initialization
+ * ============================================================
+ */
+
+void uart_init(void)
+{
+    rx_head = 0;
+    rx_tail = 0;
+    rx_overflow_flag = 0;
+}
+
+/*
+ * ============================================================
+ * Transmit Functions
+ * ============================================================
+ */
+
+void uart_putchar(char c)
+{
+    int *tx_reg = (volatile int *)UART_TX_ADDR;
+    *tx_reg = (int)c;
+}
+
+void uart_puts(char *str)
+{
     if (str == (char *)0) {
         return;
     }
@@ -21,7 +64,6 @@ void uart_puts(char *str) {
     }
 }
 
-// Output an integer as a string
 void uart_putint(int value)
 {
     char buffer[12];
@@ -29,19 +71,18 @@ void uart_putint(int value)
     uart_puts(buffer);
 }
 
-// Output an unsigned integer as a hexadecimal string, with optional "0x" prefix
 void uart_puthex(unsigned int value, int prefix)
 {
+    char buffer[9];
     if (prefix) {
         uart_puts("0x");
     }
-    char buffer[9];
     itoa(value, buffer, 16);
     uart_puts(buffer);
 }
 
-// Output a buffer of specified length
-void uart_write(char *buf, unsigned int len) {
+void uart_write(char *buf, unsigned int len)
+{
     unsigned int i;
     
     if (buf == (char *)0) {
@@ -51,4 +92,130 @@ void uart_write(char *buf, unsigned int len) {
     for (i = 0; i < len; i++) {
         uart_putchar(buf[i]);
     }
+}
+
+/*
+ * ============================================================
+ * Receive Functions
+ * ============================================================
+ */
+
+void uart_isr_handler(void)
+{
+    volatile int *rx_reg = (volatile int *)UART_RX_ADDR;
+    char byte;
+    int next_head;
+    
+    /* Read byte from hardware */
+    byte = (char)(*rx_reg);
+    
+    /* Calculate next head position */
+    next_head = (rx_head + 1) % UART_RX_BUFFER_SIZE;
+    
+    /* Check for overflow (buffer full) */
+    if (next_head == rx_tail) {
+        /* Buffer full - drop the byte and set overflow flag */
+        rx_overflow_flag = 1;
+        return;
+    }
+    
+    /* Store byte in buffer */
+    rx_buffer[rx_head] = byte;
+    rx_head = next_head;
+}
+
+int uart_available(void)
+{
+    return rx_count();
+}
+
+int uart_read(void)
+{
+    char byte;
+    
+    /* Check if buffer empty */
+    if (rx_head == rx_tail) {
+        return -1;
+    }
+    
+    /* Read byte from buffer */
+    byte = rx_buffer[rx_tail];
+    rx_tail = (rx_tail + 1) % UART_RX_BUFFER_SIZE;
+    
+    return (int)(unsigned char)byte;
+}
+
+int uart_peek(void)
+{
+    /* Check if buffer empty */
+    if (rx_head == rx_tail) {
+        return -1;
+    }
+    
+    /* Return byte without removing */
+    return (int)(unsigned char)rx_buffer[rx_tail];
+}
+
+int uart_read_bytes(char *buf, int len)
+{
+    int count = 0;
+    int byte;
+    
+    if (buf == (char *)0 || len <= 0) {
+        return 0;
+    }
+    
+    while (count < len) {
+        byte = uart_read();
+        if (byte < 0) {
+            break;  /* No more data */
+        }
+        buf[count] = (char)byte;
+        count++;
+    }
+    
+    return count;
+}
+
+int uart_read_until(char *buf, int len, char terminator)
+{
+    int count = 0;
+    int byte;
+    
+    if (buf == (char *)0 || len <= 0) {
+        return 0;
+    }
+    
+    while (count < len) {
+        byte = uart_read();
+        if (byte < 0) {
+            break;  /* No more data */
+        }
+        buf[count] = (char)byte;
+        count++;
+        if ((char)byte == terminator) {
+            break;  /* Found terminator */
+        }
+    }
+    
+    return count;
+}
+
+int uart_read_line(char *buf, int len)
+{
+    return uart_read_until(buf, len, '\n');
+}
+
+void uart_flush_rx(void)
+{
+    rx_head = 0;
+    rx_tail = 0;
+    rx_overflow_flag = 0;
+}
+
+int uart_rx_overflow(void)
+{
+    int flag = rx_overflow_flag;
+    rx_overflow_flag = 0;  /* Clear on read */
+    return flag;
 }
