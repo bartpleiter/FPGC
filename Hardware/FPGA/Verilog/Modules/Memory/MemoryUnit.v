@@ -84,25 +84,24 @@ reg uart_tx_start = 1'b0;
 wire uart_tx_done;
 reg [7:0] uart_tx_data = 8'd0;
 
-UARTtx uart_tx_controller(
-.i_Clock    (clk),
-.reset      (reset),
-.i_Tx_DV    (uart_tx_start),
-.i_Tx_Byte  (uart_tx_data),
-.o_Tx_Active(),
-.o_Tx_Serial(uart_tx),
-.o_Tx_Done  (uart_tx_done)
+UARTtx uart_tx_controller (
+    .clk    (clk),
+    .reset  (reset),
+    .start  (uart_tx_start),
+    .data   (uart_tx_data),
+    .done   (uart_tx_done),
+    .tx     (uart_tx)
 );
 
 // UART RX
 wire [7:0] uart_rx_q;
 
-UARTrx uart_rx_controller(
-.i_Clock    (clk),
-.reset      (reset),
-.i_Rx_Serial(uart_rx),
-.o_Rx_DV    (uart_irq),
-.o_Rx_Byte  (uart_rx_q)
+UARTrx uart_rx_controller (
+    .clk    (clk),
+    .reset  (reset),
+    .rx     (uart_rx),
+    .done   (uart_irq),
+    .data   (uart_rx_q)
 );
 
 `ifndef CYCLONEIV
@@ -168,17 +167,17 @@ wire [7:0] SPI0_out;
 wire SPI0_done;
 
 SimpleSPI #(
-.CLKS_PER_HALF_BIT(1))
-SPI0(
-.clk        (clk),
-.reset      (reset),
-.in_byte    (SPI0_in),
-.start      (SPI0_start),
-.done       (SPI0_done),
-.out_byte   (SPI0_out),
-.spi_clk    (SPI0_clk),
-.miso       (SPI0_miso),
-.mosi       (SPI0_mosi)
+    .CLKS_PER_HALF_BIT(1)
+) SPI0 (
+    .clk        (clk),
+    .reset      (reset),
+    .data_in    (SPI0_in),
+    .start      (SPI0_start),
+    .done       (SPI0_done),
+    .data_out   (SPI0_out),
+    .spi_clk    (SPI0_clk),
+    .spi_miso   (SPI0_miso),
+    .spi_mosi   (SPI0_mosi)
 );
 
 // SPI1 (Flash 2) 25 MHz
@@ -188,17 +187,17 @@ wire [7:0] SPI1_out;
 wire SPI1_done;
 
 SimpleSPI #(
-.CLKS_PER_HALF_BIT(1))
-SPI1(
-.clk        (clk),
-.reset      (reset),
-.in_byte    (SPI1_in),
-.start      (SPI1_start),
-.done       (SPI1_done),
-.out_byte   (SPI1_out),
-.spi_clk    (SPI1_clk),
-.miso       (SPI1_miso),
-.mosi       (SPI1_mosi)
+    .CLKS_PER_HALF_BIT(1)
+) SPI1 (
+    .clk        (clk),
+    .reset      (reset),
+    .data_in    (SPI1_in),
+    .start      (SPI1_start),
+    .done       (SPI1_done),
+    .data_out   (SPI1_out),
+    .spi_clk    (SPI1_clk),
+    .spi_miso   (SPI1_miso),
+    .spi_mosi   (SPI1_mosi)
 );
 
 // SPI2 (USB Host 1) 12.5 MHz
@@ -208,17 +207,17 @@ wire [7:0] SPI2_out;
 wire SPI2_done;
 
 SimpleSPI #(
-.CLKS_PER_HALF_BIT(2))
-SPI2(
-.clk        (clk),
-.reset      (reset),
-.in_byte    (SPI2_in),
-.start      (SPI2_start),
-.done       (SPI2_done),
-.out_byte   (SPI2_out),
-.spi_clk    (SPI2_clk),
-.miso       (SPI2_miso),
-.mosi       (SPI2_mosi)
+    .CLKS_PER_HALF_BIT(2)
+) SPI2 (
+    .clk        (clk),
+    .reset      (reset),
+    .data_in    (SPI2_in),
+    .start      (SPI2_start),
+    .done       (SPI2_done),
+    .data_out   (SPI2_out),
+    .spi_clk    (SPI2_clk),
+    .spi_miso   (SPI2_miso),
+    .spi_mosi   (SPI2_mosi)
 );
 
 // SPI3 (USB Host 2) 12.5 MHz
@@ -228,17 +227,17 @@ wire [7:0] SPI3_out;
 wire SPI3_done;
 
 SimpleSPI #(
-.CLKS_PER_HALF_BIT(2))
-SPI3(
-.clk        (clk),
-.reset      (reset),
-.in_byte    (SPI3_in),
-.start      (SPI3_start),
-.done       (SPI3_done),
-.out_byte   (SPI3_out),
-.spi_clk    (SPI3_clk),
-.miso       (SPI3_miso),
-.mosi       (SPI3_mosi)
+    .CLKS_PER_HALF_BIT(2)
+) SPI3 (
+    .clk        (clk),
+    .reset      (reset),
+    .data_in    (SPI3_in),
+    .start      (SPI3_start),
+    .done       (SPI3_done),
+    .data_out   (SPI3_out),
+    .spi_clk    (SPI3_clk),
+    .spi_miso   (SPI3_miso),
+    .spi_mosi   (SPI3_mosi)
 );
 
 // SPI4 (Ethernet) 12.5 MHz
@@ -248,17 +247,17 @@ wire [7:0] SPI4_out;
 wire SPI4_done;
 
 SimpleSPI #(
-.CLKS_PER_HALF_BIT(2))
-SPI4(
-.clk        (clk),
-.reset      (reset),
-.in_byte    (SPI4_in),
-.start      (SPI4_start),
-.done       (SPI4_done),
-.out_byte   (SPI4_out),
-.spi_clk    (SPI4_clk),
-.miso       (SPI4_miso),
-.mosi       (SPI4_mosi)
+    .CLKS_PER_HALF_BIT(2)
+) SPI4 (
+    .clk        (clk),
+    .reset      (reset),
+    .data_in    (SPI4_in),
+    .start      (SPI4_start),
+    .done       (SPI4_done),
+    .data_out   (SPI4_out),
+    .spi_clk    (SPI4_clk),
+    .spi_miso   (SPI4_miso),
+    .spi_mosi   (SPI4_mosi)
 );
 
 // SPI5 (SD Card) 25 MHz
@@ -268,17 +267,17 @@ wire [7:0] SPI5_out;
 wire SPI5_done;
 
 SimpleSPI #(
-.CLKS_PER_HALF_BIT(1))
-SPI5(
-.clk        (clk),
-.reset      (reset),
-.in_byte    (SPI5_in),
-.start      (SPI5_start),
-.done       (SPI5_done),
-.out_byte   (SPI5_out),
-.spi_clk    (SPI5_clk),
-.miso       (SPI5_miso),
-.mosi       (SPI5_mosi)
+    .CLKS_PER_HALF_BIT(1)
+) SPI5 (
+    .clk        (clk),
+    .reset      (reset),
+    .data_in    (SPI5_in),
+    .start      (SPI5_start),
+    .done       (SPI5_done),
+    .data_out   (SPI5_out),
+    .spi_clk    (SPI5_clk),
+    .spi_miso   (SPI5_miso),
+    .spi_mosi   (SPI5_mosi)
 );
 
 // Micros counter

@@ -1,191 +1,161 @@
 /*
  * UARTtx
- * UART Transmitter module, able to transmit 8 bits of serial data,
- * one start bit, one stop bit, and no parity bit
- * When transmit is complete o_Tx_done will be driven high for one clock cycle
+ * UART Transmitter module
+ * Transmits 8 bits of serial data with one start bit, one stop bit, and no parity bit
+ * When transmit is complete, done will be driven high for one clock cycle
  *
  * Set Parameter CLKS_PER_BIT as follows:
- * CLKS_PER_BIT = (Frequency of i_Clock)/(Frequency of UART)
- * Example: 25 MHz Clock, 115200 baud UART: (25000000)/(115200) = 217
- *
- * TODO: clean this up a bit, possibly reimplement in a way that matches the rest of the design
+ * CLKS_PER_BIT = (Frequency of clk) / (Frequency of UART)
+ * Example: 50 MHz Clock, 1 MBaud UART: (50000000) / (1000000) = 50
  */
 module UARTtx #(
+    parameter CLKS_PER_BIT = 50,    // 1 MBaud @ 50 MHz
     parameter ENABLE_DISPLAY = 1
 ) (
-    input wire          i_Clock,
-    input wire          reset,
-    input wire          i_Tx_DV,
-    input wire  [7:0]   i_Tx_Byte,
-    output wire         o_Tx_Active,
-    output reg          o_Tx_Serial,
-    output wire         o_Tx_Done
+    //========================
+    // System interface
+    //========================
+    input  wire         clk,
+    input  wire         reset,
+
+    //========================
+    // Control interface
+    //========================
+    input  wire         start,      // Start transmission (active high pulse)
+    input  wire [7:0]   data,       // Byte to transmit
+    output reg          done = 1'b0,// Transmission complete (high for one cycle)
+
+    //========================
+    // UART interface
+    //========================
+    output reg          tx = 1'b1   // Serial output (idle high)
 );
 
-localparam CLKS_PER_BIT   = 50; //1MBaud
-localparam s_IDLE = 3'b000;
-localparam s_TX_START_BIT = 3'b001;
-localparam s_TX_DATA_BITS = 3'b010;
-localparam s_TX_STOP_BIT = 3'b011;
-localparam s_CLEANUP = 3'b100;
+//========================
+// State Machine
+//========================
+localparam
+    STATE_IDLE      = 3'd0,
+    STATE_START_BIT = 3'd1,
+    STATE_DATA_BITS = 3'd2,
+    STATE_STOP_BIT  = 3'd3,
+    STATE_DONE      = 3'd4;
 
+reg [2:0] state = STATE_IDLE;
 
-reg [2:0] r_SM_Main;
-reg [8:0] r_Clock_Count;
-reg [2:0] r_Bit_Index;
-reg [7:0] r_Tx_Data;
-reg r_Tx_Done;
-reg r_Tx_Active;
+//========================
+// Internal Registers
+//========================
+reg [8:0] clk_count = 9'd0;     // Bit period counter
+reg [2:0] bit_index = 3'd0;     // Current bit being transmitted (0-7)
+reg [7:0] tx_data = 8'd0;       // Latched transmit data
 
-initial
-begin
-    r_SM_Main = 3'd0;
-    r_Clock_Count = 9'd0;
-    r_Bit_Index = 3'd0;
-    r_Tx_Data = 8'd0;
-    r_Tx_Done = 1'b0;
-    r_Tx_Active = 1'b0;
-    o_Tx_Serial = 1'b1;
-end
-
-/*
-always @(posedge i_Clock)
+always @(posedge clk)
 begin
     if (reset)
     begin
-        o_Tx_Done_l <= 1'b0;
+        state <= STATE_IDLE;
+        clk_count <= 9'd0;
+        bit_index <= 3'd0;
+        tx_data <= 8'd0;
+        done <= 1'b0;
+        tx <= 1'b1;
     end
     else
     begin
-        o_Tx_Done_l <= o_Tx_Done;
-    end
-end
-*/
+        // Default assignments
+        done <= 1'b0;
 
-always @(posedge i_Clock)
-begin
-    if (reset)
-    begin
-        r_SM_Main <= 3'd0;
-        r_Clock_Count <= 9'd0;
-        r_Bit_Index <= 3'd0;
-        r_Tx_Data <= 8'd0;
-        r_Tx_Done <= 1'b0;
-        r_Tx_Active <= 1'b0;
-        o_Tx_Serial <= 1'b1;
-    end
-    else
-    begin
-        case (r_SM_Main)
-        s_IDLE :
-        begin
-            o_Tx_Serial <= 1'b1; // Drive Line High for Idle
-            r_Tx_Done <= 1'b0;
-            r_Clock_Count <= 0;
-            r_Bit_Index <= 0;
-
-            if (i_Tx_DV == 1'b1)
+        case (state)
+            STATE_IDLE:
             begin
-                r_Tx_Active <= 1'b1;
-                r_Tx_Data <= i_Tx_Byte;
-                r_SM_Main <= s_TX_START_BIT;
-                if (ENABLE_DISPLAY == 1)
+                tx <= 1'b1;             // Idle high
+                clk_count <= 9'd0;
+                bit_index <= 3'd0;
+
+                if (start)
                 begin
-                    $display("%0t UART TX: %02h", $time, i_Tx_Byte);
+                    tx_data <= data;
+                    state <= STATE_START_BIT;
+                    if (ENABLE_DISPLAY == 1)
+                    begin
+                        $display("%0t UART TX: %02h", $time, data);
+                    end
                 end
             end
-            else
-                r_SM_Main <= s_IDLE;
-        end // case: s_IDLE
 
+            STATE_START_BIT:
+            begin
+                tx <= 1'b0;             // Start bit is low
 
-        // Send out Start Bit. Start bit = 0
-        s_TX_START_BIT :
-        begin
-            o_Tx_Serial <= 1'b0;
-
-            // Wait CLKS_PER_BIT-1 clock cycles for start bit to finish
-            if (r_Clock_Count < CLKS_PER_BIT-1)
+                if (clk_count < CLKS_PER_BIT - 1)
                 begin
-                r_Clock_Count <= r_Clock_Count + 1;
-                r_SM_Main <= s_TX_START_BIT;
-            end
-            else
-            begin
-                r_Clock_Count <= 0;
-                r_SM_Main <= s_TX_DATA_BITS;
-            end
-        end // case: s_TX_START_BIT
-
-
-        // Wait CLKS_PER_BIT-1 clock cycles for data bits to finish 
-        s_TX_DATA_BITS :
-        begin
-            o_Tx_Serial <= r_Tx_Data[r_Bit_Index];
-
-            if (r_Clock_Count < CLKS_PER_BIT-1)
-            begin
-                r_Clock_Count <= r_Clock_Count + 1;
-                r_SM_Main <= s_TX_DATA_BITS;
-            end
-            else
-            begin
-                r_Clock_Count <= 0;
-
-                // Check if we have sent out all bits
-                if (r_Bit_Index < 7)
-                begin
-                    r_Bit_Index <= r_Bit_Index + 1;
-                    r_SM_Main <= s_TX_DATA_BITS;
+                    clk_count <= clk_count + 1'b1;
                 end
                 else
                 begin
-                    r_Bit_Index <= 0;
-                    r_SM_Main <= s_TX_STOP_BIT;
+                    clk_count <= 9'd0;
+                    state <= STATE_DATA_BITS;
                 end
             end
-        end // case: s_TX_DATA_BITS
 
-
-        // Send out Stop bit. Stop bit = 1
-        s_TX_STOP_BIT :
-        begin
-            o_Tx_Serial <= 1'b1;
-
-            // Wait CLKS_PER_BIT-1 clock cycles for Stop bit to finish
-            if (r_Clock_Count < CLKS_PER_BIT-1)
+            STATE_DATA_BITS:
             begin
-                r_Clock_Count <= r_Clock_Count + 1;
-                r_SM_Main <= s_TX_STOP_BIT;
+                tx <= tx_data[bit_index]; // Send LSB first
+
+                if (clk_count < CLKS_PER_BIT - 1)
+                begin
+                    clk_count <= clk_count + 1'b1;
+                end
+                else
+                begin
+                    clk_count <= 9'd0;
+
+                    if (bit_index < 7)
+                    begin
+                        bit_index <= bit_index + 1'b1;
+                    end
+                    else
+                    begin
+                        bit_index <= 3'd0;
+                        state <= STATE_STOP_BIT;
+                    end
+                end
             end
-            else
+
+            STATE_STOP_BIT:
             begin
-                r_Tx_Done <= 1'b1;
-                r_Clock_Count <= 0;
-                r_SM_Main <= s_CLEANUP;
-                r_Tx_Active <= 1'b0;
+                tx <= 1'b1;             // Stop bit is high
+
+                if (clk_count < CLKS_PER_BIT - 1)
+                begin
+                    clk_count <= clk_count + 1'b1;
+                end
+                else
+                begin
+                    clk_count <= 9'd0;
+                    state <= STATE_DONE;
+                end
             end
-        end // case: s_Tx_STOP_BIT
 
+            STATE_DONE:
+            begin
+                done <= 1'b1;
+                
+                // Wait for start to go low before returning to idle
+                // This prevents retriggering if start is held high
+                if (!start)
+                begin
+                    state <= STATE_IDLE;
+                end
+            end
 
-        // Stay here 1 clock
-        s_CLEANUP :
-        begin
-            r_Tx_Done <= 1'b1;
-
-            if (!i_Tx_DV) r_SM_Main <= s_IDLE;
-            else r_SM_Main <= s_CLEANUP;
-        end
-
-
-        default :
-            r_SM_Main <= s_IDLE;
-
+            default:
+            begin
+                state <= STATE_IDLE;
+            end
         endcase
     end
 end
-
-assign o_Tx_Active = r_Tx_Active;
-assign o_Tx_Done = r_Tx_Done;
 
 endmodule
