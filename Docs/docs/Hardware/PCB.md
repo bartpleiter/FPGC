@@ -33,6 +33,16 @@ The result is a 120mm x 88.3mm 6 layer PCB designed with EasyEDA, and manufactur
 
 ## Schematic
 
+!!! Warning
+    After ordering the PCB, I found two large mistakes in the schematic:
+
+    1. All three TVS protection IC's for HDMI and USB have their supply and ground pins swapped, effectively shorting the supply.
+    2. The microSD card slot also has its supply and ground pins swapped and need to be corrected to work. Sadly the GND trace is below the connector and the pins are not easy to lift, so they have to be desoldered and resoldered correctly.
+
+    A minor mistake is that the battery holder is too close to the mounting holes, meaning you might have to cut away a bit of plastic from the holder depending on the screws and standoffs used.
+
+    As for the LEDs, the FPGA_conf_done LED is quite dim compared to the others, most likely due to the R8 pull up which cannot be removed. The IP5306 status LEDs are really bright, not sure if those can be easily dimmed given the 3 pin direct IC connection.
+
 The schematic PDF export can be downloaded here: [Schematic.pdf](../assets/schematic.pdf)
 
 ## PCB Layout

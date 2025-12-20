@@ -11,9 +11,6 @@ To run programs from an SD Card or Network, it is best to have an Operating Syst
 
 ## ROM Bootloader
 
-!!! warning
-    The ROM bootloader is still under development, so I'll write here how I want it to be, even though I still have to implement it.
-
 In short, the ROM bootloader does the following:
 
 1. Clear all registers and cache, in case a reset was performed which does not clear the FPGA BRAMs
@@ -34,7 +31,7 @@ The UART bootloader needs to run from RAM, as it needs the UART RX interrupt han
 5. After the code has been received, the bootloader sends a single 'd' character as an acknowledgment
 6. The bootloader resets all registers, clears the cache, and returns from the interrupt, which jumps to address 0 and starts executing the received code
 
-TODO: write or reference the guide on how to send a program over UART.
+There are scripts in `Scripts/Programmer/UART` to flash code via UART using this bootloader.
 
 ## OS Bootloaders
 
