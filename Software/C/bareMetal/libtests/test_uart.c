@@ -14,6 +14,12 @@ int main()
     uart_putchar('\n');
 
     debug_mem_dump(msg, 32);
+
+    unsigned int micros = get_micros();
+    uart_puts("\nMicros: ");
+    uart_putint(micros);
+    uart_putchar('\n');
+
     return 0;
 }
 

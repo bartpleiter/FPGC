@@ -13,4 +13,8 @@
 
 int get_int_id();
 
+int get_boot_mode();
+
+unsigned int get_micros();
+
 #endif // SYS_H

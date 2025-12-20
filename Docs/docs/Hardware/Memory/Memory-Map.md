@@ -56,8 +56,7 @@ $7000000    +------------------------+
             | GPIO_mode          $17 |
             | GPIO_state         $18 |
             | Boot_mode          $19 |
-            | FPGA_temp          $1A |
-            | Micros             $1B | $700001B
+            | Micros             $1A | $700001A
             +------------------------+
 
 Single Cycle Memory

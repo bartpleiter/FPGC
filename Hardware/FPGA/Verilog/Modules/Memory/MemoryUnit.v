@@ -319,10 +319,9 @@ localparam ADDR_SPI5_CS         = 32'h7000016; // SPI5 CS
 localparam ADDR_GPIO_MODE       = 32'h7000017; // GPIO mode
 localparam ADDR_GPIO_STATE      = 32'h7000018; // GPIO state
 localparam ADDR_BOOT_MODE       = 32'h7000019; // Boot mode
-localparam ADDR_FPGA_TEMP       = 32'h700001A; // FPGA temp
-localparam ADDR_MICROS          = 32'h700001B; // Micros
+localparam ADDR_MICROS          = 32'h700001A; // Micros
 
-localparam ADDR_OOB             = 32'h700001C; // All addresses >= this are out of bounds and return a constant
+localparam ADDR_OOB             = 32'h700001B; // All addresses >= this are out of bounds and return a constant
 
 // State machine states
 localparam STATE_IDLE                   = 8'd0;
@@ -342,8 +341,7 @@ localparam STATE_WAIT_SPI4_CS           = 8'd13;
 localparam STATE_WAIT_SPI5_DATA         = 8'd14;
 localparam STATE_WAIT_SPI5_CS           = 8'd15;
 localparam STATE_WAIT_BOOT_MODE         = 8'd16;
-localparam STATE_WAIT_FPGA_TEMP         = 8'd17;
-localparam STATE_WAIT_MICROS            = 8'd18;
+localparam STATE_WAIT_MICROS            = 8'd17;
 
 
 reg [7:0] state = 8'd0;
@@ -624,6 +622,12 @@ always @(posedge clk) begin
                         state <= STATE_WAIT_BOOT_MODE;
                     end
 
+                    // Micros
+                    if (addr == ADDR_MICROS)
+                    begin
+                        state <= STATE_WAIT_MICROS;
+                    end
+
                     if (addr >= ADDR_OOB)
                     begin
                         // Out of range
@@ -760,13 +764,6 @@ always @(posedge clk) begin
             begin
                 done <= 1'b1;
                 q <= {31'd0, boot_mode};
-                state <= STATE_IDLE;
-            end
-
-            STATE_WAIT_FPGA_TEMP:
-            begin
-                done <= 1'b1;
-                q <= 32'd0; // TODO: Implement FPGA temperature reading
                 state <= STATE_IDLE;
             end
 
