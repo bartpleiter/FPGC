@@ -662,7 +662,7 @@ end
 integer clk_counter = 0;
 always @(posedge clk) begin
     clk_counter = clk_counter + 1;
-    if (clk_counter == 8000) begin
+    if (clk_counter == 12000) begin
         $display("Simulation finished.");
         $finish;
     end
