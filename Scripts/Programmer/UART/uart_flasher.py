@@ -25,7 +25,13 @@ class UARTFlasherError(Exception):
 class UARTFlasher:
     """UART flasher for FPGC."""
 
-    def __init__(self, port: str, baudrate: int, timeout: Optional[float] = None, reset: bool = False):
+    def __init__(
+        self,
+        port: str,
+        baudrate: int,
+        timeout: Optional[float] = None,
+        reset: bool = False,
+    ):
         """Initialize the UART flasher.
 
         Args:

@@ -66,7 +66,9 @@ def binary_to_flash_c(input_path: Path, output_path: Path) -> int:
     lines.append("")
 
     output_path.write_text("\n".join(lines))
-    logging.info(f"Generated {output_path} with {num_words} words ({num_words * 4} bytes)")
+    logging.info(
+        f"Generated {output_path} with {num_words} words ({num_words * 4} bytes)"
+    )
 
     return num_words
 
@@ -87,7 +89,8 @@ def main() -> int:
         help="Output C file path",
     )
     parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Enable verbose output",
     )
