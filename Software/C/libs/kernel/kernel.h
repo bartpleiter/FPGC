@@ -80,6 +80,13 @@
 #include "libs/kernel/mem/debug.h"
 #endif
 
+#ifdef KERNEL_TIMER
+#include "libs/kernel/io/timer.h"
+#endif
+
+// Always include sys library
+#include "libs/kernel/sys.h"
+
 // Implementation files
 #ifdef KERNEL_GPU_HAL
 #include "libs/kernel/gfx/gpu_hal.c"
@@ -120,5 +127,12 @@
 #ifdef KERNEL_MEM_DEBUG
 #include "libs/kernel/mem/debug.c"
 #endif
+
+#ifdef KERNEL_TIMER
+#include "libs/kernel/io/timer.c"
+#endif
+
+// Always include sys library
+#include "libs/kernel/sys.c"
 
 #endif // KERNEL_H
