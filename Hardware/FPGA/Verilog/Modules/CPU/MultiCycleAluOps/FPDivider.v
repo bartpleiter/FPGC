@@ -1,161 +1,162 @@
 /*
-* 32-bit multicycle fixed-point divider
-* TODO: completely reimplement this module as it is now mostly copy pasted
-*/
-
+ * FPDivider
+ * 32-bit multicycle fixed-point signed divider
+ * Uses restoring division algorithm with Q16.16 fixed point format
+ *
+ * For fixed-point division: result = (a << FBITS) / b
+ * This maintains the fractional precision in the quotient
+ */
 module FPDivider #(
-    parameter WIDTH=32,  // width of numbers in bits (integer and fractional)
-    parameter FBITS=16   // fractional bits within WIDTH
-    ) (
-    input clk,    // clock
-    input rst,    // reset
-    input start,  // start calculation
-    input write_a,
-    output reg busy = 1'b0,   // calculation in progress
-    output  reg    done = 1'b0,   // calculation is complete (high for one tick)
-    output   reg   valid = 1'b0,  // result is valid
-    output   reg   dbz = 1'b0,    // divide by zero
-    output   reg   ovf = 1'b0,    // overflow
-    input signed [WIDTH-1:0] a_in,   // dividend (numerator)
-    input signed [WIDTH-1:0] b,   // divisor (denominator)
-    output reg signed [WIDTH-1:0] val = 32'd0 // result value: quotient
-    );
+    parameter WIDTH = 32,   // Width of numbers in bits
+    parameter FBITS = 16    // Fractional bits within WIDTH
+) (
+    //========================
+    // System interface
+    //========================
+    input  wire                     clk,
+    input  wire                     reset,
 
+    //========================
+    // Control interface
+    //========================
+    input  wire signed [WIDTH-1:0]  a,          // Dividend (fixed-point)
+    input  wire signed [WIDTH-1:0]  b,          // Divisor (fixed-point)
+    input  wire                     start,      // Start division
 
-    reg signed [WIDTH-1:0] a = 0;
+    output reg signed [WIDTH-1:0]   y = 0,      // Quotient result (fixed-point)
+    output reg                      done = 1'b0 // Division complete
+);
 
-    always @(posedge clk)
+//========================
+// State Machine
+//========================
+localparam
+    STATE_IDLE  = 2'd0,
+    STATE_CALC  = 2'd1,
+    STATE_SIGN  = 2'd2,
+    STATE_DONE  = 2'd3;
+
+reg [1:0] state = STATE_IDLE;
+
+//========================
+// Internal Parameters
+//========================
+localparam WIDTHU = WIDTH - 1;                              // Unsigned width (sign bit excluded)
+localparam ITER = WIDTHU + FBITS;                           // Total iterations needed
+
+//========================
+// Internal Registers
+//========================
+reg [$clog2(ITER+1):0] count = 0;                           // Iteration counter
+reg [WIDTHU-1:0] quotient = 0;                              // Working quotient (unsigned)
+reg [WIDTHU:0] accumulator = 0;                             // Accumulator (1 bit wider for subtraction)
+reg [WIDTHU-1:0] divisor_u = 0;                             // Unsigned divisor
+reg sign_diff = 1'b0;                                       // Signs differ flag
+
+// Combinational: trial subtraction
+wire [WIDTHU:0] trial_sub = accumulator - {1'b0, divisor_u};
+wire trial_ge = ~trial_sub[WIDTHU];                         // Result >= 0 if MSB is 0
+
+// Helper wires for absolute value computation
+wire [WIDTHU-1:0] a_abs = a[WIDTH-1] ? -a[WIDTHU-1:0] : a[WIDTHU-1:0];
+wire [WIDTHU-1:0] b_abs = b[WIDTH-1] ? -b[WIDTHU-1:0] : b[WIDTHU-1:0];
+
+always @(posedge clk)
+begin
+    if (reset)
     begin
-        if (write_a)
-        begin
-            a <= a_in;
-        end
-        
+        state <= STATE_IDLE;
+        count <= 0;
+        quotient <= 0;
+        accumulator <= 0;
+        divisor_u <= 0;
+        sign_diff <= 1'b0;
+        y <= 0;
+        done <= 1'b0;
     end
-
-    localparam WIDTHU = WIDTH - 1;                 // unsigned widths are 1 bit narrower
-    localparam FBITSW = (FBITS == 0) ? 1 : FBITS;  // avoid negative vector width when FBITS=0
-    localparam SMALLEST = {1'b1, {WIDTHU{1'b0}}};  // smallest negative number
-
-    localparam ITER = WIDTHU + FBITS;  // iteration count: unsigned input width + fractional bits
-    reg [$clog2(ITER):0] i;          // iteration counter (allow ITER+1 iterations for rounding)
-
-    reg a_sig = 1'b0;
-    reg b_sig = 1'b0;
-    reg sig_diff = 1'b0;      // signs of inputs and whether different
-
-    reg [WIDTHU-1:0] au = 0;
-    reg [WIDTHU-1:0] bu = 0;         // absolute version of inputs (unsigned)
-
-    reg [WIDTHU-1:0] quo = 0;
-    reg [WIDTHU-1:0] quo_next = 0;  // intermediate quotients (unsigned)
-
-    reg [WIDTHU:0] acc = 0;
-    reg [WIDTHU:0] acc_next = 0;    // accumulator (unsigned but 1 bit wider)
-
-    // input signs
-    always @(*)
+    else
     begin
-        a_sig = a[WIDTH-1+:1];
-        b_sig = b[WIDTH-1+:1];
-    end
+        // Default assignment
+        done <= 1'b0;
 
-    // division algorithm iteration
-    always @(*)
-    begin
-        if (acc >= {1'b0, bu}) begin
-            acc_next = acc - bu;
-            {acc_next, quo_next} = {acc_next[WIDTHU-1:0], quo, 1'b1};
-        end else begin
-            {acc_next, quo_next} = {acc, quo} << 1;
-        end
-    end
-
-    // calculation state machine
-    parameter IDLE    = 5'd0;
-    parameter INIT    = 5'd1;
-    parameter CALC    = 5'd2;
-    parameter ROUND   = 5'd3;
-    parameter SIGN    = 5'd4;
-    parameter DONE    = 5'd5;
-
-    reg [2:0] state = IDLE;
-
-    always @(posedge clk) begin
-        done <= 0;
         case (state)
-            INIT: begin
-                state <= CALC;
-                ovf <= 0;
-                i <= 0;
-                {acc, quo} <= {{WIDTHU{1'b0}}, au, 1'b0};  // initialize calculation
-            end
-            CALC: begin
-                if (i == WIDTHU-1 && quo_next[WIDTHU-1:WIDTHU-FBITSW] != 0) begin  // overflow
-                    state <= DONE;
-                    busy <= 0;
-                    done <= 1;
-                    ovf <= 1;
-                end else begin
-                    if (i == ITER-1) state <= ROUND;  // calculation complete after next iteration
-                    i <= i + 1;
-                    acc <= acc_next;
-                    quo <= quo_next;
-                end
-            end
-            ROUND: begin  // Gaussian rounding
-                state <= SIGN;
-                if (quo_next[0] == 1'b1) begin  // next digit is 1, so consider rounding
-                    // round up if quotient is odd or remainder is non-zero
-                    if (quo[0] == 1'b1 || acc_next[WIDTHU:1] != 0) quo <= quo + 1;
-                end
-            end
-            SIGN: begin  // adjust quotient sign if non-zero and input signs differ
-                state <= DONE;
-                if (quo != 0) val <= (sig_diff) ? {1'b1, -quo} : {1'b0, quo};
-                busy <= 0;
-                done <= 1;
-                valid <= 1;
-            end
-            DONE: begin
-                done <= 1;
-                state <= IDLE;
-            end
-            default: begin  // IDLE
-                if (start) begin
-                    valid <= 0;
-                    if (b == 0) begin  // divide by zero
-                        state <= DONE;
-                        busy <= 0;
-                        done <= 1;
-                        dbz <= 1;
-                        ovf <= 0;
-                    end else if (a == SMALLEST || b == SMALLEST) begin  // overflow
-                        state <= DONE;
-                        busy <= 0;
-                        done <= 1;
-                        dbz <= 0;
-                        ovf <= 1;
-                    end else begin
-                        state <= INIT;
-                        au <= (a_sig) ? -a[WIDTHU-1:0] : a[WIDTHU-1:0];  // register abs(a)
-                        bu <= (b_sig) ? -b[WIDTHU-1:0] : b[WIDTHU-1:0];  // register abs(b)
-                        sig_diff <= (a_sig ^ b_sig);  // register input sign difference
-                        busy <= 1;
-                        dbz <= 0;
-                        ovf <= 0;
+            STATE_IDLE:
+            begin
+                if (start)
+                begin
+                    // Handle divide by zero
+                    if (b == 0)
+                    begin
+                        y <= {WIDTH{1'b1}};     // Return -1 for div by zero
+                        done <= 1'b1;
+                        state <= STATE_IDLE;
+                    end
+                    else
+                    begin
+                        // Store sign difference
+                        sign_diff <= a[WIDTH-1] ^ b[WIDTH-1];
+                        
+                        // Initialize for fixed-point division
+                        // The quotient register is loaded with |a| initially, 
+                        // accumulator starts at 0. As we iterate, bits shift from
+                        // quotient into accumulator for the division.
+                        accumulator <= {{WIDTHU{1'b0}}, a_abs[WIDTHU-1]};
+                        quotient <= {a_abs[WIDTHU-2:0], 1'b0};
+                        divisor_u <= b_abs;
+                        
+                        count <= 0;
+                        state <= STATE_CALC;
                     end
                 end
             end
+
+            STATE_CALC:
+            begin
+                // Restoring division iteration
+                if (trial_ge)
+                begin
+                    // Subtraction succeeded: use result and shift in 1
+                    accumulator <= {trial_sub[WIDTHU-1:0], quotient[WIDTHU-1]};
+                    quotient <= {quotient[WIDTHU-2:0], 1'b1};
+                end
+                else
+                begin
+                    // Subtraction would underflow: just shift in 0
+                    accumulator <= {accumulator[WIDTHU-1:0], quotient[WIDTHU-1]};
+                    quotient <= {quotient[WIDTHU-2:0], 1'b0};
+                end
+                
+                count <= count + 1'b1;
+                
+                if (count == ITER - 1)
+                begin
+                    state <= STATE_SIGN;
+                end
+            end
+
+            STATE_SIGN:
+            begin
+                // Apply sign to result
+                if (quotient != 0 && sign_diff)
+                    y <= {1'b1, -quotient};
+                else
+                    y <= {1'b0, quotient};
+                
+                state <= STATE_DONE;
+            end
+
+            STATE_DONE:
+            begin
+                done <= 1'b1;
+                state <= STATE_IDLE;
+            end
+
+            default:
+            begin
+                state <= STATE_IDLE;
+            end
         endcase
-        if (rst) begin
-            state <= IDLE;
-            busy <= 0;
-            done <= 0;
-            valid <= 0;
-            dbz <= 0;
-            ovf <= 0;
-            val <= 0;
-        end
     end
+end
+
 endmodule

@@ -3,8 +3,6 @@
  * Performs ARITHM instructions that require multiple cycles
  * Uses a state machine to orchestrate the operations to the relevant submodules based on opcode
  * While this does add latency, it simplifies the design and makes it behave similar to the Memory Unit
- * TODO: the divider modules should be reimplemented as they are now just copied from the memory mapped
- * FPGC6 design
  */
 module MultiCycleALU (
     input wire          clk,
@@ -32,17 +30,14 @@ localparam
 
 // State machine states
 localparam
-    STATE_IDLE = 4'd0,
-    STATE_WAIT_MULTU = 4'd1,
-    STATE_WAIT_MULTS = 4'd2,
-    STATE_WAIT_MULTFP = 4'd3,
-    STATE_WRITE_IDIV = 4'd4,
-    STATE_WAIT_IDIV = 4'd5,
-    STATE_WRITE_FPDIV = 4'd6,
-    STATE_WAIT_FPDIV = 4'd7,
-    STATE_DONE = 4'd15;
+    STATE_IDLE      = 3'd0,
+    STATE_WAIT_MULTU = 3'd1,
+    STATE_WAIT_MULTS = 3'd2,
+    STATE_WAIT_MULTFP = 3'd3,
+    STATE_WAIT_IDIV = 3'd4,
+    STATE_WAIT_FPDIV = 3'd5;
 
-reg [3:0] state = STATE_IDLE;
+reg [2:0] state = STATE_IDLE;
 
 // Track whether we want quotient or remainder for integer division
 reg idiv_want_remainder = 1'b0;
@@ -86,51 +81,37 @@ Mults mults (
 reg [31:0] idiv_a = 32'd0;
 reg [31:0] idiv_b = 32'd0;
 reg idiv_signed = 1'b0;
-reg idiv_write_a = 1'b0;
 reg idiv_start = 1'b0;
 wire [31:0] idiv_quotient;
 wire [31:0] idiv_remainder;
-wire idiv_ready;
+wire idiv_done;
 IDivider idiv (
     .clk(clk),
-    .rst(reset),
+    .reset(reset),
     .a(idiv_a),
     .b(idiv_b),
-    .signed_ope(idiv_signed),
-    .write_a(idiv_write_a),
+    .is_signed(idiv_signed),
     .start(idiv_start),
-    .flush(1'b0),
-    .quotient(idiv_quotient),
-    .remainder(idiv_remainder),
-    .ready(idiv_ready)
+    .y_quotient(idiv_quotient),
+    .y_remainder(idiv_remainder),
+    .done(idiv_done)
 );
 
 // Fixed-point Divider
 reg [31:0] fpdiv_a = 32'd0;
 reg [31:0] fpdiv_b = 32'd0;
-reg fpdiv_write_a = 1'b0;
 reg fpdiv_start = 1'b0;
-wire fpdiv_busy;
+wire [31:0] fpdiv_y;
 wire fpdiv_done;
-wire fpdiv_valid;
-wire [31:0] fpdiv_val;
 FPDivider fpdiv (
     .clk(clk),
-    .rst(reset),
-    .a_in(fpdiv_a),
+    .reset(reset),
+    .a(fpdiv_a),
     .b(fpdiv_b),
-    .write_a(fpdiv_write_a),
     .start(fpdiv_start),
-    .busy(fpdiv_busy),
-    .done(fpdiv_done),
-    .valid(fpdiv_valid),
-    .dbz(),
-    .ovf(),
-    .val(fpdiv_val)
+    .y(fpdiv_y),
+    .done(fpdiv_done)
 );
-
-// Track previous ready state to detect completion
-reg idiv_ready_prev = 1'b1;
 
 always @ (posedge clk)
 begin
@@ -148,14 +129,11 @@ begin
         mults_a <= 32'd0;
         mults_b <= 32'd0;
         idiv_start <= 1'b0;
-        idiv_write_a <= 1'b0;
         idiv_a <= 32'd0;
         idiv_b <= 32'd0;
         idiv_signed <= 1'b0;
         idiv_want_remainder <= 1'b0;
-        idiv_ready_prev <= 1'b1;
         fpdiv_start <= 1'b0;
-        fpdiv_write_a <= 1'b0;
         fpdiv_a <= 32'd0;
         fpdiv_b <= 32'd0;
     end
@@ -167,12 +145,7 @@ begin
         multu_start <= 1'b0;
         mults_start <= 1'b0;
         idiv_start <= 1'b0;
-        idiv_write_a <= 1'b0;
         fpdiv_start <= 1'b0;
-        fpdiv_write_a <= 1'b0;
-        
-        // Track previous idiv_ready state
-        idiv_ready_prev <= idiv_ready;
         
         case (state)
             STATE_IDLE:
@@ -210,18 +183,16 @@ begin
                         idiv_b <= b;
                         idiv_signed <= (opcode == OP_DIVS || opcode == OP_MODS);
                         idiv_want_remainder <= (opcode == OP_MODS || opcode == OP_MODU);
-                        idiv_write_a <= 1'b1;
-                        // Don't start yet - wait for write_a to be processed
-                        state <= STATE_WRITE_IDIV;
+                        idiv_start <= 1'b1;
+                        state <= STATE_WAIT_IDIV;
                     end
 
                     if (opcode == OP_DIVFP)
                     begin
                         fpdiv_a <= a;
                         fpdiv_b <= b;
-                        fpdiv_write_a <= 1'b1;
-                        // Don't start yet - wait for write_a to be processed
-                        state <= STATE_WRITE_FPDIV;
+                        fpdiv_start <= 1'b1;
+                        state <= STATE_WAIT_FPDIV;
                     end
                 end
             end
@@ -256,18 +227,9 @@ begin
                 end
             end
 
-            STATE_WRITE_IDIV:
-            begin
-                // Dividend has been written, now start the division
-                idiv_start <= 1'b1;
-                state <= STATE_WAIT_IDIV;
-            end
-
             STATE_WAIT_IDIV:
             begin
-                // IDivider: ready goes low when busy, back to high when done
-                // Detect rising edge of ready (was low, now high)
-                if (idiv_ready && !idiv_ready_prev)
+                if (idiv_done)
                 begin
                     if (idiv_want_remainder)
                         y <= idiv_remainder;
@@ -278,18 +240,11 @@ begin
                 end
             end
 
-            STATE_WRITE_FPDIV:
-            begin
-                // Dividend has been written, now start the FP division
-                fpdiv_start <= 1'b1;
-                state <= STATE_WAIT_FPDIV;
-            end
-
             STATE_WAIT_FPDIV:
             begin
-                if (fpdiv_done && fpdiv_valid)
+                if (fpdiv_done)
                 begin
-                    y <= fpdiv_val;
+                    y <= fpdiv_y;
                     done <= 1'b1;
                     state <= STATE_IDLE;
                 end

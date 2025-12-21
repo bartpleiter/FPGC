@@ -1,135 +1,171 @@
 /*
-* 32-bit multicycle signed or unsigned integer divider
-* TODO: completely reimplement this module as it is now mostly copy pasted
-*/
-
+ * IDivider
+ * 32-bit multicycle signed or unsigned integer divider
+ * Uses restoring division algorithm with magnitude conversion
+ *
+ * Takes DATA_WIDTH+2 cycles to complete a division
+ */
 module IDivider #(
     parameter DATA_WIDTH = 32
 ) (
-    input clk,
-    input rst,
-    input [DATA_WIDTH-1:0] a,
-    input [DATA_WIDTH-1:0] b,
-    input signed_ope,
-    input write_a,
-    input start,
-    input flush,
-    output reg [DATA_WIDTH-1:0] quotient,
-    output reg [DATA_WIDTH-1:0] remainder,
-    output ready
+    //========================
+    // System interface
+    //========================
+    input  wire                     clk,
+    input  wire                     reset,
+
+    //========================
+    // Control interface
+    //========================
+    input  wire [DATA_WIDTH-1:0]    a,          // Dividend
+    input  wire [DATA_WIDTH-1:0]    b,          // Divisor
+    input  wire                     is_signed,  // 1 for signed, 0 for unsigned
+    input  wire                     start,      // Start division
+
+    output reg  [DATA_WIDTH-1:0]    y_quotient = 0,  // Quotient result
+    output reg  [DATA_WIDTH-1:0]    y_remainder = 0, // Remainder result
+    output reg                      done = 1'b0      // Division complete
 );
 
-  reg start_prev = 0;
+//========================
+// State Machine
+//========================
+localparam
+    STATE_IDLE      = 2'd0,
+    STATE_CALC      = 2'd1,
+    STATE_SIGN      = 2'd2,
+    STATE_DONE      = 2'd3;
 
-  reg [DATA_WIDTH-1:0] dividend = 0;
-  reg [DATA_WIDTH-1:0] divisor = 0;
+reg [1:0] state = STATE_IDLE;
 
+//========================
+// Internal Registers
+//========================
+localparam COUNT_WIDTH = $clog2(DATA_WIDTH + 1);
 
+reg [COUNT_WIDTH-1:0] count = 0;                    // Iteration counter
+reg [DATA_WIDTH-1:0] quotient = 0;                  // Working quotient
+reg [DATA_WIDTH-1:0] remainder = 0;                 // Working remainder
+reg [DATA_WIDTH-1:0] divisor = 0;                   // Stored divisor (unsigned)
+reg dividend_neg = 1'b0;                            // Original dividend was negative
+reg divisor_neg = 1'b0;                             // Original divisor was negative
 
-  
-  localparam COUNT_WIDTH = $clog2(DATA_WIDTH + 1);
+// Combinational: trial subtraction
+wire [DATA_WIDTH:0] trial_sub = {remainder, quotient[DATA_WIDTH-1]} - {1'b0, divisor};
+wire trial_ge = ~trial_sub[DATA_WIDTH]; // MSB is 0 means result >= 0
 
-  reg r_ready = 0;
-  reg r_signed_ope = 0;
-  reg [COUNT_WIDTH-1:0] r_count = 0;
-  reg [DATA_WIDTH-1:0] r_quotient = 0;
-  wire w_dividend_sign;
-  reg r_dividend_sign = 0;
-  wire remainder_sign;
-  reg [DATA_WIDTH:0] r_remainder = 0;
-  reg [DATA_WIDTH-1:0] r_divisor = 0;
-  wire [DATA_WIDTH:0] divisor_ext;
-  wire divisor_sign;
-  wire [DATA_WIDTH:0] rem_quo;
-  wire                diff_sign;
-  wire [DATA_WIDTH:0] sub_add;
-
-  assign ready = r_ready;
-
-  assign divisor_sign = r_divisor[DATA_WIDTH-1] & r_signed_ope;
-  assign divisor_ext = {divisor_sign, r_divisor};
-  assign remainder_sign = r_remainder[DATA_WIDTH];
-
-  assign rem_quo = {r_remainder[DATA_WIDTH-1:0], r_quotient[DATA_WIDTH-1]};
-  assign diff_sign = remainder_sign ^ divisor_sign;
-  assign sub_add = diff_sign ? rem_quo + divisor_ext :
-                               rem_quo - divisor_ext;
-
-  // after process
-  always @(*) begin
-    quotient  = (r_quotient << 1) | 1;
-    remainder = r_remainder[DATA_WIDTH-1:0];
-
-    if (r_remainder == 0) begin
-      // do nothing
-    end else if (r_remainder == divisor_ext) begin
-      quotient  = quotient + 1;
-      remainder = remainder - r_divisor;
-    end else if (r_remainder == -divisor_ext) begin
-      quotient  = quotient - 1;
-      remainder = remainder + r_divisor;
-    end else if (remainder_sign ^ r_dividend_sign) begin
-      if (diff_sign) begin
-        quotient  = quotient - 1;
-        remainder = remainder + r_divisor;
-      end else begin
-        quotient  = quotient + 1;
-        remainder = remainder - r_divisor;
-      end
+always @(posedge clk)
+begin
+    if (reset)
+    begin
+        state <= STATE_IDLE;
+        count <= 0;
+        quotient <= 0;
+        remainder <= 0;
+        divisor <= 0;
+        dividend_neg <= 1'b0;
+        divisor_neg <= 1'b0;
+        y_quotient <= 0;
+        y_remainder <= 0;
+        done <= 1'b0;
     end
-  end
+    else
+    begin
+        // Default assignment
+        done <= 1'b0;
 
-  assign w_dividend_sign = dividend[DATA_WIDTH-1] & signed_ope;
+        case (state)
+            STATE_IDLE:
+            begin
+                if (start)
+                begin
+                    // Remember signs for signed division
+                    dividend_neg <= is_signed & a[DATA_WIDTH-1];
+                    divisor_neg <= is_signed & b[DATA_WIDTH-1];
 
-  always @(posedge clk)
-  begin
-      start_prev <= start;
-      if (write_a)
-      begin
-        dividend <= a;
-      end
-      if (start && !start_prev)
-      begin
-          divisor <= b;
-      end
-  end
+                    // Handle divide by zero
+                    if (b == 0)
+                    begin
+                        y_quotient <= {DATA_WIDTH{1'b1}};       // -1 in two's complement
+                        y_remainder <= a;
+                        done <= 1'b1;
+                        state <= STATE_IDLE;
+                    end
+                    else
+                    begin
+                        // Convert to positive magnitudes for calculation
+                        // Use unsigned division then fix signs at end
+                        if (is_signed && a[DATA_WIDTH-1])
+                            quotient <= -a;     // abs(dividend) stored in quotient shift reg
+                        else
+                            quotient <= a;
 
-  always @(posedge clk) begin
-    if (rst) begin
-      r_quotient      <= 0;
-      r_dividend_sign <= 0;
-      r_remainder     <= 0;
-      r_divisor       <= 0;
-      r_count         <= 0;
-      r_ready         <= 1'b1;
-      r_signed_ope    <= 1'b0;
-    end else begin
-      if (flush) begin
-        r_count         <= 0;
-        r_ready         <= 1'b1;
-      end else if (start && !start_prev) // use b for this first cycle, as divisor are latched during this cycle
-      begin
-        // RISC-V's div by 0 spec
-        if (b == 0) begin
-            r_quotient  <= 1;
-            r_remainder <= {w_dividend_sign, dividend};
-        end else begin
-            r_quotient  <= dividend;
-            r_remainder <= {(DATA_WIDTH+1){w_dividend_sign}};
-            r_ready     <= 1'b0;
-        end
-        r_count         <= 0;
-        r_dividend_sign <= w_dividend_sign;
-        r_divisor       <= b;
-        r_signed_ope    <= signed_ope;
-      end else if (~ready) begin
-        r_quotient  <= {r_quotient[DATA_WIDTH-2:0], ~diff_sign};
-        r_remainder <= sub_add[DATA_WIDTH:0];
-        r_count     <= r_count + 1;
-        if (r_count == DATA_WIDTH - 1) begin
-          r_ready <= 1'b1;
-        end
-      end
+                        if (is_signed && b[DATA_WIDTH-1])
+                            divisor <= -b;      // abs(divisor)
+                        else
+                            divisor <= b;
+
+                        remainder <= 0;
+                        count <= 0;
+                        state <= STATE_CALC;
+                    end
+                end
+            end
+
+            STATE_CALC:
+            begin
+                // Restoring division: shift and subtract
+                if (trial_ge)
+                begin
+                    // Subtraction succeeded
+                    remainder <= trial_sub[DATA_WIDTH-1:0];
+                    quotient <= {quotient[DATA_WIDTH-2:0], 1'b1};
+                end
+                else
+                begin
+                    // Subtraction would underflow, restore (just shift)
+                    remainder <= {remainder[DATA_WIDTH-2:0], quotient[DATA_WIDTH-1]};
+                    quotient <= {quotient[DATA_WIDTH-2:0], 1'b0};
+                end
+                
+                count <= count + 1'b1;
+                
+                if (count == DATA_WIDTH - 1)
+                begin
+                    state <= STATE_SIGN;
+                end
+            end
+
+            STATE_SIGN:
+            begin
+                // Apply sign corrections for signed division
+                // Quotient sign: negative if exactly one operand was negative
+                // Remainder sign: same sign as dividend
+                if (dividend_neg ^ divisor_neg)
+                    y_quotient <= -quotient;
+                else
+                    y_quotient <= quotient;
+                
+                if (dividend_neg)
+                    y_remainder <= -remainder;
+                else
+                    y_remainder <= remainder;
+                
+                state <= STATE_DONE;
+            end
+
+            STATE_DONE:
+            begin
+                done <= 1'b1;
+                state <= STATE_IDLE;
+            end
+
+            default:
+            begin
+                state <= STATE_IDLE;
+            end
+        endcase
     end
-  end
+end
+
 endmodule
