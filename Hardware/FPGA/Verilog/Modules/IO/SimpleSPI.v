@@ -105,8 +105,11 @@ begin
                 begin
                     tx_shift <= data_in;
                     spi_mosi <= data_in[7];     // Set up MSB first (CPHA=0)
-                    tx_bit_idx <= 3'd6;          // Next bit to send
-                    edge_count <= 5'd16;         // 16 clock edges total
+                    tx_bit_idx <= 3'd6;         // Next bit to send
+                    if (CLKS_PER_HALF_BIT > 1)
+                        edge_count <= 5'd16;    // 16 clock edges total
+                    else
+                        edge_count <= 5'd15;    // fix for CLKS_PER_HALF_BIT=1
                     state <= STATE_TRANSFER;
                 end
             end
