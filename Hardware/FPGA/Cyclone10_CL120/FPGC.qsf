@@ -345,8 +345,8 @@ set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/TimingGenerator.
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/PixelEngine.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/FSX.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/BGWrenderer.v
-set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/MultiCycleAluOps/MultuPipelined.v
-set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/MultiCycleAluOps/MultsPipelined.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/MultiCycleAluOps/Multu.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/MultiCycleAluOps/Mults.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/Stack.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/Regr.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/Regbank.v

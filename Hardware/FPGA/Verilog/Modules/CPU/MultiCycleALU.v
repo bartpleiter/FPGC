@@ -56,7 +56,7 @@ reg [31:0] multu_b = 32'd0;
 wire [63:0] multu_y;
 reg multu_start = 1'b0;
 wire multu_done;
-MultuPipelined multu (
+Multu multu (
     .clk(clk),
     .reset(reset),
     .a(multu_a),
@@ -72,7 +72,7 @@ reg [31:0] mults_b = 32'd0;
 wire [63:0] mults_y;
 reg mults_start = 1'b0;
 wire mults_done;
-MultsPipelined mults (
+Mults mults (
     .clk(clk),
     .reset(reset),
     .a(mults_a),
