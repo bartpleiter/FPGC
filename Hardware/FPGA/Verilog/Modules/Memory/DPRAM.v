@@ -2,9 +2,10 @@
  * DPRAM
  * Dual port, dual clock RAM implementation (for L1 cache)
  * One port for CPU pipeline and one port for cache controller
+ * Cache line format: {256bit_data, 14bit_tag, 1bit_valid} = 271 bits
  */
 module DPRAM #(
-    parameter WIDTH     = 274, // 8 words per cache line + 16 bit tag + 2 bits for valid and dirty
+    parameter WIDTH     = 271, // 8 words per cache line + 14 bit tag + 1 bit for valid
     parameter WORDS     = 128, // 128 cache lines
     parameter ADDR_BITS = 7    // 128 cache lines require 7 address bits
 ) (

@@ -68,15 +68,17 @@ module B32P2 #(
 
     //========================
     // L1i cache (CPU pipeline port)
+    // Cache line format: {256bit_data, 14bit_tag, 1bit_valid} = 271 bits
     //========================
     output wire [6:0]   l1i_pipe_addr,
-    input  wire [273:0] l1i_pipe_q,
+    input  wire [270:0] l1i_pipe_q,
 
     //========================
     // L1d cache (CPU pipeline port)
+    // Cache line format: {256bit_data, 14bit_tag, 1bit_valid} = 271 bits
     //========================
     output wire [6:0]   l1d_pipe_addr,
-    input  wire [273:0] l1d_pipe_q,
+    input  wire [270:0] l1d_pipe_q,
 
     //========================
     // Cache controller
@@ -340,11 +342,11 @@ wire bubble_FE2 = !n_bubble_FE2;
  */
 
 // l1i_pipe_q stall handling
-reg [273:0] l1i_pipe_q_reg = 32'd0;
+reg [270:0] l1i_pipe_q_reg = 271'd0;
 reg stall_FE2_reg = 1'b0;
 always @(posedge clk) begin
     if (reset || flush_FE2) begin
-        l1i_pipe_q_reg <= 32'd0;
+        l1i_pipe_q_reg <= 271'd0;
         stall_FE2_reg <= 1'b0;
     end else
     begin
@@ -361,22 +363,22 @@ assign mem_rom_FE2 = PC_FE2 >= ROM_ADDRESS;
 wire [31:0] rom_q_FE2 = rom_fe_q;
 
 // L1i cache hit decoding
-
-wire [15:0] l1i_tag_FE2 = PC_FE2[25:10]; // Tag for the cache line
+// Cache line format: {256bit_data[270:15], 14bit_tag[14:1], 1bit_valid[0]}
+wire [13:0] l1i_tag_FE2 = PC_FE2[23:10]; // Tag for the cache line (14 bits for 64MB)
 wire [2:0] l1i_offset_FE2 = PC_FE2[2:0]; // Offset within the cache line
 
 wire l1i_cache_hit_FE2 = 
     valid_mem_access_FE2 &&
     !bubble_FE2 &&
-    (l1i_tag_FE2 == l1i_pipe_q[17:2]) &&
-    l1i_pipe_q[1]; // Valid bit
+    (l1i_tag_FE2 == l1i_pipe_q[14:1]) &&
+    l1i_pipe_q[0]; // Valid bit
 
-wire [31:0] l1i_cache_hit_q_FE2 = l1i_pipe_q[32 * l1i_offset_FE2 + 18 +: 32]; // Note that the +: is used to select base +: width
-wire [31:0] l1i_cache_hit_q_stall_FE2 = l1i_pipe_q_reg[32 * l1i_offset_FE2 + 18 +: 32]; // Use the registered value when stalled
+wire [31:0] l1i_cache_hit_q_FE2 = l1i_pipe_q[32 * l1i_offset_FE2 + 15 +: 32]; // Note that the +: is used to select base +: width
+wire [31:0] l1i_cache_hit_q_stall_FE2 = l1i_pipe_q_reg[32 * l1i_offset_FE2 + 15 +: 32]; // Use the registered value when stalled
 
 // L1i cache miss handling
 wire l1i_cache_miss_FE2;
-assign l1i_cache_miss_FE2 = l1i_cache_miss_state_FE2 != L1I_CACHE_RESULT_READY && !bubble_FE2 && valid_mem_access_FE2 && !(l1i_tag_FE2 == l1i_pipe_q[17:2] && l1i_pipe_q[1]);
+assign l1i_cache_miss_FE2 = l1i_cache_miss_state_FE2 != L1I_CACHE_RESULT_READY && !bubble_FE2 && valid_mem_access_FE2 && !(l1i_tag_FE2 == l1i_pipe_q[14:1] && l1i_pipe_q[0]);
 
 // Cache miss state machine
 reg [1:0] l1i_cache_miss_state_FE2 = 2'b00;
@@ -411,7 +413,7 @@ always @(posedge clk) begin
             L1I_CACHE_STARTED: begin
                 // Request has been started, so if there is a flush we need to abort it
                 // If we suddenly get a cache hit after starting (because of ignore signal), we can abort this request too
-                if (flush_FE2 || (l1i_tag_FE2 == l1i_pipe_q[17:2] && l1i_pipe_q[1])) begin
+                if (flush_FE2 || (l1i_tag_FE2 == l1i_pipe_q[14:1] && l1i_pipe_q[0])) begin
                     l1i_cache_miss_state_FE2 <= L1I_CACHE_IDLE;
                     l1i_cache_controller_start_reg <= 1'b0;
                     l1i_cache_controller_flush_reg <= 1'b1;
@@ -425,7 +427,7 @@ always @(posedge clk) begin
             L1I_CACHE_WAIT_DONE: begin
                 // Request has been started, so if there is a flush we need to abort it
                 // If we suddenly get a cache hit after starting (because of ignore signal), we can abort this request too
-                if (flush_FE2 || (l1i_tag_FE2 == l1i_pipe_q[17:2] && l1i_pipe_q[1])) begin
+                if (flush_FE2 || (l1i_tag_FE2 == l1i_pipe_q[14:1] && l1i_pipe_q[0])) begin
                     l1i_cache_miss_state_FE2 <= L1I_CACHE_IDLE;
                     l1i_cache_controller_flush_reg <= 1'b1;
                 end
@@ -891,18 +893,19 @@ assign vramPX_d = data_b_EXMEM2;
 
 
 // L1d cache hit decoding
+// Cache line format: {256bit_data[270:15], 14bit_tag[14:1], 1bit_valid[0]}
 
-wire [15:0] l1d_tag_EXMEM2 = mem_local_address_EXMEM2[25:10]; // Tag for the cache line
+wire [13:0] l1d_tag_EXMEM2 = mem_local_address_EXMEM2[23:10]; // Tag for the cache line (14 bits for 64MB)
 wire [2:0] l1d_offset_EXMEM2 = mem_local_address_EXMEM2[2:0]; // Offset within the cache line
 
 wire l1d_cache_hit_EXMEM2 = 
     (mem_read_EXMEM2) &&
     (mem_sdram_EXMEM2) &&
-    (l1d_tag_EXMEM2 == l1d_pipe_q[17:2]) &&
-    l1d_pipe_q[1] && // Valid bit
+    (l1d_tag_EXMEM2 == l1d_pipe_q[14:1]) &&
+    l1d_pipe_q[0] && // Valid bit
     l1d_cache_miss_state_EXMEM2 == L1D_CACHE_IDLE; // Make sure we are not currently handling a cache miss
 
-wire [31:0] l1d_cache_hit_q_EXMEM2 = l1d_pipe_q[32 * l1d_offset_EXMEM2 + 18 +: 32]; // Note that the +: is used to select base +: width
+wire [31:0] l1d_cache_hit_q_EXMEM2 = l1d_pipe_q[32 * l1d_offset_EXMEM2 + 15 +: 32]; // Note that the +: is used to select base +: width
 
 // L1d cache miss handling
 wire l1d_cache_miss_EXMEM2;

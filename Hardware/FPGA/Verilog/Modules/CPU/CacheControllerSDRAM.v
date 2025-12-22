@@ -8,7 +8,12 @@
  * - DPRAM for L1 data cache (hardcoded to 7 bits, or 128 lines)
  * - CPU pipeline for commands from FE2 and EXMEM2 stages
  * - SDRAM controller for memory access
- * NOTE: The SDRAM controller uses 256 bit addressing
+ * 
+ * Cache line format: {256bit_data, 14bit_tag, 1bit_valid} = 271 bits
+ * - Tag is 14 bits to support 64MB address space (24-bit word address - 7-bit index - 3-bit offset)
+ * - Dirty bit is stored separately in l1d_dirty_bits register array for fast access
+ * 
+ * NOTE: The SDRAM controller uses 256 bit (21-bit) addressing for 64MB
  */
 module CacheController (
     //========================
@@ -41,18 +46,20 @@ module CacheController (
 
     //========================
     // L1 cache DPRAM interface
+    // Cache line format: {256bit_data, 14bit_tag, 1bit_valid} = 271 bits
+    // Tag is 14 bits for 64MB address space (24-bit word address - 7-bit index - 3-bit offset)
     //========================
     // L1i cache
-    output reg  [273:0] l1i_ctrl_d          = 274'b0,
+    output reg  [270:0] l1i_ctrl_d          = 271'b0,
     output reg  [6:0]   l1i_ctrl_addr       = 7'b0,
     output reg          l1i_ctrl_we         = 1'b0,
-    input  wire [273:0] l1i_ctrl_q,
+    input  wire [270:0] l1i_ctrl_q,
 
     // L1d cache
-    output reg  [273:0] l1d_ctrl_d          = 274'b0,
+    output reg  [270:0] l1d_ctrl_d          = 271'b0,
     output reg  [6:0]   l1d_ctrl_addr       = 7'b0,
     output reg          l1d_ctrl_we         = 1'b0,
-    input  wire [273:0] l1d_ctrl_q,
+    input  wire [270:0] l1d_ctrl_q,
 
     //========================
     // SDRAM controller interface
@@ -113,12 +120,13 @@ localparam
     STATE_L1D_READ_FAST_WAIT_DATA               = 8'd33,  // Wait for SDRAM data (skipped dirty check)
     STATE_L1D_READ_FAST_WRITE_TO_CACHE          = 8'd34,  // Write to cache and signal done
     
-    // L1I Prefetching States - DISABLED
-    // Prefetching was causing timing issues with the CPU pipeline.
-    // See STATE_L1I_SIGNAL_CPU_DONE for details.
-    STATE_L1I_PREFETCH_START                    = 8'd35,  // UNUSED
-    STATE_L1I_PREFETCH_WAIT_DATA                = 8'd36,  // UNUSED  
-    STATE_L1I_PREFETCH_WRITE_TO_CACHE           = 8'd37;  // UNUSED
+    // L1I Prefetching States
+    // Simple next-line prefetcher that runs during true idle time.
+    // After servicing an L1I miss, we queue a prefetch of the next sequential cache line.
+    // The prefetch only executes when there are no other pending requests.
+    STATE_L1I_PREFETCH_CHECK                    = 8'd35,  // Check if prefetch target is already in cache
+    STATE_L1I_PREFETCH_WAIT_DATA                = 8'd36,  // Wait for SDRAM data
+    STATE_L1I_PREFETCH_WRITE_TO_CACHE           = 8'd37;  // Write prefetched line to cache
 
 
 reg [7:0] state = STATE_IDLE;
@@ -147,11 +155,13 @@ reg [6:0] clear_cache_index = 7'd0; // Index for iterating through cache lines (
 //========================
 // L1I Prefetching Optimization
 //========================
-// After servicing an L1I miss, automatically prefetch the next sequential cache line
-// This improves performance for sequential code execution (which is the common case)
+// Simple next-line prefetcher: after servicing an L1I miss, queue a prefetch
+// of the next sequential cache line. The prefetch executes during true idle time.
+// This doesn't reduce latency of the current miss, but prevents future sequential misses.
 reg         l1i_prefetch_pending = 1'b0;     // Flag indicating a prefetch is waiting to be executed
-reg [31:0]  l1i_prefetch_addr = 32'd0;       // Address of the cache line to prefetch
-// Note: prefetch_addr uses the same format as cpu_FE2_addr (32-bit word address)
+reg [23:0]  l1i_prefetch_addr = 24'd0;       // 24-bit word address of the cache line to prefetch (64MB)
+// Note: we only need 24 bits for the address (64MB = 2^24 words)
+// The prefetch address is the next sequential cache line (addr + 8 words)
 //========================
 // Dirty Bit Array Optimization
 //========================
@@ -182,10 +192,10 @@ begin
         sdc_we <= 1'b0;
         sdc_start <= 1'b0;
 
-        l1i_ctrl_d <= 274'b0;
+        l1i_ctrl_d <= 271'b0;
         l1i_ctrl_addr <= 7'b0;
         l1i_ctrl_we <= 1'b0;
-        l1d_ctrl_d <= 274'b0;
+        l1d_ctrl_d <= 271'b0;
         l1d_ctrl_addr <= 7'b0;
         l1d_ctrl_we <= 1'b0;
 
@@ -208,7 +218,7 @@ begin
         l1d_dirty_bits <= 128'b0; // Clear all dirty bits on reset
 
         l1i_prefetch_pending <= 1'b0; // Clear prefetch pending flag on reset
-        l1i_prefetch_addr <= 32'd0;
+        l1i_prefetch_addr <= 24'd0;
 
         ignore_fe2_result <= 1'b0;
         get_address_after_ignore <= 1'b0;
@@ -318,7 +328,7 @@ begin
                             // Line is clean - use fast path: skip DPRAM read, go directly to SDRAM
                             sdc_we <= 1'b0;
                             sdc_start <= 1'b1;
-                            sdc_addr <= cpu_EXMEM2_start ? cpu_EXMEM2_addr[31:3] : cpu_EXMEM2_addr_stored[31:3];
+                            sdc_addr <= cpu_EXMEM2_start ? cpu_EXMEM2_addr[23:3] : cpu_EXMEM2_addr_stored[23:3];
                             state <= STATE_L1D_READ_FAST_WAIT_DATA;
                         end
                         else
@@ -341,7 +351,7 @@ begin
                     // Request sdram controller with arguments depending on the availability in the _stored registers
                     sdc_we <= 1'b0;
                     sdc_start <= 1'b1;
-                    sdc_addr <= cpu_FE2_start ? cpu_FE2_addr[31:3] : cpu_FE2_addr_stored[31:3];
+                    sdc_addr <= cpu_FE2_start ? cpu_FE2_addr[23:3] : cpu_FE2_addr_stored[23:3];
 
                     cpu_FE2_new_request <= 1'b0; // Clear the request flag
 
@@ -349,8 +359,15 @@ begin
 
                 end
 
-                // L1I PREFETCH OPTIMIZATION: Disabled - see STATE_L1I_SIGNAL_CPU_DONE comment
-                // L1I prefetching is disabled (see STATE_L1I_SIGNAL_CPU_DONE)
+                // L1I PREFETCH: Execute pending prefetch when truly idle
+                // Only prefetch when there are no pending CPU requests
+                else if (l1i_prefetch_pending)
+                begin
+                    // Read the target cache line to check if it's already in cache
+                    l1i_ctrl_addr <= l1i_prefetch_addr[9:3]; // Cache index
+                    l1i_ctrl_we <= 1'b0;
+                    state <= STATE_L1I_PREFETCH_CHECK;
+                end
             end
 
             // ------------------------
@@ -377,8 +394,8 @@ begin
                     endcase
 
                     // Write the retrieved cache line directly to DPRAM
-                    // Format: {256bit_data, 16bit_tag, 1'b1(valid), 1'b0(dirty)}
-                    l1i_ctrl_d <= {sdc_q, cpu_FE2_addr_stored[25:10], 1'b1, 1'b0};
+                    // Format: {256bit_data, 14bit_tag, 1bit_valid}
+                    l1i_ctrl_d <= {sdc_q, cpu_FE2_addr_stored[23:10], 1'b1};
                     l1i_ctrl_addr <= cpu_FE2_addr_stored[9:3]; // DPRAM index, aligned on cache line size (8 words = 256 bits)
                     l1i_ctrl_we <= 1'b1;
 
@@ -405,37 +422,70 @@ begin
             end
 
             STATE_L1I_SIGNAL_CPU_DONE: begin
-                // L1I PREFETCH OPTIMIZATION:
-                // DISABLED - causes 7 B32CC test failures
-                // Root cause: The prefetch reduces L1I miss latency, which causes the CPU to execute
-                // faster. This faster execution appears to expose a timing-related bug, possibly in
-                // the CPU's hazard detection or forwarding logic. When instructions execute faster,
-                // data dependencies are not being properly handled.
-                // 
-                // TODO: Investigate CPU pipeline hazard detection timing with reduced L1I latency.
-                // The issue manifests as register values not being forwarded correctly when
-                // subsequent instructions execute too quickly after a preceding ALU operation.
+                // L1I PREFETCH: Queue prefetch of next sequential cache line
+                // The prefetch will execute during idle time, not affecting current instruction stream.
+                // Only queue if not flushed
+                if (!ignore_fe2_result && !cpu_FE2_flush)
+                begin
+                    // Next cache line is current address + 8 words (one cache line)
+                    l1i_prefetch_pending <= 1'b1;
+                    l1i_prefetch_addr <= cpu_FE2_addr_stored[23:0] + 24'd8; // Next cache line
+                end
                 
                 state <= STATE_IDLE;
             end
 
             // ------------------------
-            // L1I Prefetch States - DISABLED
-            // These states are defined but currently unused due to timing issues.
-            // See STATE_L1I_SIGNAL_CPU_DONE for details on why prefetching is disabled.
+            // L1I Prefetch States
+            // Simple next-line prefetcher that runs during true idle time.
             // ------------------------
+
+            STATE_L1I_PREFETCH_CHECK: begin
+                // Wait one cycle for DPRAM read, then check if line is already in cache
+                // If a CPU request comes in, abort prefetch and handle the request
+                if (cpu_FE2_new_request || cpu_FE2_start || 
+                    cpu_EXMEM2_new_request || cpu_EXMEM2_start ||
+                    cpu_clear_cache_new_request)
+                begin
+                    // Abort prefetch - a real request has priority
+                    l1i_prefetch_pending <= 1'b0;
+                    state <= STATE_IDLE;
+                end
+                else
+                begin
+                    // Check if the prefetch target is already in cache
+                    // Cache line format: {256bit_data[270:15], 14bit_tag[14:1], 1bit_valid[0]}
+                    if (l1i_ctrl_q[0] && (l1i_ctrl_q[14:1] == l1i_prefetch_addr[23:10]))
+                    begin
+                        // Already in cache - no need to prefetch
+                        l1i_prefetch_pending <= 1'b0;
+                        state <= STATE_IDLE;
+                    end
+                    else
+                    begin
+                        // Not in cache - fetch from SDRAM
+                        sdc_we <= 1'b0;
+                        sdc_start <= 1'b1;
+                        sdc_addr <= l1i_prefetch_addr[23:3]; // 21-bit SDRAM address
+                        state <= STATE_L1I_PREFETCH_WAIT_DATA;
+                    end
+                end
+            end
 
             STATE_L1I_PREFETCH_WAIT_DATA: begin
                 // Disassert sdc signals
                 sdc_start <= 1'b0;
                 sdc_addr <= 21'd0;
                 
+                // If a CPU request comes in while waiting, we can't abort mid-SDRAM-access
+                // So we'll complete the prefetch but then immediately handle the request
+                
                 // Wait for SDRAM controller to be done
                 if (sdc_done)
                 begin
                     // Write the retrieved cache line directly to L1I DPRAM
-                    // Format: {256bit_data, 16bit_tag, 1'b1(valid), 1'b0(dirty)}
-                    l1i_ctrl_d <= {sdc_q, l1i_prefetch_addr[25:10], 1'b1, 1'b0};
+                    // Format: {256bit_data, 14bit_tag, 1bit_valid}
+                    l1i_ctrl_d <= {sdc_q, l1i_prefetch_addr[23:10], 1'b1};
                     l1i_ctrl_addr <= l1i_prefetch_addr[9:3]; // DPRAM index
                     l1i_ctrl_we <= 1'b1;
                     
@@ -447,8 +497,8 @@ begin
                 // Disassert the write enable
                 l1i_ctrl_we <= 1'b0;
                 
-                // Prefetch complete - return to IDLE
-                // Note: we do NOT signal cpu_done, this was a background operation
+                // Prefetch complete - mark as done and return to IDLE
+                l1i_prefetch_pending <= 1'b0;
                 
                 state <= STATE_IDLE;
             end
@@ -464,22 +514,25 @@ begin
 
             STATE_L1D_READ_CHECK_CACHE: begin
                 // Cache line is in l1d_ctrl_q
-                // valid = l1d_ctrl_q[1]
-                // dirty = l1d_ctrl_q[0]
-                // tag = l1d_ctrl_q[17:2]
-                // data = l1d_ctrl_q[273:18]
+                // format: {256bit_data, 14bit_tag, 1bit_valid}
+                // valid = l1d_ctrl_q[0]
+                // tag = l1d_ctrl_q[14:1]
+                // data = l1d_ctrl_q[270:15]
+                // Dirty status comes from l1d_dirty_bits array
 
-                // We already know it is a cache miss, otherwise the CPU would not have requested the read, so we only need to check for the dirty bit
-                if (l1d_ctrl_q[0])
+                // We already know it is a cache miss, otherwise the CPU would not have requested the read
+                // Check dirty bit from the array (we only reach this state if dirty bits said dirty)
+                // Note: l1d_dirty_bits was already checked in STATE_IDLE, but we double-check here for safety
+                if (l1d_dirty_bits[cpu_EXMEM2_addr_stored[9:3]])
                 begin
                     //$display("%d: CacheController L1D cache line is dirty, need to evict first", $time);
                     sdc_we <= 1'b1;
                     sdc_start <= 1'b1;
                     // We need to write the address of the old cache line, so we need to use:
-                    // the tag l1d_ctrl_q[17:2]
+                    // the tag l1d_ctrl_q[14:1]
                     // the index of the cache line cpu_EXMEM2_addr_stored[9:3], which is aligned to 256 bits (8 words)
-                    sdc_addr <= {l1d_ctrl_q[17:2], cpu_EXMEM2_addr_stored[9:3]};
-                    sdc_data <= l1d_ctrl_q[273:18]; // Data to write, which is the cache line data
+                    sdc_addr <= {l1d_ctrl_q[14:1], cpu_EXMEM2_addr_stored[9:3]};
+                    sdc_data <= l1d_ctrl_q[270:15]; // Data to write, which is the cache line data
 
                     state <= STATE_L1D_READ_EVICT_DIRTY_SEND_CMD;
 
@@ -490,7 +543,7 @@ begin
                     // If not dirty, we can directly read the new cache line
                     sdc_we <= 1'b0;
                     sdc_start <= 1'b1;
-                    sdc_addr <= cpu_EXMEM2_addr_stored[31:3];
+                    sdc_addr <= cpu_EXMEM2_addr_stored[23:3];
 
                     state <= STATE_L1D_READ_WAIT_DATA;
                 end
@@ -513,7 +566,7 @@ begin
             STATE_L1D_READ_SEND_CMD: begin
                 sdc_we <= 1'b0;
                 sdc_start <= 1'b1;
-                sdc_addr <= cpu_EXMEM2_addr_stored[31:3];
+                sdc_addr <= cpu_EXMEM2_addr_stored[23:3];
 
                 state <= STATE_L1D_READ_WAIT_DATA;
             end
@@ -539,8 +592,8 @@ begin
                     endcase
 
                     // Write the retrieved cache line directly to DPRAM
-                    // Format: {256bit_data, 16bit_tag, 1'b1(valid), 1'b0(dirty)}
-                    l1d_ctrl_d <= {sdc_q, cpu_EXMEM2_addr_stored[25:10], 1'b1, 1'b0};
+                    // Format: {256bit_data, 14bit_tag, 1bit_valid}
+                    l1d_ctrl_d <= {sdc_q, cpu_EXMEM2_addr_stored[23:10], 1'b1};
                     l1d_ctrl_addr <= cpu_EXMEM2_addr_stored[9:3]; // DPRAM index, aligned on cache line size (8 words = 256 bits)
                     l1d_ctrl_we <= 1'b1;
 
@@ -593,9 +646,8 @@ begin
                     endcase
 
                     // Write the retrieved cache line directly to DPRAM
-                    // Format: {256bit_data, 16bit_tag, 1'b1(valid), 1'b0(dirty)}
-                    // Note: dirty bit is 0 because we just fetched fresh data from SDRAM
-                    l1d_ctrl_d <= {sdc_q, cpu_EXMEM2_addr_stored[25:10], 1'b1, 1'b0};
+                    // Format: {256bit_data, 14bit_tag, 1bit_valid}
+                    l1d_ctrl_d <= {sdc_q, cpu_EXMEM2_addr_stored[23:10], 1'b1};
                     l1d_ctrl_addr <= cpu_EXMEM2_addr_stored[9:3];
                     l1d_ctrl_we <= 1'b1;
 
@@ -630,60 +682,61 @@ begin
 
             STATE_L1D_WRITE_CHECK_CACHE: begin
                 // Cache line is in l1d_ctrl_q
-                // valid = l1d_ctrl_q[1]
-                // dirty = l1d_ctrl_q[0]
-                // tag = l1d_ctrl_q[17:2]
-                // data = l1d_ctrl_q[273:18]
+                // format: {256bit_data, 14bit_tag, 1bit_valid}
+                // valid = l1d_ctrl_q[0]
+                // tag = l1d_ctrl_q[14:1]
+                // data = l1d_ctrl_q[270:15]
+                // Dirty status comes from l1d_dirty_bits array
 
                 // Check for cache hit: valid bit is set and tag matches
-                //$display("%d: CacheController L1D WRITE check cache: addr=0x%h, cache_line_valid=%b, cache_line_dirty=%b, cache_line_tag=0x%h, expected_tag=0x%h", $time, cpu_EXMEM2_addr_stored, l1d_ctrl_q[1], l1d_ctrl_q[0], l1d_ctrl_q[17:2], cpu_EXMEM2_addr_stored[25:10]);
-                if (l1d_ctrl_q[1] && (l1d_ctrl_q[17:2] == cpu_EXMEM2_addr_stored[25:10]))
+                //$display("%d: CacheController L1D WRITE check cache: addr=0x%h, cache_line_valid=%b, cache_line_dirty=%b, cache_line_tag=0x%h, expected_tag=0x%h", $time, cpu_EXMEM2_addr_stored, l1d_ctrl_q[0], l1d_dirty_bits[cpu_EXMEM2_addr_stored[9:3]], l1d_ctrl_q[14:1], cpu_EXMEM2_addr_stored[23:10]);
+                if (l1d_ctrl_q[0] && (l1d_ctrl_q[14:1] == cpu_EXMEM2_addr_stored[23:10]))
                 begin
                     //$display("%d: CacheController L1D WRITE CACHE HIT", $time);
-                    // Cache hit: immediately write back to DPRAM with the new instruction and the dirty bit set
-                    l1d_ctrl_d[17:0] <= {cpu_EXMEM2_addr_stored[25:10], 1'b1, 1'b1};
+                    // Cache hit: immediately write back to DPRAM with the new data (dirty bit is in array)
+                    l1d_ctrl_d[14:0] <= {cpu_EXMEM2_addr_stored[23:10], 1'b1};
                     l1d_ctrl_addr <= cpu_EXMEM2_addr_stored[9:3]; // DPRAM index, aligned on cache line size (8 words = 256 bits)
                     l1d_ctrl_we <= 1'b1;
 
                     // Update the cache line data at the correct offset
                     case (cpu_EXMEM2_addr_stored[2:0])
                         3'd0: begin
-                            l1d_ctrl_d[49:18]    <= cpu_EXMEM2_data_stored;
-                            l1d_ctrl_d[273:50]   <= l1d_ctrl_q[273:50];
+                            l1d_ctrl_d[46:15]    <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[270:47]   <= l1d_ctrl_q[270:47];
                         end
                         3'd1: begin
-                            l1d_ctrl_d[81:50]    <= cpu_EXMEM2_data_stored;
-                            l1d_ctrl_d[49:18]    <= l1d_ctrl_q[49:18];
-                            l1d_ctrl_d[273:82]   <= l1d_ctrl_q[273:82];
+                            l1d_ctrl_d[78:47]    <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[46:15]    <= l1d_ctrl_q[46:15];
+                            l1d_ctrl_d[270:79]   <= l1d_ctrl_q[270:79];
                         end
                         3'd2: begin
-                            l1d_ctrl_d[113:82]   <= cpu_EXMEM2_data_stored;
-                            l1d_ctrl_d[81:18]    <= l1d_ctrl_q[81:18];
-                            l1d_ctrl_d[273:114]  <= l1d_ctrl_q[273:114];
+                            l1d_ctrl_d[110:79]   <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[78:15]    <= l1d_ctrl_q[78:15];
+                            l1d_ctrl_d[270:111]  <= l1d_ctrl_q[270:111];
                         end
                         3'd3: begin
-                            l1d_ctrl_d[145:114]  <= cpu_EXMEM2_data_stored;
-                            l1d_ctrl_d[113:18]   <= l1d_ctrl_q[113:18];
-                            l1d_ctrl_d[273:146]  <= l1d_ctrl_q[273:146];
+                            l1d_ctrl_d[142:111]  <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[110:15]   <= l1d_ctrl_q[110:15];
+                            l1d_ctrl_d[270:143]  <= l1d_ctrl_q[270:143];
                         end
                         3'd4: begin
-                            l1d_ctrl_d[177:146]  <= cpu_EXMEM2_data_stored;
-                            l1d_ctrl_d[145:18]   <= l1d_ctrl_q[145:18];
-                            l1d_ctrl_d[273:178]  <= l1d_ctrl_q[273:178];
+                            l1d_ctrl_d[174:143]  <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[142:15]   <= l1d_ctrl_q[142:15];
+                            l1d_ctrl_d[270:175]  <= l1d_ctrl_q[270:175];
                         end
                         3'd5: begin
-                            l1d_ctrl_d[209:178]  <= cpu_EXMEM2_data_stored;
-                            l1d_ctrl_d[177:18]   <= l1d_ctrl_q[177:18];
-                            l1d_ctrl_d[273:210]  <= l1d_ctrl_q[273:210];
+                            l1d_ctrl_d[206:175]  <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[174:15]   <= l1d_ctrl_q[174:15];
+                            l1d_ctrl_d[270:207]  <= l1d_ctrl_q[270:207];
                         end
                         3'd6: begin
-                            l1d_ctrl_d[241:210]  <= cpu_EXMEM2_data_stored;
-                            l1d_ctrl_d[209:18]   <= l1d_ctrl_q[209:18];
-                            l1d_ctrl_d[273:242]  <= l1d_ctrl_q[273:242];
+                            l1d_ctrl_d[238:207]  <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[206:15]   <= l1d_ctrl_q[206:15];
+                            l1d_ctrl_d[270:239]  <= l1d_ctrl_q[270:239];
                         end
                         3'd7: begin
-                            l1d_ctrl_d[273:242]  <= cpu_EXMEM2_data_stored;
-                            l1d_ctrl_d[241:18]   <= l1d_ctrl_q[241:18];
+                            l1d_ctrl_d[270:239]  <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[238:15]   <= l1d_ctrl_q[238:15];
                         end
                     endcase
 
@@ -693,18 +746,18 @@ begin
                 begin
                     //$display("%d: CacheController L1D WRITE CACHE MISS", $time);
                     // Cache miss
-                    // If current line is dirty and needs to be evicted
-                    if (l1d_ctrl_q[0])
+                    // If current line is dirty and needs to be evicted (check dirty bit array)
+                    if (l1d_dirty_bits[cpu_EXMEM2_addr_stored[9:3]])
                     begin
                         //$display("%d: CacheController L1D write miss: current line is dirty, need to evict first", $time);
                         // Current cache line is dirty, need to write it back to memory first
                         sdc_we <= 1'b1;
                         sdc_start <= 1'b1;
                         // We need to write the address of the old cache line, so we need to use:
-                        // the tag l1d_ctrl_q[17:2]
+                        // the tag l1d_ctrl_q[14:1]
                         // the index of the cache line cpu_EXMEM2_addr_stored[9:3], which is aligned to 256 bits (8 words)
-                        sdc_addr <= {l1d_ctrl_q[17:2], cpu_EXMEM2_addr_stored[9:3]};
-                        sdc_data <= l1d_ctrl_q[273:18]; // Data to write, which is the cache line data
+                        sdc_addr <= {l1d_ctrl_q[14:1], cpu_EXMEM2_addr_stored[9:3]};
+                        sdc_data <= l1d_ctrl_q[270:15]; // Data to write, which is the cache line data
 
                         state <= STATE_L1D_WRITE_MISS_EVICT_DIRTY_SEND_CMD;
 
@@ -716,7 +769,7 @@ begin
                         // Current cache line is not dirty, can directly fetch new cache line
                         sdc_we <= 1'b0;
                         sdc_start <= 1'b1;
-                        sdc_addr <= cpu_EXMEM2_addr_stored[31:3];
+                        sdc_addr <= cpu_EXMEM2_addr_stored[23:3];
 
                         state <= STATE_L1D_WRITE_MISS_FETCH_WAIT_DATA;
                     end
@@ -740,7 +793,7 @@ begin
             STATE_L1D_WRITE_MISS_FETCH_SEND_CMD: begin
                 sdc_we <= 1'b0;
                 sdc_start <= 1'b1;
-                sdc_addr <= cpu_EXMEM2_addr_stored[31:3];
+                sdc_addr <= cpu_EXMEM2_addr_stored[23:3];
 
                 state <= STATE_L1D_WRITE_MISS_FETCH_WAIT_DATA;
             end
@@ -750,53 +803,54 @@ begin
                 sdc_start <= 1'b0;
                 sdc_addr <= 21'd0;
 
-                // Wait until data is ready, then update it with the write data and write it to DPRAM of L1D cache with dirty and valid bit set
+                // Wait until data is ready, then update it with the write data and write it to DPRAM of L1D cache
+                // Dirty bit is stored in the array, not in the cache line
                 if (sdc_done)
                 begin
                     
-                    l1d_ctrl_d[17:0] <= {cpu_EXMEM2_addr_stored[25:10], 1'b1, 1'b1};
+                    l1d_ctrl_d[14:0] <= {cpu_EXMEM2_addr_stored[23:10], 1'b1};
                     l1d_ctrl_addr <= cpu_EXMEM2_addr_stored[9:3]; // DPRAM index, aligned on cache line size (8 words = 256 bits)
                     l1d_ctrl_we <= 1'b1;
 
                     // Update the cache line data at the correct offset
                     case (cpu_EXMEM2_addr_stored[2:0])
                         3'd0: begin
-                            l1d_ctrl_d[49:18]    <= cpu_EXMEM2_data_stored;
-                            l1d_ctrl_d[273:50]   <= sdc_q[255:32];
+                            l1d_ctrl_d[46:15]    <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[270:47]   <= sdc_q[255:32];
                         end
                         3'd1: begin
-                            l1d_ctrl_d[81:50]    <= cpu_EXMEM2_data_stored;
-                            l1d_ctrl_d[49:18]    <= sdc_q[31:0];
-                            l1d_ctrl_d[273:82]   <= sdc_q[255:64];
+                            l1d_ctrl_d[78:47]    <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[46:15]    <= sdc_q[31:0];
+                            l1d_ctrl_d[270:79]   <= sdc_q[255:64];
                         end
                         3'd2: begin
-                            l1d_ctrl_d[113:82]   <= cpu_EXMEM2_data_stored;
-                            l1d_ctrl_d[81:18]    <= sdc_q[63:0];
-                            l1d_ctrl_d[273:114]  <= sdc_q[255:96];
+                            l1d_ctrl_d[110:79]   <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[78:15]    <= sdc_q[63:0];
+                            l1d_ctrl_d[270:111]  <= sdc_q[255:96];
                         end
                         3'd3: begin
-                            l1d_ctrl_d[145:114]  <= cpu_EXMEM2_data_stored;
-                            l1d_ctrl_d[113:18]   <= sdc_q[95:0];
-                            l1d_ctrl_d[273:146]  <= sdc_q[255:128];
+                            l1d_ctrl_d[142:111]  <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[110:15]   <= sdc_q[95:0];
+                            l1d_ctrl_d[270:143]  <= sdc_q[255:128];
                         end
                         3'd4: begin
-                            l1d_ctrl_d[177:146]  <= cpu_EXMEM2_data_stored;
-                            l1d_ctrl_d[145:18]   <= sdc_q[127:0];
-                            l1d_ctrl_d[273:178]  <= sdc_q[255:160];
+                            l1d_ctrl_d[174:143]  <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[142:15]   <= sdc_q[127:0];
+                            l1d_ctrl_d[270:175]  <= sdc_q[255:160];
                         end
                         3'd5: begin
-                            l1d_ctrl_d[209:178]  <= cpu_EXMEM2_data_stored;
-                            l1d_ctrl_d[177:18]   <= sdc_q[159:0];
-                            l1d_ctrl_d[273:210]  <= sdc_q[255:192];
+                            l1d_ctrl_d[206:175]  <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[174:15]   <= sdc_q[159:0];
+                            l1d_ctrl_d[270:207]  <= sdc_q[255:192];
                         end
                         3'd6: begin
-                            l1d_ctrl_d[241:210]  <= cpu_EXMEM2_data_stored;
-                            l1d_ctrl_d[209:18]   <= sdc_q[191:0];
-                            l1d_ctrl_d[273:242]  <= sdc_q[255:224];
+                            l1d_ctrl_d[238:207]  <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[206:15]   <= sdc_q[191:0];
+                            l1d_ctrl_d[270:239]  <= sdc_q[255:224];
                         end
                         3'd7: begin
-                            l1d_ctrl_d[273:242]  <= cpu_EXMEM2_data_stored;
-                            l1d_ctrl_d[241:18]   <= sdc_q[223:0];
+                            l1d_ctrl_d[270:239]  <= cpu_EXMEM2_data_stored;
+                            l1d_ctrl_d[238:15]   <= sdc_q[223:0];
                         end
                     endcase
 
@@ -834,7 +888,7 @@ begin
 
             STATE_CLEARCACHE_L1I_CLEAR: begin
                 // Write zeros to L1i cache line at current index
-                l1i_ctrl_d <= 274'b0; // All zeros: no data, no tag, not valid, not dirty
+                l1i_ctrl_d <= 271'b0; // All zeros: no data, no tag, not valid
                 l1i_ctrl_addr <= clear_cache_index;
                 l1i_ctrl_we <= 1'b1;
                 
@@ -891,14 +945,15 @@ begin
             STATE_CLEARCACHE_L1D_CHECK: begin
                 // We only get here if l1d_dirty_bits indicated the line is dirty
                 // Evict the cache line to SDRAM
-                // tag = l1d_ctrl_q[17:2]
-                // data = l1d_ctrl_q[273:18]
+                // format: {256bit_data, 14bit_tag, 1bit_valid}
+                // tag = l1d_ctrl_q[14:1]
+                // data = l1d_ctrl_q[270:15]
                 
                 sdc_we <= 1'b1;
                 sdc_start <= 1'b1;
                 // Construct address from tag and index
-                sdc_addr <= {l1d_ctrl_q[17:2], clear_cache_index};
-                sdc_data <= l1d_ctrl_q[273:18];
+                sdc_addr <= {l1d_ctrl_q[14:1], clear_cache_index};
+                sdc_data <= l1d_ctrl_q[270:15];
                 
                 state <= STATE_CLEARCACHE_L1D_EVICT_SEND_CMD;
             end
@@ -933,7 +988,7 @@ begin
 
             STATE_CLEARCACHE_L1D_CLEAR: begin
                 // Write zeros to L1d cache line at current index
-                l1d_ctrl_d <= 274'b0; // All zeros: no data, no tag, not valid, not dirty
+                l1d_ctrl_d <= 271'b0; // All zeros: no data, no tag, not valid
                 l1d_ctrl_addr <= clear_cache_index;
                 l1d_ctrl_we <= 1'b1;
                 

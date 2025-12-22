@@ -353,23 +353,23 @@ VRAM #(
 /******************************************************************************
  * L1i RAM (100&50MHz)
  ******************************************************************************/
-wire [273:0] l1i_pipe_d;
+wire [270:0] l1i_pipe_d;
 wire [6:0]   l1i_pipe_addr;
 wire         l1i_pipe_we;
-wire [273:0] l1i_pipe_q;
+wire [270:0] l1i_pipe_q;
 
-wire [273:0] l1i_ctrl_d;
+wire [270:0] l1i_ctrl_d;
 wire [6:0]   l1i_ctrl_addr;
 wire         l1i_ctrl_we;
-wire [273:0] l1i_ctrl_q;
+wire [270:0] l1i_ctrl_q;
 
 // CPU pipeline will not write to L1 RAM
 assign l1i_pipe_we = 1'b0;
-assign l1i_pipe_d  = 274'd0;
+assign l1i_pipe_d  = 271'd0;
 
 // DPRAM instance
 DPRAM #(
-    .WIDTH(274),
+    .WIDTH(271),
     .WORDS(128),
     .ADDR_BITS(7)
 ) l1i_ram (
@@ -388,23 +388,23 @@ DPRAM #(
 /******************************************************************************
  * L1d RAM (100&50MHz)
  ******************************************************************************/
-wire [273:0] l1d_pipe_d;
+wire [270:0] l1d_pipe_d;
 wire [6:0]   l1d_pipe_addr;
 wire         l1d_pipe_we;
-wire [273:0] l1d_pipe_q;
+wire [270:0] l1d_pipe_q;
 
-wire [273:0] l1d_ctrl_d;
+wire [270:0] l1d_ctrl_d;
 wire [6:0]   l1d_ctrl_addr;
 wire         l1d_ctrl_we;
-wire [273:0] l1d_ctrl_q;
+wire [270:0] l1d_ctrl_q;
 
 // CPU pipeline will not write to L1 RAM
 assign l1d_pipe_we = 1'b0;
-assign l1d_pipe_d  = 274'd0;
+assign l1d_pipe_d  = 271'd0;
 
 // DPRAM instance
 DPRAM #(
-    .WIDTH(274),
+    .WIDTH(271),
     .WORDS(128),
     .ADDR_BITS(7)
 ) l1d_ram (

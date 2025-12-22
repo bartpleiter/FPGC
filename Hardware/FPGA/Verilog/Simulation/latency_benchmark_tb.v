@@ -125,17 +125,17 @@ SDRAMcontroller sdc (
 //==================================================================
 
 // L1i cache DPRAM
-wire [273:0] l1i_pipe_d = 274'd0;
+wire [270:0] l1i_pipe_d = 271'd0;
 wire [6:0]   l1i_pipe_addr;
 wire         l1i_pipe_we = 1'b0;
-wire [273:0] l1i_pipe_q;
-wire [273:0] l1i_ctrl_d;
+wire [270:0] l1i_pipe_q;
+wire [270:0] l1i_ctrl_d;
 wire [6:0]   l1i_ctrl_addr;
 wire         l1i_ctrl_we;
-wire [273:0] l1i_ctrl_q;
+wire [270:0] l1i_ctrl_q;
 
 DPRAM #(
-    .WIDTH(274),
+    .WIDTH(271),
     .WORDS(128),
     .ADDR_BITS(7)
 ) l1i_ram (
@@ -152,17 +152,17 @@ DPRAM #(
 );
 
 // L1d cache DPRAM
-wire [273:0] l1d_pipe_d = 274'd0;
+wire [270:0] l1d_pipe_d = 271'd0;
 wire [6:0]   l1d_pipe_addr;
 wire         l1d_pipe_we = 1'b0;
-wire [273:0] l1d_pipe_q;
-wire [273:0] l1d_ctrl_d;
+wire [270:0] l1d_pipe_q;
+wire [270:0] l1d_ctrl_d;
 wire [6:0]   l1d_ctrl_addr;
 wire         l1d_ctrl_we;
-wire [273:0] l1d_ctrl_q;
+wire [270:0] l1d_ctrl_q;
 
 DPRAM #(
-    .WIDTH(274),
+    .WIDTH(271),
     .WORDS(128),
     .ADDR_BITS(7)
 ) l1d_ram (
