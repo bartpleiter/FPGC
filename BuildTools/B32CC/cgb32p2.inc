@@ -216,6 +216,8 @@ void GenRecordFxnSize(char* startLabelName, int endLabelNo)
 #define B32InstrBles    0x27
 #define B32InstrJump    0x28
 #define B32InstrJumpr   0x29
+#define B32InstrMultfp  0x2A  // Fixed-point multiply
+#define B32InstrDivfp   0x2B  // Fixed-point divide
 
 STATIC
 void GenPrintInstr(int instr, int val)
@@ -267,6 +269,8 @@ void GenPrintInstr(int instr, int val)
   case B32InstrBles    : p = "bles"; break;
   case B32InstrJump    : p = "jump"; break;
   case B32InstrJumpr   : p = "jumpr"; break;
+  case B32InstrMultfp  : p = "multfp"; break;
+  case B32InstrDivfp   : p = "divfp"; break;
   }
 
   printf2("  %s ", p);
@@ -1203,6 +1207,8 @@ void GenPrep(int* idx)
   case tokUGreater:
   case tokULEQ:
   case tokUGEQ:
+  case tokMultFP:
+  case tokDivFP:
     GenPrep(idx);
     oldIdxLeft = *idx;
     GenPrep(idx);
@@ -1838,6 +1844,33 @@ void GenExpr0(void)
                                  GenLreg, 0,
                                  GenRreg, 0,
                                  GenWreg, 0);
+      }
+      break;
+
+    // Fixed-point intrinsics: __multfp(a, b) and __divfp(a, b)
+    case tokMultFP:
+      {
+        // Multiplication is commutative, so order doesn't matter
+        // After GenPopReg: GenLreg = second arg (b), GenRreg = first arg (a)
+        // Result: a * b
+        GenPopReg();
+        GenPrintInstr3Operands(B32InstrMultfp, 0,
+                               GenLreg, 0,
+                               GenRreg, 0,
+                               GenWreg, 0);
+      }
+      break;
+
+    case tokDivFP:
+      {
+        // Division is NOT commutative: __divfp(a, b) should compute a / b
+        // After GenPopReg: GenLreg = second arg (b), GenRreg = first arg (a)
+        // We want: a / b, so operands are GenRreg / GenLreg
+        GenPopReg();
+        GenPrintInstr3Operands(B32InstrDivfp, 0,
+                               GenRreg, 0,
+                               GenLreg, 0,
+                               GenWreg, 0);
       }
       break;
 

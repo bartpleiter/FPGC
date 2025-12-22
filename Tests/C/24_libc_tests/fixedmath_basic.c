@@ -25,17 +25,17 @@ int main() {
     if (fixed2int(c) != 2) return 4;
     
     /* Test multiplication */
-    c = fixed_mul(a, b);  /* 15.0 */
+    c = __multfp(a, b);  /* 15.0 */
     if (fixed2int(c) != 15) return 5;
     
     /* Test division */
-    c = fixed_div(a, b);  /* ~1.666... */
+    c = __divfp(a, b);  /* ~1.666... */
     if (fixed2int(c) != 1) return 6;
     
     /* Test multiplication with fraction: 2.5 * 2 = 5 */
     a = int2fixed(2) + FIXED_HALF;  /* 2.5 */
     b = int2fixed(2);
-    c = fixed_mul(a, b);  /* 5.0 */
+    c = __multfp(a, b);  /* 5.0 */
     if (fixed2int(c) != 5) return 77;
     
     /* Test fixed_abs */

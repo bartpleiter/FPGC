@@ -144,115 +144,6 @@ fixed_t fixed_frac(fixed_t x)
 
 /* Basic arithmetic functions */
 
-fixed_t fixed_mul(fixed_t a, fixed_t b)
-{
-    /*
-     * TODO: use multi-cycle ALU for this instead!
-     *
-     * Multiply two 16.16 fixed-point numbers.
-     * Result = (a * b) >> FRACBITS
-     * 
-     * We need 64-bit intermediate to avoid overflow.
-     * Since we don't have 64-bit types, we split the multiplication.
-     */
-    int sign = 1;
-    unsigned int ua, ub;
-    unsigned int a_hi, a_lo, b_hi, b_lo;
-    unsigned int result;
-
-    /* Handle signs */
-    if (a < 0)
-    {
-        a = -a;
-        sign = -sign;
-    }
-    if (b < 0)
-    {
-        b = -b;
-        sign = -sign;
-    }
-
-    ua = (unsigned int)a;
-    ub = (unsigned int)b;
-
-    /* Split into high and low 16-bit parts */
-    a_hi = ua >> 16;
-    a_lo = ua & 0xFFFF;
-    b_hi = ub >> 16;
-    b_lo = ub & 0xFFFF;
-
-    /*
-     * Multiply parts:
-     * ua * ub = (a_hi * 2^16 + a_lo) * (b_hi * 2^16 + b_lo)
-     *         = a_hi * b_hi * 2^32 + (a_hi * b_lo + a_lo * b_hi) * 2^16 + a_lo * b_lo
-     * 
-     * After >> 16:
-     * = a_hi * b_hi * 2^16 + (a_hi * b_lo + a_lo * b_hi) + (a_lo * b_lo >> 16)
-     */
-    result = (a_hi * b_hi) << 16;
-    result += a_hi * b_lo;
-    result += a_lo * b_hi;
-    result += (a_lo * b_lo) >> 16;
-
-    return (sign < 0) ? -(fixed_t)result : (fixed_t)result;
-}
-
-fixed_t fixed_div(fixed_t a, fixed_t b)
-{
-    /*
-     * TODO: use multi-cycle ALU for this instead!
-     *
-     * Divide two 16.16 fixed-point numbers.
-     * Result = (a << FRACBITS) / b
-     * 
-     * We need to be careful about overflow.
-     */
-    int sign = 1;
-    unsigned int ua, ub;
-    unsigned int result;
-    int shift;
-
-    if (b == 0)
-    {
-        /* Return max/min value on divide by zero */
-        return (a >= 0) ? 0x7FFFFFFF : -0x7FFFFFFF;
-    }
-
-    /* Handle signs */
-    if (a < 0)
-    {
-        a = -a;
-        sign = -sign;
-    }
-    if (b < 0)
-    {
-        b = -b;
-        sign = -sign;
-    }
-
-    ua = (unsigned int)a;
-    ub = (unsigned int)b;
-
-    /*
-     * Simple approach: shift a left as much as possible without overflow,
-     * then divide, then adjust.
-     */
-    result = 0;
-    shift = FRACBITS;
-
-    /* Shift a left as much as possible */
-    while ((ua & 0x80000000) == 0 && shift > 0)
-    {
-        ua <<= 1;
-        shift--;
-    }
-
-    result = ua / ub;
-    result <<= shift;
-
-    return (sign < 0) ? -(fixed_t)result : (fixed_t)result;
-}
-
 fixed_t fixed_sqrt(fixed_t x)
 {
     /*
@@ -281,7 +172,7 @@ fixed_t fixed_sqrt(fixed_t x)
     for (i = 0; i < 16; i++)
     {
         prev_guess = guess;
-        guess = (guess + fixed_div(x, guess)) >> 1;
+        guess = (guess + __divfp(x, guess)) >> 1;
 
         /* Check for convergence */
         if (guess == prev_guess)
@@ -353,7 +244,7 @@ fixed_t fixed_tan(int angle)
         return (s >= 0) ? 0x7FFFFFFF : -0x7FFFFFFF;
     }
 
-    return fixed_div(s, c);
+    return __divfp(s, c);
 }
 
 int fixed_atan2(fixed_t y, fixed_t x)
@@ -394,11 +285,11 @@ int fixed_atan2(fixed_t y, fixed_t x)
     /* Calculate ratio for table lookup */
     if (abs_y > abs_x)
     {
-        ratio = fixed_div(abs_x << 8, abs_y);  /* Scale to 0-256 range */
+        ratio = __divfp(abs_x << 8, abs_y);  /* Scale to 0-256 range */
     }
     else
     {
-        ratio = fixed_div(abs_y << 8, abs_x);
+        ratio = __divfp(abs_y << 8, abs_x);
     }
 
     /* Clamp index */
@@ -506,7 +397,7 @@ fixed_t fixed_clamp(fixed_t x, fixed_t lo, fixed_t hi)
 fixed_t fixed_lerp(fixed_t a, fixed_t b, fixed_t t)
 {
     /* Linear interpolation: a + t * (b - a) */
-    return a + fixed_mul(t, b - a);
+    return a + __multfp(t, b - a);
 }
 
 fixed_t fixed_dist_approx(fixed_t dx, fixed_t dy)
@@ -539,5 +430,5 @@ fixed_t fixed_dist_approx(fixed_t dx, fixed_t dy)
 fixed_t fixed_dot2d(fixed_t x1, fixed_t y1, fixed_t x2, fixed_t y2)
 {
     /* Dot product: x1*x2 + y1*y2 */
-    return fixed_mul(x1, x2) + fixed_mul(y1, y2);
+    return __multfp(x1, x2) + __multfp(y1, y2);
 }

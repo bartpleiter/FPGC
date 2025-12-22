@@ -272,6 +272,10 @@ int fsetpos(FILE*, fpos_t*);
 #define tokNumCharWide 0x96
 #define tokLitStrWide 0x97
 
+/* Fixed-point intrinsic tokens */
+#define tokMultFP     0x98
+#define tokDivFP      0x99
+
 #define FormatSegmented 1
 #define FormatSegHuge   3
 #define FormatSegUnreal 4
@@ -905,7 +909,9 @@ unsigned char tktk[] =
   // Helper (pseudo-)tokens:
   tokNumInt, tokLitStr, tokLocalOfs, tokNumUint, tokIdent, tokShortCirc,
   tokSChar, tokShort, tokLong, tokUChar, tokUShort, tokULong, tokNumFloat,
-  tokNumCharWide, tokLitStrWide
+  tokNumCharWide, tokLitStrWide,
+  // Fixed-point intrinsics:
+  tokMultFP, tokDivFP
 };
 
 char* tks[] =
@@ -928,7 +934,9 @@ char* tks[] =
   // Helper (pseudo-)tokens:
   "<NumInt>",  "<LitStr>", "<LocalOfs>", "<NumUint>", "<Ident>", "<ShortCirc>",
   "signed char", "short", "long", "unsigned char", "unsigned short", "unsigned long", "float",
-  "<NumCharWide>", "<LitStrWide>"
+  "<NumCharWide>", "<LitStrWide>",
+  // Fixed-point intrinsics:
+  "__multfp", "__divfp"
 };
 
 STATIC
@@ -3105,6 +3113,36 @@ int exprval(int* idx, int* ExprTypeSynPtr, int* ConstExpr)
       // DONE: support __func__
       char* ident = IdentTable + s;
       int synPtr, type;
+
+      // Check for fixed-point intrinsics before symbol lookup
+      // These are handled as binary operators, not function calls
+      if (!strcmp(ident, "__multfp") || !strcmp(ident, "__divfp"))
+      {
+        // Leave the identifier on the stack - it will be converted to 
+        // intrinsic token when we process the function call in case ')'
+        // For now, create a fake function declaration to satisfy the type checker
+        synPtr = FindSymbol(ident);
+        if (synPtr < 0)
+        {
+          // Declare as "int __multfp(int, int)" or "int __divfp(int, int)"
+          PushSyntax2(tokIdent, s);
+          PushSyntax('(');
+          PushSyntax2(tokIdent, AddIdent("a"));
+          PushSyntax(tokInt);
+          PushSyntax2(tokIdent, AddIdent("b"));
+          PushSyntax(tokInt);
+          PushSyntax(')');
+          PushSyntax(tokInt);
+          synPtr = FindSymbol(ident);
+        }
+        // Skip past the identifier to get to the function type
+        while (SyntaxStack0[synPtr] == tokIdent || SyntaxStack0[synPtr] == tokLocalOfs)
+          synPtr++;
+        *ExprTypeSynPtr = synPtr;
+        *ConstExpr = 0;
+        break;
+      }
+
       {
         synPtr = FindSymbol(ident);
         // "Rename" static vars in function scope
@@ -3960,7 +3998,29 @@ int exprval(int* idx, int* ExprTypeSynPtr, int* ConstExpr)
       int minParams, maxParams;
       int firstParamSynPtr;
       int oldIdx, oldSp;
+      int fxnIdentIdx;  // Position of function identifier
+      char* fxnName = NULL;
+      int isIntrinsic = 0;
+      int intrinsicTok = 0;
+      
       exprval(idx, ExprTypeSynPtr, ConstExpr);
+      
+      // Immediately after exprval, *idx+1 points to the function identifier (if it's a simple call)
+      fxnIdentIdx = *idx + 1;
+      if (fxnIdentIdx >= 0 && stack[fxnIdentIdx][0] == tokIdent)
+      {
+        fxnName = IdentTable + stack[fxnIdentIdx][1];
+        if (!strcmp(fxnName, "__multfp"))
+        {
+          isIntrinsic = 1;
+          intrinsicTok = tokMultFP;
+        }
+        else if (!strcmp(fxnName, "__divfp"))
+        {
+          isIntrinsic = 1;
+          intrinsicTok = tokDivFP;
+        }
+      }
 
       if (!GetFxnInfo(*ExprTypeSynPtr, &minParams, &maxParams, ExprTypeSynPtr, &firstParamSynPtr))
         //error("exprval(): function or function pointer expected\n");
@@ -4031,6 +4091,61 @@ int exprval(int* idx, int* ExprTypeSynPtr, int* ConstExpr)
 
       if (c < minParams)
         error("Too few function arguments\n");
+
+      // Handle fixed-point intrinsics that were detected earlier
+      if (isIntrinsic)
+      {
+        // Verify exactly 2 arguments
+        if (c != 2)
+          error("Fixed-point intrinsic %s requires exactly 2 arguments\n", fxnName);
+        
+        // Transform the stack to replace function call with intrinsic binary operator
+        // 
+        // Current stack structure after argument evaluation:
+        //   ... '(' arg1Expr ',' arg2Expr ',' fxnIdent ')' ...
+        //   where:
+        //   - '(' is at position *idx + 1
+        //   - ')' is at position closeParenIdx  
+        //   - fxnIdent is right before ')' (at closeParenIdx - 1)
+        //   - There are 2 commas (one original, one inserted)
+        //
+        // Target stack: ... arg1Expr arg2Expr tokMultFP ...
+        
+        // Calculate ')' position accounting for any stack changes
+        int closeParenIdx = oldIdxRight + 1 - (oldSpRight - sp);
+        int openParenIdx = *idx + 1;
+        int i;
+        
+        // The function identifier should be right before ')'
+        int fxnIdIdx = closeParenIdx - 1;
+        
+        // Replace ')' with intrinsic token
+        stack[closeParenIdx][0] = intrinsicTok;
+        stack[closeParenIdx][1] = 0;
+        
+        // Remove function identifier (right before the ')' we just changed to intrinsicTok)
+        del(fxnIdIdx, 1);
+        closeParenIdx--;
+        
+        // Remove all commas between '(' and the intrinsic token (was ')')
+        // Work backwards to avoid index shifting issues
+        for (i = closeParenIdx - 1; i > openParenIdx; i--)
+        {
+          if (stack[i][0] == ',')
+          {
+            del(i, 1);
+            closeParenIdx--;
+          }
+        }
+        
+        // Remove '(' at openParenIdx
+        del(openParenIdx, 1);
+        
+        // Set return type to int (fixed-point values are stored in int)
+        *ExprTypeSynPtr = SymIntSynPtr;
+        *ConstExpr = 0;
+        break;  // Exit the case - don't generate normal function call
+      }
 
       // store the cumulative argument size in the function call operators
       // In word-addressable mode, each argument is 1 word (1 address unit)
