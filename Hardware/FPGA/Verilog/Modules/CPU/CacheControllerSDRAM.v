@@ -106,7 +106,19 @@ localparam
     STATE_CLEARCACHE_L1D_EVICT_SEND_CMD         = 8'd29,
     STATE_CLEARCACHE_L1D_CLEAR                  = 8'd30,
     STATE_CLEARCACHE_L1D_CLEAR_FINISH           = 8'd31,
-    STATE_CLEARCACHE_DONE                       = 8'd32;
+    STATE_CLEARCACHE_DONE                       = 8'd32,
+    
+    // Optimized L1D Read States using dirty bit array
+    // These states skip the DPRAM read when we already know the line is clean
+    STATE_L1D_READ_FAST_WAIT_DATA               = 8'd33,  // Wait for SDRAM data (skipped dirty check)
+    STATE_L1D_READ_FAST_WRITE_TO_CACHE          = 8'd34,  // Write to cache and signal done
+    
+    // L1I Prefetching States - DISABLED
+    // Prefetching was causing timing issues with the CPU pipeline.
+    // See STATE_L1I_SIGNAL_CPU_DONE for details.
+    STATE_L1I_PREFETCH_START                    = 8'd35,  // UNUSED
+    STATE_L1I_PREFETCH_WAIT_DATA                = 8'd36,  // UNUSED  
+    STATE_L1I_PREFETCH_WRITE_TO_CACHE           = 8'd37;  // UNUSED
 
 
 reg [7:0] state = STATE_IDLE;
@@ -131,6 +143,26 @@ reg cpu_clear_cache_new_request = 1'b0;
 
 // Cache clearing control registers
 reg [6:0] clear_cache_index = 7'd0; // Index for iterating through cache lines (0-127)
+
+//========================
+// L1I Prefetching Optimization
+//========================
+// After servicing an L1I miss, automatically prefetch the next sequential cache line
+// This improves performance for sequential code execution (which is the common case)
+reg         l1i_prefetch_pending = 1'b0;     // Flag indicating a prefetch is waiting to be executed
+reg [31:0]  l1i_prefetch_addr = 32'd0;       // Address of the cache line to prefetch
+// Note: prefetch_addr uses the same format as cpu_FE2_addr (32-bit word address)
+//========================
+// Dirty Bit Array Optimization
+//========================
+// Separate 128-bit register array to track dirty status of L1D cache lines
+// This allows immediate (combinational) dirty check without waiting for DPRAM read
+// Each bit corresponds to one cache line (index 0-127)
+reg [127:0] l1d_dirty_bits = 128'b0;
+
+// Wire for immediate dirty status check based on current address
+// Uses the cache line index (bits 9:3 of the address) to index into dirty array
+wire l1d_line_is_dirty_fast = l1d_dirty_bits[cpu_EXMEM2_start ? cpu_EXMEM2_addr[9:3] : cpu_EXMEM2_addr_stored[9:3]];
 
 reg ignore_fe2_result = 1'b0; // If a flush is received while processing a FE2 request, we need to ignore the result when it is done
 
@@ -172,6 +204,11 @@ begin
 
         clear_cache_index <= 7'd0;
         cpu_clear_cache_done <= 1'b0;
+
+        l1d_dirty_bits <= 128'b0; // Clear all dirty bits on reset
+
+        l1i_prefetch_pending <= 1'b0; // Clear prefetch pending flag on reset
+        l1i_prefetch_addr <= 32'd0;
 
         ignore_fe2_result <= 1'b0;
         get_address_after_ignore <= 1'b0;
@@ -241,15 +278,13 @@ begin
                 cpu_FE2_done <= 1'b0;
                 cpu_EXMEM2_done <= 1'b0;
                 cpu_clear_cache_done <= 1'b0;
-                
 
                 // Check if there is a cache clear request (highest priority)
                 if (cpu_clear_cache_new_request)
                 begin
-                    // We clear the flag at the end of the clear cache process
-                    //$display("%d: CacheController PROCESSING CLEARCACHE REQUEST", $time);
+                    // Cancel any pending prefetch
+                    l1i_prefetch_pending <= 1'b0;
                     state <= STATE_CLEARCACHE_REQUESTED;
-                    //$display("%d: CacheController IDLE -> STATE_CLEARCACHE_REQUESTED", $time);
                 end
 
                 // Check if there is a new EXMEM2 request (priority over FE2)
@@ -257,35 +292,50 @@ begin
                 begin
                     // Request can be either a read after cache miss, or a write which can be either a hit or a miss
                     cpu_EXMEM2_new_request <= 1'b0; // Clear the request flag
-                    $display("%0t Cache EXMEM2: addr=%05h we=%b data=%08h", $time, cpu_EXMEM2_start ? cpu_EXMEM2_addr : cpu_EXMEM2_addr_stored, cpu_EXMEM2_start ? cpu_EXMEM2_we : cpu_EXMEM2_we_stored, cpu_EXMEM2_start ? cpu_EXMEM2_data : cpu_EXMEM2_data_stored);
+                    //$display("%0t Cache EXMEM2: addr=%05h we=%b data=%08h", $time, cpu_EXMEM2_start ? cpu_EXMEM2_addr : cpu_EXMEM2_addr_stored, cpu_EXMEM2_start ? cpu_EXMEM2_we : cpu_EXMEM2_we_stored, cpu_EXMEM2_start ? cpu_EXMEM2_data : cpu_EXMEM2_data_stored);
+
+                    // Cancel any pending prefetch since we have a real data request
+                    l1i_prefetch_pending <= 1'b0;
 
                     // Handle write request
                     if ((cpu_EXMEM2_new_request && cpu_EXMEM2_we_stored) || (cpu_EXMEM2_start && cpu_EXMEM2_we))
                     begin
-                        //$display("%d: CacheController EXMEM2 WRITE REQUEST", $time);
-                        // Read cache line first to determine a hit or miss
-                        l1d_ctrl_addr <= cpu_EXMEM2_start ? cpu_EXMEM2_addr[9:3] : cpu_EXMEM2_addr_stored[9:3]; // DPRAM index, aligned on cache line size (8 words = 256 bits)
-                        l1d_ctrl_we <= 1'b0; // Read operation
-                        state <= STATE_L1D_WRITE_WAIT_CACHE_READ; // Wait for DPRAM read to complete
-                        //$display("%d: CacheController IDLE -> STATE_L1D_WRITE_WAIT_CACHE_READ", $time);
+                        // Read cache line first to determine if it needs to be evicted
+                        l1d_ctrl_addr <= cpu_EXMEM2_start ? cpu_EXMEM2_addr[9:3] : cpu_EXMEM2_addr_stored[9:3];
+                        l1d_ctrl_we <= 1'b0;
+                        state <= STATE_L1D_WRITE_WAIT_CACHE_READ;
                     end
 
                     // Handle read request
                     else if ((cpu_EXMEM2_new_request && !cpu_EXMEM2_we_stored) || (cpu_EXMEM2_start && !cpu_EXMEM2_we))
                     begin
                         //$display("%d: CacheController EXMEM2 READ REQUEST", $time);
-                        // Read cache line first to determine if it needs to be eviced to memory
-                        l1d_ctrl_addr <= cpu_EXMEM2_start ? cpu_EXMEM2_addr[9:3] : cpu_EXMEM2_addr_stored[9:3]; // DPRAM index, aligned on cache line size (8 words = 256 bits)
-                        l1d_ctrl_we <= 1'b0; // Read operation
-                        state <= STATE_L1D_READ_WAIT_CACHE_READ; // Wait for DPRAM read to complete
-                        //$display("%d: CacheController IDLE -> STATE_L1D_READ_WAIT_CACHE_READ", $time);
+                        // DIRTY BIT ARRAY OPTIMIZATION:
+                        // Use the fast dirty bit array to check if line is clean
+                        // If clean, skip the DPRAM read and go directly to SDRAM fetch
+                        if (!l1d_line_is_dirty_fast)
+                        begin
+                            // Line is clean - use fast path: skip DPRAM read, go directly to SDRAM
+                            sdc_we <= 1'b0;
+                            sdc_start <= 1'b1;
+                            sdc_addr <= cpu_EXMEM2_start ? cpu_EXMEM2_addr[31:3] : cpu_EXMEM2_addr_stored[31:3];
+                            state <= STATE_L1D_READ_FAST_WAIT_DATA;
+                        end
+                        else
+                        begin
+                            // Line might be dirty - use slow path: read DPRAM first to get data for eviction
+                            l1d_ctrl_addr <= cpu_EXMEM2_start ? cpu_EXMEM2_addr[9:3] : cpu_EXMEM2_addr_stored[9:3];
+                            l1d_ctrl_we <= 1'b0;
+                            state <= STATE_L1D_READ_WAIT_CACHE_READ;
+                        end
                     end
                 end
 
                 // Check if there is a new FE2 request (lower priority than EXMEM2)
                 else if (cpu_FE2_new_request || cpu_FE2_start) // Also check for start to skip a cycle after idle
                 begin
-                    //$display("%d: CacheController PROCESSING FE2 REQUEST: addr=0x%h", $time, cpu_FE2_start ? cpu_FE2_addr : cpu_FE2_addr_stored);
+                    // Cancel any pending prefetch since we have a real request now
+                    l1i_prefetch_pending <= 1'b0;
 
                     // FE2 requests are only READ operations
                     // Request sdram controller with arguments depending on the availability in the _stored registers
@@ -298,6 +348,9 @@ begin
                     state <= STATE_L1I_WAIT_READ_DATA;
 
                 end
+
+                // L1I PREFETCH OPTIMIZATION: Disabled - see STATE_L1I_SIGNAL_CPU_DONE comment
+                // L1I prefetching is disabled (see STATE_L1I_SIGNAL_CPU_DONE)
             end
 
             // ------------------------
@@ -352,13 +405,57 @@ begin
             end
 
             STATE_L1I_SIGNAL_CPU_DONE: begin
+                // L1I PREFETCH OPTIMIZATION:
+                // DISABLED - causes 7 B32CC test failures
+                // Root cause: The prefetch reduces L1I miss latency, which causes the CPU to execute
+                // faster. This faster execution appears to expose a timing-related bug, possibly in
+                // the CPU's hazard detection or forwarding logic. When instructions execute faster,
+                // data dependencies are not being properly handled.
+                // 
+                // TODO: Investigate CPU pipeline hazard detection timing with reduced L1I latency.
+                // The issue manifests as register values not being forwarded correctly when
+                // subsequent instructions execute too quickly after a preceding ALU operation.
+                
+                state <= STATE_IDLE;
+            end
+
+            // ------------------------
+            // L1I Prefetch States - DISABLED
+            // These states are defined but currently unused due to timing issues.
+            // See STATE_L1I_SIGNAL_CPU_DONE for details on why prefetching is disabled.
+            // ------------------------
+
+            STATE_L1I_PREFETCH_WAIT_DATA: begin
+                // Disassert sdc signals
+                sdc_start <= 1'b0;
+                sdc_addr <= 21'd0;
+                
+                // Wait for SDRAM controller to be done
+                if (sdc_done)
+                begin
+                    // Write the retrieved cache line directly to L1I DPRAM
+                    // Format: {256bit_data, 16bit_tag, 1'b1(valid), 1'b0(dirty)}
+                    l1i_ctrl_d <= {sdc_q, l1i_prefetch_addr[25:10], 1'b1, 1'b0};
+                    l1i_ctrl_addr <= l1i_prefetch_addr[9:3]; // DPRAM index
+                    l1i_ctrl_we <= 1'b1;
+                    
+                    state <= STATE_L1I_PREFETCH_WRITE_TO_CACHE;
+                end
+            end
+
+            STATE_L1I_PREFETCH_WRITE_TO_CACHE: begin
+                // Disassert the write enable
+                l1i_ctrl_we <= 1'b0;
+                
+                // Prefetch complete - return to IDLE
+                // Note: we do NOT signal cpu_done, this was a background operation
+                
                 state <= STATE_IDLE;
             end
 
             // ------------------------
             // L1 Data Cache Read States
             // ------------------------
-
 
             STATE_L1D_READ_WAIT_CACHE_READ: begin
                 // Wait one cycle for DPRAM read to complete
@@ -373,7 +470,6 @@ begin
                 // data = l1d_ctrl_q[273:18]
 
                 // We already know it is a cache miss, otherwise the CPU would not have requested the read, so we only need to check for the dirty bit
-                //$display("%d: CacheController L1D READ cache miss: addr=0x%h, cache_line_valid=%b, cache_line_dirty=%b, cache_line_tag=0x%h", $time, cpu_EXMEM2_addr_stored, l1d_ctrl_q[1], l1d_ctrl_q[0], l1d_ctrl_q[17:2]);
                 if (l1d_ctrl_q[0])
                 begin
                     //$display("%d: CacheController L1D cache line is dirty, need to evict first", $time);
@@ -456,6 +552,9 @@ begin
                 // Start by disasserting the write enable
                 l1d_ctrl_we <= 1'b0;
 
+                // DIRTY BIT ARRAY UPDATE: Clear dirty bit (new line from SDRAM is clean)
+                l1d_dirty_bits[cpu_EXMEM2_addr_stored[9:3]] <= 1'b0;
+
                 // Set cpu_done
                 cpu_EXMEM2_done <= 1'b1;
                 //$display("%d: CacheController EXMEM2 READ OPERATION COMPLETE: addr=0x%h, result=0x%h", $time, cpu_EXMEM2_addr_stored, cpu_EXMEM2_result);
@@ -465,6 +564,59 @@ begin
 
             STATE_L1D_READ_SIGNAL_CPU_DONE: begin
                 state <= STATE_IDLE; // After this stage, we can return to IDLE state
+            end
+
+            // ------------------------
+            // L1D Read Fast Path States (Dirty Bit Array Optimization)
+            // These states handle L1D read misses when we know the line is clean
+            // Saves 2 cycles by skipping the DPRAM read for dirty check
+            // ------------------------
+
+            STATE_L1D_READ_FAST_WAIT_DATA: begin
+                // Disassert sdc signals (was asserted in IDLE)
+                sdc_start <= 1'b0;
+                sdc_addr <= 21'd0;
+
+                // Wait until data is ready from SDRAM
+                if (sdc_done)
+                begin
+                    // Extract the requested 32-bit word based on offset for the CPU return value
+                    case (cpu_EXMEM2_addr_stored[2:0])
+                        3'd0: cpu_EXMEM2_result <= sdc_q[31:0];
+                        3'd1: cpu_EXMEM2_result <= sdc_q[63:32];
+                        3'd2: cpu_EXMEM2_result <= sdc_q[95:64];
+                        3'd3: cpu_EXMEM2_result <= sdc_q[127:96];
+                        3'd4: cpu_EXMEM2_result <= sdc_q[159:128];
+                        3'd5: cpu_EXMEM2_result <= sdc_q[191:160];
+                        3'd6: cpu_EXMEM2_result <= sdc_q[223:192];
+                        3'd7: cpu_EXMEM2_result <= sdc_q[255:224];
+                    endcase
+
+                    // Write the retrieved cache line directly to DPRAM
+                    // Format: {256bit_data, 16bit_tag, 1'b1(valid), 1'b0(dirty)}
+                    // Note: dirty bit is 0 because we just fetched fresh data from SDRAM
+                    l1d_ctrl_d <= {sdc_q, cpu_EXMEM2_addr_stored[25:10], 1'b1, 1'b0};
+                    l1d_ctrl_addr <= cpu_EXMEM2_addr_stored[9:3];
+                    l1d_ctrl_we <= 1'b1;
+
+                    state <= STATE_L1D_READ_FAST_WRITE_TO_CACHE;
+                end
+            end
+
+            STATE_L1D_READ_FAST_WRITE_TO_CACHE: begin
+                // Disassert the write enable
+                l1d_ctrl_we <= 1'b0;
+
+                // DIRTY BIT ARRAY UPDATE: Clear dirty bit (new line from SDRAM is clean)
+                l1d_dirty_bits[cpu_EXMEM2_addr_stored[9:3]] <= 1'b0;
+
+                // Set cpu_done - data is ready for the CPU
+                cpu_EXMEM2_done <= 1'b1;
+                //$display("%d: CacheController L1D READ FAST PATH COMPLETE: addr=0x%h, result=0x%h", $time, cpu_EXMEM2_addr_stored, cpu_EXMEM2_result);
+                
+                // Go directly to IDLE (skip SIGNAL_CPU_DONE state for even faster return)
+                // Wait, we need to keep the done signal high for a cycle for the 50MHz CPU
+                state <= STATE_L1D_READ_SIGNAL_CPU_DONE;
             end
 
             // ------------------------
@@ -656,6 +808,9 @@ begin
                 // Start by disasserting the write enable
                 l1d_ctrl_we <= 1'b0;
 
+                // DIRTY BIT ARRAY UPDATE: Mark this cache line as dirty
+                l1d_dirty_bits[cpu_EXMEM2_addr_stored[9:3]] <= 1'b1;
+
                 // Set cpu_done
                 cpu_EXMEM2_done <= 1'b1;
                 //$display("%d: CacheController EXMEM2 WRITE OPERATION COMPLETE: addr=0x%h, data=0x%h", $time, cpu_EXMEM2_addr_stored, cpu_EXMEM2_data_stored);
@@ -703,10 +858,29 @@ begin
                 // Disable L1i write if it was still enabled
                 l1i_ctrl_we <= 1'b0;
                 
-                // Read L1d cache line at current index to check if it's dirty
-                l1d_ctrl_addr <= clear_cache_index;
-                l1d_ctrl_we <= 1'b0; // Read operation
-                state <= STATE_CLEARCACHE_L1D_WAIT_READ;
+                // DIRTY BIT ARRAY OPTIMIZATION:
+                // Use the fast dirty bit array to skip reading clean lines
+                if (l1d_dirty_bits[clear_cache_index])
+                begin
+                    // Line is dirty - read from DPRAM to get data for eviction
+                    l1d_ctrl_addr <= clear_cache_index;
+                    l1d_ctrl_we <= 1'b0;
+                    state <= STATE_CLEARCACHE_L1D_WAIT_READ;
+                end
+                else
+                begin
+                    // Line is clean - skip the read and move to next line or clear phase
+                    if (clear_cache_index == 7'd127)
+                    begin
+                        clear_cache_index <= 7'd0;
+                        state <= STATE_CLEARCACHE_L1D_CLEAR;
+                    end
+                    else
+                    begin
+                        clear_cache_index <= clear_cache_index + 1'b1;
+                        // Stay in this state to check next line
+                    end
+                end
             end
 
             STATE_CLEARCACHE_L1D_WAIT_READ: begin
@@ -715,42 +889,18 @@ begin
             end
 
             STATE_CLEARCACHE_L1D_CHECK: begin
-                // Check if the cache line is dirty (needs to be evicted)
-                // valid = l1d_ctrl_q[1]
-                // dirty = l1d_ctrl_q[0]
+                // We only get here if l1d_dirty_bits indicated the line is dirty
+                // Evict the cache line to SDRAM
                 // tag = l1d_ctrl_q[17:2]
                 // data = l1d_ctrl_q[273:18]
                 
-                if (l1d_ctrl_q[1] && l1d_ctrl_q[0]) // Valid and dirty
-                begin
-                    //$display("%d: CacheController L1d cache line %d is dirty, evicting", $time, clear_cache_index);
-                    
-                    sdc_we <= 1'b1;
-                    sdc_start <= 1'b1;
-                    // Construct address from tag and index
-                    sdc_addr <= {l1d_ctrl_q[17:2], clear_cache_index};
-                    
-                    sdc_data <= l1d_ctrl_q[273:18]; // Data to write
-                    
-                    state <= STATE_CLEARCACHE_L1D_EVICT_SEND_CMD; // TODO
-
-                end
-                else
-                begin
-                    // Cache line is not dirty (or not valid), move to next line
-                    if (clear_cache_index == 7'd127)
-                    begin
-                        // Finished checking all L1d cache lines, start clearing them
-                        clear_cache_index <= 7'd0;
-                        state <= STATE_CLEARCACHE_L1D_CLEAR;
-                        //$display("%d: CacheController All dirty L1d lines evicted, starting L1d clear", $time);
-                    end
-                    else
-                    begin
-                        clear_cache_index <= clear_cache_index + 1'b1;
-                        state <= STATE_CLEARCACHE_L1D_READ;
-                    end
-                end
+                sdc_we <= 1'b1;
+                sdc_start <= 1'b1;
+                // Construct address from tag and index
+                sdc_addr <= {l1d_ctrl_q[17:2], clear_cache_index};
+                sdc_data <= l1d_ctrl_q[273:18];
+                
+                state <= STATE_CLEARCACHE_L1D_EVICT_SEND_CMD;
             end
 
             STATE_CLEARCACHE_L1D_EVICT_SEND_CMD: begin
@@ -804,6 +954,9 @@ begin
             STATE_CLEARCACHE_L1D_CLEAR_FINISH: begin
                 // Disable write enable to ensure the last write completes properly
                 l1d_ctrl_we <= 1'b0;
+                
+                // DIRTY BIT ARRAY UPDATE: Clear all dirty bits
+                l1d_dirty_bits <= 128'b0;
                 
                 // Clear the cache clear request flag and return to idle via extra state
                 cpu_clear_cache_new_request <= 1'b0;
