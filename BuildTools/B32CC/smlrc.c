@@ -4107,7 +4107,8 @@ int exprval(int* idx, int* ExprTypeSynPtr, int* ConstExpr)
         //   - '(' is at position *idx + 1
         //   - ')' is at position closeParenIdx  
         //   - fxnIdent is right before ')' (at closeParenIdx - 1)
-        //   - There are 2 commas (one original, one inserted)
+        //   - There are 2 commas at the top level (one original, one inserted)
+        //   - BUT there may be nested '()' pairs with their own commas that must be preserved
         //
         // Target stack: ... arg1Expr arg2Expr tokMultFP ...
         
@@ -4127,14 +4128,24 @@ int exprval(int* idx, int* ExprTypeSynPtr, int* ConstExpr)
         del(fxnIdIdx, 1);
         closeParenIdx--;
         
-        // Remove all commas between '(' and the intrinsic token (was ')')
-        // Work backwards to avoid index shifting issues
-        for (i = closeParenIdx - 1; i > openParenIdx; i--)
+        // Remove only TOP-LEVEL commas between '(' and the intrinsic token
+        // We must NOT remove commas inside nested () pairs (e.g., from function call arguments)
+        // Work backwards, tracking parenthesis depth
         {
-          if (stack[i][0] == ',')
+          int depth = 0;
+          for (i = closeParenIdx - 1; i > openParenIdx; i--)
           {
-            del(i, 1);
-            closeParenIdx--;
+            int tok = stack[i][0];
+            if (tok == ')')
+              depth++;
+            else if (tok == '(')
+              depth--;
+            else if (tok == ',' && depth == 0)
+            {
+              // This comma is at the top level of the intrinsic call - remove it
+              del(i, 1);
+              closeParenIdx--;
+            }
           }
         }
         

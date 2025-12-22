@@ -15,16 +15,16 @@
 #define screenWidth   320
 #define screenHeight  240
 
-#define COLOR_RED         0b11100000
-#define COLOR_DARK_RED    0b01100000
-#define COLOR_GREEN       0b00011100
-#define COLOR_DARK_GREEN  0b00001100
-#define COLOR_BLUE        0b00000011
-#define COLOR_DARK_BLUE   0b00000010
-#define COLOR_WHITE       0b11111111
-#define COLOR_GREY        0b10110110
-#define COLOR_YELLOW      0b11111100
-#define COLOR_DARK_YELLOW 0b10010000
+#define COLOR_RED         0xE0
+#define COLOR_DARK_RED    0x60
+#define COLOR_GREEN       0x1C
+#define COLOR_DARK_GREEN  0x0C
+#define COLOR_BLUE        0x03
+#define COLOR_DARK_BLUE   0x02
+#define COLOR_WHITE       0xFF
+#define COLOR_GREY        0xB6
+#define COLOR_YELLOW      0xFC
+#define COLOR_DARK_YELLOW 0x90
 
 
 int worldMap[mapWidth][mapHeight]=
