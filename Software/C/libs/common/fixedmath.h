@@ -52,22 +52,6 @@ fixed_t fixed_frac(fixed_t x);
 /* Basic arithmetic functions */
 
 /**
- * Multiply two fixed-point numbers.
- * @param a First operand
- * @param b Second operand
- * @return a * b in fixed-point
- */
-fixed_t fixed_mul(fixed_t a, fixed_t b);
-
-/**
- * Divide two fixed-point numbers.
- * @param a Dividend
- * @param b Divisor
- * @return a / b in fixed-point
- */
-fixed_t fixed_div(fixed_t a, fixed_t b);
-
-/**
  * Calculate square root of fixed-point number.
  * Uses Newton-Raphson iteration.
  * @param x Input value (must be non-negative)
