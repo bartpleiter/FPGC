@@ -143,6 +143,13 @@ assign disp_5 = 1'b0;
 assign disp_6 = 1'b0;
 
 /******************************************************************************
+ * Dip switch
+ ******************************************************************************/
+// Rightmost switch is dipsw[0]
+wire boot_mode = dipsw[3];
+wire half_res  = dipsw[2];
+
+/******************************************************************************
  * Clocks
  ******************************************************************************/
 wire clk50;         // CPU and main logic
@@ -306,9 +313,10 @@ VRAM #(
 );
 
 /******************************************************************************
- * VRAMPX SRAM Interface
- * CPU writes go to SRAM via FIFO and arbiter
- * GPU reads from FIFO filled by arbiter
+ * VRAMPX SRAM Interface V2
+ * CPU writes go to SRAM via block RAM FIFO during blanking
+ * GPU reads directly from SRAM via arbiter during active video
+ * Arbiter runs at 100MHz for proper SRAM timing
  ******************************************************************************/
 
 wire [16:0] vramPX_cpu_addr;
@@ -316,19 +324,20 @@ wire [7:0]  vramPX_cpu_d;
 wire        vramPX_cpu_we;
 wire [7:0]  vramPX_cpu_q;  // Not used in this design (write-only from CPU)
 
-// GPU pixel FIFO interface
+// GPU pixel interface - direct SRAM read
+wire [16:0] gpu_pixel_addr;
 wire [7:0]  gpu_pixel_data;
-wire        gpu_fifo_empty;
-wire        gpu_fifo_rd_en;
 
 // Timing signals from FSX (25MHz domain)
 wire [11:0] fsx_h_count;
 wire [11:0] fsx_v_count;
 wire        fsx_vsync;
+wire        fsx_blank;
 
-VRAMPXSram vrampx_sram (
+VRAMPXSramV2 vrampx_sram (
     // Clocks and reset
-    .clk(clk50),
+    .clk50(clk50),
+    .clk100(clk100),
     .clkPixel(clkGPU),
     .reset(reset),
     
@@ -337,16 +346,13 @@ VRAMPXSram vrampx_sram (
     .cpu_data(vramPX_cpu_d),
     .cpu_we(vramPX_cpu_we),
     
-    // GPU timing signals (from FSX, 25MHz domain)
-    .vsync(fsx_vsync),
-    .h_count(fsx_h_count),
-    .v_count(fsx_v_count),
-    .halfRes(1'b0),
+    // GPU interface - direct SRAM read
+    .gpu_addr(gpu_pixel_addr),
+    .gpu_data(gpu_pixel_data),
     
-    // GPU pixel output
-    .gpu_pixel_data(gpu_pixel_data),
-    .gpu_fifo_empty(gpu_fifo_empty),
-    .gpu_fifo_rd_en(gpu_fifo_rd_en),
+    // GPU timing
+    .blank(fsx_blank),
+    .vsync(fsx_vsync),
     
     // External SRAM
     .SRAM_A(SRAM_A),
@@ -523,10 +529,10 @@ CacheController cache_controller (
 );
 
 /******************************************************************************
- * FSX GPU (SRAM)
+ * FSX GPU (SRAM V2) - Direct SRAM Read Design
  ******************************************************************************/
 wire frameDrawn;
-FSX_SRAM fsx (
+FSX_SRAM_V2 fsx (
     // Clocks
     .clkPixel(clkGPU),
     .clkTMDShalf(clkTMDShalf),
@@ -549,18 +555,18 @@ FSX_SRAM fsx (
     .vram8_addr(vram8_gpu_addr),
     .vram8_q   (vram8_gpu_q),
 
-    // Pixel FIFO interface
-    .pixel_fifo_data(gpu_pixel_data),
-    .pixel_fifo_empty(gpu_fifo_empty),
-    .pixel_fifo_rd_en(gpu_fifo_rd_en),
+    // Pixel SRAM interface
+    .pixel_sram_addr(gpu_pixel_addr),
+    .pixel_sram_data(gpu_pixel_data),
 
     // Timing outputs
     .h_count_out(fsx_h_count),
     .v_count_out(fsx_v_count),
     .vsync_out(fsx_vsync),
+    .blank_out(fsx_blank),
     
     // Parameters
-    .halfRes(1'b0),
+    .halfRes(half_res),
 
     // Interrupt signal
     .frameDrawn(frameDrawn)
@@ -582,9 +588,6 @@ wire        uart_irq;
 wire        OST1_int;
 wire        OST2_int;
 wire        OST3_int;
-
-// I/O signals
-wire        boot_mode = dipsw[0];
 
 MemoryUnit memory_unit (
     .clk(clk50),

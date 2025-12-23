@@ -3,11 +3,6 @@
  * Simulation model for IS61LV5128AL 512K x 8 High-Speed CMOS Static RAM
  * 
  * This is a simplified behavioral model for simulation purposes.
- * Actual timing characteristics:
- *   - Trc (Read Cycle Time): 10ns min
- *   - Twc (Write Cycle Time): 10ns min
- *   - Taa (Address Access Time): 10ns max
- *   - Toh (Output Hold Time): 3ns min
  *   
  * Note: For simulation, we only model the lower 128KB to speed up compilation.
  * The pixel framebuffer only needs 76,800 bytes anyway.
@@ -23,38 +18,34 @@ module IS61LV5128AL #(
 );
 
 // Memory array - 80K x 8 bits (slightly larger than pixel framebuffer)
-// Using smaller size for faster Icarus Verilog compilation
 reg [7:0] mem [0:81919];
 
 // Use lower 17 bits of address for simulation
 wire [16:0] sim_addr = A[16:0];
 
-// Output data register
-reg [7:0] data_out;
-
 // Tristate control for bidirectional data bus
 wire output_enable = ~CE_n && ~OE_n && WE_n;
 
-assign DQ = output_enable ? data_out : 8'bz;
+// Read operation - combinatorial using continuous assignment
+// This ensures data is always available immediately when conditions are met
+wire [7:0] data_out = output_enable ? mem[sim_addr] : 8'bx;
 
-// Read operation (combinatorial - data available after address access time)
-always @(*) begin
-    if (~CE_n && ~OE_n && WE_n) begin
-        data_out = mem[sim_addr];
-    end else begin
-        data_out = 8'bx;
-    end
-end
+assign DQ = output_enable ? data_out : 8'bz;
 
 // Write operation - sample data on rising edge of WE_n (end of write cycle)
 // This matches real SRAM behavior where data is latched at end of write pulse
+// Added check: only write if DQ is being driven (not high-Z)
+// This prevents spurious writes during simulation startup
 reg we_n_prev = 1'b1;
 always @(posedge WE_n or posedge CE_n) begin
     if (CE_n) begin
         // Chip disabled, do nothing
     end else begin
         // WE_n rising edge while CE_n is low - complete the write
-        mem[sim_addr] <= DQ;
+        // Check that DQ is actually driven (not 'z' or 'x' in all bits)
+        if (DQ !== 8'bz && DQ !== 8'bx && DQ !== 8'bzzzzzzzz) begin
+            mem[sim_addr] <= DQ;
+        end
     end
 end
 
