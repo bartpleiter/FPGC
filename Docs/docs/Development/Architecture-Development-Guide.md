@@ -439,7 +439,6 @@ B32CC is a single-pass C compiler based on Smaller C. Understanding its capabili
 5. **No Floating-Point Support**
    - CPU has no FPU, compiler has no `float` or `double` support
    - All floating-point math must use fixed-point arithmetic
-   - See Fixed-Point Math Library section below
 
 6. **Limited Type Support**
    - No `long long` (64-bit integers)
