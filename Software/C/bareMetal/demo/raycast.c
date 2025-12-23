@@ -282,13 +282,13 @@ int main()
   fixed_t planeY = 43690; // Two thirds of FIXED_ONE
 
   // Movement variables
-  fixed_t moveSpeed = FIXED_ONE >> 3;
+  fixed_t moveSpeed = FIXED_ONE >> 4;
   int rotationAngle = 0;
   int rotationSpeed = 1; // degrees per frame
-  int moveForward = 0;
+  int moveForward = 1;
   int moveBackward = 0;
   int rotateLeft = 0;
-  int rotateRight = 1; // Currently only rotate right for demo
+  int rotateRight = 1;
 
   // Demo variables
   int frameCount = 0;

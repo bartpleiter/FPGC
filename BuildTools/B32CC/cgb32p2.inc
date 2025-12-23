@@ -1680,9 +1680,8 @@ void GenExpr0(void)
         GenPushReg();
       gotUnary = 0;
       // In word-addressable mode, v is count of args, max 4 args in registers
-      // Allocate stack space for parameters if needed
-      if (maxCallDepth != 1 && v < 4)
-        GenGrowStack(4 - v);
+      // Note: Stack space for callee to save arguments is allocated at case ')'
+      // Do NOT allocate stack space here as it would cause a stack leak in nested calls
       paramOfs = v - 1;
       if (maxCallDepth == 1 && paramOfs >= 0 && paramOfs <= 3)
       {
