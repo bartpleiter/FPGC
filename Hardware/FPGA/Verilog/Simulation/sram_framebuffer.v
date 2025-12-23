@@ -10,18 +10,18 @@
 `timescale 1ns / 1ps
 
 `include "Hardware/FPGA/Verilog/Modules/Memory/IS61LV5128AL.v"
-`include "Hardware/FPGA/Verilog/Modules/Memory/SRAMWriteFIFOBlock.v"
-`include "Hardware/FPGA/Verilog/Modules/Memory/SRAMArbiterV2.v"
-`include "Hardware/FPGA/Verilog/Modules/Memory/VRAMPXSramV2.v"
+`include "Hardware/FPGA/Verilog/Modules/Memory/AsyncFIFO.v"
+`include "Hardware/FPGA/Verilog/Modules/Memory/SRAMArbiter.v"
+`include "Hardware/FPGA/Verilog/Modules/Memory/VRAMPXSram.v"
 
 `include "Hardware/FPGA/Verilog/Modules/Memory/VRAM.v"
 `include "Hardware/FPGA/Verilog/Modules/GPU/TimingGenerator.v"
 `include "Hardware/FPGA/Verilog/Modules/GPU/BGWrenderer.v"
-`include "Hardware/FPGA/Verilog/Modules/GPU/PixelEngineSRAMV2.v"
-`include "Hardware/FPGA/Verilog/Modules/GPU/FSX_SRAM_V2.v"
+`include "Hardware/FPGA/Verilog/Modules/GPU/PixelEngineSRAM.v"
+`include "Hardware/FPGA/Verilog/Modules/GPU/FSX_SRAM.v"
 `include "Hardware/FPGA/Verilog/Modules/GPU/HDMI/RGB8toRGB24.v"
 
-module sram_simple_v2_tb ();
+module sram_framebuffer_tb ();
 
 //=============================================================================
 // Clock Generation
@@ -79,7 +79,7 @@ wire [11:0] fsx_v_count;
 wire        fsx_vsync;
 wire        fsx_blank;
 
-VRAMPXSramV2 vrampx_sram (
+VRAMPXSram vrampx_sram (
     // Clocks and reset
     .clk50(clk50),
     .clk100(clk100),
@@ -120,11 +120,11 @@ wire [13:0] vram8_gpu_addr;
 wire [7:0]  vram8_gpu_q = 8'd0;  // Return black for BGW
 
 //=============================================================================
-// FSX_SRAM_V2 (GPU)
+// FSX_SRAM (GPU)
 //=============================================================================
 wire frameDrawn;
 
-FSX_SRAM_V2 fsx (
+FSX_SRAM fsx (
     .clkPixel(clkPixel),
     .clkTMDShalf(clk100),
 
@@ -188,14 +188,22 @@ initial begin
              sram.mem[0], sram.mem[1], sram.mem[2], sram.mem[3], sram.mem[4]);
 end
 
-// CPU write test - write a different value to pixel 0 during frame 2
-// Should show up in frame 3
+// CPU write test - write multiple pixels during frame 2
+// Test pattern: write 0xAA to first 10 pixels, then 0x55 to next 10
+reg [4:0] cpu_write_counter = 0;
+reg cpu_writes_done = 0;
+
 always @(posedge clk50) begin
-    if (!reset && frame_count == 2 && fsx_blank) begin
-        // Write 0xFF (white) to pixel 0 during blanking
-        cpu_addr_reg <= 17'd0;
-        cpu_data_reg <= 8'hFF;
-        cpu_we_reg <= 1'b1;
+    if (!reset && frame_count == 2 && fsx_blank && !cpu_writes_done) begin
+        if (cpu_write_counter < 20) begin
+            cpu_addr_reg <= {12'd0, cpu_write_counter};
+            cpu_data_reg <= (cpu_write_counter < 10) ? 8'hAA : 8'h55;
+            cpu_we_reg <= 1'b1;
+            cpu_write_counter <= cpu_write_counter + 1;
+        end else begin
+            cpu_we_reg <= 1'b0;
+            cpu_writes_done <= 1'b1;
+        end
     end else begin
         cpu_we_reg <= 1'b0;
     end
@@ -206,8 +214,8 @@ end
 // At 25MHz (40ns period), that's ~16.8ms per frame
 // At 100MHz (10ns), that's ~420000 * 4 = 1.68M cycles per frame
 initial begin
-    $dumpfile("Hardware/FPGA/Verilog/Simulation/Output/sram_simple_v2.vcd");
-    $dumpvars(0, sram_simple_v2_tb);
+    $dumpfile("Hardware/FPGA/Verilog/Simulation/Output/sram_framebuffer.vcd");
+    $dumpvars(0, sram_framebuffer_tb);
     
     // Run for about 55ms (3+ frames)
     #55000000;
@@ -218,10 +226,9 @@ end
 // Debug output - sample pixels around the blanking-to-active transition
 reg [3:0] debug_sample_count = 0;
 always @(posedge clkPixel) begin
-    // Show transition from blanking to active (h=156-170) for frames 2 and 3
-    // Also show first two lines to verify vertical scaling
-    if (((fsx_v_count == 45 || fsx_v_count == 46) && fsx_h_count >= 160 && fsx_h_count <= 170) && 
-        (frame_count >= 2 && frame_count <= 3)) begin
+    // Show first 25 pixels of line 45 for frame 3 to verify all 20 CPU writes
+    if ((fsx_v_count == 45 && fsx_h_count >= 160 && fsx_h_count <= 210) && 
+        (frame_count == 3)) begin
         $display("t=%0t FRAME=%0d h=%0d v=%0d addr=%0d data=%02h blank=%b sram_addr=%h sram_dq=%02h", 
                  $time, frame_count, fsx_h_count, fsx_v_count, gpu_pixel_addr, gpu_pixel_data, fsx_blank,
                  SRAM_A[16:0], SRAM_DQ);

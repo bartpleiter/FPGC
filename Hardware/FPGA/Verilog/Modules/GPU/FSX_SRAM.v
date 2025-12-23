@@ -1,7 +1,8 @@
 /*
  * FSX_SRAM
- * Modified Frame Synthesizer that uses external SRAM for pixel framebuffer
- * This version uses PixelEngineSRAM instead of PixelEngine
+ * Frame Synthesizer using external SRAM for pixel framebuffer
+ * 
+ * Currently called V2 to keep supporting the non-SRAM version on the Cyclone10 for now.
  */
 module FSX_SRAM (
     // Clocks
@@ -26,15 +27,15 @@ module FSX_SRAM (
     output wire [13:0]  vram8_addr,
     input wire  [7:0]   vram8_q,
 
-    // Pixel FIFO interface (replaces VRAMpixel direct access)
-    input wire  [7:0]   pixel_fifo_data,
-    input wire          pixel_fifo_empty,
-    output wire         pixel_fifo_rd_en,
+    // Pixel SRAM interface
+    output wire [16:0]  pixel_sram_addr,   // Address request to SRAM
+    input wire  [7:0]   pixel_sram_data,   // Data from SRAM
     
-    // Timing outputs for SRAM arbiter (exposed for external use)
+    // Timing outputs for SRAM arbiter
     output wire [11:0]  h_count_out,
     output wire [11:0]  v_count_out,
     output wire         vsync_out,
+    output wire         blank_out,
 
     // Parameters
     input wire          halfRes, // Render half res at full res by zooming in at top left corner
@@ -54,6 +55,7 @@ wire blank;
 assign h_count_out = h_count;
 assign v_count_out = v_count;
 assign vsync_out = vsync;
+assign blank_out = blank;
 
 TimingGenerator timingGenerator (
     // Clock
@@ -100,7 +102,7 @@ BGWrenderer bgwrenderer (
     .vram8_q(vram8_q)
 );
 
-// RGB values for Pixel (PX) plane - using SRAM-based PixelEngine
+// RGB values for Pixel (PX) plane - using SRAM-based PixelEngine V2
 wire [2:0] PX_r;
 wire [2:0] PX_g;
 wire [1:0] PX_b;
@@ -119,10 +121,9 @@ PixelEngineSRAM pixelEngine (
     .g(PX_g),
     .b(PX_b),
 
-    // FIFO interface (replaces VRAM)
-    .fifo_data(pixel_fifo_data),
-    .fifo_empty(pixel_fifo_empty),
-    .fifo_rd_en(pixel_fifo_rd_en),
+    // SRAM interface (direct access)
+    .sram_addr(pixel_sram_addr),
+    .sram_data(pixel_sram_data),
     
     // Parameters
     .halfRes(halfRes)

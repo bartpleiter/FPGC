@@ -70,7 +70,7 @@ All clocks are generated from the same PLL and are phase-aligned, which simplifi
 ### Read Path (SRAM → GPU)
 
 1. During **active video**, the arbiter dedicates SRAM to GPU reads
-2. GPU's `PixelEngineSRAMV2` outputs the current pixel address
+2. GPU's `PixelEngineSRAM` outputs the current pixel address
 3. Arbiter continuously reads from SRAM address
 4. Data is registered for stability and passed to Pixel Engine
 5. **Line buffer** provides vertical 2× scaling (same line repeated twice)
@@ -88,11 +88,15 @@ Vertical scaling uses a **line buffer**: the first line is read from SRAM and st
 
 | Module | Description |
 | -------- | ------------- |
-| `SRAMWriteFIFOBlock.v` | Dual-clock write FIFO using M9K block RAM |
-| `SRAMArbiterV2.v` | 100MHz arbiter - writes during blanking, reads during active |
-| `VRAMPXSramV2.v` | Top-level wrapper connecting FIFO, arbiter, and SRAM |
-| `PixelEngineSRAMV2.v` | Generates pixel addresses, handles scaling |
-| `FSX_SRAM_V2.v` | Frame synthesizer using direct SRAM interface |
+| `AsyncFIFO.v` | Dual-clock write FIFO with Gray-coded pointers for robust CDC |
+| `SRAMArbiter.v` | 100MHz arbiter - writes during blanking, reads during active |
+| `VRAMPXSram.v` | Top-level wrapper connecting FIFO, arbiter, and SRAM |
+| `PixelEngineSRAM.v` | Generates pixel addresses, handles scaling |
+| `FSX_SRAM.v` | Frame synthesizer using direct SRAM interface |
+
+### Clock Domain Crossing
+
+The write FIFO crosses from the 50MHz CPU domain to the 100MHz arbiter domain. While the clocks should be synchronized, data corruption still happens when there is no proper synchronization. Therefore, the FIFO implemented is a true dual-clock FIFO.
 
 ### SRAM Chip: IS61LV5128AL
 

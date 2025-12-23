@@ -1,20 +1,16 @@
 /*
  * VRAMPXSram
- * Top-level module that implements the pixel framebuffer using external SRAM
- * 
- * This module wraps:
- * - SRAMWriteFIFO: Buffers CPU writes
- * - SRAMReadFIFO: Dual-clock FIFO for GPU reads  
- * - SRAMArbiter: Manages SRAM access between CPU and GPU
+ * Simplified top-level module for pixel framebuffer using external SRAM
  * 
  * Interfaces:
  * - CPU: Write-only access to pixel framebuffer (50MHz)
- * - GPU: Read-only access via modified PixelEngine (25MHz)
+ * - GPU: Direct read access through arbiter (25MHz, synced internally)
  * - SRAM: External IS61LV5128AL interface
  */
 module VRAMPXSram (
     // Clocks and reset
-    input  wire         clk,           // 50MHz system clock
+    input  wire         clk50,         // 50MHz CPU clock
+    input  wire         clk100,        // 100MHz arbiter clock
     input  wire         clkPixel,      // 25MHz GPU clock
     input  wire         reset,
     
@@ -23,16 +19,13 @@ module VRAMPXSram (
     input  wire [7:0]   cpu_data,      // 8-bit pixel data (R3G3B2)
     input  wire         cpu_we,        // Write enable
     
-    // GPU timing signals (directly from TimingGenerator, 25MHz domain)
-    input  wire         vsync,
-    input  wire [11:0]  h_count,
-    input  wire [11:0]  v_count,
-    input  wire         halfRes,
+    // GPU interface (25MHz domain)
+    input  wire [16:0]  gpu_addr,      // Requested pixel address
+    output wire [7:0]   gpu_data,      // Pixel data output
     
-    // GPU pixel output interface (25MHz domain)
-    output wire [7:0]   gpu_pixel_data,
-    output wire         gpu_fifo_empty,
-    input  wire         gpu_fifo_rd_en,
+    // GPU timing signals (25MHz domain)
+    input  wire         blank,         // Active during blanking
+    input  wire         vsync,         // For debug/monitoring
     
     // External SRAM interface
     output wire [18:0]  SRAM_A,
@@ -43,80 +36,64 @@ module VRAMPXSram (
 );
 
 //=============================================================================
-// Clock Domain Crossing: vsync sync to 50MHz
+// GPU signals to 100MHz domain
+// Since clocks are phase-aligned from same PLL, we can use direct connection
+// for blank (which is stable for many cycles) and only register the address
 //=============================================================================
-reg vsync_sync1 = 1'b0;
-reg vsync_sync2 = 1'b0;
+reg [16:0] gpu_addr_sync = 17'd0;
 
-always @(posedge clk) begin
-    vsync_sync1 <= vsync;
-    vsync_sync2 <= vsync_sync1;
+always @(posedge clk100) begin
+    gpu_addr_sync <= gpu_addr;
 end
 
-wire vsync_50mhz = vsync_sync2;
+// Blank and vsync are stable for many cycles, direct connection is safe
+wire blank_sync = blank;
+wire vsync_sync = vsync;
 
 //=============================================================================
-// CPU Write FIFO (50MHz domain)
+// GPU data from arbiter to PixelEngine
+// The arbiter already registers the SRAM data, so we can pass it directly
+// The 25MHz GPU clock will sample stable data
 //=============================================================================
-wire [16:0] cpu_fifo_addr;
-wire [7:0]  cpu_fifo_data;
+wire [7:0] gpu_data_from_arbiter;
+
+// Direct passthrough - arbiter output is already registered at 100MHz
+// GPU will sample on its 25MHz clock edge (phase-aligned with 100MHz)
+assign gpu_data = gpu_data_from_arbiter;
+
+//=============================================================================
+// CPU Write FIFO (50MHz write, 100MHz read)
+// Using proper async FIFO with Gray-coded pointers for robust CDC
+//=============================================================================
+wire [24:0] cpu_fifo_data_out;
+wire [16:0] cpu_fifo_addr = cpu_fifo_data_out[24:8];
+wire [7:0]  cpu_fifo_data = cpu_fifo_data_out[7:0];
 wire        cpu_fifo_empty;
 wire        cpu_fifo_full;
 wire        cpu_fifo_rd_en;
 
-SRAMWriteFIFO #(
-    .DEPTH(16),
-    .ADDR_WIDTH(4)
+AsyncFIFO #(
+    .DATA_WIDTH(25),    // 17-bit address + 8-bit data
+    .ADDR_WIDTH(9),     // 512 entries
+    .DEPTH(512)
 ) cpu_write_fifo (
-    .clk(clk),
-    .reset(reset),
-    
-    // CPU write port
-    .wr_addr(cpu_addr),
-    .wr_data(cpu_data),
+    // Write side (50MHz)
+    .wr_clk(clk50),
+    .wr_reset(reset),
+    .wr_data({cpu_addr, cpu_data}),
     .wr_en(cpu_we && !cpu_fifo_full),
-    .full(cpu_fifo_full),
+    .wr_full(cpu_fifo_full),
     
-    // Arbiter read port
-    .rd_addr(cpu_fifo_addr),
-    .rd_data(cpu_fifo_data),
-    .empty(cpu_fifo_empty),
+    // Read side (100MHz)
+    .rd_clk(clk100),
+    .rd_reset(reset),
+    .rd_data(cpu_fifo_data_out),
+    .rd_empty(cpu_fifo_empty),
     .rd_en(cpu_fifo_rd_en)
 );
 
 //=============================================================================
-// GPU Read FIFO (50MHz write, 25MHz read)
-// Increased size to 128 entries for better buffering during CPU write contention
-//=============================================================================
-wire [7:0]  gpu_fifo_wr_data;
-wire        gpu_fifo_wr_en;
-wire        gpu_fifo_full;
-wire [7:0]  gpu_fifo_wr_level;
-wire [7:0]  gpu_fifo_rd_level;
-
-SRAMReadFIFO #(
-    .DEPTH(128),
-    .ADDR_WIDTH(7)
-) gpu_read_fifo (
-    // Write side (50MHz)
-    .wr_clk(clk),
-    .wr_reset(reset),
-    .wr_data(gpu_fifo_wr_data),
-    .wr_en(gpu_fifo_wr_en),
-    .wr_full(gpu_fifo_full),
-    .wr_level(gpu_fifo_wr_level),
-    
-    // Read side (25MHz)
-    .rd_clk(clkPixel),
-    .rd_reset(reset),
-    .rd_data(gpu_pixel_data),
-    .rd_en(gpu_fifo_rd_en),
-    .rd_empty(gpu_fifo_empty),
-    .rd_level(gpu_fifo_rd_level)
-);
-
-//=============================================================================
-// SRAM Arbiter (50MHz domain)
+// SRAM Arbiter (100MHz domain)
 //=============================================================================
 wire [18:0] sram_addr_int;
 wire [7:0]  sram_dq_out;
@@ -126,25 +103,22 @@ wire        sram_oe_n_int;
 wire        sram_cs_n_int;
 
 SRAMArbiter arbiter (
-    .clk(clk),
+    .clk100(clk100),
     .reset(reset),
     
-    // GPU timing (50MHz synced)
-    .vsync(vsync_50mhz),
-    .h_count(h_count),
-    .v_count(v_count),
-    .halfRes(halfRes),
+    // GPU interface
+    .gpu_addr(gpu_addr_sync),
+    .gpu_data(gpu_data_from_arbiter),
+    
+    // GPU timing
+    .blank(blank_sync),
+    .vsync(vsync_sync),
     
     // CPU Write FIFO interface
     .cpu_wr_addr(cpu_fifo_addr),
     .cpu_wr_data(cpu_fifo_data),
     .cpu_fifo_empty(cpu_fifo_empty),
     .cpu_fifo_rd_en(cpu_fifo_rd_en),
-    
-    // GPU Read FIFO interface
-    .gpu_rd_data(gpu_fifo_wr_data),
-    .gpu_fifo_wr_en(gpu_fifo_wr_en),
-    .gpu_fifo_full(gpu_fifo_full),
     
     // SRAM interface
     .sram_addr(sram_addr_int),

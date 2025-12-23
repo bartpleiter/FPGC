@@ -3,32 +3,22 @@
 !!! Warning
     This is my TODO list for development purposes, not really documentation for how to do development.
 
-## Copilot stories
-
-- [ ] Convert the l1 cache design to reflect the SDRAM controller instead of MIG7 (less addresses)
-- [ ] Given longest path is from CacheController|EXMEM2_result into cpu|PC_FE1, look into reducing this path
-- [ ] Find a way to benchmark the l1i and l1d cache performance, and optimize them (especially l1d)
-
 ## Verilog/FPGA design
 
 - [ ] Rewrite regbank to just use logic cells instead of attempting block RAM inference
 - [ ] Rewrite stack to force use of block RAM
-- [ ] Look into reducing path from CacheController|EXMEM2_result into cpu|PC_FE1
-- [ ] External SRAM framebuffer design
-- [ ] Optimize Cache memory path to reduce latency
+- [ ] Given longest path is from CacheController|EXMEM2_result into cpu|PC_FE1, look into reducing this path
+- [ ] Remove line buffer in FSX_SRAM and access SRAM instead again for the second line to save up resources
+- [ ] Status led modules for the Cyclone IV PCB
 
 ## Software development
 
 - [ ] Make test assembly programs to validate EP4CE40 PCB
-- [ ] Make DTR reset and Magic Sequence configurable in makefile scripts
-- [ ] Continue with C compiler to allow starting on the following:
-    - [ ] BDOS V2
-    - [ ] Benchmark
-    - [ ] Write simple test programs in C to validate the compiler and runtime
+- [ ] Make DTR reset and Magic Sequence configurable in makefile scripts, or drop support for Cyclone 10 if at the point where we need hardware features of the Cyclone IV PCB
+- [ ] BDOS V2 design and implementation
 
 ## Documentation
 
-- [ ] Document bootloader with current implementation
 - [ ] Check for further outdated information in docs, or docs that can be written given project state/progress
 
 ---
@@ -36,7 +26,6 @@
 ## Development Workflow Improvements
 
 These are potential todos for improving the development workflows.
-
 
 ### Simulation Infrastructure
 

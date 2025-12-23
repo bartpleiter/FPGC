@@ -334,7 +334,7 @@ wire [11:0] fsx_v_count;
 wire        fsx_vsync;
 wire        fsx_blank;
 
-VRAMPXSramV2 vrampx_sram (
+VRAMPXSram vrampx_sram (
     // Clocks and reset
     .clk50(clk50),
     .clk100(clk100),
@@ -532,7 +532,7 @@ CacheController cache_controller (
  * FSX GPU (SRAM V2) - Direct SRAM Read Design
  ******************************************************************************/
 wire frameDrawn;
-FSX_SRAM_V2 fsx (
+FSX_SRAM fsx (
     // Clocks
     .clkPixel(clkGPU),
     .clkTMDShalf(clkTMDShalf),
