@@ -185,6 +185,10 @@ sim-bootloader:
 	@mkdir -p $(SIMULATION_OUTPUT_DIR)
 	./Scripts/ASM/compile_bootloader.sh --simulate
 
+sim-sram-pixel:
+	@mkdir -p $(SIMULATION_OUTPUT_DIR)
+	./Scripts/Simulation/simulate_sram_pixel.sh
+
 # =============================================================================
 # Testing (Hardware)
 # =============================================================================

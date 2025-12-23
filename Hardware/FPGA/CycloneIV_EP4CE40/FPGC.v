@@ -122,13 +122,6 @@ module FPGC (
 /******************************************************************************
  * Static Assignments
  ******************************************************************************/
-// SRAM is currently not used yet
-assign SRAM_CSn = 1'b1;
-assign SRAM_WEn = 1'b1;
-assign SRAM_OEn = 1'b1;
-assign SRAM_A   = 19'd0;
-assign SRAM_DQ  = 8'dz;
-
 // SPI Flash is currently in 1x mode
 assign flash1_wp_n   = 1'b1;
 assign flash1_hold_n = 1'b1;
@@ -313,42 +306,58 @@ VRAM #(
 );
 
 /******************************************************************************
- * VRAMPX
+ * VRAMPX SRAM Interface
+ * CPU writes go to SRAM via FIFO and arbiter
+ * GPU reads from FIFO filled by arbiter
  ******************************************************************************/
-wire [16:0] vramPX_gpu_addr;
-wire [7:0]  vramPX_gpu_d;
-wire        vramPX_gpu_we;
-wire [7:0]  vramPX_gpu_q;
 
 wire [16:0] vramPX_cpu_addr;
 wire [7:0]  vramPX_cpu_d;
 wire        vramPX_cpu_we;
-wire [7:0]  vramPX_cpu_q;
+wire [7:0]  vramPX_cpu_q;  // Not used in this design (write-only from CPU)
 
-// GPU will not write to VRAM
-assign vramPX_gpu_we = 1'b0;
-assign vramPX_gpu_d  = 8'd0;
+// GPU pixel FIFO interface
+wire [7:0]  gpu_pixel_data;
+wire        gpu_fifo_empty;
+wire        gpu_fifo_rd_en;
 
-VRAM #(
-    .WIDTH(8),
-    .WORDS(76800),
-    .ADDR_BITS(17),
-    .LIST("/home/bart/repos/FPGC/Hardware/FPGA/Verilog/MemoryLists/vramPX.list")
-) vramPX (
-    // CPU port
-    .cpu_clk (clk50),
-    .cpu_d   (vramPX_cpu_d),
+// Timing signals from FSX (25MHz domain)
+wire [11:0] fsx_h_count;
+wire [11:0] fsx_v_count;
+wire        fsx_vsync;
+
+VRAMPXSram vrampx_sram (
+    // Clocks and reset
+    .clk(clk50),
+    .clkPixel(clkGPU),
+    .reset(reset),
+    
+    // CPU interface (50MHz)
     .cpu_addr(vramPX_cpu_addr),
-    .cpu_we  (vramPX_cpu_we),
-    .cpu_q   (vramPX_cpu_q),
-
-    // GPU port
-    .gpu_clk (clkGPU),
-    .gpu_d   (vramPX_gpu_d),
-    .gpu_addr(vramPX_gpu_addr),
-    .gpu_we  (vramPX_gpu_we),
-    .gpu_q   (vramPX_gpu_q)
+    .cpu_data(vramPX_cpu_d),
+    .cpu_we(vramPX_cpu_we),
+    
+    // GPU timing signals (from FSX, 25MHz domain)
+    .vsync(fsx_vsync),
+    .h_count(fsx_h_count),
+    .v_count(fsx_v_count),
+    .halfRes(1'b0),
+    
+    // GPU pixel output
+    .gpu_pixel_data(gpu_pixel_data),
+    .gpu_fifo_empty(gpu_fifo_empty),
+    .gpu_fifo_rd_en(gpu_fifo_rd_en),
+    
+    // External SRAM
+    .SRAM_A(SRAM_A),
+    .SRAM_DQ(SRAM_DQ),
+    .SRAM_CSn(SRAM_CSn),
+    .SRAM_OEn(SRAM_OEn),
+    .SRAM_WEn(SRAM_WEn)
 );
+
+// CPU read from vramPX returns 0 (write-only)
+assign vramPX_cpu_q = 8'd0;
 
 /******************************************************************************
  * L1i RAM (100&50MHz)
@@ -514,10 +523,10 @@ CacheController cache_controller (
 );
 
 /******************************************************************************
- * FSX GPU
+ * FSX GPU (SRAM)
  ******************************************************************************/
 wire frameDrawn;
-FSX fsx (
+FSX_SRAM fsx (
     // Clocks
     .clkPixel(clkGPU),
     .clkTMDShalf(clkTMDShalf),
@@ -540,9 +549,15 @@ FSX fsx (
     .vram8_addr(vram8_gpu_addr),
     .vram8_q   (vram8_gpu_q),
 
-    // VRAMPX
-    .vramPX_addr(vramPX_gpu_addr),
-    .vramPX_q   (vramPX_gpu_q),
+    // Pixel FIFO interface
+    .pixel_fifo_data(gpu_pixel_data),
+    .pixel_fifo_empty(gpu_fifo_empty),
+    .pixel_fifo_rd_en(gpu_fifo_rd_en),
+
+    // Timing outputs
+    .h_count_out(fsx_h_count),
+    .v_count_out(fsx_v_count),
+    .vsync_out(fsx_vsync),
     
     // Parameters
     .halfRes(1'b0),
@@ -671,7 +686,7 @@ B32P2 cpu (
     .vram8_we(vram8_cpu_we),
     .vram8_q(vram8_cpu_q),
 
-    // VRAMPX
+    // VRAMPX (SRAM)
     .vramPX_addr(vramPX_cpu_addr),
     .vramPX_d(vramPX_cpu_d),
     .vramPX_we(vramPX_cpu_we),
