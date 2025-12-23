@@ -28,6 +28,8 @@ module PixelEngineSRAMV2 (
     input wire          halfRes    // Render half res (160×120) at full res
 );
 
+    // halfRes is disabled for now
+
     // VGA timing constants
     localparam HSTART_HDMI = 159; // Pixel to start rendering
     localparam VSTART_HDMI = 44;  // Line to start rendering
@@ -49,16 +51,14 @@ module PixelEngineSRAMV2 (
     // Source pixel coordinates (after 2× or 4× scaling)
     // Normal mode: 640×480 -> 320×240 (÷2)
     // Half res mode: 640×480 -> 160×120 (÷4)
-    wire [8:0] source_x = halfRes ? pixel_active[9:2] : pixel_active[9:1];
-    wire [7:0] source_y = halfRes ? line_active[9:2] : line_active[9:1];
+    wire [8:0] source_x = pixel_active[9:1];
+    wire [7:0] source_y = line_active[9:1];
     
     // Calculate pixel address: y * 320 + x
     // For halfRes: y * 320 + x (where x is 0-159, y is 0-119)
     // We need to calculate: source_y * 320 + source_x
     // 320 = 256 + 64 = (y << 8) + (y << 6)
-    wire [16:0] pixel_addr = (halfRes) ? 
-        ({9'd0, source_y} << 8) + ({9'd0, source_y} << 6) + {8'd0, source_x} :
-        ({9'd0, source_y} << 8) + ({9'd0, source_y} << 6) + {8'd0, source_x};
+    wire [16:0] pixel_addr = ({9'd0, source_y} << 8) + ({9'd0, source_y} << 6) + {8'd0, source_x};
     
     // Output pixel address for SRAM read
     assign sram_addr = pixel_addr;
@@ -78,12 +78,12 @@ module PixelEngineSRAMV2 (
     // Is this the first display line of a source row pair?
     // For 2× vertical: even lines (0, 2, 4, ...) are first of pair
     // For 4× vertical (halfRes): lines 0, 4, 8, ... are first of quad
-    wire first_line_of_pair = halfRes ? (line_active[1:0] == 2'b00) : (line_active[0] == 1'b0);
+    wire first_line_of_pair = (line_active[0] == 1'b0);
     
     // Is this the first display pixel of a source pixel pair?
     // For 2× horizontal: even pixels (0, 2, 4, ...) are first of pair
     // For 4× horizontal (halfRes): pixels 0, 4, 8, ... are first of quad
-    wire first_pixel_of_pair = halfRes ? (pixel_active[1:0] == 2'b00) : (pixel_active[0] == 1'b0);
+    wire first_pixel_of_pair = (pixel_active[0] == 1'b0);
 
     // Pixel data source selection:
     // - First line of pair: from SRAM (and store in line buffer)
