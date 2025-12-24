@@ -35,7 +35,7 @@ int worldMap[mapWidth][mapHeight]=
   {1,0,0,2,0,0,0,2,0,0,0,0,0,0,0,0,0,0,1},
   {1,0,0,2,0,0,0,2,0,0,0,3,0,0,0,3,0,0,1},
   {1,0,0,2,0,0,0,2,0,0,0,0,0,0,0,0,0,0,1},
-  {1,0,0,2,2,0,2,2,0,0,0,3,0,3,0,3,0,0,1},
+  {1,0,0,2,2,0,2,2,0,0,0,0,0,3,0,3,0,0,1},
   {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
   {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
   {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
@@ -219,6 +219,7 @@ void draw_vertical_line(int x, int y_start, int y_end, int color)
 {
   asm(
   "; backup registers"
+  "push r1"
   "push r2"
   "push r9"
 
@@ -236,8 +237,9 @@ void draw_vertical_line(int x, int y_start, int y_end, int color)
   "add r9 r4 r2         ; r2 = fb addr of final pixel"
 
   "; draw until start"
+  "load 0b00011011 r1 ; ceiling color"
   "RAYFX_drawVlineLoopCeiling:"
-  "  write 0 r4 r0     ; write black pixel"
+  "  write 0 r4 r1     ; write ceiling pixel"
   "  add r4 320 r4     ; go to next line pixel"
 
   "  blt r4 r5 RAYFX_drawVlineLoopCeiling ; keep looping until reached start"
@@ -251,8 +253,9 @@ void draw_vertical_line(int x, int y_start, int y_end, int color)
 
 
   "; draw until final pixel"
+  "load 0b11011010 r1 ; floor color"
   "RAYFX_drawVlineLoopFloor:"
-  "  write 0 r4 r0     ; write black pixel"
+  "  write 0 r4 r1     ; write floor pixel"
   "  add r4 320 r4     ; go to next line pixel"
 
   "  blt r4 r2 RAYFX_drawVlineLoopFloor ; keep looping until reached end of screen"
@@ -260,6 +263,7 @@ void draw_vertical_line(int x, int y_start, int y_end, int color)
   "; restore registers"
   "pop r9"
   "pop r2"
+  "pop r1"
   );
 
 }
@@ -282,7 +286,7 @@ int main()
   fixed_t planeY = 43690; // Two thirds of FIXED_ONE
 
   // Movement variables
-  fixed_t moveSpeed = FIXED_ONE >> 4;
+  fixed_t moveSpeed = FIXED_ONE >> 5;
   int rotationAngle = 0;
   int rotationSpeed = 1; // degrees per frame
   int moveForward = 1;

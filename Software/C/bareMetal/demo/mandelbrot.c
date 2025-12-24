@@ -30,7 +30,7 @@ unsigned int colors[NUM_COLORS] = {
 
 // Maximum iterations for escape test
 // Lower = faster but less detail
-#define MAX_ITER 86
+#define MAX_ITER 110
 
 // Interesting point to zoom into (near the "seahorse valley")
 // These are in 16.16 fixed point format
@@ -181,11 +181,11 @@ int main()
   
   // Zoom factor per frame (0.75 in 16.16 = 49152)
   // Faster zoom for demo effect
-  fixed_t zoom_factor = 49152;
+  fixed_t zoom_factor = FIXED_HALF;
   
   // Minimum scale before we hit precision limits
   // At around scale = 256 (0.004), we start seeing pixelation due to 16.16 limits
-  fixed_t min_scale = 512;  // About 0.008 in real units
+  fixed_t min_scale = 256;  // About 0.008 in real units
   
   // Interpolation speed for center movement (0.9 in 16.16 = 58982)
   fixed_t lerp_speed = FIXED_ONE;
@@ -194,6 +194,7 @@ int main()
   {
     // Render current view
     render_mandelbrot(center_re, center_im, scale);
+    delay(500);
     
     // Move center towards target
     fixed_t diff_re = ZOOM_TARGET_RE - center_re;
