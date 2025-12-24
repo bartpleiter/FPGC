@@ -1,13 +1,14 @@
 /*
  * BranchJumpUnit
  * Handles branch and jump address calculations
+ * 
+ * Uses pre-computed jump and branch addresses to optimize timings
  */
 module BranchJumpUnit (
     input wire  [2:0]   branchOP,
     input wire  [31:0]  data_a,
     input wire  [31:0]  data_b,
     input wire  [31:0]  const16,
-    input wire  [26:0]  const27,
     input wire  [31:0]  pc,
     input wire          halt,
     input wire          branch,
@@ -15,6 +16,10 @@ module BranchJumpUnit (
     input wire          jumpr,
     input wire          oe,
     input wire          sig,
+    
+    // Pre-computed addresses
+    input wire  [31:0]  pre_jump_const_addr,  // pc + const27 or {5'b0, const27}
+    input wire  [31:0]  pre_branch_addr,      // pc + const16
 
     output reg  [31:0]  jump_addr,
     output wire         jump_valid
@@ -72,14 +77,7 @@ always @(*)
 begin
     if (jumpc)
     begin
-        if (oe)
-        begin
-            jump_addr <= pc + const27;
-        end
-        else
-        begin
-            jump_addr <= {5'b0, const27};
-        end
+        jump_addr <= pre_jump_const_addr;
     end
 
     else if (jumpr)
@@ -96,7 +94,7 @@ begin
     
     else if (branch)
     begin
-        jump_addr <= pc + const16;
+        jump_addr <= pre_branch_addr;
     end
 
     else if (halt)

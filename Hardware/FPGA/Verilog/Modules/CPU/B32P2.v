@@ -493,8 +493,10 @@ Regr #(
 
 wire [3:0] areg_REG;
 wire [3:0] breg_REG;
+wire [31:0] const16_REG;
+wire [26:0] const27_REG;
+wire oe_REG;
 
-// Obtain register addresses from instruction
 InstructionDecoder instrDec_REG (
     .instr(instr_REG),
 
@@ -504,18 +506,22 @@ InstructionDecoder instrDec_REG (
 
     .constAlu(),
     .constAluu(),
-    .const16(),
+    .const16(const16_REG),
     .const16u(),
-    .const27(),
+    .const27(const27_REG),
 
     .areg(areg_REG),
     .breg(breg_REG),
     .dreg(),
 
     .he(),
-    .oe(),
+    .oe(oe_REG),
     .sig()
 );
+
+// Pre-compute jump addresses in REG stage
+wire [31:0] jump_const_addr_REG = oe_REG ? (PC_REG + const27_REG) : {5'b0, const27_REG};
+wire [31:0] branch_addr_REG = PC_REG + const16_REG;
 
 // Since the regbank takes a cycle, the result will be in the next (EXMEM1) stage
 wire [31:0] data_a_EXMEM1;
@@ -568,6 +574,28 @@ Regr #(
     .clear(flush_REG || reset)
 );
 
+wire [31:0] jump_const_addr_EXMEM1;
+Regr #(
+    .N(32)
+) regr_jump_const_addr_REG_EXMEM1 (
+    .clk (clk),
+    .in(jump_const_addr_REG),
+    .out(jump_const_addr_EXMEM1),
+    .hold(stall_REG),
+    .clear(flush_REG || reset)
+);
+
+wire [31:0] branch_addr_EXMEM1;
+Regr #(
+    .N(32)
+) regr_branch_addr_REG_EXMEM1 (
+    .clk (clk),
+    .in(branch_addr_REG),
+    .out(branch_addr_EXMEM1),
+    .hold(stall_REG),
+    .clear(flush_REG || reset)
+);
+
 /*
  * Stage 4: Execute and Data Cache Access
  */
@@ -586,7 +614,6 @@ wire [31:0] alu_y_EXMEM1;
 // Branch and jump operations
 wire [2:0] branchOP_EXMEM1;
 wire [31:0] const16_EXMEM1;
-wire [26:0] const27_EXMEM1;
 wire halt_EXMEM1;
 wire reti_EXMEM1;
 wire branch_EXMEM1;
@@ -613,7 +640,7 @@ InstructionDecoder instrDec_EXMEM1 (
     .constAluu(constAluu_EXMEM1),
     .const16(const16_EXMEM1),
     .const16u(),
-    .const27(const27_EXMEM1),
+    .const27(),
 
     .areg(areg_EXMEM1),
     .breg(breg_EXMEM1),
@@ -701,7 +728,6 @@ BranchJumpUnit branchJumpUnit_EXMEM1 (
     .data_a (alu_a_EXMEM1), // Use forwarded data
     .data_b (alu_b_EXMEM1), // Use forwarded data
     .const16(const16_EXMEM1),
-    .const27(const27_EXMEM1),
     .pc     (PC_EXMEM1),
     .halt   (halt_EXMEM1),
     .branch (branch_EXMEM1),
@@ -709,6 +735,10 @@ BranchJumpUnit branchJumpUnit_EXMEM1 (
     .jumpr  (jumpr_EXMEM1),
     .oe     (oe_EXMEM1),
     .sig    (sig_EXMEM1),
+    
+    // Pre-computed addresses from REG stage
+    .pre_jump_const_addr(jump_const_addr_EXMEM1),
+    .pre_branch_addr(branch_addr_EXMEM1),
     
     .jump_addr(jump_addr_EXMEM1),
     .jump_valid(jump_valid_EXMEM1)
