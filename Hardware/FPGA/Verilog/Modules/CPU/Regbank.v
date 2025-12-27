@@ -3,7 +3,8 @@
  * Contains 16 registers of 32 bit each
  * Designed to be inferred as block RAM
  * Reg0 is always 0
- * TODO: move all logic to RAM logic
+ * TODO: this can be simplified a lot as we have enough logic elements to store all registers in logic.
+ * This would allow reading all registers by a potential debugger more easily.
  */
 module Regbank (
     // Clock and reset
