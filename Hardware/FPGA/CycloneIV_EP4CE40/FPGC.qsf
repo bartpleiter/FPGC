@@ -435,11 +435,12 @@ set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/InstructionDecod
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/ControlUnit.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/CacheControllerSDRAM.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/BranchJumpUnit.v
-set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/B32P2.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/B32P3.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/ALU.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/AddressDecoder.v
 set_global_assignment -name QIP_FILE main_pll.qip
 set_global_assignment -name QIP_FILE ddr.qip
+
 
 
 

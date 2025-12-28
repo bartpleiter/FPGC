@@ -663,7 +663,7 @@ end
 
 assign frameDrawn_CPU = frameDrawn_ff2;
 
-B32P2 cpu (
+B32P3 cpu (
     // Clock and reset
     .clk(clk50),
     .reset(reset),

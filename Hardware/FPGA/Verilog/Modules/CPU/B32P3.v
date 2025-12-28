@@ -934,12 +934,14 @@ end
 wire [31:0] ex_mem_addr_calc = ex_addr_captured ? ex_mem_addr_calc_reg : ex_mem_addr_calc_comb;
 
 // EX-stage address decoding for BRAM address setup (data available next cycle in MEM)
-// VRAM addresses must be set in EX stage because VRAM BRAM has 1-cycle read latency
+// VRAM and ROM addresses must be set in EX stage because BRAM has 1-cycle read latency
+wire ex_sel_rom    = ex_mem_addr_calc >= 32'h7800000 && ex_mem_addr_calc < 32'h7900000;
 wire ex_sel_vram32 = ex_mem_addr_calc >= 32'h7900000 && ex_mem_addr_calc < 32'h7A00000;
 wire ex_sel_vram8  = ex_mem_addr_calc >= 32'h7A00000 && ex_mem_addr_calc < 32'h7B00000;
 wire ex_sel_vrampx = ex_mem_addr_calc >= 32'h7B00000 && ex_mem_addr_calc < 32'h7C00000;
 
-// EX-stage local address calculations for VRAM
+// EX-stage local address calculations for BRAM (ROM and VRAM)
+wire [31:0] ex_local_addr_rom    = ex_mem_addr_calc - 32'h7800000;
 wire [31:0] ex_local_addr_vram32 = ex_mem_addr_calc - 32'h7900000;
 wire [31:0] ex_local_addr_vram8  = ex_mem_addr_calc - 32'h7A00000;
 wire [31:0] ex_local_addr_vrampx = ex_mem_addr_calc - 32'h7B00000;
@@ -960,7 +962,9 @@ wire [31:0] mem_local_addr = mem_sel_rom    ? ex_mem_mem_addr - 32'h7800000 :
                              ex_mem_mem_addr; // SDRAM and I/O use full address
 
 // ROM data port
-assign rom_mem_addr = mem_local_addr[9:0];
+// ROM data port - address from EX stage for reads (BRAM latency)
+// ROM is read-only, no write support needed
+assign rom_mem_addr = ex_local_addr_rom[9:0];
 wire [31:0] rom_mem_data = rom_mem_q;
 
 // VRAM32 interface - address from EX stage for reads (BRAM latency), MEM stage for writes
@@ -1105,17 +1109,28 @@ assign l1d_cache_controller_we = ex_mem_mem_write && mem_sel_sdram;
 assign l1d_cache_controller_start = l1d_start_reg;
 
 // Memory Unit interface (I/O)
+// Use a state machine to ensure we only start the MU once per operation
+// and wait for completion before allowing a new operation
+reg mu_io_started = 1'b0;  // Track if we've already started this I/O operation
+
 always @(posedge clk) begin
     if (reset) begin
         mu_start <= 1'b0;
         mu_addr <= 32'd0;
         mu_data <= 32'd0;
         mu_we <= 1'b0;
-    end else if (ex_mem_valid && mem_sel_io && (ex_mem_mem_read || ex_mem_mem_write) && !mu_done) begin
+        mu_io_started <= 1'b0;
+    end else if (mu_done) begin
+        // MU operation completed, clear the started flag
+        mu_start <= 1'b0;
+        mu_io_started <= 1'b0;
+    end else if (ex_mem_valid && mem_sel_io && (ex_mem_mem_read || ex_mem_mem_write) && !mu_io_started) begin
+        // New I/O operation, start it
         mu_start <= 1'b1;
         mu_addr <= ex_mem_mem_addr;
         mu_data <= ex_mem_breg_data;
         mu_we <= ex_mem_mem_write;
+        mu_io_started <= 1'b1;
     end else begin
         mu_start <= 1'b0;
     end

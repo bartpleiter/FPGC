@@ -117,13 +117,17 @@ class CPUTestRunner:
         with open(self.testbench_path, "w") as f:
             f.write(content)
 
-        # Copy static memory list files that don't change (vram, spiflash)
+        # Copy static memory list files that don't change (vram, spiflash, sdram base)
+        # Note: sdram.list is needed even for ROM tests because the testbench always
+        # instantiates the SDRAM model. For ROM tests, it can be empty/default.
+        # For RAM tests, it gets overwritten with the test code.
         static_files = [
             "vram32.list",
             "vram8.list",
             "vramPX.list",
             "spiflash1.list",
             "spiflash2.list",
+            "sdram.list",
         ]
         for filename in static_files:
             src = os.path.join(self.config.MEMORY_LISTS_DIR, filename)
@@ -222,7 +226,7 @@ class CPUTestRunner:
         return output
 
     def _assemble_code(
-        self, source_path: str, output_path: str, description: str
+        self, source_path: str, output_path: str, description: str, offset: str = ""
     ) -> None:
         """
         Assemble assembly code to a list file.
@@ -231,20 +235,22 @@ class CPUTestRunner:
             source_path: Path to source assembly file
             output_path: Path to output list file
             description: Description for logging
+            offset: Optional address offset for assembly (e.g., "0x7800000" for ROM)
 
         Raises:
             AssemblerError: If assembly fails
         """
         # Run asmpy assembler directly
-        assemble_cmd = f"asmpy {source_path} {output_path}"
+        offset_arg = f" -o {offset}" if offset else ""
+        assemble_cmd = f"asmpy {source_path} {output_path}{offset_arg}"
         exit_code, output = self._run_command(assemble_cmd, f"Assembling {description}")
 
         if exit_code != 0:
             raise AssemblerError(f"Assembler failed for {description}: {output}")
 
     def _assemble_code_to_rom(self, path: str) -> None:
-        """Assemble code for ROM execution."""
-        self._assemble_code(path, self.config.ROM_LIST_PATH, "ROM code")
+        """Assemble code for ROM execution with ROM address offset."""
+        self._assemble_code(path, self.config.ROM_LIST_PATH, "ROM code", "0x7800000")
 
     def _assemble_code_to_ram(self, path: str) -> None:
         """Assemble code for RAM execution."""
