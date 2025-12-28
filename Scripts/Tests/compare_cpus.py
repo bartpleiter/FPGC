@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """
 CPI Comparison Script - B32P2 vs B32P3
-Compares cycle counts and CPI (Cycles Per Instruction) between the two CPU versions.
+Compares cycle counts between the two CPU versions when executing from RAM.
+This is the realistic scenario as all user programs run from SDRAM.
 """
 
 import subprocess
 import os
 import re
 import sys
+import shutil
 from pathlib import Path
 
 # Configuration
@@ -15,10 +17,22 @@ REPO_ROOT = Path(__file__).parent.parent.parent
 ASSEMBLER_CMD = ["uv", "run", "asmpy"]
 IVERILOG_CMD = "iverilog"
 VVP_CMD = "vvp"
+CONVERTER_SCRIPT = REPO_ROOT / "Scripts" / "Simulation" / "convert_to_256_bit.py"
 
-# Test files to benchmark
-BENCHMARK_TESTS = [
-    "benchmark/cpi_benchmark.asm",
+# Memory list paths
+MEMORY_LISTS_DIR = REPO_ROOT / "Hardware" / "FPGA" / "Verilog" / "Simulation" / "MemoryLists"
+ROM_LIST = MEMORY_LISTS_DIR / "rom.list"
+RAM_LIST = MEMORY_LISTS_DIR / "ram.list"
+SDRAM_LIST = MEMORY_LISTS_DIR / "sdram.list"
+
+# Bootloader for RAM execution
+BOOTLOADER_PATH = REPO_ROOT / "Software" / "ASM" / "Simulation" / "sim_jump_to_ram.asm"
+
+# Benchmark test
+BENCHMARK_PATH = REPO_ROOT / "Software" / "ASM" / "benchmark" / "cpi_benchmark.asm"
+
+# Standard tests to include in comparison
+STANDARD_TESTS = [
     "02_alu_basic/add_sub_logic_shift.asm",
     "04_multiply/multiply_fixed_point.asm",
     "05_jump/jump_offset.asm",
@@ -30,52 +44,84 @@ BENCHMARK_TESTS = [
     "11_division/unsigned_div_mod.asm",
 ]
 
-def assemble_test(test_file: str) -> bool:
-    """Assemble a test file to ROM list."""
-    test_path = REPO_ROOT / "Tests" / "CPU" / test_file
-    rom_list = REPO_ROOT / "Hardware" / "FPGA" / "Verilog" / "Simulation" / "MemoryLists" / "rom.list"
-    
-    if not test_path.exists():
-        print(f"  ERROR: Test file not found: {test_path}")
-        return False
-    
-    # asmpy expects: file output (not -o output file)
-    cmd = ASSEMBLER_CMD + [str(test_path), str(rom_list)]
+
+def assemble_for_ram(test_path: Path) -> bool:
+    """Assemble a test file for RAM execution (with bootloader)."""
+    # First, assemble bootloader to ROM
+    cmd = ASSEMBLER_CMD + [str(BOOTLOADER_PATH), str(ROM_LIST)]
     result = subprocess.run(cmd, capture_output=True, text=True, cwd=REPO_ROOT)
     
     if result.returncode != 0:
-        print(f"  Assembly error: {result.stderr}")
+        print(f"  Assembly error (bootloader): {result.stderr}")
+        return False
+    
+    # Assemble test code to RAM list
+    cmd = ASSEMBLER_CMD + [str(test_path), str(RAM_LIST)]
+    result = subprocess.run(cmd, capture_output=True, text=True, cwd=REPO_ROOT)
+    
+    if result.returncode != 0:
+        print(f"  Assembly error (RAM): {result.stderr}")
+        return False
+    
+    # Convert to 256-bit format for SDRAM
+    cmd = ["python3", str(CONVERTER_SCRIPT), str(RAM_LIST), str(SDRAM_LIST)]
+    result = subprocess.run(cmd, capture_output=True, text=True, cwd=REPO_ROOT)
+    
+    if result.returncode != 0:
+        print(f"  Conversion error: {result.stderr}")
         return False
     
     return True
 
-def run_simulation(cpu_version: str, timeout: int = 30) -> dict:
-    """Run simulation for a CPU version and extract metrics."""
+
+def create_testbench(cpu_version: str, output_path: Path) -> bool:
+    """Create a testbench for the specified CPU version."""
     sim_dir = REPO_ROOT / "Hardware" / "FPGA" / "Verilog" / "Simulation"
+    src = sim_dir / "cpu_tests_tb.v"
+    
+    with open(src, 'r') as f:
+        content = f.read()
     
     if cpu_version == "B32P2":
-        tb_file = sim_dir / "cpu_tests_tb.v"
-        output_exe = sim_dir / "Output" / "cpu_test"
-    else:  # B32P3
-        tb_file = sim_dir / "b32p3_tests_tb.v"
-        output_exe = sim_dir / "Output" / "b32p3_test"
+        # Replace B32P3 with B32P2
+        content = content.replace('`include "Hardware/FPGA/Verilog/Modules/CPU/B32P3.v"',
+                                 '`include "Hardware/FPGA/Verilog/Modules/CPU/B32P2.v"')
+        content = content.replace('B32P3 cpu', 'B32P2 cpu')
+    # else: keep B32P3 (current testbench)
     
-    # Compile testbench - run from REPO_ROOT so includes work correctly
-    compile_cmd = [
-        IVERILOG_CMD, "-g2012", "-Wall",
-        "-o", str(output_exe),
-        "-I", str(REPO_ROOT / "Hardware" / "FPGA" / "Verilog" / "Modules"),
-        str(tb_file)
-    ]
+    with open(output_path, 'w') as f:
+        f.write(content)
+    
+    return True
+
+
+def run_simulation(cpu_version: str, timeout: int = 60) -> dict:
+    """Run simulation for a CPU version and extract metrics."""
+    sim_dir = REPO_ROOT / "Hardware" / "FPGA" / "Verilog" / "Simulation"
+    output_dir = sim_dir / "Output"
+    output_dir.mkdir(exist_ok=True)
+    
+    # Create temporary testbench with correct CPU
+    tb_file = output_dir / f"{cpu_version.lower()}_bench.v"
+    output_exe = output_dir / f"{cpu_version.lower()}_bench.out"
+    
+    if not create_testbench(cpu_version, tb_file):
+        return {"error": "Failed to create testbench"}
+    
+    # Compile testbench
+    compile_cmd = [IVERILOG_CMD, "-o", str(output_exe), str(tb_file)]
     
     result = subprocess.run(compile_cmd, capture_output=True, text=True, cwd=REPO_ROOT)
     if result.returncode != 0:
         return {"error": f"Compile error: {result.stderr}"}
     
-    # Run simulation from REPO_ROOT
+    # Run simulation
     run_cmd = [VVP_CMD, str(output_exe)]
-    result = subprocess.run(run_cmd, capture_output=True, text=True, 
-                           cwd=REPO_ROOT, timeout=timeout)
+    try:
+        result = subprocess.run(run_cmd, capture_output=True, text=True, 
+                               cwd=REPO_ROOT, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return {"error": "Simulation timeout"}
     
     output = result.stdout
     
@@ -86,61 +132,51 @@ def run_simulation(cpu_version: str, timeout: int = 30) -> dict:
         "error": None
     }
     
-    # Find final r15 value
+    # Find final r15 value before halt
+    # Format: "1234.0 ns     reg r15:      42"
     r15_matches = re.findall(r'(\d+\.?\d*)\s*ns\s+reg\s+r15:\s*(\d+)', output)
     if r15_matches:
         last_r15 = r15_matches[-1]
         metrics["r15"] = int(last_r15[1])
         # Extract time in ns (simulation time)
         end_time_ns = float(last_r15[0])
-        # Convert ns to cycles (assuming 10ns clock period = 100MHz)
-        metrics["cycles"] = int(end_time_ns / 10)
-    
-    # Check for simulation timeout
-    if "Simulation timeout" in output:
-        metrics["error"] = "Timeout"
+        # Convert ns to cycles (20ns clock period = 50MHz main clock)
+        metrics["cycles"] = int(end_time_ns / 20)
     
     return metrics
 
-def count_instructions(test_file: str) -> int:
-    """Count approximate instructions in test file."""
-    test_path = REPO_ROOT / "Tests" / "CPU" / test_file
-    
-    if not test_path.exists():
-        return 0
-    
-    with open(test_path, 'r') as f:
-        lines = f.readlines()
-    
-    # Count non-empty, non-comment, non-label lines
-    count = 0
-    for line in lines:
-        stripped = line.strip()
-        if stripped and not stripped.startswith(';') and not stripped.endswith(':'):
-            # This is likely an instruction
-            count += 1
-    
-    return count
 
 def run_comparison():
-    """Run comparison between B32P2 and B32P3."""
-    print("=" * 70)
-    print("B32P2 vs B32P3 CPI Comparison")
-    print("=" * 70)
+    """Run comparison between B32P2 and B32P3 executing from RAM."""
+    print("=" * 80)
+    print("B32P2 vs B32P3 CPI Comparison (Executing from RAM)")
+    print("=" * 80)
+    print()
+    print("Note: Tests execute from SDRAM via bootloader, simulating real-world usage.")
     print()
     
     results = []
     
-    for test_file in BENCHMARK_TESTS:
-        print(f"Testing: {test_file}")
+    # First, run the main benchmark
+    test_files = []
+    
+    if BENCHMARK_PATH.exists():
+        test_files.append(("cpi_benchmark", BENCHMARK_PATH))
+    
+    # Add standard tests
+    for test in STANDARD_TESTS:
+        test_path = REPO_ROOT / "Tests" / "CPU" / test
+        if test_path.exists():
+            test_name = test.split("/")[-1].replace(".asm", "")
+            test_files.append((test_name, test_path))
+    
+    for test_name, test_path in test_files:
+        print(f"Testing: {test_name}")
         
-        # Assemble test
-        if not assemble_test(test_file):
+        # Assemble test for RAM execution
+        if not assemble_for_ram(test_path):
             print(f"  SKIP: Assembly failed")
             continue
-        
-        # Count instructions
-        instr_count = count_instructions(test_file)
         
         # Run B32P2
         print(f"  Running B32P2...", end=" ", flush=True)
@@ -160,57 +196,79 @@ def run_comparison():
         
         # Store results
         results.append({
-            "test": test_file,
-            "instructions": instr_count,
+            "test": test_name,
             "b32p2": b32p2_metrics,
             "b32p3": b32p3_metrics,
         })
         print()
     
     # Print summary table
-    print("=" * 70)
-    print("SUMMARY")
-    print("=" * 70)
-    print(f"{'Test':<40} {'B32P2':>10} {'B32P3':>10} {'Diff':>8}")
-    print(f"{'':40} {'Cycles':>10} {'Cycles':>10} {'%':>8}")
-    print("-" * 70)
+    print("=" * 80)
+    print("SUMMARY - RAM Execution")
+    print("=" * 80)
+    print(f"{'Test':<35} {'B32P2':>12} {'B32P3':>12} {'Diff':>10} {'Notes':<10}")
+    print(f"{'':35} {'Cycles':>12} {'Cycles':>12} {'':>10}")
+    print("-" * 80)
     
     total_b32p2 = 0
     total_b32p3 = 0
     
     for r in results:
-        test_name = r["test"].split("/")[-1].replace(".asm", "")[:38]
+        test_name = r["test"][:33]
         b32p2_cycles = r["b32p2"].get("cycles", "N/A")
         b32p3_cycles = r["b32p3"].get("cycles", "N/A")
         
+        notes = ""
         if isinstance(b32p2_cycles, int) and isinstance(b32p3_cycles, int):
             diff = ((b32p3_cycles - b32p2_cycles) / b32p2_cycles * 100)
             diff_str = f"{diff:+.1f}%"
             total_b32p2 += b32p2_cycles
             total_b32p3 += b32p3_cycles
+            
+            if diff < -5:
+                notes = "✓ Faster"
+            elif diff > 5:
+                notes = "✗ Slower"
         else:
             diff_str = "N/A"
         
-        print(f"{test_name:<40} {str(b32p2_cycles):>10} {str(b32p3_cycles):>10} {diff_str:>8}")
+        print(f"{test_name:<35} {str(b32p2_cycles):>12} {str(b32p3_cycles):>12} {diff_str:>10} {notes:<10}")
         
         # Verify results match
         b32p2_r15 = r["b32p2"].get("r15")
         b32p3_r15 = r["b32p3"].get("r15")
-        if b32p2_r15 != b32p3_r15:
-            print(f"  WARNING: Result mismatch! B32P2 r15={b32p2_r15}, B32P3 r15={b32p3_r15}")
+        if b32p2_r15 is not None and b32p3_r15 is not None and b32p2_r15 != b32p3_r15:
+            print(f"  ⚠ Result mismatch! B32P2 r15={b32p2_r15}, B32P3 r15={b32p3_r15}")
     
-    print("-" * 70)
+    print("-" * 80)
     if total_b32p2 > 0 and total_b32p3 > 0:
         total_diff = ((total_b32p3 - total_b32p2) / total_b32p2 * 100)
-        print(f"{'TOTAL':<40} {total_b32p2:>10} {total_b32p3:>10} {total_diff:+.1f}%")
+        verdict = "B32P3 FASTER" if total_diff < 0 else "B32P2 FASTER"
+        print(f"{'TOTAL':<35} {total_b32p2:>12} {total_b32p3:>12} {total_diff:+.1f}%  {verdict}")
     
     print()
-    print("Notes:")
+    print("Analysis:")
+    print("-" * 80)
     print("- Negative % = B32P3 is faster")
     print("- Positive % = B32P2 is faster")
-    print("- Cycles measured from simulation time (10ns clock = 100MHz)")
+    print("- Tests execute from SDRAM (address 0x0) via bootloader")
+    print("- This measures real-world performance including L1i cache behavior")
+    print()
+    
+    # Performance recommendation
+    if total_b32p2 > 0 and total_b32p3 > 0:
+        if total_diff < 0:
+            print(f"Conclusion: B32P3 is {-total_diff:.1f}% faster than B32P2 from RAM.")
+            if total_diff < -7:
+                print("This exceeds the target improvement.")
+        elif total_diff > 0:
+            print(f"Conclusion: B32P3 is {total_diff:.1f}% slower than B32P2 from RAM.")
+            print("WARNING: B32P3 needs optimization for RAM execution.")
+        else:
+            print("Conclusion: B32P2 and B32P3 have similar performance from RAM.")
     
     return results
+
 
 if __name__ == "__main__":
     try:
@@ -219,5 +277,7 @@ if __name__ == "__main__":
         print("\nInterrupted")
         sys.exit(1)
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"Error: {e}")
         sys.exit(1)

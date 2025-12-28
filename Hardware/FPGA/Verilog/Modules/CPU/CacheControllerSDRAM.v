@@ -136,6 +136,7 @@ reg [7:0] state = STATE_IDLE;
 reg cpu_FE2_start_prev = 1'b0; // For edge detection as the start signal will be at 50 MHz
 reg cpu_FE2_new_request = 1'b0;
 reg [31:0] cpu_FE2_addr_stored = 32'd0;
+reg [31:0] cpu_FE2_addr_in_flight = 32'd0; // Address captured when SDRAM request is sent
 // For reference: cpu_FE2_cache_tag = cpu_FE2_addr_stored[25:10]
 // For reference: cpu_FE2_cache_index = cpu_FE2_addr_stored[2:0]
 
@@ -204,6 +205,7 @@ begin
         cpu_FE2_start_prev <= 1'b0;
         cpu_FE2_new_request <= 1'b0;
         cpu_FE2_addr_stored <= 32'd0;
+        cpu_FE2_addr_in_flight <= 32'd0;
         cpu_EXMEM2_start_prev <= 1'b0;
         cpu_EXMEM2_new_request <= 1'b0;
         cpu_EXMEM2_addr_stored <= 32'd0;
@@ -352,6 +354,14 @@ begin
                     sdc_we <= 1'b0;
                     sdc_start <= 1'b1;
                     sdc_addr <= cpu_FE2_start ? cpu_FE2_addr[23:3] : cpu_FE2_addr_stored[23:3];
+                    
+                    // Capture the address being requested so we use the correct address for cache fill
+                    // This is important because cpu_FE2_addr_stored can change while waiting for SDRAM
+                    cpu_FE2_addr_in_flight <= cpu_FE2_start ? cpu_FE2_addr : cpu_FE2_addr_stored;
+                    
+                    //$display("%0t L1I SDC REQ: cpu_addr=%0d sdram_addr=%0d", 
+                    //         $time, cpu_FE2_start ? cpu_FE2_addr : cpu_FE2_addr_stored,
+                    //         cpu_FE2_start ? cpu_FE2_addr[23:3] : cpu_FE2_addr_stored[23:3]);
 
                     cpu_FE2_new_request <= 1'b0; // Clear the request flag
 
@@ -382,7 +392,8 @@ begin
                 if (sdc_done)
                 begin
                     // Extract the requested 32-bit word based on offset for the CPU return value
-                    case (cpu_FE2_addr_stored[2:0])
+                    // Use addr_in_flight which is the address we actually requested from SDRAM
+                    case (cpu_FE2_addr_in_flight[2:0])
                         3'd0: cpu_FE2_result <= sdc_q[31:0];
                         3'd1: cpu_FE2_result <= sdc_q[63:32];
                         3'd2: cpu_FE2_result <= sdc_q[95:64];
@@ -395,9 +406,13 @@ begin
 
                     // Write the retrieved cache line directly to DPRAM
                     // Format: {256bit_data, 14bit_tag, 1bit_valid}
-                    l1i_ctrl_d <= {sdc_q, cpu_FE2_addr_stored[23:10], 1'b1};
-                    l1i_ctrl_addr <= cpu_FE2_addr_stored[9:3]; // DPRAM index, aligned on cache line size (8 words = 256 bits)
+                    // Use addr_in_flight to ensure we write to the correct cache line
+                    l1i_ctrl_d <= {sdc_q, cpu_FE2_addr_in_flight[23:10], 1'b1};
+                    l1i_ctrl_addr <= cpu_FE2_addr_in_flight[9:3]; // DPRAM index, aligned on cache line size (8 words = 256 bits)
                     l1i_ctrl_we <= 1'b1;
+
+                    //$display("%0t L1I FILL: cpu_addr=%0d sdram_addr=%0d cache_line=%0d tag=%0d data=%h", 
+                    //         $time, cpu_FE2_addr_in_flight, cpu_FE2_addr_in_flight[23:3], cpu_FE2_addr_in_flight[9:3], cpu_FE2_addr_in_flight[23:10], sdc_q);
 
                     state <= STATE_L1I_WRITE_TO_CACHE; // Wait until the data is written so that the fetch of the next instruction can use the cache
                 end
@@ -488,6 +503,9 @@ begin
                     l1i_ctrl_d <= {sdc_q, l1i_prefetch_addr[23:10], 1'b1};
                     l1i_ctrl_addr <= l1i_prefetch_addr[9:3]; // DPRAM index
                     l1i_ctrl_we <= 1'b1;
+                    
+                    //$display("%0t L1I PREFETCH FILL: prefetch_addr=%0d cache_line=%0d data=%h", 
+                    //         $time, l1i_prefetch_addr, l1i_prefetch_addr[9:3], sdc_q);
                     
                     state <= STATE_L1I_PREFETCH_WRITE_TO_CACHE;
                 end

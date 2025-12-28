@@ -303,7 +303,8 @@ assign l1i_pipe_d  = 271'd0;
 DPRAM #(
     .WIDTH(271),
     .WORDS(128),
-    .ADDR_BITS(7)
+    .ADDR_BITS(7),
+    .INSTANCE("L1I")
 ) l1i_ram (
     .clk_pipe(clk),
     .pipe_d(l1i_pipe_d),
@@ -338,7 +339,8 @@ assign l1d_pipe_d  = 271'd0;
 DPRAM #(
     .WIDTH(271),
     .WORDS(128),
-    .ADDR_BITS(7)
+    .ADDR_BITS(7),
+    .INSTANCE("L1D")
 ) l1d_ram (
     .clk_pipe(clk),
     .pipe_d(l1d_pipe_d),

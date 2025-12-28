@@ -1,10 +1,10 @@
 /*
- * Testbench for the CPU (B32P2).
+ * Testbench for the CPU (B32P3).
  * Designed to be used with the Icarus Verilog simulator
  */
 `timescale 1ns / 1ps
 
-`include "Hardware/FPGA/Verilog/Modules/CPU/B32P2.v"
+`include "Hardware/FPGA/Verilog/Modules/CPU/B32P3.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/Regr.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/Regbank.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/InstructionDecoder.v"
@@ -638,7 +638,7 @@ MemoryUnit memory_unit (
 );
 
 //-----------------------CPU-------------------------
-B32P2 cpu (
+B32P3 cpu (
     // Clock and reset
     .clk(clk),
     .reset(reset || uart_reset),
@@ -721,7 +721,8 @@ end
 integer clk_counter = 0;
 always @(posedge clk) begin
     clk_counter = clk_counter + 1;
-    if (clk_counter == 12000) begin // 55000
+    
+    if (clk_counter == 15000) begin // Extended timeout for complex tests
         $display("Simulation finished.");
         $finish;
     end

@@ -263,28 +263,47 @@ always @(posedge clk) begin
         redirect_pending <= 1'b0;
         int_disabled <= 1'b0;
         pc_backup <= 32'd0;
+    end else if (interrupt_valid && !pipeline_stall) begin
+        // Interrupt: save PC and jump to interrupt handler
+        // Note: Interrupt should only be taken when not stalled
+        int_disabled <= 1'b1;
+        pc_backup <= id_ex_pc;  // Save PC of instruction in EX stage
+        pc <= INTERRUPT_JUMP_ADDR;
+        redirect_pending <= 1'b1;
+    end else if (reti_valid && !pipeline_stall) begin
+        // Return from interrupt: restore PC and re-enable interrupts
+        // Note: RETI should only complete when not stalled
+        int_disabled <= 1'b0;
+        pc <= pc_backup;
+        redirect_pending <= 1'b1;
+    end else if (pc_redirect) begin
+        // Jump/branch redirect - this takes priority over stalls!
+        // When a jump executes, we MUST redirect the PC even if there's a cache stall
+        // The cache stall was for a different (now stale) instruction
+        pc <= pc_redirect_target;
+        // Don't set pc_delayed yet - the memory is still outputting the old instruction
+        redirect_pending <= 1'b1;
     end else if (!pipeline_stall) begin
-        if (interrupt_valid) begin
-            // Interrupt: save PC and jump to interrupt handler
-            int_disabled <= 1'b1;
-            pc_backup <= id_ex_pc;  // Save PC of instruction in EX stage
-            pc <= INTERRUPT_JUMP_ADDR;
-            redirect_pending <= 1'b1;
-        end else if (reti_valid) begin
-            // Return from interrupt: restore PC and re-enable interrupts
-            int_disabled <= 1'b0;
-            pc <= pc_backup;
-            redirect_pending <= 1'b1;
-        end else if (pc_redirect) begin
-            pc <= pc_redirect_target;
-            // Don't set pc_delayed yet - the ROM is still outputting the old instruction
-            // Keep pc_delayed as is (it will be wrong, but we'll mark instruction as invalid)
-            redirect_pending <= 1'b1;
-        end else if (redirect_pending) begin
-            // Now the ROM is outputting the instruction at the redirect target
-            pc_delayed <= pc;  // pc is already the redirect target
-            pc <= pc + 32'd1;
-            redirect_pending <= 1'b0;
+        if (redirect_pending) begin
+            // First cycle after redirect: update pc_delayed, check if we can proceed
+            // The cache was queried with pc (the new target) in the previous cycle,
+            // so on this cycle the cache output corresponds to pc, not pc_delayed.
+            // Use l1i_hit_redirect which checks using pc instead of pc_delayed.
+            pc_delayed <= pc;
+            
+            if (pc >= ROM_ADDRESS || l1i_hit_redirect) begin
+                // ROM access or cache hit: proceed normally
+                pc <= pc + 32'd1;
+                redirect_pending <= 1'b0;
+            end else begin
+                // SDRAM access with cache miss: stay at current PC, wait for cache
+                // Keep redirect_pending HIGH to continue flushing the pipeline
+                redirect_pending <= 1'b1;
+            end
+        end else if (cache_stall_if) begin
+            // Cache miss during normal operation - hold PC and wait
+            // pc_delayed is already correct, just wait for cache fill
+            // Don't advance pc, don't update pc_delayed
         end else begin
             pc_delayed <= pc;  // Save current PC before incrementing
             pc <= pc + 32'd1;
@@ -672,12 +691,15 @@ Stack stack (
 // =============================================================================
 // Forward from EX/MEM (most recent) or MEM/WB (older)
 // forward_a/b: 00=no forward, 01=from EX/MEM, 10=from MEM/WB
+// IMPORTANT: Don't forward from EX/MEM for loads or pops - their data isn't ready yet!
+// Load/pop data is only available in MEM/WB stage (handled by load_use_hazard stall)
+wire ex_mem_can_forward = ex_mem_dreg_we && ex_mem_dreg != 4'd0 && !ex_mem_mem_read && !ex_mem_pop;
 
-assign forward_a = (ex_mem_dreg_we && ex_mem_dreg != 4'd0 && ex_mem_dreg == id_ex_areg) ? 2'b01 :
+assign forward_a = (ex_mem_can_forward && ex_mem_dreg == id_ex_areg) ? 2'b01 :
                    (mem_wb_dreg_we && mem_wb_dreg != 4'd0 && mem_wb_dreg == id_ex_areg) ? 2'b10 :
                    2'b00;
 
-assign forward_b = (ex_mem_dreg_we && ex_mem_dreg != 4'd0 && ex_mem_dreg == id_ex_breg) ? 2'b01 :
+assign forward_b = (ex_mem_can_forward && ex_mem_dreg == id_ex_breg) ? 2'b01 :
                    (mem_wb_dreg_we && mem_wb_dreg != 4'd0 && mem_wb_dreg == id_ex_breg) ? 2'b10 :
                    2'b00;
 
@@ -726,27 +748,47 @@ assign rom_fe_hold = pipeline_stall;
 
 // L1I cache access (addresses < ROM_ADDRESS for SDRAM)
 wire if_use_cache = !if_use_rom;
-assign l1i_pipe_addr = pipeline_stall ? if_id_pc[9:3] : pc[9:3];
+
+// Use pc_delayed when stalled to keep reading the same cache line
+// This ensures the cache output matches the address we're checking
+assign l1i_pipe_addr = pipeline_stall ? pc_delayed[9:3] : pc[9:3];
 
 // L1I cache hit detection
-wire [13:0] l1i_tag = pc[23:10];
-wire [2:0]  l1i_offset = pc[2:0];
+// Use pc_delayed for tag/offset because the cache output corresponds to the previous cycle's address
+wire [13:0] l1i_tag = pc_delayed[23:10];
+wire [2:0]  l1i_offset = pc_delayed[2:0];
 wire l1i_cache_valid = l1i_pipe_q[0];
 wire [13:0] l1i_cache_tag = l1i_pipe_q[14:1];
-wire l1i_hit = if_use_cache && l1i_cache_valid && (l1i_tag == l1i_cache_tag);
+wire if_use_cache_delayed = (pc_delayed < ROM_ADDRESS);
+wire l1i_hit = if_use_cache_delayed && l1i_cache_valid && (l1i_tag == l1i_cache_tag);
 wire [31:0] l1i_cache_data = l1i_pipe_q[32 * l1i_offset + 15 +: 32];
 
+// L1I cache hit detection for redirect target (uses pc instead of pc_delayed)
+// During redirect_pending, the cache was read with pc[9:3] in the previous cycle,
+// so the cache output corresponds to pc, not pc_delayed. We need to check using pc.
+wire [13:0] l1i_tag_redirect = pc[23:10];
+wire [2:0]  l1i_offset_redirect = pc[2:0];
+wire if_use_cache_redirect = (pc < ROM_ADDRESS);
+wire l1i_hit_redirect = if_use_cache_redirect && l1i_cache_valid && (l1i_tag_redirect == l1i_cache_tag);
+
 // L1I cache miss handling
-assign cache_stall_if = if_use_cache && !l1i_hit && if_id_valid;
+// Use if_use_cache_delayed to check if the PREVIOUS instruction (pc_delayed) needs the cache
+// We stall when we're trying to execute from SDRAM and the cache doesn't have the data.
+assign cache_stall_if = if_use_cache_delayed && !l1i_hit;
 
 // Cache controller interface for instruction fetch misses
-assign l1i_cache_controller_addr = pc;
+// Use pc_delayed since that's the address we're trying to fetch
+assign l1i_cache_controller_addr = pc_delayed;
 assign l1i_cache_controller_start = cache_stall_if && !l1i_cache_controller_done;
 assign l1i_cache_controller_flush = 1'b0; // Not used in this implementation
 
 // Instruction selection
+// On cache HIT, always use cache data (even if cache controller says done for a different address)
+// On cache MISS with controller done, use controller result (freshly fetched data)
+// This prevents stale controller results from being used after a branch to a cached location
 wire [31:0] if_instr = if_use_rom ? rom_fe_q : 
-                       (l1i_cache_controller_done ? l1i_cache_controller_result : l1i_cache_data);
+                       (l1i_hit ? l1i_cache_data : 
+                        (l1i_cache_controller_done ? l1i_cache_controller_result : l1i_cache_data));
 
 // =============================================================================
 // IF/ID STAGE REGISTER UPDATE
@@ -862,7 +904,34 @@ end
 // =============================================================================
 
 // Memory address calculation (done in EX, used in MEM)
-wire [31:0] ex_mem_addr_calc = ex_alu_a + id_ex_const16;
+// Use a registered address to handle forwarding correctly when stalled
+// The issue: when EX is stalled, the forwarding source can move past WB,
+// causing ex_alu_a to get a stale value. We need to capture the correct
+// address when it's first calculated with valid forwarding.
+wire [31:0] ex_mem_addr_calc_comb = ex_alu_a + id_ex_const16;
+reg [31:0] ex_mem_addr_calc_reg = 32'd0;
+
+// Track if the current EX instruction has a captured address
+// Reset when a new instruction enters EX, set when we have valid forwarding
+reg ex_addr_captured = 1'b0;
+
+always @(posedge clk) begin
+    if (reset) begin
+        ex_mem_addr_calc_reg <= 32'd0;
+        ex_addr_captured <= 1'b0;
+    end else if (!ex_pipeline_stall) begin
+        // Instruction leaving EX stage, reset capture for next instruction
+        ex_addr_captured <= 1'b0;
+    end else if (!ex_addr_captured && id_ex_valid && (id_ex_mem_read || id_ex_mem_write)) begin
+        // First cycle with this instruction stalled in EX, capture the address
+        // At this point forwarding should be valid
+        ex_mem_addr_calc_reg <= ex_mem_addr_calc_comb;
+        ex_addr_captured <= 1'b1;
+    end
+end
+
+// Use the captured address if available, otherwise use combinational
+wire [31:0] ex_mem_addr_calc = ex_addr_captured ? ex_mem_addr_calc_reg : ex_mem_addr_calc_comb;
 
 // EX-stage address decoding for BRAM address setup (data available next cycle in MEM)
 // VRAM addresses must be set in EX stage because VRAM BRAM has 1-cycle read latency
@@ -915,8 +984,10 @@ assign vramPX_d = ex_mem_breg_data[7:0];
 assign vramPX_we = ex_mem_valid && ex_mem_mem_write && mem_sel_vrampx && !backend_pipeline_stall;
 
 // L1D cache interface
-// Set cache address from EX stage calculation so cache data is ready in MEM stage
-assign l1d_pipe_addr = ex_mem_addr_calc[9:3];
+// Use MEM stage address for cache lookup to ensure correctness
+// The EX stage pre-fetch optimization was incorrect - when an instruction moves
+// from EX to MEM, l1d_pipe_addr would already point to the NEXT instruction's address
+assign l1d_pipe_addr = ex_mem_mem_addr[9:3];
 
 // L1D cache hit detection
 wire [13:0] l1d_tag = ex_mem_mem_addr[23:10];
@@ -925,6 +996,42 @@ wire l1d_cache_valid = l1d_pipe_q[0];
 wire [13:0] l1d_cache_tag = l1d_pipe_q[14:1];
 wire l1d_hit = mem_sel_sdram && l1d_cache_valid && (l1d_tag == l1d_cache_tag);
 wire [31:0] l1d_cache_data = l1d_pipe_q[32 * l1d_offset + 15 +: 32];
+
+// L1D cache read delay tracking
+// Since the cache DPRAM has 1-cycle read latency, when an instruction first
+// enters MEM stage, we need to wait 1 cycle for l1d_pipe_q to be valid
+// Track if we've waited for the cache read for the current instruction
+reg l1d_cache_read_done = 1'b0;
+
+// Detect when a NEW instruction enters MEM (based on PC change)
+reg [31:0] l1d_prev_pc = 32'hFFFFFFFF;
+wire l1d_is_sdram_op = ex_mem_valid && (ex_mem_mem_read || ex_mem_mem_write) && mem_sel_sdram;
+wire l1d_new_instr = (ex_mem_pc != l1d_prev_pc);
+
+// Need to wait for cache read on first cycle of new SDRAM operation
+// Use l1d_cache_read_done to track if we've completed the wait
+wire l1d_need_cache_wait = l1d_is_sdram_op && !l1d_cache_read_done;
+
+always @(posedge clk) begin
+    if (reset) begin
+        l1d_cache_read_done <= 1'b0;
+        l1d_prev_pc <= 32'hFFFFFFFF;
+    end else begin
+        // When a NEW instruction enters MEM, reset the cache_read_done flag
+        if (l1d_new_instr) begin
+            l1d_prev_pc <= ex_mem_pc;
+            l1d_cache_read_done <= 1'b0;
+        end
+        // After waiting one cycle, mark cache read as done
+        else if (l1d_need_cache_wait) begin
+            l1d_cache_read_done <= 1'b1;
+        end
+        // When no longer an SDRAM op (or invalid), reset for next instruction
+        else if (!l1d_is_sdram_op) begin
+            l1d_cache_read_done <= 1'b0;
+        end
+    end
+end
 
 // =============================================================================
 // L1D CACHE CONTROLLER STATE MACHINE
@@ -939,12 +1046,16 @@ reg       l1d_request_finished = 1'b0;
 reg       l1d_start_reg = 1'b0;
 reg [31:0] l1d_result_reg = 32'd0;
 
-// Cache miss/write detection (only triggers new request if not already finished)
-wire l1d_miss = ex_mem_valid && ex_mem_mem_read && mem_sel_sdram && !l1d_hit && !l1d_request_finished;
-wire l1d_write = ex_mem_valid && ex_mem_mem_write && mem_sel_sdram && !l1d_request_finished;
+// Cache read wait signal - stall while waiting for cache DPRAM to read
+wire l1d_cache_read_wait = l1d_need_cache_wait;
 
-// Cache stall: waiting for operation to complete
-assign cache_stall_mem = (l1d_miss || l1d_write);
+// Cache miss/write detection (only triggers new request if not already finished)
+// Wait for cache read delay to complete
+wire l1d_miss = ex_mem_valid && ex_mem_mem_read && mem_sel_sdram && !l1d_hit && !l1d_request_finished && !l1d_cache_read_wait;
+wire l1d_write = ex_mem_valid && ex_mem_mem_write && mem_sel_sdram && !l1d_request_finished && !l1d_cache_read_wait;
+
+// Cache stall: waiting for cache read, or operation to complete
+assign cache_stall_mem = l1d_cache_read_wait || l1d_miss || l1d_write;
 
 // State machine for cache controller requests
 always @(posedge clk) begin
@@ -960,9 +1071,10 @@ always @(posedge clk) begin
                 l1d_request_finished <= 1'b0;
                 l1d_result_reg <= 32'd0;
                 
-                // Start new request on cache miss or SDRAM write
-                if ((ex_mem_valid && ex_mem_mem_read && mem_sel_sdram && !l1d_hit && !l1d_request_finished) ||
-                    (ex_mem_valid && ex_mem_mem_write && mem_sel_sdram && !l1d_request_finished)) begin
+                // Start new request on cache miss or SDRAM write (after cache read wait clears)
+                if (!l1d_cache_read_wait &&
+                    ((ex_mem_valid && ex_mem_mem_read && mem_sel_sdram && !l1d_hit && !l1d_request_finished) ||
+                     (ex_mem_valid && ex_mem_mem_write && mem_sel_sdram && !l1d_request_finished))) begin
                     l1d_start_reg <= 1'b1;
                     l1d_state <= L1D_STATE_STARTED;
                 end
@@ -1159,5 +1271,20 @@ assign wb_dreg_we = mem_wb_valid && mem_wb_dreg_we && (mem_wb_dreg != 4'd0) && !
 
 // This debug output is already in Regbank.v, but we add explicit r15 tracking here for tests
 // The Regbank.v already has: $display("%0t reg r%02d: %d", $time, addr_d, data_d);
+
+// SIMULATION DEBUG: Track PC through pipeline when register write occurs
+// synthesis translate_off
+always @(posedge clk) begin
+    if (wb_dreg_we && wb_dreg != 4'd0 && !reset)
+        $display("%0t WB pc=%0d instr=%08h dreg=r%0d data=%0d", $time, mem_wb_pc, mem_wb_instr, wb_dreg, wb_data);
+end
+
+// Debug L1I cache access
+always @(posedge clk) begin
+    if (!reset && if_id_valid && !pipeline_stall)
+        $display("%0t IF: pc=%0d pc_del=%0d l1i_addr=%0d l1i_offset=%0d hit=%b instr=%08h", 
+                 $time, pc, pc_delayed, l1i_pipe_addr, l1i_offset, l1i_hit, if_instr);
+end
+// synthesis translate_on
 
 endmodule
