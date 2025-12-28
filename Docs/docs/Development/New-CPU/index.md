@@ -57,6 +57,32 @@ This folder contains comprehensive documentation for redesigning the B32P2 CPU t
 2. Review [RFC-001](01-RFC-001-Classic-5-Stage.md) for the recommended starting point
 3. Check [Summary and Recommendations](06-Summary-and-Recommendations.md) for implementation roadmap
 
+## Implementation
+
+| Document | Description |
+|----------|-------------|
+| [Development Backlog](10-Development-Backlog.md) | Sprint backlog and story tracking |
+
+### Stories
+
+| Story | Title | Status |
+|-------|-------|--------|
+| [Story 01](Stories/Story-01-Project-Setup.md) | Project Setup and Module Skeleton | Not Started |
+| [Story 02](Stories/Story-02-Pipeline-Registers.md) | Pipeline Registers and Basic Flow | Not Started |
+| [Story 03](Stories/Story-03-IF-Stage.md) | Instruction Fetch Stage (IF) | Not Started |
+| [Story 04](Stories/Story-04-ID-Stage.md) | Instruction Decode Stage (ID) | Not Started |
+| [Story 05](Stories/Story-05-EX-Stage.md) | Execute Stage (EX) - ALU Operations | Not Started |
+| [Story 06](Stories/Story-06-MEM-Stage.md) | Memory Stage (MEM) - Basic | Not Started |
+| [Story 07](Stories/Story-07-WB-Stage.md) | Writeback Stage (WB) | Not Started |
+| [Story 08](Stories/Story-08-Forwarding-Unit.md) | Data Forwarding Unit | Not Started |
+| [Story 09](Stories/Story-09-Hazard-Detection.md) | Hazard Detection Unit | Not Started |
+| [Story 10](Stories/Story-10-Control-Hazards.md) | Control Hazards (Branch/Jump) | Not Started |
+| [Story 11](Stories/Story-11-Cache-Integration.md) | Cache Integration (L1i and L1d) | Not Started |
+| [Story 12](Stories/Story-12-MultiCycle-ALU.md) | Multi-Cycle Operations (Division/Multiplication) | Not Started |
+| [Story 13](Stories/Story-13-Stack-Operations.md) | Stack Operations (Push/Pop) | Not Started |
+| [Story 14](Stories/Story-14-Interrupt-Support.md) | Interrupt Support | Not Started |
+| [Story 15](Stories/Story-15-Final-Integration.md) | Final Integration and Testing | Not Started |
+
 ## Related Documentation
 
 - [Architecture Development Guide](../Architecture-Development-Guide.md) - Current CPU documentation
