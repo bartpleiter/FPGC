@@ -268,6 +268,7 @@ always @(posedge clk) begin
         // Note: Interrupt should only be taken when not stalled
         int_disabled <= 1'b1;
         pc_backup <= id_ex_pc;  // Save PC of instruction in EX stage
+        $display("Interrupt taken, jumping to address %h, saving PC %h", INTERRUPT_JUMP_ADDR, id_ex_pc);
         pc <= INTERRUPT_JUMP_ADDR;
         redirect_pending <= 1'b1;
     end else if (reti_valid && !pipeline_stall) begin

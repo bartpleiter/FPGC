@@ -16,6 +16,7 @@
 `include "Hardware/FPGA/Verilog/Modules/CPU/MultiCycleAluOps/FPDivider.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/ControlUnit.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/Stack.v"
+`include "Hardware/FPGA/Verilog/Modules/CPU/ParallelComparator.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/BranchJumpUnit.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/InterruptController.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/AddressDecoder.v"
@@ -43,14 +44,13 @@
 
 module cpu_tb ();
 
-reg clk = 1'b0;
-reg clk100 = 1'b0; // Aligned with clk (both 100MHz now)
+reg clk = 1'b0; // 100MHz
 reg reset = 1'b0;
 wire uart_reset; // Reset signal from UARTresetDetector
 
 // Inaccurate but good enough for simulation
 wire clkPixel = clk;
-wire clkTMDShalf = clk100;
+wire clkTMDShalf = clk;
 
 // SDRAM clock phase shift configuration (in degrees)
 parameter SDRAM_CLK_PHASE = 270;
@@ -76,8 +76,8 @@ wire    [3 : 0]  SDRAM_DQM;     // Mask
 assign SDRAM_CLK = SDRAM_CLK_internal;
 
 // Generate phase-shifted SDRAM clock
-always @(clk100) begin
-    SDRAM_CLK_internal <= #PHASE_DELAY clk100;
+always @(clk) begin
+    SDRAM_CLK_internal <= #PHASE_DELAY clk;
 end
 
 mt48lc16m16a2 #(
@@ -121,7 +121,7 @@ wire            sdc_done;
 wire [255:0]    sdc_q;
 SDRAMcontroller sdc (
     // Clock and reset
-    .clk(clk100),
+    .clk(clk),
     .reset(1'b0), // For now we do not want to reset the SDRAM controller
 
     .cpu_addr(sdc_addr),
@@ -308,7 +308,7 @@ DPRAM #(
     .pipe_addr(l1i_pipe_addr),
     .pipe_we(l1i_pipe_we),
     .pipe_q(l1i_pipe_q),
-    .clk_ctrl(clk100),
+    .clk_ctrl(clk),
     .ctrl_d(l1i_ctrl_d),
     .ctrl_addr(l1i_ctrl_addr),
     .ctrl_we(l1i_ctrl_we),
@@ -343,7 +343,7 @@ DPRAM #(
     .pipe_addr(l1d_pipe_addr),
     .pipe_we(l1d_pipe_we),
     .pipe_q(l1d_pipe_q),
-    .clk_ctrl(clk100),
+    .clk_ctrl(clk),
     .ctrl_d(l1d_ctrl_d),
     .ctrl_addr(l1d_ctrl_addr),
     .ctrl_we(l1d_ctrl_we),
@@ -370,7 +370,7 @@ wire l1_clear_cache_done;
 
 // Instantiate CacheController
 CacheController cache_controller (
-    .clk100(clk100),
+    .clk100(clk),
     .reset(reset || uart_reset),
 
     // CPU pipeline interface (50 MHz domain)
@@ -705,15 +705,12 @@ B32P3 cpu (
 
     // Interrupts, right is highest priority
     // Framedrawn disabled for now to simplify b32cc test debugging
-    .interrupts({3'd0, 1'b0, OST3_int, OST2_int, OST1_int, uart_irq})
+    .interrupts({3'd0, int_test, OST3_int, OST2_int, OST1_int, uart_irq})
 );
 
-// 100 MHz clock
-always begin
-    #5 clk100 = ~clk100;
-end
+reg int_test = 1'b0; // Test interrupt signal
 
-// 100 MHz clock (unified - same as clk100)
+// 100 MHz clock
 always begin
     #5 clk = ~clk;
 end
@@ -722,10 +719,15 @@ integer clk_counter = 0;
 always @(posedge clk) begin
     clk_counter = clk_counter + 1;
     
-    if (clk_counter == 30000) begin // Extended timeout for complex tests (doubled for 100MHz)
+    if (clk_counter == 1000) begin // 30000 -> Extended timeout for complex tests (doubled for 100MHz)
         $display("Simulation finished.");
         $finish;
     end
+
+    // int_test = 1'b0; // Clear test interrupt
+    // if (clk_counter >= 200 && clk_counter < 220) begin
+    //     int_test = 1'b1; // Trigger test interrupt
+    // end
 end
 
 initial
