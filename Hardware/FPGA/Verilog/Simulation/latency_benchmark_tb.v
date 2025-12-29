@@ -272,7 +272,7 @@ integer l1d_write_miss_dirty_latency_50 = 0;
 // Clock Generation
 //==================================================================
 always #5 clk100 = ~clk100;   // 100 MHz
-always #10 clk = ~clk;        // 50 MHz
+always #5 clk = ~clk;         // 100 MHz (unified with clk100)
 
 // Cycle counters
 always @(posedge clk100) begin

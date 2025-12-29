@@ -44,7 +44,7 @@
 module cpu_tb ();
 
 reg clk = 1'b0;
-reg clk100 = 1'b1; // To align rising edge with clk
+reg clk100 = 1'b0; // Aligned with clk (both 100MHz now)
 reg reset = 1'b0;
 wire uart_reset; // Reset signal from UARTresetDetector
 
@@ -713,16 +713,16 @@ always begin
     #5 clk100 = ~clk100;
 end
 
-// 50 MHz clock
+// 100 MHz clock (unified - same as clk100)
 always begin
-    #10 clk = ~clk;
+    #5 clk = ~clk;
 end
 
 integer clk_counter = 0;
 always @(posedge clk) begin
     clk_counter = clk_counter + 1;
     
-    if (clk_counter == 15000) begin // Extended timeout for complex tests
+    if (clk_counter == 30000) begin // Extended timeout for complex tests (doubled for 100MHz)
         $display("Simulation finished.");
         $finish;
     end

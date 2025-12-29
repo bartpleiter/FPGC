@@ -30,6 +30,9 @@ Hardware/FPGA/CycloneIV_EP4CE40/*.summary
 Hardware/FPGA/CycloneIV_EP4CE40/*.jdi
 Hardware/FPGA/CycloneIV_EP4CE40/*.sld
 
+Hardware/FPGA/CycloneIV_EP4CE40/timing_setup_paths.txt
+Hardware/FPGA/CycloneIV_EP4CE40/timing_summary.txt
+
 # Verilog
 Hardware/FPGA/Verilog/Simulation/Output
 

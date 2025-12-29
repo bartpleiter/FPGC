@@ -3,6 +3,7 @@
  * Handles branch and jump address calculations
  * 
  * Uses pre-computed jump and branch addresses to optimize timings
+ * Uses parallel comparator for reduced critical path delay
  */
 module BranchJumpUnit (
     input wire  [2:0]   branchOP,
@@ -36,39 +37,35 @@ localparam
     BRANCH_OP_BLE   = 3'b110; // A <= B
     // BRANCH_OP_XXX   = 3'b111; // Reserved
 
-// Branch pass detection
+// =============================================================================
+// PARALLEL COMPARATOR
+// Uses tree structure instead of carry chain for faster comparison
+// =============================================================================
+wire cmp_eq;  // a == b
+wire cmp_lt;  // a < b
+wire cmp_gt;  // a > b
+
+ParallelComparator comparator (
+    .a   (data_a),
+    .b   (data_b),
+    .sig (sig),
+    .eq  (cmp_eq),
+    .lt  (cmp_lt),
+    .gt  (cmp_gt)
+);
+
+// Branch pass detection using parallel comparator results
 reg branch_passed;
 always @(*) 
 begin
     case (branchOP)
-        BRANCH_OP_BEQ:
-        begin
-            branch_passed <= (data_a == data_b);
-        end
-        BRANCH_OP_BGT:
-        begin
-            branch_passed <= (sig) ? ($signed(data_a) > $signed(data_b)) : (data_a > data_b);
-        end
-        BRANCH_OP_BGE:
-        begin
-            branch_passed <= (sig) ? ($signed(data_a) >= $signed(data_b)) : (data_a >= data_b);
-        end
-        BRANCH_OP_BNE:
-        begin
-            branch_passed <= (data_a != data_b);
-        end
-        BRANCH_OP_BLT:
-        begin
-            branch_passed <= (sig) ? ($signed(data_a) < $signed(data_b)) : (data_a < data_b);
-        end
-        BRANCH_OP_BLE:
-        begin
-            branch_passed <= (sig) ? ($signed(data_a) <= $signed(data_b)) : (data_a <= data_b);
-        end
-        default:
-        begin
-            branch_passed <= 1'b0;
-        end
+        BRANCH_OP_BEQ: branch_passed = cmp_eq;
+        BRANCH_OP_BGT: branch_passed = cmp_gt;
+        BRANCH_OP_BGE: branch_passed = cmp_gt | cmp_eq;
+        BRANCH_OP_BNE: branch_passed = ~cmp_eq;
+        BRANCH_OP_BLT: branch_passed = cmp_lt;
+        BRANCH_OP_BLE: branch_passed = cmp_lt | cmp_eq;
+        default:       branch_passed = 1'b0;
     endcase
 end
 

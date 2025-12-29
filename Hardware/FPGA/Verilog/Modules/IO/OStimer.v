@@ -2,6 +2,7 @@
  * OStimer
  * One shot timer that counts in milliseconds
  * Uses a delay of sysClkMHz-1 cycles per timerValue
+ * Assumes 100MHz input clock
  */
 module OStimer (
     input wire          clk,
@@ -19,7 +20,7 @@ localparam s_idle        = 0;
 localparam s_start       = 1;
 localparam s_done        = 2;
 
-parameter delay         = 49999; // Clock cycles delay per timerValue, could eventually become programmable, should then default to 1ms
+parameter delay         = 99999; // Clock cycles delay per timerValue, could eventually become programmable, should then default to 1ms
 
 reg [31:0] counterValue = 32'd0;            // 32 bits for timerValue
 reg [31:0] delayCounter = 32'd0;            // counter for timer delay

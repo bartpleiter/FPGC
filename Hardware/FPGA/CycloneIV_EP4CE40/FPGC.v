@@ -152,19 +152,18 @@ wire half_res  = dipsw[2];
 /******************************************************************************
  * Clocks
  ******************************************************************************/
-wire clk50;         // CPU and main logic
-wire clk100;        // Memory logic
+wire clk100;        // CPU and main logic (100MHz)
 wire clkSDRAM;      // 100MHz Phase-shifted for SDRAM
 wire clkGPU;        // GPU clock
 wire clkTMDShalf;   // Half of TMDS clock for HDMI
 
 main_pll main_pll_inst (
     .inclk0(sys_clk_50),
-    .c0(clk50),
-    .c1(clk100),
-    .c2(clkSDRAM),
-    .c3(clkGPU),
-    .c4(clkTMDShalf)
+    .c0(), // 50MHz (unused)
+    .c1(clk100), // 100MHz
+    .c2(clkSDRAM), // 100MHz with phase shift
+    .c3(clkGPU), // 25MHz
+    .c4(clkTMDShalf) //125MHz
 );
 
 assign SDRAM_CLK = clkSDRAM;
@@ -176,13 +175,13 @@ wire reset;
 wire reset_dtr;
 
 DtrReset dtr_reset (
-    .clk(clk50),
+    .clk(clk100),
     .dtr(uart_dtr_n),
     .reset_dtr(reset_dtr)
 );
 
 reg [1:0] reset_sync = 2'b11;
-always @(posedge clk50)
+always @(posedge clk100)
 begin
     reset_sync <= {reset_sync[0], ~reset_n | reset_dtr};
 end
@@ -225,7 +224,7 @@ ROM #(
     .ADDR_BITS(10),
     .LIST("/home/bart/repos/FPGC/Hardware/FPGA/Verilog/MemoryLists/rom_bootloader.list")
 ) rom (
-    .clk (clk50),
+    .clk (clk100),
 
     .fe_addr(rom_fe_addr),
     .fe_oe(rom_fe_oe),
@@ -260,7 +259,7 @@ VRAM #(
     .LIST("/home/bart/repos/FPGC/Hardware/FPGA/Verilog/MemoryLists/vram32.list")
 ) vram32 (
     //CPU port
-    .cpu_clk (clk50),
+    .cpu_clk (clk100),
     .cpu_d   (vram32_cpu_d),
     .cpu_addr(vram32_cpu_addr),
     .cpu_we  (vram32_cpu_we),
@@ -298,7 +297,7 @@ VRAM #(
     .LIST("/home/bart/repos/FPGC/Hardware/FPGA/Verilog/MemoryLists/vram8.list")
 ) vram8 (
     // CPU port
-    .cpu_clk (clk50),
+    .cpu_clk (clk100),
     .cpu_d   (vram8_cpu_d),
     .cpu_addr(vram8_cpu_addr),
     .cpu_we  (vram8_cpu_we),
@@ -336,7 +335,7 @@ wire        fsx_blank;
 
 VRAMPXSram vrampx_sram (
     // Clocks and reset
-    .clk50(clk50),
+    .clk50(clk100),
     .clk100(clk100),
     .clkPixel(clkGPU),
     .reset(reset),
@@ -388,7 +387,7 @@ DPRAM #(
     .WORDS(128),
     .ADDR_BITS(7)
 ) l1i_ram (
-    .clk_pipe(clk50),
+    .clk_pipe(clk100),
     .pipe_d(l1i_pipe_d),
     .pipe_addr(l1i_pipe_addr),
     .pipe_we(l1i_pipe_we),
@@ -423,7 +422,7 @@ DPRAM #(
     .WORDS(128),
     .ADDR_BITS(7)
 ) l1d_ram (
-    .clk_pipe(clk50),
+    .clk_pipe(clk100),
     .pipe_d(l1d_pipe_d),
     .pipe_addr(l1d_pipe_addr),
     .pipe_we(l1d_pipe_we),
@@ -590,7 +589,7 @@ wire        OST2_int;
 wire        OST3_int;
 
 MemoryUnit memory_unit (
-    .clk(clk50),
+    .clk(clk100),
     .reset(reset),
     .uart_reset(), // No need as we have DTR available
 
@@ -652,10 +651,10 @@ MemoryUnit memory_unit (
  * CPU (50MHz)
  ******************************************************************************/
 // Convert frameDrawn to CPU clock domain
-wire frameDrawn_CPU; // Interuupt synchronized to 50MHz clock
+wire frameDrawn_CPU; // Interrupt synchronized to 100MHz clock
 reg frameDrawn_ff1, frameDrawn_ff2;
 
-always @(posedge clk50)
+always @(posedge clk100)
 begin
     frameDrawn_ff1 <= frameDrawn;
     frameDrawn_ff2 <= frameDrawn_ff1;
@@ -665,7 +664,7 @@ assign frameDrawn_CPU = frameDrawn_ff2;
 
 B32P3 cpu (
     // Clock and reset
-    .clk(clk50),
+    .clk(clk100),
     .reset(reset),
 
     // ROM (dual port)

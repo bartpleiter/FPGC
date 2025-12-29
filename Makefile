@@ -20,7 +20,7 @@ B32CC_OUTPUT = $(B32CC_DIR)/output/b32cc
 .PHONY: asmpy-install asmpy-uninstall test-asmpy asmpy-clean
 .PHONY: docs-serve docs-deploy
 .PHONY: sim-cpu sim-cpu-uart sim-gpu sim-sdram sim-bootloader
-.PHONY: test-cpu test-cpu-sequential test-cpu-single debug-cpu
+.PHONY: test-cpu test-cpu-sequential test-cpu-single debug-cpu quartus-timing
 .PHONY: test-b32p3 test-b32p3-single debug-b32p3
 .PHONY: compile-asm compile-bootloader compile-c-baremetal
 .PHONY: flash-asm-uart run-asm-uart flash-c-baremetal-uart run-c-baremetal-uart
@@ -225,6 +225,9 @@ debug-cpu:
 	fi
 	./Scripts/Tests/debug_cpu_test.sh $(file)
 
+quartus-timing:
+	./Scripts/Tests/quartus_timing.sh
+
 # =============================================================================
 # B32P3 CPU Testing (New Pipeline Design)
 # =============================================================================
@@ -383,6 +386,7 @@ help:
 	@echo "                        Usage: make test-cpu-single file=<test_file>"
 	@echo "  debug-cpu           - Debug a single CPU test with GTKWave"
 	@echo "                        Usage: make debug-cpu file=<test_file>"
+	@echo "  quartus-timing      - Run Quartus timing analysis"
 	@echo ""
 	@echo "--- Compilation ---"
 	@echo "  compile-asm         - Compile ASM file"
