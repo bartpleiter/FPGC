@@ -185,8 +185,8 @@ InterruptController interrupt_controller (
 // 3. We're executing from SDRAM (PC < ROM_ADDRESS) - not from ROM
 // 4. A jump is happening (simplifies hazard handling)
 wire interrupt_valid = int_cpu && !int_disabled &&
-                       (id_ex_pc < ROM_ADDRESS) &&
-                       (id_ex_valid && jump_valid);
+                       (ex_mem_pc < ROM_ADDRESS) &&
+                       (ex_mem_valid && jump_valid);
 
 // PC backup for return from interrupt
 reg [31:0] pc_backup = 32'd0;
@@ -282,8 +282,8 @@ always @(posedge clk) begin
         // Interrupt: save PC and jump to interrupt handler
         // Note: Interrupt should only be taken when not stalled
         int_disabled <= 1'b1;
-        pc_backup <= id_ex_pc;  // Save PC of instruction in EX stage
-        $display("Interrupt taken, jumping to address %h, saving PC %h", INTERRUPT_JUMP_ADDR, id_ex_pc);
+        pc_backup <= ex_mem_pc;  // Save PC of instruction in MEM stage (matching jump_valid)
+        $display("Interrupt taken, jumping to address %h, saving PC %h", INTERRUPT_JUMP_ADDR, ex_mem_pc);
         pc <= INTERRUPT_JUMP_ADDR;
         redirect_pending <= 1'b1;
     end else if (reti_valid && !pipeline_stall) begin
@@ -1362,8 +1362,6 @@ assign wb_data = mem_wb_pop ? stack_q : mem_wb_result;
 assign wb_dreg = mem_wb_dreg;
 assign wb_dreg_we = mem_wb_valid && mem_wb_dreg_we && (mem_wb_dreg != 4'd0) && !backend_pipeline_stall;
 
-// =============================================================================
-// INTERRUPT CONTROLLER (Stub for Sprint 1)
 // =============================================================================
 // DEBUG OUTPUT
 // =============================================================================

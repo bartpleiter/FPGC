@@ -1,5 +1,5 @@
 /*
- * InterruptController
+ * InterruptController with Clock Domain Crossing (CDC) handling
  * Gives priority to lower numbered interrupts
  * Outputs a single interrupt signal and ID to the CPU
  * When multiple interrupts happen at the same time, the lower priority ones are queued
@@ -20,11 +20,34 @@ module InterruptController #(
     output reg [7:0]                 intID = 8'd0
 );
 
+// CDC: Two-stage synchronizer for each interrupt input
+// This prevents metastability from propagating
+(* ASYNC_REG = "TRUE" *) reg [NUM_INTERRUPTS-1:0] int_sync1 = {NUM_INTERRUPTS{1'b0}};
+(* ASYNC_REG = "TRUE" *) reg [NUM_INTERRUPTS-1:0] int_sync2 = {NUM_INTERRUPTS{1'b0}};
+
 reg [NUM_INTERRUPTS-1:0] int_prev = {NUM_INTERRUPTS{1'b0}};
 reg [NUM_INTERRUPTS-1:0] int_triggered = {NUM_INTERRUPTS{1'b0}};
 
 integer i;
 
+// First always block: Synchronization chain
+// This MUST be separate to ensure proper synchronizer implementation
+always @(posedge clk) 
+begin
+    if (reset)
+    begin
+        int_sync1 <= {NUM_INTERRUPTS{1'b0}};
+        int_sync2 <= {NUM_INTERRUPTS{1'b0}};
+    end
+    else
+    begin
+        int_sync1 <= interrupts;      // First stage (may go metastable)
+        int_sync2 <= int_sync1;        // Second stage (metastability resolved)
+    end
+end
+
+// Second always block: Edge detection and interrupt handling
+// Now operating on fully synchronized signals
 always @(posedge clk) 
 begin
     if (reset)
@@ -36,13 +59,13 @@ begin
     end
     else
     begin
-        // Edge detection
-        int_prev <= interrupts;
+        // Edge detection on SYNCHRONIZED signals
+        int_prev <= int_sync2;
         
         // Detect rising edges
         for (i = 0; i < NUM_INTERRUPTS; i = i + 1)
         begin
-            if (interrupts[i] && !int_prev[i])
+            if (int_sync2[i] && !int_prev[i])
                 int_triggered[i] <= 1'b1;
         end
         
@@ -50,8 +73,6 @@ begin
         if (!intDisabled && !intCPU)
         begin
             // Priority encoder: lowest index has highest priority
-            // Sadly we cannot do this with a for loop because of the else-if structure
-            // TODO: find a better altnernative that does not result in a long chain of LUTs to improve timings
             if (int_triggered[0])
             begin
                 int_triggered[0] <= 1'b0;
@@ -102,7 +123,7 @@ begin
             end
         end
         
-        // Clear intCPU when interrupts are disabled, this acts as an ACK signal from the CPU indicated it started handling the interrupt
+        // Clear intCPU when interrupts are disabled
         if (intDisabled)
         begin
             intCPU <= 1'b0;
