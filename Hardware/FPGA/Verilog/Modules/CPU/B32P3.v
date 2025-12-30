@@ -525,8 +525,18 @@ ControlUnit control_unit (
 // =============================================================================
 // REGISTER FILE
 // =============================================================================
-// The regbank has 1-cycle read latency (designed for BRAM)
-// We send addresses in ID stage, and receive data in EX stage
+// The regbank has 2-cycle read latency (fully registered for timing):
+// - Cycle 1 (IF): Addresses are captured from if_instr
+// - Cycle 2 (ID): Data is read from register array and registered
+// - Cycle 3 (EX): Data is available at outputs
+// We send addresses from IF stage using if_instr, and receive data in EX stage
+
+// Extract register addresses from IF instruction (same logic as InstructionDecoder)
+// These go directly to the regbank without any decoding delay
+wire [3:0] if_instr_op = if_instr[31:28];
+wire [3:0] if_areg = (if_instr_op == 4'b0001 || if_instr_op == 4'b0011) ? if_instr[7:4] : if_instr[11:8];
+wire [3:0] if_breg = (if_instr_op == 4'b0001 || if_instr_op == 4'b0011) ? 4'd0 : if_instr[7:4];
+
 wire [31:0] ex_areg_data;  // Data arrives in EX stage
 wire [31:0] ex_breg_data;  // Data arrives in EX stage
 
@@ -539,13 +549,13 @@ Regbank regbank (
     .clk        (clk),
     .reset      (reset),
     
-    // Read ports - addresses from ID stage, data available in EX stage
-    .addr_a     (id_areg),
-    .addr_b     (id_breg),
+    // Read ports - addresses from IF stage, data available in EX stage (2-cycle latency)
+    .addr_a     (if_areg),
+    .addr_b     (if_breg),
     .clear      (flush_if_id),
-    .hold       (stall_id),
-    .data_a     (ex_areg_data),  // Output arrives 1 cycle later (in EX stage)
-    .data_b     (ex_breg_data),  // Output arrives 1 cycle later (in EX stage)
+    .hold       (stall_if),
+    .data_a     (ex_areg_data),  // Output arrives 2 cycles later (in EX stage)
+    .data_b     (ex_breg_data),  // Output arrives 2 cycles later (in EX stage)
     
     // Write port (WB stage)
     .addr_d     (wb_dreg),
