@@ -5,15 +5,12 @@
 
 ## Verilog/FPGA design
 
-- [ ] Rewrite regbank to just use logic cells instead of attempting block RAM inference
-- [ ] Rewrite stack to force use of block RAM
-- [ ] Given longest path is from CacheController|EXMEM2_result into cpu|PC_FE1, look into reducing this path
 - [ ] Remove line buffer in FSX_SRAM and access SRAM instead again for the second line to save up resources
+- [ ] Improve VRAMPX write fifo design now we run at 100MHz
 - [ ] Status led modules for the Cyclone IV PCB
 
 ## Software development
 
-- [ ] Make test assembly programs to validate EP4CE40 PCB
 - [ ] Make DTR reset and Magic Sequence configurable in makefile scripts, or drop support for Cyclone 10 if at the point where we need hardware features of the Cyclone IV PCB
 - [ ] BDOS V2 design and implementation
 

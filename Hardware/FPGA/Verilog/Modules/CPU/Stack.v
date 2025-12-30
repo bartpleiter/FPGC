@@ -54,14 +54,11 @@ begin
 
         if (pop)
         begin
-            // On pop: read from stack and update output register
-            // The stack read is synchronous (BRAM), result appears this cycle
             q_reg <= stack[ptr - 1'b1];
             ptr <= ptr - 1'b1;
             $display("%d: pop  ptr %d := %d", $time, ptr, stack[ptr - 1'b1]);
         end
     end
-    // When hold is active, q_reg maintains its value (no assignment needed)
 end
 
 integer i;

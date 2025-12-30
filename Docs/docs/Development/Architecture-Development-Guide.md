@@ -1,165 +1,73 @@
 # FPGC Architecture and Development Guide
 
-This document provides comprehensive context for understanding the FPGC (FPGA Computer) project architecture. It covers CPU internals, compiler capabilities and limitations, C programming guidelines, library structure, testing infrastructure, and debugging techniques.
-
-**Use this document as essential context when:**
-- Writing C code for FPGC
-- Implementing new library functions
-- Debugging compilation or runtime issues
-- Understanding compiler limitations
-- Creating and running tests
-- Working with the custom toolchain (B32CC, ASMPY)
+This document provides comprehensive context for understanding the FPGC (FPGA Computer) project architecture.
 
 ## Project Overview
 
 FPGC is a complete custom computer system implemented on FPGA hardware, featuring:
 
-- Custom 32-bit RISC CPU (B32P2)
+- Custom 32-bit RISC CPU (B32P3)
 - Custom C compiler (B32CC)
 - Custom assembler (ASMPY)
-- Operating system (BDOS)
 - GPU with pixel rendering capabilities
 - SDRAM controller with L1 instruction and data caches
+- Custom File System (BRFS).
+- TODO: a custom Operating System (BDOS)
 
-## CPU Architecture (B32P2)
+The goal of this project is to create a fully functional computer system from the ground up, including hardware design, CPU architecture, compiler toolchain, and software libraries, with the end goal of running Doom on a custom Operating System (BDOS).
+
+## CPU Architecture (B32P3)
 
 ### Pipeline Stages
 
-B32P2 is a 6-stage pipelined CPU:
+B32P3 is a classic 5-stage pipelined CPU:
+- 32-bit pipelined CPU with classic 5-stage pipeline
+- Third iteration of B32P with focus on simplified hazard handling
 
-1. **FE1 (Instruction Cache Fetch)**: Fetch instruction from L1 instruction cache or ROM
-2. **FE2 (Instruction Cache Miss Fetch)**: Handle cache misses, wait for cache controller
-3. **REG (Register Read)**: Decode instruction and read registers from register bank
-4. **EXMEM1 (Execute and Data Cache Access)**: Execute single-cycle ALU operations, access L1 data cache
-5. **EXMEM2 (Multi-cycle Execute and Data Cache Miss)**: Handle multi-cycle operations (multiply, divide, cache misses)
-6. **WB (Writeback)**: Write results back to register bank
+Features:
+- 5 stage pipeline (Classic MIPS-style)
+  - IF:  Instruction Fetch
+  - ID:  Instruction Decode & Register Read
+  - EX:  Execute (ALU operations, branch resolution)
+  - MEM: Memory Access (Load/Store)
+  - WB:  Write Back
+- Simple hazard detection (load-use only)
+- Data forwarding (EX→EX, MEM→EX)
+- 32 bits, word-addressable only
+- 32 bit address space for 16GiB of addressable memory
+  - 27 bits jump constant for 512MiB of easily jumpable instruction memory
+
+Memory Map:
+- SDRAM:  0x0000000 - 0x6FFFFFF (112MiW)
+- I/O:    0x7000000 - 0x77FFFFF
+- ROM:    0x7800000 - 0x78003FF (1KiW) - CPU starts here
+- VRAM32: 0x7900000 - 0x790041F
+- VRAM8:  0x7A00000 - 0x7A02001
+- VRAMPX: 0x7B00000 - 0x7B12BFF
 
 ### ISA (Instruction Set Architecture)
 
-All instructions are 32 bits, word-addressable. Key instruction formats:
+All instructions are 32 bits, word-addressable. See ISA.md for full instruction set details.
+All assembly related information in Assembler.md.
 
-```text
-HALT     1111 1111 1111 1111 1111 1111 1111 1111
-READ     1110 ||--------16-bit offset--------|| areg | xxxx | dreg
-WRITE    1101 ||--------16-bit offset--------|| areg || breg | xxxx
-PUSH     1011 xxxxxxxxxxxxxxxxxxxxxxxx | breg | xxxx
-POP      1010 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx | dreg
-JUMP     1001 ||---------------27-bit constant--------------||O|
-JUMPR    1000 ||--------16-bit offset--------| xxxx | breg | xxO|
-BRANCH   0110 ||--------16-bit offset--------|| areg || breg ||op||S|
-ARITHC   0011 |op| ||--------16-bit const----|| areg || dreg
-ARITH    0000 |op| xxxxxxxxxxxx | areg || breg || dreg
-ARITHMC  0010 |op| ||--------16-bit const----|| areg || dreg (multi-cycle)
-```
+### Registers
 
-### Register Convention
+There are 16 registers, but r0 is hardwired to 0.
 
-- **r0**: Zero register (always 0)
-- **r1-r2 (V0-V1)**: Return values / temporaries
-- **r3**: Temporary
-- **r4-r7 (A0-A3)**: First 4 function arguments
-- **r8-r12 (T0-T4)**: Temporaries / momentary registers
-- **r13 (SP)**: Stack pointer
-- **r14 (FP)**: Frame pointer
-- **r15 (RA)**: Return address
-
-### Memory Map
-
-- **0x0000000 - ROM_ADDRESS**: SDRAM (main memory, cacheable)
-- **ROM_ADDRESS (0x7800000) - ...**: ROM (bootloader)
-- **0x7B00000**: GPU pixel plane (320x240, 32-bit per pixel)
-- **0x7000000**: UART TX register
-
-### Hazard Detection and Forwarding
-
-The CPU implements several hazard detection mechanisms:
-
-1. **Load-use hazard**: Stalls when EXMEM2 has a result needed by EXMEM1
-2. **Pop + WB conflict**: Flushes pipeline when stack pop conflicts with WB forwarding
-3. **Multi-cycle dependency**: Flushes early stages when EXMEM1 depends on multi-cycle ops in EXMEM2
-
-Data forwarding paths:
-
-- EXMEM2 → EXMEM1 (for single-cycle ALU operations)
-- WB → EXMEM1 (for all operations)
 
 ## C Compiler (B32CC)
 
-B32CC is a single-pass C compiler based on Smaller C, targeting the B32P2 ISA.
+B32CC is a single-pass C compiler based on Smaller C, targeting the B32P3 ISA.
+Since this is a very simple single pass C compiler, many things are not supported (like macro functions, returning a struct from a function, etc). The most important limitation in C programming is that there is NO linker at all, so some clever tricks are used to include library code.
 
 ### Location
 
 - Source: `BuildTools/B32CC/smlrc.c` (main compiler)
-- Backend: `BuildTools/B32CC/cgb32p2.inc` (B32P2 code generation)
-
-### Calling Convention
-
-**Argument Passing:**
-
-1. First 4 arguments: Passed in registers r4-r7 (A0-A3)
-2. Additional arguments (5+): Pushed onto **hardware stack** (right-to-left), then popped by callee into memory stack
-
-**Stack Frames:**
-
-```txt
-Caller's frame:
-  [fp - N] : local variables
-  [fp + 0] : saved frame pointer
-  [fp + 1] : saved return address (if not leaf function)
-  
-Before function call:
-  [sp + 0-3] : space for callee to save A0-A3
-  [sp + 4+]  : space for callee to save additional args from hardware stack
-  [sp - 4]   : allocated for call setup
-```
-
-**Function Prologue (generated by GenFxnProlog):**
-
-```assembly
-; Save arguments to stack
-write 0 r13 r4    ; save A0 at [sp+0]
-write 1 r13 r5    ; save A1 at [sp+1]
-write 2 r13 r6    ; save A2 at [sp+2]
-write 3 r13 r7    ; save A3 at [sp+3]
-; Pop additional args from hardware stack
-pop r11           ; get 5th arg
-write 4 r13 r11   ; save at [sp+4]
-; Allocate stack frame
-sub r13 N r13     ; N = 2 + local_vars_size
-write N-2 r13 r14 ; save old FP
-add r13 N-2 r14   ; set new FP
-write 1 r14 r15   ; save return address (if not leaf)
-```
-
-**Function Call (generated in case ')':):**
-
-```assembly
-; Load args into A0-A3 from stack (if needed)
-; Allocate space for callee's arg saving
-sub r13 max(4, argc) r13  ; IMPORTANT: must allocate enough for all args!
-; Save PC+3 and jump
-savpc r15
-add r15 3 r15
-jump function_label
-; After return, deallocate
-sub r13 -max(4, argc) r13
-```
-
-**Key Compiler Variables:**
-
-- `CurFxnMinLocalOfs`: Minimum local variable offset (negative)
-- `CurFxnParamCntMin/Max`: Min/max parameter count
-- `maxCallDepth`: 1 if direct register usage, >1 if spilling to stack
-
-### Common Bug Patterns
-
-1. **Stack frame size miscalculation**: Not allocating enough space for all arguments
-2. **Offset errors**: Using byte offsets instead of word offsets (B32P2 is word-addressable)
-3. **Hardware stack vs memory stack confusion**: Two separate stacks exist
+- Backend: `BuildTools/B32CC/cgB32P3.inc` (B32P3 code generation)
 
 ## Assembler (ASMPY)
 
-ASMPY is written in Python and assembles B32P2 assembly into binary.
+ASMPY is written in Python and assembles B32P3 assembly into binary.
 
 ### Assembler Location
 
@@ -175,225 +83,35 @@ ASMPY is written in Python and assembles B32P2 assembly into binary.
 
 **Sections:**
 
-- `.code`: Code section
-- `.data`: Data section (not commonly used)
+-There is support for different sections, but all they do is that .code sections are compiled first and all the other sections (like .data) are moved below the .code section in memory.
 
 **Directives:**
 
 - Labels: `Label_name:`
-- Comments: `;` or `/* */`
-
-### Assembly to Binary
-
-Instructions are assembled into 32-bit words and written to:
-
-- `Software/ASM/Simulation/sim_ram.asm` (assembly)
-- `Hardware/FPGA/Verilog/Simulation/MemoryLists/ram.list` (binary, 32 bits per line)
-
-**Binary format in ram.list:**
-Each line is one 32-bit instruction in binary (MSB first).
+- Comments: `;`
 
 ## Testing Infrastructure
 
 ### Make Commands
 
-```bash
-# Run all tests
-make check
+These are very important for testing and debugging both the CPU and the C compiler.
 
-# CPU tests
-make test-cpu                    # All CPU tests (parallel)
-make test-cpu-sequential         # Sequential execution
-make test-cpu-single file=<path> # Single test
-make debug-cpu file=<path>       # Debug with GTKWave
+**When you change Verilog code:**
 
-# C compiler tests
-make test-b32cc                  # All C tests (parallel)
-make test-b32cc-sequential       # Sequential
-make test-b32cc-single file=<path>
-make debug-b32cc file=<path>     # Debug with simulation output
+Run `make test-cpu` to run all CPU tests, followed by `make test-b32cc` to run all C compiler tests (which also test the CPU indirectly). If a test fails, you can run it individually using `make test-cpu-single file=<path>` or `make test-b32cc-single file=<path>`. Finally, to actually debug with verilog display output, run `make debug-cpu file=<path>` or `make debug-b32cc file=<path>`.
 
-# ASMPY tests
-make test-asmpy                  # Python unit tests
-```
+**When you change C compiler code:**
 
-### Test Structure
+Run `make test-b32cc` to run all C compiler tests. If a test fails, you can run it individually using `make test-b32cc-single file=<path>`. To debug with verilog display output, run `make debug-b32cc file=<path>`.
 
-**CPU Tests** (`Tests/CPU/`):
+### How the testing framework works
 
-- Assembly files testing specific CPU features
-- Expected output specified in comments
-- Run in Icarus Verilog simulation
+- First, the C code is compiled to B32P3 assembly using B32CC.
+- Then, ASMPY assembles the assembly into .list files, which in turn are used to initialize the memories in the Verilog testbench.
+- The Verilog testbench simulates the CPU running the program, capturing UART output and register/memory traces.
+- Finally, the test framework checks the UART output (in case of B32CC tests, otherwise just the last r15 write) against expected values.
 
-**C Tests** (`Tests/C/`):
-
-- C source files with expected return values
-- Format: `return <value>; // expected=<value>`
-- Compiled with B32CC, assembled with ASMPY, simulated
-- Success = UART transmission of expected value
-
-### Debugging Workflow
-
-1. **Run test to reproduce**: `make test-b32cc-single file=<test>`
-2. **Debug with simulation**: `make debug-b32cc file=<test>`
-   - Opens GTKWave automatically
-   - Prints register writes and cache operations to stdout
-   - Look for `reg r<N>: <value>` for register changes
-   - Look for `Cache EXMEM2: addr=<addr> we=1 data=<value>` for writes
-   - Look for `PC: jump -> <addr>` for control flow (if debug enabled)
-3. **Examine assembly**: `cat Software/ASM/Simulation/sim_ram.asm`
-4. **Check memory list**: `cat Hardware/FPGA/Verilog/Simulation/MemoryLists/ram.list`
-
-## Simulation Environment
-
-### Testbench: `Hardware/FPGA/Verilog/Simulation/cpu_tb.v`
-
-The testbench:
-
-- Instantiates B32P2 CPU
-- Connects SDRAM model (mt48lc16m16a2.v)
-- Monitors UART output for test completion
-- Timeout: ~200000 ns
-- Success: UART transmission with expected value
-
-### Debug Output
-
-Register bank (`Hardware/FPGA/Verilog/Modules/CPU/Regbank.v`) prints:
-
-```text
-<time> reg r<N>: <value>
-```
-
-Cache controller prints writes:
-
-```text
-<time> Cache EXMEM2: addr=<hex_addr> we=1 data=<hex_value>
-```
-
-Hardware stack prints:
-
-```text
-<time>: push ptr <N> := <value>
-<time>: pop  ptr <N> := <value>
-```
-
-## Common Debugging Scenarios
-
-### Infinite Loop / No UART Output
-
-**Symptoms:** Test times out, no UART transmission
-
-**Common Causes:**
-
-1. PC jumping to wrong address (return address corruption)
-2. Stack corruption
-3. Branch condition always true/false
-4. Cache issues causing wrong instruction fetch
-
-**Debug Steps:**
-
-1. Add PC tracking: Add `$display` in B32P2.v PC update logic
-2. Trace stack pointer: Watch r13 changes
-3. Check return addresses: Look for `write 1 r14 r15` and later `read 1 r14 r15`
-4. Verify stack frame sizes in assembly
-
-### Wrong Result Value
-
-**Symptoms:** UART transmits wrong value
-
-**Common Causes:**
-
-1. ALU operation error
-2. Forwarding path broken
-3. Register allocation conflict
-4. Incorrect constant values
-
-**Debug Steps:**
-
-1. Trace return value (r1) through function
-2. Check arithmetic operations in assembly
-3. Verify constant encoding (signed vs unsigned)
-4. Check for hazard stalls affecting result
-
-### Stack Corruption
-
-**Symptoms:** Variables have wrong values, return address corrupted
-
-**Common Causes:**
-
-1. **Stack frame collision** (caller allocates too little space)
-2. Off-by-one in offset calculations
-3. Mixing byte and word offsets
-4. Hardware stack vs memory stack confusion
-
-**Debug Steps:**
-
-1. Trace all writes to suspected memory addresses
-2. Calculate expected stack layout manually
-3. Verify GenGrowStack calls match actual usage
-4. Check that sp+N writes don't exceed allocated space
-
-### Cache-Related Issues
-
-**Symptoms:** Intermittent failures, wrong data, instruction cache misses
-
-**Common Causes:**
-
-1. Cache line not marked valid
-2. Tag mismatch
-3. Stale data after write
-4. Pipeline hazard during cache miss
-
-**Debug Steps:**
-
-1. Look for cache miss patterns in simulation output
-2. Check valid bits and tags
-3. Verify cache controller state machine
-4. Check for proper cache flushes after writes
-
-## Key Files Reference
-
-### CPU
-
-- `Hardware/FPGA/Verilog/Modules/CPU/B32P2.v` - Main CPU module
-- `Hardware/FPGA/Verilog/Modules/CPU/Regbank.v` - Register bank
-- `Hardware/FPGA/Verilog/Modules/CPU/ALU.v` - ALU
-- `Hardware/FPGA/Verilog/Modules/CPU/ControlUnit.v` - Instruction decode
-- `Hardware/FPGA/Verilog/Modules/CPU/BranchJumpUnit.v` - Branch/jump logic
-
-### Compiler
-
-- `BuildTools/B32CC/smlrc.c` - Main compiler
-- `BuildTools/B32CC/cgb32p2.inc` - B32P2 backend code generation
-- Functions to examine:
-  - `GenFxnProlog()` - Function entry code
-  - `GenFxnEpilog()` - Function exit code
-  - `GenExpr()` - Expression evaluation (contains `case ')':` for calls)
-  - `GenWriteFrameSize()` - Stack frame allocation
-
-### Assembler
-
-- `BuildTools/ASMPY/asmpy/assembler.py` - Main assembler
-- `BuildTools/ASMPY/asmpy/preprocessor.py` - Preprocessor
-
-### Tests
-
-- `Tests/CPU/` - CPU assembly tests
-- `Tests/C/` - C compiler tests
-- `Scripts/Tests/run_cpu_tests.sh` - CPU test runner
-- `Scripts/Tests/run_b32cc_tests.sh` - C test runner
-
-## Example Bug: Stack Frame Collision
-
-**Symptom:** Functions with 5+ arguments cause infinite loops
-
-**Root Cause:** Caller allocated only 4 words for arguments, but callee wrote 5th arg at sp+4, overwriting caller's return address.
-
-**Location:** `BuildTools/B32CC/cgb32p2.inc`, line ~1738 in `case ')':` of `GenExpr()`
-
-**Fix:** Changed `GenGrowStack(4)` to `GenGrowStack(v > 4 ? v : 4)` to allocate enough space for all arguments.
-
-**Lesson:** Always verify that allocated stack space (caller) matches actual usage (callee). The caller must allocate space for the callee's argument saving.
+Note that the tests use `cpu_tests_tb.v` as simulation testbench, while the `make debug` commands use `cpu_tb.v` as simulation testbench.
 
 ---
 
@@ -488,7 +206,6 @@ The project includes custom implementations of essential C standard library func
 
 ### Testing C Code
 
-
 **Test File Format:**
 
 ```c
@@ -516,107 +233,3 @@ The test runner checks the return value against the expected value in the commen
 ```c
 return 5; // expected=5
 ```
-
-**Running Tests:**
-
-```bash
-# Run all C tests (parallel)
-make test-b32cc
-
-# Run all C tests (sequential, easier to debug)
-make test-b32cc-sequential
-
-# Run single test
-make test-b32cc-single file=Tests/C/24_libc_tests/string_basic.c
-
-# Debug single test (opens GTKWave, shows register/memory traces)
-make debug-b32cc file=Tests/C/24_libc_tests/string_basic.c
-```
-
-**Test Workflow:**
-
-1. **Compilation**: C source → B32CC → Assembly
-2. **Assembly**: Assembly → ASMPY → Binary
-3. **Simulation**: Binary → Icarus Verilog → UART output
-4. **Verification**: UART output compared to expected value
-5. **Success**: UART transmits expected value before timeout
-
-**Debugging Failed Tests:**
-
-1. Check assembly output: `cat Software/ASM/Simulation/sim_ram.asm`
-2. Run with debug: `make debug-b32cc file=<test>`
-3. Look for register traces in output
-4. Check UART output timing
-5. Verify stack pointer and frame pointer values
-6. Examine memory writes to suspected addresses
-
-**Test Infrastructure Files:**
-
-- `Scripts/Tests/b32cc_tests.py` - Python test runner
-- `Scripts/Tests/debug_b32cc_test.sh` - Debug script for single tests
-- `Scripts/Tests/run_b32cc_tests.sh` - Bash wrapper for all tests
-- `Hardware/FPGA/Verilog/Simulation/cpu_tb.v` - Verilog testbench
-
-### Compilation Workflow
-
-Understanding the full compilation workflow helps debug issues and optimize code.
-
-**Step-by-Step Process:**
-
-1. **C Source** (`test.c`)
-   ```c
-   #define COMMON_STDLIB
-   #include "libs/common/common.h"
-   int main() { return 42; }
-   ```
-
-2. **B32CC Compilation** (C → Assembly)
-   ```bash
-   BuildTools/B32CC/output/b32cc test.c > out.asm
-   ```
-   Output: `out.asm` with B32P2 assembly
-
-3. **ASMPY Assembly** (Assembly → Binary)
-   ```bash
-   python -m BuildTools.ASMPY.asmpy.app out.asm
-   ```
-   Output: 
-   - `Software/ASM/Simulation/sim_ram.asm` (formatted assembly)
-   - `Hardware/FPGA/Verilog/Simulation/MemoryLists/ram.list` (binary)
-
-4. **Verilog Simulation** (Binary → Execution)
-   ```bash
-   iverilog -o cpu_sim cpu_tb.v ...
-   vvp cpu_sim
-   ```
-   Output: Register traces, UART output
-
-5. **Verification** (Check Result)
-   - UART output checked for expected value
-   - Timeout if no output or wrong value
-
-**Intermediate Files:**
-
-- `Software/ASM/Simulation/sim_ram.asm` - Human-readable assembly
-- `Hardware/FPGA/Verilog/Simulation/MemoryLists/ram.list` - Binary machine code
-- `out.asm` - Raw compiler output (before assembler formatting)
-
-**Compilation from Different Directories:**
-
-```bash
-# From project root
-make test-b32cc-single file=Tests/C/XX_test/test.c
-
-# From Software/C (for manual compilation)
-../../BuildTools/B32CC/output/b32cc ../../Tests/C/XX_test/test.c > out.asm
-python -m BuildTools.ASMPY.asmpy.app out.asm
-```
-
-Remember: All addresses and offsets are in **words** (32-bit), not bytes.
-
-## Further Resources
-
-- `Docs/docs/Hardware/CPU (B32P2)/ISA.md` - Complete ISA documentation
-- `Docs/docs/Software/Assembler.md` - ASMPY assembler documentation
-- `Makefile` - All available make targets and build commands
-- `README.md` - Project overview and setup instructions
