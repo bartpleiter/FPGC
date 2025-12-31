@@ -1,4 +1,4 @@
-# FPGC Architecture and Development Guide
+# FPGC Project Context
 
 This document provides comprehensive context for understanding the FPGC (FPGA Computer) project architecture.
 
