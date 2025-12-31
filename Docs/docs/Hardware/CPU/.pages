@@ -4,3 +4,4 @@ nav:
     - Modules
     - ISA.md
     - Cache.md
+    - CPU-Revisions.md

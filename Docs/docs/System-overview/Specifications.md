@@ -6,8 +6,8 @@
 ## CPU
 
 - 32 Bit
-- Fully custom instruction set (called B32P2)
-- 6 Stage pipeline
+- Fully custom instruction set (called B32P3)
+- 5 Stage pipeline (classic MIPS-style: IF, ID, EX, MEM, WB)
 - 16 Registers (15 GP and R0 is always 0)
 - L1i and L1d cache (direct mapped, 128 cache lines of 8 instructions per line)
     - Cache controller with write-back policy and dirty bit tracking, acting as arbiter for external DRAM

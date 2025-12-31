@@ -1,13 +1,13 @@
 # C Compiler (B32CC)
 
-B32CC is a C compiler for the B32P2 architecture, derived from [SmallerC](https://github.com/alexfru/SmallerC) by Alexey Frunze. It compiles C source code into B32P2 assembly language, which can then be assembled with [ASMPY](Assembler.md) into executable machine code for the FPGC.
+B32CC is a C compiler for the B32P3 architecture, derived from [SmallerC](https://github.com/alexfru/SmallerC) by Alexey Frunze. It compiles C source code into B32P3 assembly language, which can then be assembled with [ASMPY](Assembler.md) into executable machine code for the FPGC.
 
 ## Features
 
 B32CC supports most of the C language common between C89 and C99. Its features can be described as follows:
 
 - **Single-pass compilation** - Fast compilation without intermediate files
-- **B32P2 assembly output** - Generates readable assembly for the target architecture
+- **B32P3 assembly output** - Generates readable assembly for the target architecture
 - **Inline assembly** - Direct assembly code embedding with `asm()` 
 - **Optimized for word-addressable architecture** - All data is 32-bit word aligned since B32CC does not support byte-addressable memory
 - **Self-hosting capable** - Can compile itself and run on the target architecture (using BDOS)
@@ -73,7 +73,7 @@ See the `Makefile` for detailed commands and options.
 
 ### Word-Addressable Memory
 
-The B32P2 architecture uses **word-addressable memory**, where each address refers to a 32-bit word, not a byte. This has important implications:
+The B32P3 architecture uses **word-addressable memory**, where each address refers to a 32-bit word, not a byte. This has important implications:
 
 - All data types occupy full 32-bit words in memory
 - `char` is stored as a 32-bit word and therefore could contain the same value as an `int` (I think, as I did not test if there is truncation)
