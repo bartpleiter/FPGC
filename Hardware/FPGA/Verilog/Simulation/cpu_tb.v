@@ -155,7 +155,11 @@ ROM #(
     .WIDTH(32),
     .WORDS(1024),
     .ADDR_BITS(10),
+`ifndef uart_simulation
     .LIST("Hardware/FPGA/Verilog/Simulation/MemoryLists/rom.list")
+`else
+    .LIST("Hardware/FPGA/Verilog/MemoryLists/rom_bootloader.list")
+`endif
 ) rom (
     .clk (clk),
 
@@ -705,7 +709,7 @@ B32P3 cpu (
 
     // Interrupts, right is highest priority
     // Framedrawn disabled for now to simplify b32cc test debugging
-    .interrupts({3'd0, Framedrawn, OST3_int, OST2_int, OST1_int, uart_irq})
+    .interrupts({3'd0, 1'b0, OST3_int, OST2_int, OST1_int, uart_irq})
 );
 
 reg int_test = 1'b0; // Test interrupt signal
@@ -719,7 +723,7 @@ integer clk_counter = 0;
 always @(posedge clk) begin
     clk_counter = clk_counter + 1;
     
-    if (clk_counter == 110000) begin // 30000 -> Extended timeout for complex tests (doubled for 100MHz)
+    if (clk_counter == 110000) begin
         $display("Simulation finished.");
         $finish;
     end

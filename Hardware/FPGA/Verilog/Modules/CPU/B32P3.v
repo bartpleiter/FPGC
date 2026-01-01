@@ -259,9 +259,14 @@ wire [31:0] pc_redirect_target;
 //   - IF/ID contains the instruction after RETI (needs to be flushed)
 //   - ID/EX contains the RETI itself (will redirect PC)
 //   - EX/MEM contains the instruction BEFORE RETI (should NOT be flushed - it must complete!)
-assign flush_if_id = pc_redirect || interrupt_valid || reti_valid;
-assign flush_id_ex = pc_redirect || interrupt_valid || reti_valid;
-assign flush_ex_mem = pc_redirect || interrupt_valid;  // Note: reti_valid does NOT flush EX/MEM!
+// IMPORTANT: Flushes for interrupt_valid and reti_valid should only happen when they 
+// actually execute (when not stalled). Otherwise, we'd flush the instruction but not
+// execute the redirect, losing the instruction entirely.
+wire reti_executes = reti_valid && !pipeline_stall;
+wire interrupt_executes = interrupt_valid && !pipeline_stall;
+assign flush_if_id = pc_redirect || interrupt_executes || reti_executes;
+assign flush_id_ex = pc_redirect || interrupt_executes || reti_executes;
+assign flush_ex_mem = pc_redirect || interrupt_executes;  // Note: reti doesn't flush EX/MEM!
 
 // =============================================================================
 // PROGRAM COUNTER
@@ -1212,17 +1217,43 @@ end
 assign mu_stall = ex_mem_valid && mem_sel_io && (ex_mem_mem_read || ex_mem_mem_write) && !mu_done;
 
 // Cache clear
+// Use a state machine similar to L1D to track completion per-instruction
+// This prevents re-triggering after the cache clear completes
+reg clear_cache_in_progress = 1'b0;
+reg clear_cache_finished = 1'b0;  // Track if current ccache instruction is done
+
 always @(posedge clk) begin
     if (reset) begin
         l1_clear_cache <= 1'b0;
-    end else if (ex_mem_valid && ex_mem_clearCache && !l1_clear_cache_done) begin
+        clear_cache_in_progress <= 1'b0;
+        clear_cache_finished <= 1'b0;
+    end else if (!ex_mem_valid || !ex_mem_clearCache) begin
+        // No ccache instruction in MEM stage, reset state
+        l1_clear_cache <= 1'b0;
+        clear_cache_in_progress <= 1'b0;
+        clear_cache_finished <= 1'b0;
+    end else if (clear_cache_finished) begin
+        // Already completed for this instruction, just hold
+        l1_clear_cache <= 1'b0;
+    end else if (l1_clear_cache_done) begin
+        // Cache clear just completed
+        l1_clear_cache <= 1'b0;
+        clear_cache_in_progress <= 1'b0;
+        clear_cache_finished <= 1'b1;  // Mark this instruction as done
+        $display("%0t Clear Cache completed", $time);
+    end else if (!clear_cache_in_progress) begin
+        // Start cache clear
         l1_clear_cache <= 1'b1;
+        clear_cache_in_progress <= 1'b1;
+        $display("%0t Clear Cache triggered", $time);
     end else begin
+        // In progress, clear start signal
         l1_clear_cache <= 1'b0;
     end
 end
 
-assign cc_stall = ex_mem_valid && ex_mem_clearCache && !l1_clear_cache_done;
+// Stall only when ccache is in progress and not yet finished
+assign cc_stall = ex_mem_valid && ex_mem_clearCache && !clear_cache_finished;
 
 // Memory read data multiplexer
 // For SDRAM: use l1d_result_reg if we had a cache miss (request_finished),

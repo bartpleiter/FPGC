@@ -304,7 +304,7 @@ begin
                 begin
                     // Request can be either a read after cache miss, or a write which can be either a hit or a miss
                     cpu_EXMEM2_new_request <= 1'b0; // Clear the request flag
-                    //$display("%0t Cache EXMEM2: addr=%05h we=%b data=%08h", $time, cpu_EXMEM2_start ? cpu_EXMEM2_addr : cpu_EXMEM2_addr_stored, cpu_EXMEM2_start ? cpu_EXMEM2_we : cpu_EXMEM2_we_stored, cpu_EXMEM2_start ? cpu_EXMEM2_data : cpu_EXMEM2_data_stored);
+                    $display("%0t Cache EXMEM2: addr=%05h we=%b data=%08h", $time, cpu_EXMEM2_start ? cpu_EXMEM2_addr : cpu_EXMEM2_addr_stored, cpu_EXMEM2_start ? cpu_EXMEM2_we : cpu_EXMEM2_we_stored, cpu_EXMEM2_start ? cpu_EXMEM2_data : cpu_EXMEM2_data_stored);
 
                     // Cancel any pending prefetch since we have a real data request
                     l1i_prefetch_pending <= 1'b0;

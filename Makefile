@@ -170,7 +170,7 @@ sim-cpu:
 	@mkdir -p $(SIMULATION_OUTPUT_DIR)
 	./Scripts/Simulation/simulate_cpu.sh --add-ram --add-flash
 
-sim-cpu-uart:
+sim-cpu-uart: compile-bootloader
 	@mkdir -p $(SIMULATION_OUTPUT_DIR)
 	./Scripts/Simulation/simulate_cpu.sh --add-ram --add-flash --add-uart
 
