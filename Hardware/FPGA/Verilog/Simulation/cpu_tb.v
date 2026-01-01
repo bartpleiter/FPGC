@@ -504,13 +504,13 @@ wire uart_tx_active;
     UARTtx #(
         .ENABLE_DISPLAY(0)
     ) uart_transmitter (
-        .i_Clock(clk),
+        .clk(clk),
         .reset(reset),
-        .i_Tx_DV(uart_tx_trigger),
-        .i_Tx_Byte(uart_test_data[uart_test_index]),
-        .o_Tx_Active(uart_tx_active),
-        .o_Tx_Serial(uart_rx), // Connect to CPU's uart_rx
-        .o_Tx_Done(uart_tx_done)
+        .start(uart_tx_trigger),
+        .data(uart_test_data[uart_test_index]),
+        .tx_active(uart_tx_active),
+        .tx(uart_rx), // Connect to CPU's uart_rx
+        .done(uart_tx_done)
     );
 
     always @(posedge clk)
@@ -521,7 +521,7 @@ wire uart_tx_active;
             uart_tx_trigger <= 1'b0;
         end else begin
             // Start UART transmission after delay
-            if (clk_counter > 3000 && !uart_test_start) begin
+            if (clk_counter > 6000 && !uart_test_start) begin
                 uart_test_start <= 1'b1;
                 uart_test_active <= 1'b1;
             end
@@ -705,7 +705,7 @@ B32P3 cpu (
 
     // Interrupts, right is highest priority
     // Framedrawn disabled for now to simplify b32cc test debugging
-    .interrupts({3'd0, int_test, OST3_int, OST2_int, OST1_int, uart_irq})
+    .interrupts({3'd0, Framedrawn, OST3_int, OST2_int, OST1_int, uart_irq})
 );
 
 reg int_test = 1'b0; // Test interrupt signal
@@ -719,13 +719,17 @@ integer clk_counter = 0;
 always @(posedge clk) begin
     clk_counter = clk_counter + 1;
     
-    if (clk_counter == 1000) begin // 30000 -> Extended timeout for complex tests (doubled for 100MHz)
+    if (clk_counter == 110000) begin // 30000 -> Extended timeout for complex tests (doubled for 100MHz)
         $display("Simulation finished.");
         $finish;
     end
 
     // int_test = 1'b0; // Clear test interrupt
-    // if (clk_counter >= 200 && clk_counter < 220) begin
+    // if (clk_counter >= 4000 && clk_counter < 4020) begin
+    //     int_test = 1'b1; // Trigger test interrupt
+    // end
+
+    // if (clk_counter >= 4080 && clk_counter < 4100) begin
     //     int_test = 1'b1; // Trigger test interrupt
     // end
 end

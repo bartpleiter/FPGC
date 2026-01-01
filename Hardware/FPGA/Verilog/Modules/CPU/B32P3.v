@@ -192,7 +192,10 @@ wire interrupt_valid = int_cpu && !int_disabled &&
 reg [31:0] pc_backup = 32'd0;
 
 // RETI signal from EX stage (return from interrupt)
-wire reti_valid = id_ex_valid && id_ex_reti;
+// IMPORTANT: RETI should NOT execute if pc_redirect is active, because the branch
+// in MEM stage will flush the RETI instruction. Without this check, a branch that
+// skips a RETI would still execute the RETI due to pipeline timing.
+wire reti_valid = id_ex_valid && id_ex_reti && !pc_redirect;
 
 // =============================================================================
 // PIPELINE CONTROL SIGNALS
@@ -251,10 +254,14 @@ wire [31:0] pc_redirect_target;
 // Flush on control hazard (branch/jump taken in MEM stage)
 // Since branch resolution is now in MEM stage, we need to flush 3 stages:
 // IF/ID, ID/EX, and EX/MEM (the 2 instructions after the branch in the pipeline)
-// Also flush on interrupt_valid and reti_valid
+// Also flush on interrupt_valid and reti_valid (but reti_valid doesn't flush EX/MEM!)
+// RETI is detected in ID/EX stage, so when it fires:
+//   - IF/ID contains the instruction after RETI (needs to be flushed)
+//   - ID/EX contains the RETI itself (will redirect PC)
+//   - EX/MEM contains the instruction BEFORE RETI (should NOT be flushed - it must complete!)
 assign flush_if_id = pc_redirect || interrupt_valid || reti_valid;
 assign flush_id_ex = pc_redirect || interrupt_valid || reti_valid;
-assign flush_ex_mem = pc_redirect || interrupt_valid || reti_valid;
+assign flush_ex_mem = pc_redirect || interrupt_valid;  // Note: reti_valid does NOT flush EX/MEM!
 
 // =============================================================================
 // PROGRAM COUNTER
@@ -292,7 +299,9 @@ always @(posedge clk) begin
         int_disabled <= 1'b0;
         pc <= pc_backup;
         redirect_pending <= 1'b1;
+        $display("%0t RETI executed, restoring PC to %h, id_ex_pc=%h, pc_redirect=%b", $time, pc_backup, id_ex_pc, pc_redirect);
     end else if (pc_redirect) begin
+        //$display("%0t PC redirect to %h from pc=%h (branch=%b, jump=%b, jumpr=%b, halt=%b)", $time, pc_redirect_target, ex_mem_pc, ex_mem_is_branch, ex_mem_is_jump, ex_mem_is_jumpr, ex_mem_halt);
         // Jump/branch redirect - this takes priority over stalls!
         // When a jump executes, we MUST redirect the PC even if there's a cache stall
         // The cache stall was for a different (now stale) instruction
@@ -1381,18 +1390,24 @@ assign wb_dreg_we = mem_wb_valid && mem_wb_dreg_we && (mem_wb_dreg != 4'd0) && !
 // The Regbank.v already has: $display("%0t reg r%02d: %d", $time, addr_d, data_d);
 
 // SIMULATION DEBUG: Track PC through pipeline when register write occurs
-// synthesis translate_off
-always @(posedge clk) begin
-    if (wb_dreg_we && wb_dreg != 4'd0 && !reset)
-        $display("%0t WB pc=%0d instr=%08h dreg=r%0d data=%0d", $time, mem_wb_pc, mem_wb_instr, wb_dreg, wb_data);
-end
+// always @(posedge clk) begin
+//     if (wb_dreg_we && wb_dreg != 4'd0 && !reset)
+//         $display("%0t WB pc=%0d instr=%08h dreg=r%0d data=%0d", $time, mem_wb_pc, mem_wb_instr, wb_dreg, wb_data);
+// end
+
+// Debug branch resolution
+// always @(posedge clk) begin
+//     if (ex_mem_valid && ex_mem_is_branch && !reset) begin
+//         $display("%0t BRANCH at pc=%h: branchOP=%b data_a=%d data_b=%d jump_valid=%b jump_addr=%h", 
+//                  $time, ex_mem_pc, ex_mem_branch_op, ex_mem_areg_data, ex_mem_breg_data, jump_valid, jump_addr);
+//     end
+// end
 
 // Debug L1I cache access
-always @(posedge clk) begin
-    if (!reset && if_id_valid && !pipeline_stall)
-        $display("%0t IF: pc=%0d pc_del=%0d l1i_addr=%0d l1i_offset=%0d hit=%b instr=%08h", 
-                 $time, pc, pc_delayed, l1i_pipe_addr, l1i_offset, l1i_hit, if_instr);
-end
-// synthesis translate_on
+// always @(posedge clk) begin
+//     if (!reset && if_id_valid && !pipeline_stall)
+//         $display("%0t IF: pc=%0d pc_del=%0d l1i_addr=%0d l1i_offset=%0d hit=%b instr=%08h", 
+//                  $time, pc, pc_delayed, l1i_pipe_addr, l1i_offset, l1i_hit, if_instr);
+// end
 
 endmodule
