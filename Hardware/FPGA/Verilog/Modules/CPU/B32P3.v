@@ -1,7 +1,7 @@
 /*
  * B32P3
  * 32-bit pipelined CPU with classic 5-stage pipeline
- * Third iteration of B32P with focus on simplified hazard handling
+ * Third iteration of B32P with focus on optimized timings to run at 100MHz
  *
  * Features:
  * - 5 stage pipeline (Classic MIPS-style)
@@ -11,27 +11,24 @@
  *   - MEM: Memory Access (Load/Store)
  *   - WB:  Write Back
  * - Simple hazard detection (load-use only)
- * - Data forwarding (EX→EX, MEM→EX)
+ * - Data forwarding
  * - 32 bits, word-addressable only
  * - 32 bit address space for 16GiB of addressable memory
  *   - 27 bits jump constant for 512MiB of easily jumpable instruction memory
  *
- * Memory Map:
- * - SDRAM:  0x0000000 - 0x6FFFFFF (112MiW)
- * - I/O:    0x7000000 - 0x77FFFFF
- * - ROM:    0x7800000 - 0x78003FF (1KiW) - CPU starts here
- * - VRAM32: 0x7900000 - 0x790041F
- * - VRAM8:  0x7A00000 - 0x7A02001
- * - VRAMPX: 0x7B00000 - 0x7B12BFF
+ * Parameters:
+ * - ROM_ADDRESS:            Address where ROM is mapped (also initial PC value)
+ * - INTERRUPT_JUMP_ADDR:    Address to jump to when an interrupt is triggered
+ * - NUM_INTERRUPTS:         Number of interrupt lines
  *
  * Notes:
- * - ROM (where the CPU starts executing from) needs to be placed on an address after RAM
+ * - ROM needs to be placed on an address after RAM (RAM is best to be placed at 0x0000000)
  * - Interrupts are only valid on an address before ROM
  */
 module B32P3 #(
-    parameter ROM_ADDRESS = 32'h7800000, // Initial PC value, so the CPU starts executing from ROM first
-    parameter INTERRUPT_JUMP_ADDR = 32'd1, // Address to jump to when an interrupt is triggered
-    parameter NUM_INTERRUPTS = 8 // Number of interrupt lines
+    parameter ROM_ADDRESS = 32'h7800000,
+    parameter INTERRUPT_JUMP_ADDR = 32'd1,
+    parameter NUM_INTERRUPTS = 8
 ) (
     //========================
     // System interface
@@ -76,14 +73,12 @@ module B32P3 #(
 
     //========================
     // L1i cache (CPU pipeline port)
-    // Cache line format: {256bit_data, 14bit_tag, 1bit_valid} = 271 bits
     //========================
     output wire [6:0]   l1i_pipe_addr,
     input  wire [270:0] l1i_pipe_q,
 
     //========================
     // L1d cache (CPU pipeline port)
-    // Cache line format: {256bit_data, 14bit_tag, 1bit_valid} = 271 bits
     //========================
     output wire [6:0]   l1d_pipe_addr,
     input  wire [270:0] l1d_pipe_q,
@@ -124,43 +119,6 @@ module B32P3 #(
 );
 
 // =============================================================================
-// INSTRUCTION OPCODES
-// =============================================================================
-localparam 
-    OP_HALT     = 4'b1111,
-    OP_READ     = 4'b1110,
-    OP_WRITE    = 4'b1101,
-    OP_INTID    = 4'b1100,
-    OP_PUSH     = 4'b1011,
-    OP_POP      = 4'b1010,
-    OP_JUMP     = 4'b1001,
-    OP_JUMPR    = 4'b1000,
-    OP_CCACHE   = 4'b0111,
-    OP_BRANCH   = 4'b0110,
-    OP_SAVPC    = 4'b0101,
-    OP_RETI     = 4'b0100,
-    OP_ARITHMC  = 4'b0011,
-    OP_ARITHM   = 4'b0010,
-    OP_ARITHC   = 4'b0001,
-    OP_ARITH    = 4'b0000;
-
-// ALU Opcodes
-localparam 
-    ALU_OR      = 4'b0000,
-    ALU_AND     = 4'b0001,
-    ALU_XOR     = 4'b0010,
-    ALU_ADD     = 4'b0011,
-    ALU_SUB     = 4'b0100,
-    ALU_SHIFTL  = 4'b0101,
-    ALU_SHIFTR  = 4'b0110,
-    ALU_NOTA    = 4'b0111,
-    ALU_SLT     = 4'b1010,
-    ALU_SLTU    = 4'b1011,
-    ALU_LOAD    = 4'b1100,
-    ALU_LOADHI  = 4'b1101,
-    ALU_SHIFTRS = 4'b1110;
-
-// =============================================================================
 // INTERRUPT CONTROLLER
 // =============================================================================
 // Interrupt enable/disable flag (disabled during interrupt handling)
@@ -168,7 +126,7 @@ reg int_disabled = 1'b0;
 
 // Interrupt controller signals
 wire int_cpu;           // Interrupt request from controller
-wire [7:0] int_id;      // Interrupt ID (1-8)
+wire [7:0] int_id;      // Interrupt ID value from controller
 
 InterruptController interrupt_controller (
     .clk        (clk),
@@ -202,35 +160,22 @@ wire reti_valid = id_ex_valid && id_ex_reti && !pc_redirect;
 // =============================================================================
 wire stall_if;          // Stall IF stage
 wire stall_id;          // Stall ID stage  
-wire flush_if_id;       // Flush IF/ID register (insert bubble)
-wire flush_id_ex;       // Flush ID/EX register (insert bubble)
-wire flush_ex_mem;      // Flush EX/MEM register (for MEM-stage branch resolution)
+wire flush_if_id;       // Flush IF/ID register
+wire flush_id_ex;       // Flush ID/EX register
+wire flush_ex_mem;      // Flush EX/MEM register
 
 // Pipeline stall sources
 wire hazard_stall;      // Load-use hazard stall
-wire cache_stall_if;    // L1I cache miss stall (combinatorial - from BRAM tag compare)
+wire cache_stall_if;    // L1I cache miss stall 
 wire cache_stall_mem;   // L1D cache miss stall
 wire multicycle_stall;  // Multi-cycle ALU stall
 wire mu_stall;          // Memory unit stall
 wire cc_stall;          // Cache clear stall
 
-// TIMING OPTIMIZATION: Register cache_stall_if to break the critical path
-// from L1I BRAM output -> l1i_hit -> cache_stall_if -> backend_stall -> PC
-// The registered version is used for stall signals, while the combinatorial
-// version is used for cache controller start (needs immediate response).
-reg cache_stall_if_reg = 1'b0;
-always @(posedge clk) begin
-    if (reset)
-        cache_stall_if_reg <= 1'b0;
-    else
-        cache_stall_if_reg <= cache_stall_if;
-end
+// Combined stall signal - stalls entire pipeline
+wire backend_stall = cache_stall_if || cache_stall_mem || multicycle_stall || mu_stall || cc_stall;
 
-// Combined stall signal - stalls entire pipeline (for back-end stalls)
-// Uses REGISTERED cache_stall_if to break critical timing path
-wire backend_stall = cache_stall_if_reg || cache_stall_mem || multicycle_stall || mu_stall || cc_stall;
-
-// Cache line hazard also needs to stall EX (declared in hazard section below, forward declare here)
+// Cache line hazard also needs to stall EX
 wire cache_line_hazard;
 
 // Pipeline stall for front-end (IF, ID) - includes all hazard stalls
@@ -247,26 +192,26 @@ wire backend_pipeline_stall = backend_stall;
 assign stall_if = pipeline_stall;
 assign stall_id = pipeline_stall;
 
-// PC redirect signals (from MEM stage - branch resolution moved from EX)
+// PC redirect signals
 wire        pc_redirect;
 wire [31:0] pc_redirect_target;
 
 // Flush on control hazard (branch/jump taken in MEM stage)
-// Since branch resolution is now in MEM stage, we need to flush 3 stages:
+// Since branch resolution is in MEM stage, we need to flush 3 stages:
 // IF/ID, ID/EX, and EX/MEM (the 2 instructions after the branch in the pipeline)
-// Also flush on interrupt_valid and reti_valid (but reti_valid doesn't flush EX/MEM!)
+// Also flush on interrupt_valid and reti_valid
 // RETI is detected in ID/EX stage, so when it fires:
 //   - IF/ID contains the instruction after RETI (needs to be flushed)
 //   - ID/EX contains the RETI itself (will redirect PC)
 //   - EX/MEM contains the instruction BEFORE RETI (should NOT be flushed - it must complete!)
-// IMPORTANT: Flushes for interrupt_valid and reti_valid should only happen when they 
+// Flushes for interrupt_valid and reti_valid should only happen when they 
 // actually execute (when not stalled). Otherwise, we'd flush the instruction but not
 // execute the redirect, losing the instruction entirely.
 wire reti_executes = reti_valid && !pipeline_stall;
 wire interrupt_executes = interrupt_valid && !pipeline_stall;
 assign flush_if_id = pc_redirect || interrupt_executes || reti_executes;
 assign flush_id_ex = pc_redirect || interrupt_executes || reti_executes;
-assign flush_ex_mem = pc_redirect || interrupt_executes;  // Note: reti doesn't flush EX/MEM!
+assign flush_ex_mem = pc_redirect || interrupt_executes;
 
 // =============================================================================
 // PROGRAM COUNTER
@@ -292,26 +237,25 @@ always @(posedge clk) begin
         pc_backup <= 32'd0;
     end else if (interrupt_valid && !pipeline_stall) begin
         // Interrupt: save PC and jump to interrupt handler
-        // Note: Interrupt should only be taken when not stalled
+        // Interrupt should only be taken when not stalled
         int_disabled <= 1'b1;
-        pc_backup <= ex_mem_pc;  // Save PC of instruction in MEM stage (matching jump_valid)
+        pc_backup <= ex_mem_pc;  // Save PC of instruction in MEM stage
         $display("Interrupt taken, jumping to address %h, saving PC %h", INTERRUPT_JUMP_ADDR, ex_mem_pc);
         pc <= INTERRUPT_JUMP_ADDR;
         redirect_pending <= 1'b1;
     end else if (reti_valid && !pipeline_stall) begin
         // Return from interrupt: restore PC and re-enable interrupts
-        // Note: RETI should only complete when not stalled
+        // RETI should only complete when not stalled
         int_disabled <= 1'b0;
         pc <= pc_backup;
         redirect_pending <= 1'b1;
         $display("%0t RETI executed, restoring PC to %h, id_ex_pc=%h, pc_redirect=%b", $time, pc_backup, id_ex_pc, pc_redirect);
     end else if (pc_redirect) begin
-        //$display("%0t PC redirect to %h from pc=%h (branch=%b, jump=%b, jumpr=%b, halt=%b)", $time, pc_redirect_target, ex_mem_pc, ex_mem_is_branch, ex_mem_is_jump, ex_mem_is_jumpr, ex_mem_halt);
-        // Jump/branch redirect - this takes priority over stalls!
+        // Jump/branch redirect, this takes priority over stalls
         // When a jump executes, we MUST redirect the PC even if there's a cache stall
         // The cache stall was for a different (now stale) instruction
         pc <= pc_redirect_target;
-        // Don't set pc_delayed yet - the memory is still outputting the old instruction
+        // Don't set pc_delayed yet, the memory is still outputting the old instruction
         redirect_pending <= 1'b1;
     end else if (!pipeline_stall) begin
         if (redirect_pending) begin
@@ -331,7 +275,7 @@ always @(posedge clk) begin
                 redirect_pending <= 1'b1;
             end
         end else if (cache_stall_if) begin
-            // Cache miss during normal operation - hold PC and wait
+            // Cache miss during normal operation, hold PC and wait
             // pc_delayed is already correct, just wait for cache fill
             // Don't advance pc, don't update pc_delayed
         end else begin
@@ -420,9 +364,7 @@ reg        ex_mem_getPC = 1'b0;
 reg        ex_mem_clearCache = 1'b0;
 reg        ex_mem_arithm = 1'b0;
 
-// Branch/jump control signals (for MEM-stage branch resolution)
-// This moves branch resolution from EX to MEM to break the critical path:
-// forwarding_mux -> comparator -> jump_valid -> flush -> registers
+// Branch/jump control signals for MEM-stage branch resolution
 reg        ex_mem_is_branch = 1'b0;
 reg        ex_mem_is_jump = 1'b0;
 reg        ex_mem_is_jumpr = 1'b0;
@@ -431,7 +373,7 @@ reg        ex_mem_sig = 1'b0;
 reg        ex_mem_oe = 1'b0;
 reg [31:0] ex_mem_const16 = 32'd0;
 reg [26:0] ex_mem_const27 = 27'd0;
-reg [31:0] ex_mem_areg_data = 32'd0;  // Forwarded A value for branch comparison
+reg [31:0] ex_mem_areg_data = 32'd0;
 
 // =============================================================================
 // MEM/WB PIPELINE REGISTER
@@ -444,10 +386,6 @@ reg        mem_wb_valid = 1'b0;
 reg [31:0] mem_wb_alu_result = 32'd0;
 reg [31:0] mem_wb_mem_data = 32'd0;
 reg [31:0] mem_wb_stack_data = 32'd0;
-
-// Pre-computed writeback data (registered at end of MEM stage)
-// This breaks the critical path by pre-selecting the result source
-reg [31:0] mem_wb_result = 32'd0;
 
 // Decoded fields
 reg [3:0]  mem_wb_dreg = 4'd0;
@@ -539,14 +477,13 @@ ControlUnit control_unit (
 // =============================================================================
 // REGISTER FILE
 // =============================================================================
-// The regbank has 2-cycle read latency (fully registered for timing):
+// The regbank is fully registered:
 // - Cycle 1 (IF): Addresses are captured from if_instr
 // - Cycle 2 (ID): Data is read from register array and registered
 // - Cycle 3 (EX): Data is available at outputs
 // We send addresses from IF stage using if_instr, and receive data in EX stage
 
-// Extract register addresses from IF instruction (same logic as InstructionDecoder)
-// These go directly to the regbank without any decoding delay
+// Extract register addresses from IF instruction
 wire [3:0] if_instr_op = if_instr[31:28];
 wire [3:0] if_areg = (if_instr_op == 4'b0001 || if_instr_op == 4'b0011) ? if_instr[7:4] : if_instr[11:8];
 wire [3:0] if_breg = (if_instr_op == 4'b0001 || if_instr_op == 4'b0011) ? 4'd0 : if_instr[7:4];
@@ -563,13 +500,13 @@ Regbank regbank (
     .clk        (clk),
     .reset      (reset),
     
-    // Read ports - addresses from IF stage, data available in EX stage (2-cycle latency)
+    // Read ports - addresses from IF stage, data available in EX stage
     .addr_a     (if_areg),
     .addr_b     (if_breg),
     .clear      (flush_if_id),
     .hold       (stall_if),
-    .data_a     (ex_areg_data),  // Output arrives 2 cycles later (in EX stage)
-    .data_b     (ex_breg_data),  // Output arrives 2 cycles later (in EX stage)
+    .data_a     (ex_areg_data),  // Output arrives in EX stage
+    .data_b     (ex_breg_data),  // Output arrives in EX stage
     
     // Write port (WB stage)
     .addr_d     (wb_dreg),
@@ -693,21 +630,16 @@ end
 // =============================================================================
 // BRANCH/JUMP UNIT (MEM Stage)
 // =============================================================================
-// Branch resolution is done in MEM stage to break the critical path:
-// forwarding_mux -> comparator -> jump_valid -> flush -> registers
-// This increases branch penalty from 1 to 2 cycles but allows 100MHz timing
+// Branch resolution is done in MEM stage to improve timings
 wire        jump_valid;
 wire [31:0] jump_addr;
 
-// Pre-computed addresses for branch/jump using MEM-stage values
-wire [31:0] pre_jump_const_addr_mem = ex_mem_oe ? (ex_mem_pc + {5'b0, ex_mem_const27}) : {5'b0, ex_mem_const27};
-wire [31:0] pre_branch_addr_mem = ex_mem_pc + ex_mem_const16;
-
 BranchJumpUnit branch_jump_unit (
     .branchOP           (ex_mem_branch_op),
-    .data_a             (ex_mem_areg_data),  // Registered forwarded A value
-    .data_b             (ex_mem_breg_data),  // Registered forwarded B value
+    .data_a             (ex_mem_areg_data),
+    .data_b             (ex_mem_breg_data),
     .const16            (ex_mem_const16),
+    .const27            (ex_mem_const27),
     .pc                 (ex_mem_pc),
     .halt               (ex_mem_halt),
     .branch             (ex_mem_is_branch),
@@ -715,13 +647,11 @@ BranchJumpUnit branch_jump_unit (
     .jumpr              (ex_mem_is_jumpr),
     .oe                 (ex_mem_oe),
     .sig                (ex_mem_sig),
-    .pre_jump_const_addr(pre_jump_const_addr_mem),
-    .pre_branch_addr    (pre_branch_addr_mem),
     .jump_addr          (jump_addr),
     .jump_valid         (jump_valid)
 );
 
-// PC redirect logic (now from MEM stage)
+// PC redirect logic
 assign pc_redirect = ex_mem_valid && jump_valid;
 assign pc_redirect_target = jump_addr;
 
@@ -751,8 +681,8 @@ Stack stack (
 // =============================================================================
 // Forward from EX/MEM (most recent) or MEM/WB (older)
 // forward_a/b: 00=no forward, 01=from EX/MEM, 10=from MEM/WB
-// IMPORTANT: Don't forward from EX/MEM for loads or pops - their data isn't ready yet!
-// Load/pop data is only available in MEM/WB stage (handled by load_use_hazard stall)
+// IMPORTANT: Don't forward from EX/MEM for reads or pops as their data isn't ready yet!
+// Read/pop data is only available in MEM/WB stage (handled by load_use_hazard stall)
 wire ex_mem_can_forward = ex_mem_dreg_we && ex_mem_dreg != 4'd0 && !ex_mem_mem_read && !ex_mem_pop;
 
 assign forward_a = (ex_mem_can_forward && ex_mem_dreg == id_ex_areg) ? 2'b01 :
@@ -766,7 +696,7 @@ assign forward_b = (ex_mem_can_forward && ex_mem_dreg == id_ex_breg) ? 2'b01 :
 // =============================================================================
 // HAZARD DETECTION UNIT
 // =============================================================================
-// Load-use hazard: instruction in EX needs data from load in MEM
+// Load-use hazard: instruction in EX needs data from read in MEM
 // POP-use hazard: instruction in EX needs data from pop in MEM (pop result not available until WB)
 // We need to stall when ID/EX has a memory read or pop and the next instruction uses that register
 wire load_use_hazard = id_ex_valid && id_ex_mem_read &&
@@ -786,26 +716,15 @@ wire pop_use_hazard = id_ex_valid && id_ex_pop &&
 // - The cache lines are different
 // This ensures the cache output is valid for the MEM stage instruction
 
-// TIMING OPTIMIZATION: Use a 10-bit adder for cache line calculation instead of
-// extracting from the full 32-bit ex_mem_addr_calc. This reduces the carry chain
-// from 32 bits to 10 bits, saving ~1.5ns on the critical path.
-// For cache line comparison, we only need bits[9:3], so a 10-bit adder suffices.
-wire [9:0] ex_cache_addr_low = ex_alu_a[9:0] + id_ex_const16[9:0];
-wire [6:0] ex_cache_line = ex_cache_addr_low[9:3];
+// Full address calculation for EX stage to determine if SDRAM access
+wire [31:0] ex_full_addr = ex_alu_a + id_ex_const16;
+wire ex_sel_sdram = ex_full_addr >= 32'h0000000 && ex_full_addr < 32'h7000000;
+wire [6:0] ex_cache_line = ex_full_addr[9:3];
 wire [6:0] mem_cache_line = ex_mem_mem_addr[9:3];
 
-// TIMING OPTIMIZATION: Pessimistic SDRAM check that doesn't require the full
-// 32-bit address calculation. We check only if the BASE register's upper bits
-// indicate a possible SDRAM address. This is safe (may cause extra stalls for
-// high-address accesses that happen to have small base values, but such patterns
-// are rare - typically high addresses use high base pointers).
-// If ex_alu_a[31:27] == 0, the base is in range [0, 0x07FFFFFF], which includes
-// all SDRAM addresses (0 to 0x6FFFFFF) plus some non-SDRAM. False positives
-// are safe; they just cause unnecessary stalls.
-wire ex_needs_sdram_pessimistic = id_ex_valid && (id_ex_mem_read || id_ex_mem_write) && 
-                                   (ex_alu_a[31:27] == 5'd0);
+wire ex_needs_sdram = id_ex_valid && (id_ex_mem_read || id_ex_mem_write) && ex_sel_sdram;
 wire mem_has_sdram = ex_mem_valid && (ex_mem_mem_read || ex_mem_mem_write) && mem_sel_sdram;
-assign cache_line_hazard = ex_needs_sdram_pessimistic && mem_has_sdram && (ex_cache_line != mem_cache_line);
+assign cache_line_hazard = ex_needs_sdram && mem_has_sdram && (ex_cache_line != mem_cache_line);
 
 assign hazard_stall = load_use_hazard || pop_use_hazard || cache_line_hazard;
 
@@ -813,7 +732,7 @@ assign hazard_stall = load_use_hazard || pop_use_hazard || cache_line_hazard;
 // INSTRUCTION FETCH (IF) STAGE
 // =============================================================================
 
-// ROM access (addresses >= ROM_ADDRESS)
+// ROM access
 wire if_use_rom = (pc >= ROM_ADDRESS);
 wire [9:0] if_rom_addr = pc - ROM_ADDRESS;
 
@@ -821,7 +740,7 @@ assign rom_fe_addr = if_rom_addr;
 assign rom_fe_oe = if_use_rom && !pipeline_stall;
 assign rom_fe_hold = pipeline_stall;
 
-// L1I cache access (addresses < ROM_ADDRESS for SDRAM)
+// L1I cache access
 wire if_use_cache = !if_use_rom;
 
 // Use pc_delayed when stalled to keep reading the same cache line
@@ -879,12 +798,10 @@ always @(posedge clk) begin
         if_id_valid <= 1'b0;
         if_id_instr <= 32'd0;
     end else if (!pipeline_stall) begin
-        // TIMING NOTE: pipeline_stall uses registered cache_stall_if for timing.
-        // On the first cycle of cache miss, pipeline_stall may be 0 but cache_stall_if is 1.
-        // We handle this by using cache_stall_if to gate the valid bit only (narrower path).
+        // Normal operation: capture instruction from IF stage
         if_id_pc <= pc_delayed;  // Use delayed PC to match instruction data
         if_id_instr <= if_instr;
-        if_id_valid <= !cache_stall_if;  // Invalid if cache miss (first cycle)
+        if_id_valid <= 1'b1;
     end
 end
 
@@ -1040,8 +957,7 @@ wire [31:0] mem_local_addr = mem_sel_rom    ? ex_mem_mem_addr - 32'h7800000 :
                              ex_mem_mem_addr; // SDRAM and I/O use full address
 
 // ROM data port
-// ROM data port - address from EX stage for reads (BRAM latency)
-// ROM is read-only, no write support needed
+// Address from EX stage for reads (BRAM latency)
 assign rom_mem_addr = ex_local_addr_rom[9:0];
 wire [31:0] rom_mem_data = rom_mem_q;
 
@@ -1066,9 +982,6 @@ assign vramPX_d = ex_mem_breg_data[7:0];
 assign vramPX_we = ex_mem_valid && ex_mem_mem_write && mem_sel_vrampx && !backend_pipeline_stall;
 
 // L1D cache interface
-// Use MEM stage address for cache lookup to ensure correctness
-// The EX stage pre-fetch optimization was incorrect - when an instruction moves
-// from EX to MEM, l1d_pipe_addr would already point to the NEXT instruction's address
 assign l1d_pipe_addr = ex_mem_mem_addr[9:3];
 
 // L1D cache hit detection
@@ -1128,7 +1041,7 @@ reg       l1d_request_finished = 1'b0;
 reg       l1d_start_reg = 1'b0;
 reg [31:0] l1d_result_reg = 32'd0;
 
-// Cache read wait signal - stall while waiting for cache DPRAM to read
+// Cache read wait signal, stall while waiting for cache DPRAM to read
 wire l1d_cache_read_wait = l1d_need_cache_wait;
 
 // Cache miss/write detection (only triggers new request if not already finished)
@@ -1362,11 +1275,6 @@ end
 // MEM/WB STAGE REGISTER UPDATE
 // =============================================================================
 
-// Pre-compute writeback data in MEM stage (for non-pop instructions)
-// This breaks the critical path by registering the result mux
-// For pop: we still need stack_q which arrives in WB cycle
-wire [31:0] mem_wb_result_precompute = ex_mem_mem_read ? mem_read_data : ex_mem_alu_result;
-
 always @(posedge clk) begin
     if (reset) begin
         mem_wb_pc <= 32'd0;
@@ -1375,7 +1283,6 @@ always @(posedge clk) begin
         mem_wb_alu_result <= 32'd0;
         mem_wb_mem_data <= 32'd0;
         mem_wb_stack_data <= 32'd0;
-        mem_wb_result <= 32'd0;
         mem_wb_dreg <= 4'd0;
         mem_wb_instr_op <= 4'd0;
         mem_wb_dreg_we <= 1'b0;
@@ -1389,7 +1296,6 @@ always @(posedge clk) begin
         mem_wb_alu_result <= ex_mem_alu_result;
         mem_wb_mem_data <= mem_read_data;
         mem_wb_stack_data <= stack_q;
-        mem_wb_result <= mem_wb_result_precompute;  // Pre-computed result (excluding pop)
         mem_wb_dreg <= ex_mem_dreg;
         mem_wb_instr_op <= ex_mem_instr_op;
         mem_wb_dreg_we <= ex_mem_dreg_we;
@@ -1403,42 +1309,15 @@ end
 // WRITEBACK STAGE (WB)
 // =============================================================================
 
-// Result selection - use pre-computed result for non-pop, stack_q for pop
-// Note: stack_q is used directly because the stack has 1-cycle read latency
-// the result appears on stack_q in the WB cycle when the pop instruction 
-// that was in MEM stage last cycle advances to WB stage
-assign wb_data = mem_wb_pop ? stack_q : mem_wb_result;
+// Result selection - compute in WB stage based on instruction type
+// For pop: stack_q arrives in WB cycle
+// For memory read: use mem_wb_mem_data (captured in MEM stage)
+// Otherwise: use ALU result
+assign wb_data = mem_wb_pop ? stack_q : 
+                 mem_wb_mem_read ? mem_wb_mem_data : 
+                 mem_wb_alu_result;
 
 assign wb_dreg = mem_wb_dreg;
 assign wb_dreg_we = mem_wb_valid && mem_wb_dreg_we && (mem_wb_dreg != 4'd0) && !backend_pipeline_stall;
-
-// =============================================================================
-// DEBUG OUTPUT
-// =============================================================================
-// The test framework looks for "reg rXX:" in the output
-
-// This debug output is already in Regbank.v, but we add explicit r15 tracking here for tests
-// The Regbank.v already has: $display("%0t reg r%02d: %d", $time, addr_d, data_d);
-
-// SIMULATION DEBUG: Track PC through pipeline when register write occurs
-// always @(posedge clk) begin
-//     if (wb_dreg_we && wb_dreg != 4'd0 && !reset)
-//         $display("%0t WB pc=%0d instr=%08h dreg=r%0d data=%0d", $time, mem_wb_pc, mem_wb_instr, wb_dreg, wb_data);
-// end
-
-// Debug branch resolution
-// always @(posedge clk) begin
-//     if (ex_mem_valid && ex_mem_is_branch && !reset) begin
-//         $display("%0t BRANCH at pc=%h: branchOP=%b data_a=%d data_b=%d jump_valid=%b jump_addr=%h", 
-//                  $time, ex_mem_pc, ex_mem_branch_op, ex_mem_areg_data, ex_mem_breg_data, jump_valid, jump_addr);
-//     end
-// end
-
-// Debug L1I cache access
-// always @(posedge clk) begin
-//     if (!reset && if_id_valid && !pipeline_stall)
-//         $display("%0t IF: pc=%0d pc_del=%0d l1i_addr=%0d l1i_offset=%0d hit=%b instr=%08h", 
-//                  $time, pc, pc_delayed, l1i_pipe_addr, l1i_offset, l1i_hit, if_instr);
-// end
 
 endmodule

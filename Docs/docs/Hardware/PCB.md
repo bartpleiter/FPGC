@@ -5,6 +5,9 @@ Previous versions of the FPGC used an FPGA development board or module with a cu
 !!! Note
     The FPGC still supports using the QMTECH Cyclone 10 10CL120 module as alternative to the custom PCB. However, the main focus of the project is now on the custom PCB.
 
+!!! TODO
+    Add pictures of the assembled PCB + cluster setup.
+
 ## Main PCB features
 
 The custom PCB contains the following main components:
