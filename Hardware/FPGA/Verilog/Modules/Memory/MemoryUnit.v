@@ -7,7 +7,7 @@ module MemoryUnit (
     //========================
     // System interface
     //========================
-    input  wire         clk, // Assumed to be 50MHz
+    input  wire         clk, // Assumed to be 100MHz
     input  wire         reset,
     output wire         uart_reset,
 
@@ -167,7 +167,7 @@ wire [7:0] SPI0_out;
 wire SPI0_done;
 
 SimpleSPI #(
-    .CLKS_PER_HALF_BIT(1)
+    .CLKS_PER_HALF_BIT(2)
 ) SPI0 (
     .clk        (clk),
     .reset      (reset),
@@ -187,7 +187,7 @@ wire [7:0] SPI1_out;
 wire SPI1_done;
 
 SimpleSPI #(
-    .CLKS_PER_HALF_BIT(1)
+    .CLKS_PER_HALF_BIT(2)
 ) SPI1 (
     .clk        (clk),
     .reset      (reset),
@@ -207,7 +207,7 @@ wire [7:0] SPI2_out;
 wire SPI2_done;
 
 SimpleSPI #(
-    .CLKS_PER_HALF_BIT(2)
+    .CLKS_PER_HALF_BIT(4)
 ) SPI2 (
     .clk        (clk),
     .reset      (reset),
@@ -227,7 +227,7 @@ wire [7:0] SPI3_out;
 wire SPI3_done;
 
 SimpleSPI #(
-    .CLKS_PER_HALF_BIT(2)
+    .CLKS_PER_HALF_BIT(4)
 ) SPI3 (
     .clk        (clk),
     .reset      (reset),
@@ -247,7 +247,7 @@ wire [7:0] SPI4_out;
 wire SPI4_done;
 
 SimpleSPI #(
-    .CLKS_PER_HALF_BIT(2)
+    .CLKS_PER_HALF_BIT(4)
 ) SPI4 (
     .clk        (clk),
     .reset      (reset),
@@ -267,7 +267,7 @@ wire [7:0] SPI5_out;
 wire SPI5_done;
 
 SimpleSPI #(
-    .CLKS_PER_HALF_BIT(1)
+    .CLKS_PER_HALF_BIT(2)
 ) SPI5 (
     .clk        (clk),
     .reset      (reset),

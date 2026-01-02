@@ -1,5 +1,5 @@
 nav:
-    - CPU (B32P2)
+    - CPU
     - GPU.md
     - Memory
     - IO

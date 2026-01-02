@@ -1,3 +1,4 @@
+set_global_assignment -name FITTER_EFFORT "STANDARD FIT"
 # -------------------------------------------------------------------------- #
 #
 # Copyright (C) 2025  Altera Corporation. All rights reserved.
@@ -48,6 +49,7 @@ set_global_assignment -name MIN_CORE_JUNCTION_TEMP "-40"
 set_global_assignment -name MAX_CORE_JUNCTION_TEMP 100
 set_global_assignment -name ERROR_CHECK_FREQUENCY_DIVISOR 1
 set_global_assignment -name NOMINAL_CORE_SUPPLY_VOLTAGE 1.2V
+
 set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_timing
 set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_symbol
 set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_signal_integrity
@@ -421,13 +423,12 @@ set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/TimingGenerator.
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/PixelEngineSRAM.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/FSX_SRAM.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/Memory/SRAMArbiter.v
-set_global_assignment -name VERILOG_FILE ../Verilog/Modules/Memory/AsyncFIFO.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/Memory/SyncFIFO.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/Memory/VRAMPXSram.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/BGWrenderer.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/MultiCycleAluOps/Multu.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/MultiCycleAluOps/Mults.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/Stack.v
-set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/Regr.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/Regbank.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/MultiCycleALU.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/InterruptController.v
@@ -435,11 +436,14 @@ set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/InstructionDecod
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/ControlUnit.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/CacheControllerSDRAM.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/BranchJumpUnit.v
-set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/B32P2.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/B32P3.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/ALU.v
-set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/AddressDecoder.v
 set_global_assignment -name QIP_FILE main_pll.qip
 set_global_assignment -name QIP_FILE ddr.qip
+
+
+
+
 
 
 

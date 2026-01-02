@@ -1,6 +1,6 @@
 # BRFS Filesystem
 
-BRFS (Bart's RAM File System) is a FAT-based filesystem designed for the FPGC that uses RAM as a cache with SPI Flash as persistent storage. It provides hierarchical directory support with a simple, efficient design optimized for the word-addressable B32P2 architecture.
+BRFS (Bart's RAM File System) is a FAT-based filesystem designed for the FPGC that uses RAM as a cache with SPI Flash as persistent storage. It provides hierarchical directory support with a simple, efficient design optimized for the word-addressable B32P3 architecture.
 
 ## Overview
 
@@ -9,7 +9,7 @@ BRFS implements a File Allocation Table (FAT) filesystem with the following char
 - **RAM-cached operation** - The entire filesystem is loaded into RAM for fast access
 - **SPI Flash persistence** - Data is persisted to SPI Flash for non-volatile storage
 - **Hierarchical directories** - Full support for nested directory structures
-- **Word-aligned storage** - All data stored as 32-bit words (native to B32P2)
+- **Word-aligned storage** - All data stored as 32-bit words (native to B32P3)
 - **Compressed filenames** - 16-character filenames packed into 4 words
 
 ## Architecture

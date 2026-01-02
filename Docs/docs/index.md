@@ -34,8 +34,8 @@ The FPGC:
 
 The FPGC:
 
-- [ ] Uses a fully custom RAM-optimized filesystem.
-- [ ] The FPGC uses a fully custom desgined PCB without the use of an FPGA development board/module.
+- [x] Uses a fully custom RAM-optimized filesystem.
+- [x] The FPGC uses a fully custom desgined PCB without the use of an FPGA development board/module.
 - [ ] The FPGC uses a custom designed OS with system calls and a proper architecture to run user programs.
 - [ ] The FPGC has a 3d printed case and monitor to be a fully standalone physical computer.
 - [ ] The FPGC can run an assembler and C compiler.

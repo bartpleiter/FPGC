@@ -23,6 +23,9 @@ module PixelEngineSRAM (
     // SRAM interface
     output wire [16:0]  sram_addr,     // Requested pixel address
     input wire  [7:0]   sram_data,     // Pixel data from SRAM
+    
+    // Line buffer status (high when using line buffer, SRAM not needed)
+    output wire         using_line_buffer,
 
     // Parameters
     input wire          halfRes    // Render half res (160×120) at full res
@@ -79,6 +82,10 @@ module PixelEngineSRAM (
     // For 2× vertical: even lines (0, 2, 4, ...) are first of pair
     // For 4× vertical (halfRes): lines 0, 4, 8, ... are first of quad
     wire first_line_of_pair = (line_active[0] == 1'b0);
+    
+    // Signal when line buffer is being used (odd lines don't need SRAM reads)
+    // Also safe during blanking since we're not displaying anything
+    assign using_line_buffer = !first_line_of_pair && in_active_video;
     
     // Is this the first display pixel of a source pixel pair?
     // For 2× horizontal: even pixels (0, 2, 4, ...) are first of pair

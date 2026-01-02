@@ -1,11 +1,10 @@
 /*
- * Testbench for the CPU (B32P2).
+ * Testbench for the CPU (B32P3).
  * Designed to be used with the Icarus Verilog simulator
  */
 `timescale 1ns / 1ps
 
-`include "Hardware/FPGA/Verilog/Modules/CPU/B32P2.v"
-`include "Hardware/FPGA/Verilog/Modules/CPU/Regr.v"
+`include "Hardware/FPGA/Verilog/Modules/CPU/B32P3.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/Regbank.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/InstructionDecoder.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/ALU.v"
@@ -18,7 +17,6 @@
 `include "Hardware/FPGA/Verilog/Modules/CPU/Stack.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/BranchJumpUnit.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/InterruptController.v"
-`include "Hardware/FPGA/Verilog/Modules/CPU/AddressDecoder.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/CacheControllerSDRAM.v"
 `include "Hardware/FPGA/Verilog/Modules/Memory/ROM.v"
 `include "Hardware/FPGA/Verilog/Modules/Memory/VRAM.v"
@@ -43,14 +41,13 @@
 
 module cpu_tb ();
 
-reg clk = 1'b0;
-reg clk100 = 1'b1; // To align rising edge with clk
+reg clk = 1'b0; // 100MHz
 reg reset = 1'b0;
 wire uart_reset; // Reset signal from UARTresetDetector
 
 // Inaccurate but good enough for simulation
 wire clkPixel = clk;
-wire clkTMDShalf = clk100;
+wire clkTMDShalf = clk;
 
 // SDRAM clock phase shift configuration (in degrees)
 parameter SDRAM_CLK_PHASE = 270;
@@ -76,8 +73,8 @@ wire    [3 : 0]  SDRAM_DQM;     // Mask
 assign SDRAM_CLK = SDRAM_CLK_internal;
 
 // Generate phase-shifted SDRAM clock
-always @(clk100) begin
-    SDRAM_CLK_internal <= #PHASE_DELAY clk100;
+always @(clk) begin
+    SDRAM_CLK_internal <= #PHASE_DELAY clk;
 end
 
 mt48lc16m16a2 #(
@@ -121,7 +118,7 @@ wire            sdc_done;
 wire [255:0]    sdc_q;
 SDRAMcontroller sdc (
     // Clock and reset
-    .clk(clk100),
+    .clk(clk),
     .reset(1'b0), // For now we do not want to reset the SDRAM controller
 
     .cpu_addr(sdc_addr),
@@ -155,7 +152,11 @@ ROM #(
     .WIDTH(32),
     .WORDS(1024),
     .ADDR_BITS(10),
+`ifndef uart_simulation
     .LIST("Hardware/FPGA/Verilog/Simulation/MemoryLists/rom.list")
+`else
+    .LIST("Hardware/FPGA/Verilog/MemoryLists/rom_bootloader.list")
+`endif
 ) rom (
     .clk (clk),
 
@@ -308,7 +309,7 @@ DPRAM #(
     .pipe_addr(l1i_pipe_addr),
     .pipe_we(l1i_pipe_we),
     .pipe_q(l1i_pipe_q),
-    .clk_ctrl(clk100),
+    .clk_ctrl(clk),
     .ctrl_d(l1i_ctrl_d),
     .ctrl_addr(l1i_ctrl_addr),
     .ctrl_we(l1i_ctrl_we),
@@ -343,7 +344,7 @@ DPRAM #(
     .pipe_addr(l1d_pipe_addr),
     .pipe_we(l1d_pipe_we),
     .pipe_q(l1d_pipe_q),
-    .clk_ctrl(clk100),
+    .clk_ctrl(clk),
     .ctrl_d(l1d_ctrl_d),
     .ctrl_addr(l1d_ctrl_addr),
     .ctrl_we(l1d_ctrl_we),
@@ -370,7 +371,7 @@ wire l1_clear_cache_done;
 
 // Instantiate CacheController
 CacheController cache_controller (
-    .clk100(clk100),
+    .clk100(clk),
     .reset(reset || uart_reset),
 
     // CPU pipeline interface (50 MHz domain)
@@ -504,13 +505,13 @@ wire uart_tx_active;
     UARTtx #(
         .ENABLE_DISPLAY(0)
     ) uart_transmitter (
-        .i_Clock(clk),
+        .clk(clk),
         .reset(reset),
-        .i_Tx_DV(uart_tx_trigger),
-        .i_Tx_Byte(uart_test_data[uart_test_index]),
-        .o_Tx_Active(uart_tx_active),
-        .o_Tx_Serial(uart_rx), // Connect to CPU's uart_rx
-        .o_Tx_Done(uart_tx_done)
+        .start(uart_tx_trigger),
+        .data(uart_test_data[uart_test_index]),
+        .tx_active(uart_tx_active),
+        .tx(uart_rx), // Connect to CPU's uart_rx
+        .done(uart_tx_done)
     );
 
     always @(posedge clk)
@@ -521,7 +522,7 @@ wire uart_tx_active;
             uart_tx_trigger <= 1'b0;
         end else begin
             // Start UART transmission after delay
-            if (clk_counter > 3000 && !uart_test_start) begin
+            if (clk_counter > 6000 && !uart_test_start) begin
                 uart_test_start <= 1'b1;
                 uart_test_active <= 1'b1;
             end
@@ -638,7 +639,7 @@ MemoryUnit memory_unit (
 );
 
 //-----------------------CPU-------------------------
-B32P2 cpu (
+B32P3 cpu (
     // Clock and reset
     .clk(clk),
     .reset(reset || uart_reset),
@@ -708,23 +709,30 @@ B32P2 cpu (
     .interrupts({3'd0, 1'b0, OST3_int, OST2_int, OST1_int, uart_irq})
 );
 
+reg int_test = 1'b0; // Test interrupt signal
+
 // 100 MHz clock
 always begin
-    #5 clk100 = ~clk100;
-end
-
-// 50 MHz clock
-always begin
-    #10 clk = ~clk;
+    #5 clk = ~clk;
 end
 
 integer clk_counter = 0;
 always @(posedge clk) begin
     clk_counter = clk_counter + 1;
-    if (clk_counter == 12000) begin // 55000
+    
+    if (clk_counter == 110000) begin
         $display("Simulation finished.");
         $finish;
     end
+
+    // int_test = 1'b0; // Clear test interrupt
+    // if (clk_counter >= 4000 && clk_counter < 4020) begin
+    //     int_test = 1'b1; // Trigger test interrupt
+    // end
+
+    // if (clk_counter >= 4080 && clk_counter < 4100) begin
+    //     int_test = 1'b1; // Trigger test interrupt
+    // end
 end
 
 initial

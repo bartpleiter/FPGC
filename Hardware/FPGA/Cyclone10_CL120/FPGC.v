@@ -98,7 +98,6 @@ assign led1 = key1;
 assign led2 = key2;
 
 //---------------------------Clocks and reset---------------------------------
-wire clk50;         // CPU and main logic
 wire clk100;        // Memory logic
 wire SDRAM_CLK;     // 100MHz Phase-shifted for SDRAM
 wire clkPixel;      // GPU clock
@@ -106,7 +105,7 @@ wire clkTMDShalf;   // Half of TMDS clock for HDMI
 
 pll1 main_pll (
     .inclk0(sys_clk_50),
-    .c0(clk50),
+    .c0(),
     .c1(clk100),
     .c2(SDRAM_CLK),
     .c3(clkPixel),
@@ -116,8 +115,8 @@ pll1 main_pll (
 wire reset;
 wire uart_reset; // Reset from UART magic sequence
 assign reset = uart_reset; // For now only UART reset
-wire reset50;
-assign reset50 = reset; // TODO: add synchronizers when external pin is used
+wire reset100;
+assign reset100 = reset; // TODO: add synchronizers when external pin is used
 
 //--------------------------SDRAM----------------------------
 wire          SDRAM_CSn;
@@ -191,7 +190,7 @@ ROM #(
     .ADDR_BITS(10),
     .LIST("/home/bart/repos/FPGC/Hardware/FPGA/Verilog/MemoryLists/rom_bootloader.list")
 ) rom (
-    .clk (clk50),
+    .clk (clk100),
 
     .fe_addr(rom_fe_addr),
     .fe_oe(rom_fe_oe),
@@ -225,7 +224,7 @@ VRAM #(
     .LIST("/home/bart/repos/FPGC/Hardware/FPGA/Verilog/MemoryLists/vram32.list")
 ) vram32 (
     //CPU port
-    .cpu_clk (clk50),
+    .cpu_clk (clk100),
     .cpu_d   (vram32_cpu_d),
     .cpu_addr(vram32_cpu_addr),
     .cpu_we  (vram32_cpu_we),
@@ -262,7 +261,7 @@ VRAM #(
     .LIST("/home/bart/repos/FPGC/Hardware/FPGA/Verilog/MemoryLists/vram8.list")
 ) vram8 (
     // CPU port
-    .cpu_clk (clk50),
+    .cpu_clk (clk100),
     .cpu_d   (vram8_cpu_d),
     .cpu_addr(vram8_cpu_addr),
     .cpu_we  (vram8_cpu_we),
@@ -300,7 +299,7 @@ VRAM #(
     .LIST("/home/bart/repos/FPGC/Hardware/FPGA/Verilog/MemoryLists/vramPX.list")
 ) vramPX (
     // CPU port
-    .cpu_clk (clk50),
+    .cpu_clk (clk100),
     .cpu_d   (vramPX_cpu_d),
     .cpu_addr(vramPX_cpu_addr),
     .cpu_we  (vramPX_cpu_we),
@@ -336,7 +335,7 @@ DPRAM #(
     .WORDS(128),
     .ADDR_BITS(7)
 ) l1i_ram (
-    .clk_pipe(clk50),
+    .clk_pipe(clk100),
     .pipe_d(l1i_pipe_d),
     .pipe_addr(l1i_pipe_addr),
     .pipe_we(l1i_pipe_we),
@@ -370,7 +369,7 @@ DPRAM #(
     .WORDS(128),
     .ADDR_BITS(7)
 ) l1d_ram (
-    .clk_pipe(clk50),
+    .clk_pipe(clk100),
     .pipe_d(l1d_pipe_d),
     .pipe_addr(l1d_pipe_addr),
     .pipe_we(l1d_pipe_we),
@@ -403,7 +402,7 @@ wire l1_clear_cache_done;
 // Instantiate CacheController
 CacheController cache_controller (
     .clk100(clk100),
-    .reset(reset50), // Testing 50MHz reset to rule out some reset issues
+    .reset(reset100), // Testing 50MHz reset to rule out some reset issues
 
     // CPU pipeline interface (50 MHz domain)
     .cpu_FE2_start(l1i_cache_controller_start),
@@ -496,15 +495,15 @@ wire        OST3_int;
 
 // We need to synchronize the boot_mode signal to the 50MHz clock
 reg [1:0] boot_mode_sync = 2'd0;
-always @(posedge clk50)
+always @(posedge clk100)
 begin
     boot_mode_sync <= {boot_mode_sync[0], boot_mode};
 end
 wire boot_mode_50mhz = boot_mode_sync[1];
 
 MemoryUnit memory_unit (
-    .clk(clk50),
-    .reset(reset50),
+    .clk(clk100),
+    .reset(reset100),
     .uart_reset(uart_reset),
 
     .start(mu_start),
@@ -560,7 +559,7 @@ MemoryUnit memory_unit (
 wire frameDrawn_CPU; // Interuupt synchronized to 50MHz clock
 reg frameDrawn_ff1, frameDrawn_ff2;
 
-always @(posedge clk50)
+always @(posedge clk100)
 begin
     frameDrawn_ff1 <= frameDrawn;
     frameDrawn_ff2 <= frameDrawn_ff1;
@@ -568,10 +567,10 @@ end
 
 assign frameDrawn_CPU = frameDrawn_ff2;
 
-B32P2 cpu (
+B32P3 cpu (
     // Clock and reset
-    .clk(clk50),
-    .reset(reset50),
+    .clk(clk100),
+    .reset(reset100),
 
     // ROM (dual port)
     .rom_fe_addr(rom_fe_addr),

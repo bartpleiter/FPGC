@@ -117,13 +117,17 @@ class CPUTestRunner:
         with open(self.testbench_path, "w") as f:
             f.write(content)
 
-        # Copy static memory list files that don't change (vram, spiflash)
+        # Copy static memory list files that don't change (vram, spiflash, sdram base)
+        # Note: sdram.list is needed even for ROM tests because the testbench always
+        # instantiates the SDRAM model. For ROM tests, it can be empty/default.
+        # For RAM tests, it gets overwritten with the test code.
         static_files = [
             "vram32.list",
             "vram8.list",
             "vramPX.list",
             "spiflash1.list",
             "spiflash2.list",
+            "sdram.list",
         ]
         for filename in static_files:
             src = os.path.join(self.config.MEMORY_LISTS_DIR, filename)
@@ -222,7 +226,7 @@ class CPUTestRunner:
         return output
 
     def _assemble_code(
-        self, source_path: str, output_path: str, description: str
+        self, source_path: str, output_path: str, description: str, offset: str = ""
     ) -> None:
         """
         Assemble assembly code to a list file.
@@ -231,20 +235,22 @@ class CPUTestRunner:
             source_path: Path to source assembly file
             output_path: Path to output list file
             description: Description for logging
+            offset: Optional address offset for assembly (e.g., "0x7800000" for ROM)
 
         Raises:
             AssemblerError: If assembly fails
         """
         # Run asmpy assembler directly
-        assemble_cmd = f"asmpy {source_path} {output_path}"
+        offset_arg = f" -o {offset}" if offset else ""
+        assemble_cmd = f"asmpy {source_path} {output_path}{offset_arg}"
         exit_code, output = self._run_command(assemble_cmd, f"Assembling {description}")
 
         if exit_code != 0:
             raise AssemblerError(f"Assembler failed for {description}: {output}")
 
     def _assemble_code_to_rom(self, path: str) -> None:
-        """Assemble code for ROM execution."""
-        self._assemble_code(path, self.config.ROM_LIST_PATH, "ROM code")
+        """Assemble code for ROM execution with ROM address offset."""
+        self._assemble_code(path, self.config.ROM_LIST_PATH, "ROM code", "0x7800000")
 
     def _assemble_code_to_ram(self, path: str) -> None:
         """Assemble code for RAM execution."""
@@ -828,11 +834,6 @@ def main() -> None:
         help="Run both ROM and RAM tests with combined output (default)",
     )
     parser.add_argument(
-        "--sequential",
-        action="store_true",
-        help="Run tests sequentially instead of in parallel",
-    )
-    parser.add_argument(
         "--workers",
         type=int,
         default=None,
@@ -852,7 +853,7 @@ def main() -> None:
     use_ram = args.ram
 
     if args.test_file:
-        # Run a single test (always sequential)
+        # Run a single test
         runner = CPUTestRunner()
         if use_combined:
             # Run both ROM and RAM for single test
@@ -884,15 +885,6 @@ def main() -> None:
             except Exception as e:
                 logger.error(f"FAIL: {args.test_file} -> {e}")
                 sys.exit(1)
-    elif args.sequential:
-        # Run all tests sequentially
-        runner = CPUTestRunner()
-        if use_ram:
-            failed = runner.run_tests_from_ram()
-        else:
-            failed = runner.run_tests_from_rom()
-        if failed:
-            sys.exit(1)
     elif use_combined:
         # Run all tests in parallel with combined ROM+RAM output (default)
         runner = ParallelCPUTestRunner(max_workers=args.workers)

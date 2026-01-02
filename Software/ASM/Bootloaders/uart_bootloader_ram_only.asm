@@ -100,7 +100,7 @@ ReceiveProgram:
         reti ; Not done yet, wait for next byte
 
     ; Word received, write to RAM
-    load32 0x400000 r2 ; RAM base address offset (16MiB)
+    load32 0x000000 r2 ; RAM base address
     add r2 r14 r2 ; Get current RAM address
     write 0 r2 r13 ; Write word to RAM
     add r14 1 r14 ; Increment RAM address
@@ -116,20 +116,20 @@ ReceiveProgram:
     load 0x64 r1 ; ASCII 'd'
     write 0 r3 r1 ; Send byte
 
-    CopyProgramToStartAddress:
-        ; Copy program to start of RAM (address 0)
-        load32 0x400000 r1 ; RAM base address offset (16MiB)
-        load 0 r2 ; Start at beginning of RAM
-        load 0 r3 ; Counter
+    ; CopyProgramToStartAddress:
+    ;     ; Copy program to start of RAM (address 0)
+    ;     load32 0x400000 r1 ; RAM base address offset (16MiB)
+    ;     load 0 r2 ; Start at beginning of RAM
+    ;     load 0 r3 ; Counter
 
-        CopyToStartLoop:
-            read 0 r1 r4 ; Read word from current RAM address (2)
-            write 0 r2 r4 ; Write word to start of RAM (3)
-            add r1 1 r1 ; Increment source address (4)
-            add r2 1 r2 ; Increment destination address (5)
-            add r3 1 r3 ; Increment counter (6)
-            beq r3 r15 2 ; Check if done (7)
-                jump CopyToStartLoop ; (8)
+    ;     CopyToStartLoop:
+    ;         read 0 r1 r4 ; Read word from current RAM address (2)
+    ;         write 0 r2 r4 ; Write word to start of RAM (3)
+    ;         add r1 1 r1 ; Increment source address (4)
+    ;         add r2 1 r2 ; Increment destination address (5)
+    ;         add r3 1 r3 ; Increment counter (6)
+    ;         beq r3 r15 2 ; Check if done (7)
+    ;             jump CopyToStartLoop ; (8)
 
     BootProgram:
         ; Make ready for execution
@@ -148,9 +148,7 @@ ReceiveProgram:
         load 0 r13
         load 0 r14
         load 0 r15
-        nop
-        ccache ; Clear cache
-        nop
+        ccache
         reti
 
 Int:

@@ -7,17 +7,12 @@ set -e
 source .venv/bin/activate
 
 # Parse arguments
-SEQUENTIAL=""
 WORKERS=""
 TEST_FILE=""
 MODE=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --sequential)
-            SEQUENTIAL="--sequential"
-            shift
-            ;;
         --workers)
             WORKERS="--workers $2"
             shift 2
@@ -41,9 +36,9 @@ done
 # Default is combined mode (both ROM and RAM with merged output)
 # Use --rom or --ram to run only one memory type
 if [ -n "$TEST_FILE" ]; then
-    python3 Scripts/Tests/cpu_tests.py $MODE $SEQUENTIAL $WORKERS "$TEST_FILE"
+    python3 Scripts/Tests/cpu_tests.py $MODE $WORKERS "$TEST_FILE"
 else
-    python3 Scripts/Tests/cpu_tests.py $MODE $SEQUENTIAL $WORKERS
+    python3 Scripts/Tests/cpu_tests.py $MODE $WORKERS
 fi
 
 # Deactivate virtual environment

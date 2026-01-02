@@ -5,15 +5,12 @@
 
 ## Verilog/FPGA design
 
-- [ ] Rewrite regbank to just use logic cells instead of attempting block RAM inference
-- [ ] Rewrite stack to force use of block RAM
-- [ ] Given longest path is from CacheController|EXMEM2_result into cpu|PC_FE1, look into reducing this path
-- [ ] Remove line buffer in FSX_SRAM and access SRAM instead again for the second line to save up resources
+- [ ] Remove line buffer in FSX_SRAM and access SRAM instead again for the second line to save up resources, or assign the SRAM to the write FIFO during the second line to fix fast writes now the CPU runs at 100MHz
 - [ ] Status led modules for the Cyclone IV PCB
+- [ ] Implement Debugger (via JTAG FIFO and eventually PCI if success)
 
 ## Software development
 
-- [ ] Make test assembly programs to validate EP4CE40 PCB
 - [ ] Make DTR reset and Magic Sequence configurable in makefile scripts, or drop support for Cyclone 10 if at the point where we need hardware features of the Cyclone IV PCB
 - [ ] BDOS V2 design and implementation
 
@@ -41,16 +38,13 @@ These are potential todos for improving the development workflows.
 - [ ] Cycle-accurate performance measurement
 - [ ] Cache hit/miss statistics
 
+!!! Note
+    This might actually be better to implement when the debugger module is implemented.
+
 ---
 
 ## Verilog/Hardware Improvements
 
 ### Refactor and Cleanup
 
-- [ ] Extract Repeated Logic into Functions/Modules (possibly L1i and L1d cache miss handlers, or refactor them somewhere else)
-- [ ] Consolidate State Machine Constants (they are scattered now)
-- [ ] Add Stage Comments to Wire Declarations (Group wires by pipeline stage for easier navigation
-- [ ] Consider Prefix Conventions (hazard_, dep_, stall conditions, flush conditions, etc
-- [ ] Use forwarding logic for AddressDecoder and controlUnit so that there is no need for instantiating them in different stages
-- [ ] Document Magic Numbers (named constants for magic numbers)
-- [ ] Perhaps, split B32P2 into smaller modules like _hazards, _forwarding, _pipeline, _top
+- [ ] Determine what improvements did not really affect the timings and clean them up

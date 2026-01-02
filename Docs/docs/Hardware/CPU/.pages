@@ -1,0 +1,7 @@
+nav:
+    - CPU.md
+    - Architecture-Diagram.md
+    - Modules
+    - ISA.md
+    - Cache.md
+    - CPU-Revisions.md

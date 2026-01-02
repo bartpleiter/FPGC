@@ -1,13 +1,13 @@
 # Assembler (ASMPY)
 
-ASMPY is an assembler for the B32P2 ISA written in Python and allows the user to write and assemble code for the FPGC. While the main focus of the assembler is to assemble the output of the C compiler (B32CC), and therefore might not be great for large hand-written assembly projects, it can still be used for small assembly programs like bootloaders, or to create functional tests for the CPU/FPGC.
+ASMPY is an assembler for the B32P3 ISA written in Python and allows the user to write and assemble code for the FPGC. While the main focus of the assembler is to assemble the output of the C compiler (B32CC), and therefore might not be great for large hand-written assembly projects, it can still be used for small assembly programs like bootloaders, or to create functional tests for the CPU/FPGC.
 
 !!! note
-    ASMPY is **not** the same as the assembler that runs on the FPGC itself, as Python cannot run on the FPGC. ASMPY's focus is to have a developer-friendly assembler on the development machine that can be easily extended, modified, debugged and improved.
+    ASMPY is **not** the same as the assembler that runs on the FPGC itself, as Python cannot run on the FPGC. ASMPY's focus is to have a developer-friendly assembler on the development machine that can be easily extended, modified, debugged and improved. Eventually, when FPGC becomes a more self-contained system, a native assembler running on the FPGC will be created, just like in FPGC6.
 
 ## Features
 
-ASMPY converts B32P2 assembly language source code into binary machine instructions. ASMPY features:
+ASMPY converts B32P3 assembly language source code into binary machine instructions. ASMPY features:
 
 - **Proper Python modular code** with modern dev-setup and tests
 - **Logging** with configurable verbosity levels  
@@ -50,7 +50,7 @@ Assembly files consist of several types of lines:
 ### Example Program
 
 ```asm
-; Simple B32P2 assembly program
+; Simple B32P3 assembly program
 Main:
     load 0xDE r1        ; Load constant into register 1
     load 42 r2          ; Load value 42 into register 2
@@ -66,7 +66,7 @@ Int:
 
 ### Quick Reference Table
 
-The following table provides a comprehensive overview of all B32P2 instructions supported by ASMPY:
+The following table provides a complete overview of all B32P3 instructions supported by ASMPY:
 
 | Instruction | Arg1 | Arg2 | Arg3 | Description |
 |-------------|------|------|------|-------------|
@@ -218,7 +218,7 @@ Branch instructions support both numeric offsets and labels. When a label is use
 ### Data Directives
 
 !!! note
-    Currently only `.dw` is supported.
+    Currently only `.dw` and `.dsw` are supported.
 
 | Directive | Description | Example |
 |-----------|-------------|---------|
@@ -249,7 +249,7 @@ ASMPY supports multiple number formats:
 
 ## Registers
 
-The B32P2 has 16 general-purpose registers:
+The B32P3 has 16 general-purpose registers:
 
 - `r0` - Always contains zero (cannot be modified)
 - `r1` to `r15` - General-purpose registers

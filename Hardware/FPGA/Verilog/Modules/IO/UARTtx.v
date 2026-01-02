@@ -6,10 +6,10 @@
  *
  * Set Parameter CLKS_PER_BIT as follows:
  * CLKS_PER_BIT = (Frequency of clk) / (Frequency of UART)
- * Example: 50 MHz Clock, 1 MBaud UART: (50000000) / (1000000) = 50
+ * Example: 100 MHz Clock, 1 MBaud UART: (100000000) / (1000000) = 100
  */
 module UARTtx #(
-    parameter CLKS_PER_BIT = 50,    // 1 MBaud @ 50 MHz
+    parameter CLKS_PER_BIT = 100,   // 1 MBaud @ 100 MHz
     parameter ENABLE_DISPLAY = 1
 ) (
     //========================
@@ -21,9 +21,10 @@ module UARTtx #(
     //========================
     // Control interface
     //========================
-    input  wire         start,      // Start transmission (active high pulse)
-    input  wire [7:0]   data,       // Byte to transmit
-    output reg          done = 1'b0,// Transmission complete (high for one cycle)
+    input  wire         start,              // Start transmission (active high pulse)
+    input  wire [7:0]   data,               // Byte to transmit
+    output reg          done = 1'b0,        // Transmission complete (high for one cycle)
+    output reg          tx_active = 1'b0,   // Transmission in progress
 
     //========================
     // UART interface
@@ -58,6 +59,7 @@ begin
         clk_count <= 9'd0;
         bit_index <= 3'd0;
         tx_data <= 8'd0;
+        tx_active <= 1'b0;
         done <= 1'b0;
         tx <= 1'b1;
     end
@@ -65,6 +67,7 @@ begin
     begin
         // Default assignments
         done <= 1'b0;
+        tx_active <= 1'b0;
 
         case (state)
             STATE_IDLE:
@@ -76,6 +79,7 @@ begin
                 if (start)
                 begin
                     tx_data <= data;
+                    tx_active <= 1'b1;
                     state <= STATE_START_BIT;
                     if (ENABLE_DISPLAY == 1)
                     begin
@@ -87,6 +91,7 @@ begin
             STATE_START_BIT:
             begin
                 tx <= 1'b0;             // Start bit is low
+                tx_active <= 1'b1;
 
                 if (clk_count < CLKS_PER_BIT - 1)
                 begin
@@ -102,6 +107,7 @@ begin
             STATE_DATA_BITS:
             begin
                 tx <= tx_data[bit_index]; // Send LSB first
+                tx_active <= 1'b1;
 
                 if (clk_count < CLKS_PER_BIT - 1)
                 begin
@@ -126,7 +132,8 @@ begin
             STATE_STOP_BIT:
             begin
                 tx <= 1'b1;             // Stop bit is high
-
+                tx_active <= 1'b1;
+                
                 if (clk_count < CLKS_PER_BIT - 1)
                 begin
                     clk_count <= clk_count + 1'b1;

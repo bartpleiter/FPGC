@@ -16,31 +16,25 @@ module Stack (
     input wire          hold
 );
 
-reg [9:0]   ptr = 10'd0;    // Stack pointer
-reg [31:0]  stack [128:0]; // Stack memory
-
-// RamResult is used to store the result of a pop operation
-// useRamResult is used to determine if the result of a pop operation should be used
-// qreg is used last value of q in case of a hold, or 0 if clear
-reg [31:0]  ramResult = 32'd0;
-reg         useRamResult = 1'b0;
-reg [31:0]  qreg = 32'd0;
-
-assign q = (useRamResult) ? ramResult : qreg;
+reg [6:0]   ptr = 7'd0;    // Stack pointer
+(* ramstyle = "logic" *) reg [31:0]  stack [127:0];  // Stack memory
+    
+reg [31:0]  q_reg = 32'd0;
+assign q = q_reg; // Registered output
 
 always @(posedge clk)
 begin
     if (reset)
     begin
-        ptr <= 10'd0;
-        useRamResult <= 1'b0;
-        ramResult <= 32'd0;
-        qreg <= 32'd0;
+        ptr <= 7'd0;
+        q_reg <= 32'd0;
     end
-    else 
+    else if (clear)
     begin
-        qreg <= q;
-        
+        q_reg <= 32'd0;
+    end
+    else if (!hold)
+    begin
         if (push)
         begin
             stack[ptr] <= d;
@@ -50,22 +44,9 @@ begin
 
         if (pop)
         begin
-            useRamResult <= 1'b0;
-            ramResult <= stack[ptr - 1'b1];
-            if (clear)
-            begin
-                qreg <= 32'd0;
-            end
-            else if (hold)
-            begin
-                qreg <= qreg;
-            end
-            else
-            begin
-                useRamResult <= 1'b1;
-                ptr <= ptr - 1'b1;
-                $display("%d: pop  ptr %d := %d", $time, ptr, stack[ptr - 1'b1]);
-            end
+            q_reg <= stack[ptr - 1'b1];
+            ptr <= ptr - 1'b1;
+            $display("%d: pop  ptr %d := %d", $time, ptr, stack[ptr - 1'b1]);
         end
     end
 end

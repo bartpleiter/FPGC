@@ -17,7 +17,7 @@
 /*                                                                           */
 /*                 A simple and small single-pass C compiler                 */
 /*                                                                           */
-/*                   Produces 32-bit B32P2 assembly output.                  */
+/*                   Produces 32-bit B32P3 assembly output.                  */
 /*                                                                           */
 /*                                 Main file                                 */
 /*                                                                           */
@@ -593,7 +593,7 @@ int SyntaxStackCnt;
 STATIC
 unsigned truncUint(unsigned n)
 {
-  // Test: As we are using word-addressable memory for B32P2, lets disable truncation
+  // Test: As we are using word-addressable memory for B32P3, lets disable truncation
   return n;
   // // Truncate n to SizeOfWord * 8 bits
   // if (SizeOfWord == 2)
@@ -606,7 +606,7 @@ unsigned truncUint(unsigned n)
 STATIC
 int truncInt(int n)
 {
-  // Test: As we are using word-addressable memory for B32P2, lets disable truncation
+  // Test: As we are using word-addressable memory for B32P3, lets disable truncation
   return n;
   // // Truncate n to SizeOfWord * 8 bits and then sign-extend it
   // unsigned un = n;
@@ -1972,8 +1972,8 @@ void errorRedecl(char* s)
   error("Invalid or unsupported redeclaration of '%s'\n", s);
 }
 
-// We always compile for B32P2
-#include "cgb32p2.inc"
+// We always compile for B32P3
+#include "cgb32p3.inc"
 
 // expr.c code
 

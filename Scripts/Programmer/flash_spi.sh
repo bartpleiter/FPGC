@@ -66,9 +66,9 @@ echo "Step 3: Compiling flash_writer program..."
 ./Scripts/BCC/compile_bare_metal_c.sh flash_writer/flash_writer
 echo ""
 
-# Step 4: Flash the flash_writer via UART
-echo "Step 4: Flashing flash_writer to FPGC via UART..."
-./Scripts/Programmer/UART/flash_uart.sh
+# Step 4: Run the flash_writer via UART
+echo "Step 4: Running flash_writer on FPGC via UART..."
+./Scripts/Programmer/UART/run_uart.sh
 echo ""
 
 echo "=============================================="

@@ -30,6 +30,7 @@ module FSX_SRAM (
     // Pixel SRAM interface
     output wire [16:0]  pixel_sram_addr,   // Address request to SRAM
     input wire  [7:0]   pixel_sram_data,   // Data from SRAM
+    output wire         pixel_using_line_buffer, // High when GPU uses line buffer
     
     // Timing outputs for SRAM arbiter
     output wire [11:0]  h_count_out,
@@ -124,6 +125,7 @@ PixelEngineSRAM pixelEngine (
     // SRAM interface (direct access)
     .sram_addr(pixel_sram_addr),
     .sram_data(pixel_sram_data),
+    .using_line_buffer(pixel_using_line_buffer),
     
     // Parameters
     .halfRes(halfRes)

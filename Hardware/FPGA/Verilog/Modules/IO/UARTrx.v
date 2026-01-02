@@ -6,10 +6,10 @@
  *
  * Set Parameter CLKS_PER_BIT as follows:
  * CLKS_PER_BIT = (Frequency of clk) / (Frequency of UART)
- * Example: 50 MHz Clock, 1 MBaud UART: (50000000) / (1000000) = 50
+ * Example: 100 MHz Clock, 1 MBaud UART: (100000000) / (1000000) = 100
  */
 module UARTrx #(
-    parameter CLKS_PER_BIT = 50     // 1 MBaud @ 50 MHz
+    parameter CLKS_PER_BIT = 100    // 1 MBaud @ 100 MHz
 ) (
     //========================
     // System interface
