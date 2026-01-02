@@ -5,7 +5,7 @@ The UART is divided into a transmitter and a receiver module, both connected to 
 ## UART Transmitter
 
 - **Module**: `UARTtx`
-- **Baud rate**: 1 Mbaud (50 clock cycles per bit at 50MHz)
+- **Baud rate**: 1 Mbaud (100 clock cycles per bit at 100MHz)
 - **Data format**: 8-bit, 1 start bit, 1 stop bit, no parity
 - **Operation**: Multi-cycle write operation that waits for transmission completion
 

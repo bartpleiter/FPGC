@@ -1,5 +1,6 @@
 /*
  * Testbench for the GPU (FSX).
+ * Currently does NOT include the external SRAM design, and relies on the internal VRAM module.
  * Designed to be used with the Icarus Verilog simulator to generate image files of frames.
  */
 `timescale 1ns / 1ps

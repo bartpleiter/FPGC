@@ -70,16 +70,6 @@ ALU alu (
 );
 ```
 
-### Input Sources
-
-- **Operand A**: From register file via forwarding mux
-- **Operand B**: From register file via forwarding mux, OR from instruction constant
-
-### Output Destinations
-
-- **EX/MEM pipeline register**: For memory address calculation or result storage
-- **Forwarding network**: Can be forwarded to subsequent instructions
-
 ## Special Operations
 
 ### LOAD and LOADHI

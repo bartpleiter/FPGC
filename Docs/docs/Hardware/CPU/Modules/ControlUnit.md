@@ -120,17 +120,3 @@ The `dreg_we` signal enables writing to the destination register. It's set for:
 ### Multi-cycle Operations
 
 The `arithm` signal indicates that the instruction requires the MultiCycleALU (multiplication, division, modulo). The pipeline stalls until the operation completes.
-
-## Pipeline Integration
-
-Control signals are generated in the ID stage and propagated through pipeline registers:
-
-```text
-ID Stage               EX Stage               MEM Stage              WB Stage
-┌────────────┐        ┌────────────┐         ┌────────────┐         ┌────────────┐
-│ControlUnit │───────▶│  id_ex_*   │────────▶│  ex_mem_*  │────────▶│  mem_wb_*  │
-│            │        │  control   │         │  control   │         │  control   │
-└────────────┘        └────────────┘         └────────────┘         └────────────┘
-```
-
-Each pipeline stage uses the relevant subset of control signals for its operations.

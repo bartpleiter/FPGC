@@ -12,7 +12,6 @@ module BranchJumpUnit (
     input wire  [31:0]  data_b,             // Second comparison operand
     input wire          sig,                // Signed comparison enable
     
-    // Address inputs (pre-computed)
     input wire  [31:0]  const16,            // 16-bit constant (sign-extended)
     input wire  [31:0]  pc,                 // Current program counter
     input wire  [31:0]  pre_jump_const_addr,// Pre-computed jump address
@@ -30,16 +29,6 @@ module BranchJumpUnit (
     output wire         jump_valid          // Jump/branch should be taken
 );
 ```
-
-## Pipeline Location
-
-In B32P3, branch resolution occurs in the **MEM stage** rather than EX. This design choice breaks a critical timing path:
-
-```
-forwarding_mux → comparator → jump_valid → flush → pipeline registers
-```
-
-Moving branch resolution to MEM increases the branch penalty from 1 to 2 cycles but enables reliable high-frequency operation.
 
 ## Branch Operations
 
@@ -104,6 +93,9 @@ wire [31:0] pre_branch_addr = pc + const16;
 
 The unit then selects the appropriate pre-computed address based on the operation type.
 
+!!! TODO
+    Verify that this is still needed with the current optimizations. If no effect on timing, consider removing.
+
 ## Output Logic
 
 ```verilog
@@ -121,14 +113,3 @@ assign jump_valid = jumpc || jumpr || (branch && branch_passed) || halt;
 ## HALT Behavior
 
 The HALT instruction causes `jump_valid` to be asserted with `jump_addr = PC`, creating an infinite loop at the halt location. The CPU can still respond to interrupts when halted.
-
-## Integration with Pipeline
-
-When `jump_valid` is asserted and the instruction is valid:
-
-1. `pc_redirect` signal is asserted
-2. `pc_redirect_target` is set to `jump_addr`
-3. Pipeline registers IF/ID, ID/EX, and EX/MEM are flushed
-4. PC is updated to the target address
-
-This results in a 2-cycle branch penalty for taken branches/jumps.

@@ -23,4 +23,4 @@ This project is considered finished when:
 
 ### B32CC
 
-Located in `BuildTools/B32CC/`, this is a modified version of SmallerC by Alexey Frunze to compile C code to B32P2 assembly.
+Located in `BuildTools/B32CC/`, this is a modified version of SmallerC by Alexey Frunze to compile C code to B32P3 assembly.

@@ -94,18 +94,3 @@ Cycle 1: CPU asserts start=1, addr=target, we=0
 Cycle 2: MU begins operation, may enter wait state
 Cycle N: MU asserts done=1, q=read_data, CPU reads result
 ```
-
-## Design Considerations
-
-### Performance Trade-offs
-
-The Memory Unit prioritizes simplicity and correctness over performance:
-
-- **Single-threaded**: Only one operation at a time
-- **Blocking**: CPU must wait for completion
-- **No pipelining**: Sequential operation handling
-- **Latency**: State machine and cpu interface introduce extra cycles of overhead
-
-### Future Extensions
-
-The modular design allows easy addition of new I/O devices by adding new controller modules and updating the state machine logic.

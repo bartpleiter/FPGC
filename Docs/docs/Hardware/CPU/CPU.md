@@ -10,7 +10,8 @@ The B32P3 implements a classic 5-stage pipeline architecture designed for simpli
 - **Classic 5-stage pipeline** (IF, ID, EX, MEM, WB) for straightforward design
 - **Dual L1 caches** (instruction and data) with cache controller to greatly reduce stalls
 - **Simple hazard detection** with load-use stalls and data forwarding
-- **Multi-cycle ALU operations** for complex arithmetic (multiplication, division) and extensions for Fixed Point operations
+- **Hardware stack** with push/pop instructions for single cycle stack operations (only 128 entries, but allows for quick and easy register saving and restoring)
+- **Multi-cycle ALU operations** for complex arithmetic (multiplication using registered hardware multiplier or DSP blocks, division) and extensions for Fixed Point operations
 - **32-bit address space** supporting up to 16GiB of addressable memory, with 27-bit jump constants for 512MiB jumpable instruction memory (in theory more by using JUMPR instructions)
 - **Hardware interrupt support** with context switching by saving/restoring the program counter (PC)
 - **Branch resolution in MEM stage** for improved timing at the cost of slightly higher branch penalty
@@ -89,42 +90,6 @@ The CPU supports two-level forwarding to the EX stage:
 - **EX/MEM → EX**: Forward ALU results from the previous instruction (1 cycle old)
 - **MEM/WB → EX**: Forward results from 2 instructions ago
 
-**Important**: Forwarding from EX/MEM is disabled for loads and pops since their data isn't ready until MEM/WB.
-
-```text
-forward_a/b encoding:
-  00 = No forwarding (use register file)
-  01 = Forward from EX/MEM stage
-  10 = Forward from MEM/WB stage
-```
-
-## Timing Optimizations
-
-The B32P3 incorporates several timing optimizations to achieve reliable high-frequency operation:
-
-### Branch Resolution in MEM Stage
-
-Branch resolution is moved from EX to MEM stage to break the critical path:
-```
-forwarding_mux → comparator → jump_valid → flush → registers
-```
-This increases branch penalty from 1 to 2 cycles but allows for 100MHz timing closure.
-
-### Registered L1I Cache Stall
-
-The cache miss stall signal is registered to break the critical path:
-```
-L1I BRAM output → tag compare → cache_stall_if → backend_stall → PC
-```
-
-### Optimized Cache Line Hazard Detection
-
-Uses a 10-bit adder instead of full 32-bit address calculation for cache line comparison, reducing carry chain from 32 to 10 bits.
-
-### Pre-computed Branch/Jump Addresses
-
-Target addresses for branches and jumps are pre-computed to reduce timing pressure during branch resolution.
-
 ## Interrupt Support
 
 The B32P3 supports up to 8 hardware interrupt lines with the following behavior:
@@ -134,19 +99,3 @@ The B32P3 supports up to 8 hardware interrupt lines with the following behavior:
 - On interrupt: PC is saved, interrupts disabled, jump to INTERRUPT_JUMP_ADDR
 - `INTID` instruction retrieves the interrupt ID (1-8)
 - `RETI` instruction restores PC and re-enables interrupts
-
-## Performance Characteristics
-
-### Design Goals
-
-- **Simplicity**: Classic 5-stage pipeline for easier verification and debugging
-- **Timing closure**: Critical paths broken up for reliable high-frequency operation
-- **Minimal stalls**: Data forwarding eliminates most RAW hazard stalls
-- **Efficient caching**: Direct-mapped L1 caches reduce SDRAM latency impact
-
-### Typical Penalties
-
-- **Branch taken**: 2 cycles (MEM-stage resolution)
-- **Load-use**: 1 cycle stall
-- **Cache miss**: Variable (depends on SDRAM controller)
-- **Multi-cycle ALU**: Variable (multiplication: ~4 cycles, division: ~32 cycles)

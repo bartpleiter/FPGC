@@ -69,12 +69,12 @@ This document provides a visual representation of the B32P3 CPU architecture, sh
                          │ areg   │             │alu_res │────────────▶│alu_res │
                          │ breg   │             │breg_dat│             │mem_data│
                          │        │             │mem_addr│             │stk_data│
-                         │alu_op │             │        │             │        │
-                         │const16│────────────▶│const16 │             │ result │
-                         │const27│────────────▶│const27 │             │        │
+                         │alu_op  │             │        │             │        │
+                         │const16 │────────────▶│const16 │             │ result │
+                         │const27 │────────────▶│const27 │             │        │
                          │        │             │        │             │        │
-                         │control│────────────▶│control │────────────▶│control │
-                         │ flags │             │ flags  │             │ flags  │
+                         │control │────────────▶│control │────────────▶│control │
+                         │ flags  │             │ flags  │             │ flags  │
                          └────────┘             └────────┘             └────────┘
 ```
 
@@ -114,9 +114,9 @@ This document provides a visual representation of the B32P3 CPU architecture, sh
 ```text
                          Forwarding to EX Stage ALU Inputs
                          
-                    ┌─────────────────────────────────────────────┐
-                    │              EX Stage                       │
-                    │                                             │
+                    ┌────────────────────────────────────────────┐
+                    │              EX Stage                      │
+                    │                                            │
   ┌──────────┐      │   ┌──────────┐          ┌──────────┐       │
   │ Regbank  │─────▶│──▶│  MUX A   │─────────▶│          │       │
   │ data_a   │      │   │  00:reg  │          │          │       │
@@ -136,14 +136,7 @@ This document provides a visual representation of the B32P3 CPU architecture, sh
   │ ID/EX    │      │                        │          │        │
   │ const    │─────▶│───────────────────────▶│          │        │
   └──────────┘      │                        └──────────┘        │
-                    └─────────────────────────────────────────────┘
-                    
-  Forward Conditions:
-  ─────────────────────────────────────────────────────────────────
-  EX/MEM → EX (01): ex_mem_dreg == id_ex_areg/breg, dreg_we=1,
-                    dreg!=0, NOT mem_read, NOT pop
-  MEM/WB → EX (10): mem_wb_dreg == id_ex_areg/breg, dreg_we=1,
-                    dreg!=0
+                    └────────────────────────────────────────────┘
 ```
 
 ## Cache Architecture Integration

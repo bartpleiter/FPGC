@@ -5,7 +5,6 @@
 `timescale 1ns / 1ps
 
 `include "Hardware/FPGA/Verilog/Modules/CPU/B32P3.v"
-`include "Hardware/FPGA/Verilog/Modules/CPU/Regr.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/Regbank.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/InstructionDecoder.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/ALU.v"
@@ -19,7 +18,6 @@
 `include "Hardware/FPGA/Verilog/Modules/CPU/ParallelComparator.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/BranchJumpUnit.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/InterruptController.v"
-`include "Hardware/FPGA/Verilog/Modules/CPU/AddressDecoder.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/CacheControllerSDRAM.v"
 `include "Hardware/FPGA/Verilog/Modules/Memory/ROM.v"
 `include "Hardware/FPGA/Verilog/Modules/Memory/VRAM.v"

@@ -1,6 +1,6 @@
 # Cache
 
-As the main performance bottleneck slowing down the CPU is RAM latency, caches are essential to keep the CPU fed with instructions and data. The FPGC contains separate L1 instruction (L1I) and L1 data (L1D) caches. Using cache lines of 8 words aligns well with SDRAM burst access patterns, making memory operations much more efficient - especially since DRAM is very fast for sequential access.
+As the main performance bottleneck slowing down the CPU is RAM latency, caches are essential to keep the CPU fed with instructions and data. The FPGC contains separate L1 instruction (L1I) and L1 data (L1D) caches. Using cache lines of 8 words aligns well with SDRAM burst access patterns, making memory operations much more efficient.
 
 ## Specifications
 
@@ -106,8 +106,8 @@ This is essential when loading programs into RAM, as the L1I cache may contain s
 
 ```text
                      ┌──────────┐
-                     │   IDLE   │◀────────────────────┐
-                     └────┬─────┘                     │
+                     │   IDLE   │◀───────────────────┐
+                     └────┬─────┘                    │
                           │                          │
             ┌─────────────┴─────────────┐            │
             ▼                           ▼            │
@@ -115,20 +115,20 @@ This is essential when loading programs into RAM, as the L1I cache may contain s
     │  L1I Miss    │            │  L1D Miss/   │     │
     │  Handling    │            │  Write       │     │
     └──────┬───────┘            └──────┬───────┘     │
-           │                           │            │
-           ▼                           ▼            │
+           │                           │             │
+           ▼                           ▼             │
     ┌──────────────┐            ┌──────────────┐     │
     │ SDRAM Read   │            │ SDRAM R/W    │     │
     │ Request      │            │ Request      │     │
     └──────┬───────┘            └──────┬───────┘     │
-           │                           │            │
-           ▼                           ▼            │
+           │                           │             │
+           ▼                           ▼             │
     ┌──────────────┐            ┌──────────────┐     │
     │ Update L1I   │            │ Update L1D   │     │
     │ Cache Line   │            │ Cache Line   │     │
     └──────┬───────┘            └──────┬───────┘     │
-           │                           │            │
-           └───────────────────────────┴────────────┘
+           │                           │             │
+           └───────────────────────────┴─────────────┘
 ```
 
 ## Integration with CPU Pipeline
@@ -158,17 +158,3 @@ This is detected by comparing the cache line indices of EX and MEM stage memory 
 
 - **L1I hit**: 1 cycle (instruction available after tag compare)
 - **L1D hit**: 2 cycles (address in EX, data in MEM, result in WB)
-
-### Cache Miss Latency
-
-Cache miss latency depends on the SDRAM controller timing:
-
-- SDRAM burst read: ~8-10 cycles typical
-- Additional cycles for cache line update
-
-### Optimization Tips
-
-1. **Sequential access**: SDRAM is fastest for sequential reads within a cache line
-2. **Spatial locality**: Keep related data within the same cache line (8 words / 32 bytes)
-3. **Loop optimization**: Keep hot loops under 1KiW (4KiB) for full L1I residency
-4. **Cache clear timing**: Execute `CCACHE` after loading code to RAM, before jumping to it

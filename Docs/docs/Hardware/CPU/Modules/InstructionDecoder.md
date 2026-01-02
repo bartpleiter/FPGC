@@ -99,34 +99,3 @@ BRANCH     0  1  1  0||----------------16 BIT CONSTANT---------------||--A REG--
 JUMP       1  0  0  1||--------------------------------27 BIT CONSTANT--------------------------------||O|
 READ       1  1  1  0||----------------16 BIT CONSTANT---------------||--A REG---| x  x  x  x |--D REG---|
 ```
-
-## Pipeline Integration
-
-The instruction decoder is instantiated in the ID stage:
-
-```verilog
-InstructionDecoder instr_decoder (
-    .instr      (if_id_instr),      // From IF/ID pipeline register
-    .instrOP    (id_instr_op),
-    .aluOP      (id_alu_op),
-    .branchOP   (id_branch_op),
-    // ... other outputs
-);
-```
-
-Decoded fields are then captured in the ID/EX pipeline register for use in subsequent stages.
-
-## Early Register Address Extraction
-
-For timing optimization, register addresses are also extracted directly in the IF stage:
-
-```verilog
-// Extract register addresses from IF instruction (same logic as decoder)
-wire [3:0] if_instr_op = if_instr[31:28];
-wire [3:0] if_areg = (if_instr_op == 4'b0001 || if_instr_op == 4'b0011) ? 
-                     if_instr[7:4] : if_instr[11:8];
-wire [3:0] if_breg = (if_instr_op == 4'b0001 || if_instr_op == 4'b0011) ? 
-                     4'd0 : if_instr[7:4];
-```
-
-These addresses go directly to the register file, which has 2-cycle read latency, ensuring data is available in the EX stage.

@@ -2,10 +2,6 @@
  * Stack
  * 32 Bits wide, 128 words long
  * Not directly addressable, only push and pop operations supported
- *
- * TIMING OPTIMIZATION: The output q is now purely registered.
- * The BRAM read result is registered, and q uses only registered values.
- * This breaks the critical path from hold -> useRamResult -> q.
  */
 module Stack (
     input wire          clk,
@@ -20,23 +16,17 @@ module Stack (
     input wire          hold
 );
 
-reg [9:0]   ptr = 10'd0;    // Stack pointer
-reg [31:0]  stack [128:0];  // Stack memory
-
-// Output register - purely registered output for timing closure
-// After a pop, this gets updated with the stack value
-// (* dont_retime *) prevents Quartus from retiming this register,
-// which would create a combinational path from hold to the register output
-(* dont_retime *) reg [31:0]  q_reg = 32'd0;
-
-// Output is purely registered - no combinational dependency on hold
-assign q = q_reg;
+reg [6:0]   ptr = 7'd0;    // Stack pointer
+(* ramstyle = "logic" *) reg [31:0]  stack [127:0];  // Stack memory
+    
+reg [31:0]  q_reg = 32'd0;
+assign q = q_reg; // Registered output
 
 always @(posedge clk)
 begin
     if (reset)
     begin
-        ptr <= 10'd0;
+        ptr <= 7'd0;
         q_reg <= 32'd0;
     end
     else if (clear)

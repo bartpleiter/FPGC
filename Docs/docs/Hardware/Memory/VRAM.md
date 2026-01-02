@@ -19,6 +19,9 @@ The pixel framebuffer stores raw R3G3B2 pixel data (8 bits per pixel) in an exte
 !!! TODO
     Decide what to document here and what to put in the GPU/FSX documentation instead.
 
+!!! Warning
+       This is already outdated due to the CPU now running at 100MHz. Module needs to be updated as the CPU is now so fast that some writes are lost.
+
 The pixel framebuffer architecture makes use of the synchronized clock domain between the CPU (50MHz) and GPU (25MHz) to simplify the design. Key features include:
 
 - Arbiter that switches between CPU writes and GPU reads depending on active/blanking periods

@@ -17,7 +17,7 @@
 /*                                                                           */
 /*                 A simple and small single-pass C compiler                 */
 /*                                                                           */
-/*                           B32P2 code generator                            */
+/*                           B32P3 code generator                            */
 /*                                                                           */
 /*****************************************************************************/
 
@@ -27,7 +27,7 @@ void GenInit(void)
   // initialization of target-specific code generator
   // Assembler is responsible to move all non-.code parts away from the code
   SizeOfWord = 4;
-  WordAddressable = 1; // B32P2 uses word-addressable memory (each address = 1 word)
+  WordAddressable = 1; // B32P3 uses word-addressable memory (each address = 1 word)
   OutputFormat = FormatSegmented;
   CodeHeaderFooter[0] = ".code";
   DataHeaderFooter[0] = ".data";
@@ -77,7 +77,7 @@ STATIC
 void GenWordAlignment(int bss)
 {
   (void)bss;
-  // B32P2 doesn't need explicit alignment directives for words
+  // B32P3 doesn't need explicit alignment directives for words
 }
 
 STATIC
@@ -118,7 +118,7 @@ STATIC
 void GenZeroData(unsigned Size, int bss)
 {
   (void)bss;
-  // B32P2: Generate zero words for uninitialized data
+  // B32P3: Generate zero words for uninitialized data
   // In word-addressable mode, Size is already in words, not bytes
   unsigned words = WordAddressable ? Size : (Size + 3) / 4;
   unsigned i;
@@ -139,7 +139,7 @@ void GenIntData(int Size, int Val)
   Val = truncInt(Val);
   if (Size == 1 || Size == 2 || Size == 4)
   {
-    // B32P2: All data stored as 32-bit words
+    // B32P3: All data stored as 32-bit words
     printf2("  .dw %d\n", Val);
   }
 }
@@ -154,7 +154,7 @@ STATIC
 void GenAddrData(int Size, char* Label, int ofs)
 {
   ofs = truncInt(ofs);
-  // B32P2: All data stored as 32-bit words, no need to check size
+  // B32P3: All data stored as 32-bit words, no need to check size
   printf2("  .dw ");
   GenPrintLabel(Label);
   if (ofs)
@@ -338,7 +338,7 @@ void GenPrintInstr(int instr, int val)
 #define B32OpNumLabel                    0x82
 #define B32OpIndLocal                    B32OpIndRegFp
 
-#define MAX_TEMP_REGS 3 // B32P2: use r8-r10 as temp registers (5 total)
+#define MAX_TEMP_REGS 3 // B32P3: use r8-r10 as temp registers (5 total)
 #define TEMP_REG_A B32OpReg11 // use r11 for momentary operations
 #define TEMP_REG_B B32OpReg12 // use r12 for momentary operations
 #define MAX_STACK_DEPTH 100 // Maximum depth for expression evaluation stack
@@ -754,7 +754,7 @@ int GenGetBinaryOperatorInstr(int tok)
 STATIC
 void GenPreIdentAccess(int label)
 {
-  // B32P2: Load full address into temporary register
+  // B32P3: Load full address into temporary register
   GenPrintInstr2Operands(B32InstrAddr2reg, 0,
                          B32OpLabel, label,
                          TEMP_REG_A, 0);
@@ -763,14 +763,14 @@ void GenPreIdentAccess(int label)
 STATIC
 void GenPostIdentAccess(void)
 {
-  // B32P2: No cleanup needed
+  // B32P3: No cleanup needed
 }
 
 STATIC
 void GenReadIdent(int regDst, int opSz, int label)
 {
   GenPreIdentAccess(label);
-  // B32P2: Read from address in TEMP_REG_A
+  // B32P3: Read from address in TEMP_REG_A
   GenPrintInstr3Operands(B32InstrRead, 0,
                          B32OpConst, 0,
                          TEMP_REG_A, 0,
@@ -802,7 +802,7 @@ void GenReadIndirect(int regDst, int regSrc, int opSz)
 STATIC
 void GenWriteIdent(int regSrc, int opSz, int label)
 {
-  (void)opSz; // B32P2: All writes are word-sized
+  (void)opSz; // B32P3: All writes are word-sized
   GenPreIdentAccess(label);
   GenPrintInstr3Operands(B32InstrWrite, 0,
                          B32OpConst, 0,
@@ -814,7 +814,7 @@ void GenWriteIdent(int regSrc, int opSz, int label)
 STATIC
 void GenWriteLocal(int regSrc, int opSz, int ofs)
 {
-  (void)opSz; // B32P2: All writes are word-sized
+  (void)opSz; // B32P3: All writes are word-sized
   GenPrintInstr3Operands(B32InstrWrite, 0,
                          B32OpConst, ofs,
                          B32OpRegFp, 0,
@@ -824,7 +824,7 @@ void GenWriteLocal(int regSrc, int opSz, int ofs)
 STATIC
 void GenWriteIndirect(int regDst, int regSrc, int opSz)
 {
-  (void)opSz; // B32P2: All writes are word-sized
+  (void)opSz; // B32P3: All writes are word-sized
   GenPrintInstr3Operands(B32InstrWrite, 0,
                          B32OpConst, 0,
                          regDst, 0,
@@ -1318,7 +1318,7 @@ void GenPrep(int* idx)
 }
 
 /*
-B32P2 Comparison Code Generation Strategy:
+B32P3 Comparison Code Generation Strategy:
 ;     l <[u] 0       // slt[u] w, w, 0                            "k"
       l <[u] const   // slt[u] w, w, const                        "m"
       l <[u] r       // slt[u] w, l, r                            "i"
@@ -1408,9 +1408,9 @@ void GenCmp(int* idx, int op)
   if (constness == 2)
     GenPopReg();
 
-  // B32P2: bgts, bges, blts, bles are for signed comparison with 0 only.
+  // B32P3: bgts, bges, blts, bles are for signed comparison with 0 only.
   // For unsigned conditional branches on <0u, <=0u, >0u, >=0u, use the general method
-  // (slt/sltu + beq/bne) instead since B32P2 doesn't have unsigned zero-comparison branches.
+  // (slt/sltu + beq/bne) instead since B32P3 doesn't have unsigned zero-comparison branches.
   if (condbranch && op < 4 && constness == 0 && unsign)
   {
     // Except, >0u is more optimal as !=0
@@ -1448,7 +1448,7 @@ void GenCmp(int* idx, int op)
       condbranch ^= 3;
       // fallthrough
     case 'f':
-      // B32P2: Branch if less than zero (signed)
+      // B32P3: Branch if less than zero (signed)
       // if (l < 0): blts GenWreg, r0, label
       // if (l >= 0): bges GenWreg, r0, label
       GenPrintInstr3Operands((condbranch == 1) ? B32InstrBlts : B32InstrBges, 0,
@@ -1460,7 +1460,7 @@ void GenCmp(int* idx, int op)
       condbranch ^= 3;
       // fallthrough
     case 'h':
-      // B32P2: Branch if greater than zero (signed)
+      // B32P3: Branch if greater than zero (signed)
       // if (l > 0): bgts GenWreg, r0, label
       // if (l <= 0): bles GenWreg, r0, label
       GenPrintInstr3Operands((condbranch == 1) ? B32InstrBgts : B32InstrBles, 0,
@@ -1737,7 +1737,7 @@ void GenExpr0(void)
       }
       if (stack[i - 1][0] == tokIdent)
       {
-        // B32P2: Save return address (PC + offset) and jump to function
+        // B32P3: Save return address (PC + offset) and jump to function
         GenPrintInstr1Operand(B32InstrSavpc, 0,
                               B32OpRegRa, 0);
         GenPrintInstr3Operands(B32InstrAdd, 0,
@@ -1749,7 +1749,7 @@ void GenExpr0(void)
       }
       else
       {
-        // B32P2: Save return address (PC + offset) and jump to register
+        // B32P3: Save return address (PC + offset) and jump to register
         GenPrintInstr1Operand(B32InstrSavpc, 0,
                               B32OpRegRa, 0);
         GenPrintInstr3Operands(B32InstrAdd, 0,
@@ -2280,7 +2280,7 @@ void GenExpr(void)
 STATIC
 void GenFin(void)
 {
-  // To be honest, I am not sure what this does and just converted it to B32P2 assembly
+  // To be honest, I am not sure what this does and just converted it to B32P3 assembly
   if (StructCpyLabel)
   {
     int lbl = LabelCnt++;

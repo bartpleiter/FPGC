@@ -1,6 +1,6 @@
 # ISA
 
-The B32P3 instruction set architecture is a 32-bit RISC architecture designed for simplicity and efficiency. All instructions are 32 bits wide and word-aligned.
+The B32P3 instruction set architecture is a 32-bit RISC architecture designed for the FPGC.
 
 ## Instruction Encoding
 
@@ -117,11 +117,11 @@ Jump to address computed from register plus offset.
 
 ### 9. CCACHE
 
-Clear all L1 cache by invalidating all cache lines.
+Clear all L1 cache by invalidating all cache lines and writing dirty lines back to SDRAM.
 
 **Encoding**: `0111 | xxxx...xxxx`
 
-**Operation**: Sets all valid bits in L1I and L1D cache to 0.
+**Operation**: Sets all valid bits in L1I and L1D cache to 0, writes back dirty lines to SDRAM.
 
 ---
 
@@ -280,13 +280,3 @@ The B32P3 supports the following addressing modes:
 2. **Immediate**: 16-bit constant embedded in instruction
 3. **Base + Offset**: Memory address = register + signed 16-bit offset
 4. **PC-Relative**: Jump/branch target = PC + offset
-
----
-
-## Notes
-
-- All memory addresses are word-aligned (32-bit words)
-- 16-bit constants are sign-extended for arithmetic operations
-- 16-bit constants are zero-extended for LOAD and LOADHI operations
-- The 27-bit jump constant allows direct addressing of 512MiW (2GiB)
-- Multi-cycle operations stall the pipeline until completion

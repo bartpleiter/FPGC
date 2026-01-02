@@ -1,6 +1,6 @@
 # FPGC Project Context
 
-This document provides comprehensive context for understanding the FPGC (FPGA Computer) project architecture.
+This document provides a complete context for understanding the FPGC (FPGA Computer) project architecture. This file is mainly intended for AI tooling like Github Copilot.
 
 ## Project Overview
 

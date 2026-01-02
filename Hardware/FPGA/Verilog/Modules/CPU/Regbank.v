@@ -28,8 +28,8 @@ module Regbank (
     input wire          we
 );
 
-// 16 registers as individual flip-flops (distributed, not BRAM)
-reg [31:0] regs [1:15];  // Skip reg0, it's always 0
+// 16 registers as individual flip-flops
+(* ramstyle = "logic" *) reg [31:0] regs [0:15];
 
 // Stage 1: Registered addresses (captured in IF stage, used in ID stage)
 reg [3:0] addr_a_reg = 4'd0;
@@ -87,7 +87,7 @@ end
 // Initialize all registers to 0
 integer i;
 initial begin
-    for (i = 1; i < 16; i = i + 1) begin
+    for (i = 0; i < 16; i = i + 1) begin
         regs[i] = 32'd0;
     end
     addr_a_reg = 4'd0;

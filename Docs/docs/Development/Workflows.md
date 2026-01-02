@@ -155,7 +155,7 @@ B32CC (based on SmallerC) resides in `BuildTools/B32CC/`.
 make b32cc
 ```
 
-The compiler rebuilds automatically when `smlrc.c` or `cgb32p2.inc` changes.
+The compiler rebuilds automatically when `smlrc.c` or `cgb32p3.inc` changes.
 
 **Run all tests:**
 

@@ -5,7 +5,6 @@
 `timescale 1ns / 1ps
 
 `include "Hardware/FPGA/Verilog/Modules/CPU/B32P3.v"
-`include "Hardware/FPGA/Verilog/Modules/CPU/Regr.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/Regbank.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/InstructionDecoder.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/ALU.v"
@@ -19,7 +18,6 @@
 `include "Hardware/FPGA/Verilog/Modules/CPU/ParallelComparator.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/BranchJumpUnit.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/InterruptController.v"
-`include "Hardware/FPGA/Verilog/Modules/CPU/AddressDecoder.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/CacheControllerSDRAM.v"
 `include "Hardware/FPGA/Verilog/Modules/Memory/ROM.v"
 `include "Hardware/FPGA/Verilog/Modules/Memory/VRAM.v"
@@ -45,13 +43,12 @@
 module cpu_tb ();
 
 reg clk = 1'b0;
-reg clk100 = 1'b0; // Aligned with clk (both 100MHz now)
 reg reset = 1'b0;
 wire uart_reset; // Reset signal from UARTresetDetector
 
 // Inaccurate but good enough for simulation
 wire clkPixel = clk;
-wire clkTMDShalf = clk100;
+wire clkTMDShalf = clk;
 
 // SDRAM clock phase shift configuration (in degrees)
 parameter SDRAM_CLK_PHASE = 270;
@@ -77,8 +74,8 @@ wire    [3 : 0]  SDRAM_DQM;     // Mask
 assign SDRAM_CLK = SDRAM_CLK_internal;
 
 // Generate phase-shifted SDRAM clock
-always @(clk100) begin
-    SDRAM_CLK_internal <= #PHASE_DELAY clk100;
+always @(clk) begin
+    SDRAM_CLK_internal <= #PHASE_DELAY clk;
 end
 
 mt48lc16m16a2 #(
@@ -122,7 +119,7 @@ wire            sdc_done;
 wire [255:0]    sdc_q;
 SDRAMcontroller sdc (
     // Clock and reset
-    .clk(clk100),
+    .clk(clk),
     .reset(1'b0), // For now we do not want to reset the SDRAM controller
 
     .cpu_addr(sdc_addr),
@@ -309,7 +306,7 @@ DPRAM #(
     .pipe_addr(l1i_pipe_addr),
     .pipe_we(l1i_pipe_we),
     .pipe_q(l1i_pipe_q),
-    .clk_ctrl(clk100),
+    .clk_ctrl(clk),
     .ctrl_d(l1i_ctrl_d),
     .ctrl_addr(l1i_ctrl_addr),
     .ctrl_we(l1i_ctrl_we),
@@ -344,7 +341,7 @@ DPRAM #(
     .pipe_addr(l1d_pipe_addr),
     .pipe_we(l1d_pipe_we),
     .pipe_q(l1d_pipe_q),
-    .clk_ctrl(clk100),
+    .clk_ctrl(clk),
     .ctrl_d(l1d_ctrl_d),
     .ctrl_addr(l1d_ctrl_addr),
     .ctrl_we(l1d_ctrl_we),
@@ -372,7 +369,7 @@ wire l1_clear_cache_done;
 
 // Instantiate CacheController
 CacheController cache_controller (
-    .clk100(clk100),
+    .clk100(clk),
     .reset(reset || uart_reset),
 
     // CPU pipeline interface (50 MHz domain)
@@ -651,11 +648,6 @@ B32P3 cpu (
 );
 
 // 100 MHz clock
-always begin
-    #5 clk100 = ~clk100;
-end
-
-// 100 MHz clock (unified - same as clk100)
 always begin
     #5 clk = ~clk;
 end

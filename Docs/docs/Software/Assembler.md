@@ -3,7 +3,7 @@
 ASMPY is an assembler for the B32P3 ISA written in Python and allows the user to write and assemble code for the FPGC. While the main focus of the assembler is to assemble the output of the C compiler (B32CC), and therefore might not be great for large hand-written assembly projects, it can still be used for small assembly programs like bootloaders, or to create functional tests for the CPU/FPGC.
 
 !!! note
-    ASMPY is **not** the same as the assembler that runs on the FPGC itself, as Python cannot run on the FPGC. ASMPY's focus is to have a developer-friendly assembler on the development machine that can be easily extended, modified, debugged and improved.
+    ASMPY is **not** the same as the assembler that runs on the FPGC itself, as Python cannot run on the FPGC. ASMPY's focus is to have a developer-friendly assembler on the development machine that can be easily extended, modified, debugged and improved. Eventually, when FPGC becomes a more self-contained system, a native assembler running on the FPGC will be created, just like in FPGC6.
 
 ## Features
 
@@ -66,7 +66,7 @@ Int:
 
 ### Quick Reference Table
 
-The following table provides a comprehensive overview of all B32P3 instructions supported by ASMPY:
+The following table provides a complete overview of all B32P3 instructions supported by ASMPY:
 
 | Instruction | Arg1 | Arg2 | Arg3 | Description |
 |-------------|------|------|------|-------------|
@@ -218,7 +218,7 @@ Branch instructions support both numeric offsets and labels. When a label is use
 ### Data Directives
 
 !!! note
-    Currently only `.dw` is supported.
+    Currently only `.dw` and `.dsw` are supported.
 
 | Directive | Description | Example |
 |-----------|-------------|---------|

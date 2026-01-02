@@ -5,9 +5,9 @@
 
 ## Verilog/FPGA design
 
-- [ ] Remove line buffer in FSX_SRAM and access SRAM instead again for the second line to save up resources
-- [ ] Improve VRAMPX write fifo design now we run at 100MHz
+- [ ] Remove line buffer in FSX_SRAM and access SRAM instead again for the second line to save up resources, or assign the SRAM to the write FIFO during the second line to fix fast writes now the CPU runs at 100MHz
 - [ ] Status led modules for the Cyclone IV PCB
+- [ ] Implement Debugger (via JTAG FIFO and eventually PCI if success)
 
 ## Software development
 
@@ -38,16 +38,13 @@ These are potential todos for improving the development workflows.
 - [ ] Cycle-accurate performance measurement
 - [ ] Cache hit/miss statistics
 
+!!! Note
+    This might actually be better to implement when the debugger module is implemented.
+
 ---
 
 ## Verilog/Hardware Improvements
 
 ### Refactor and Cleanup
 
-- [ ] Extract Repeated Logic into Functions/Modules (possibly L1i and L1d cache miss handlers, or refactor them somewhere else)
-- [ ] Consolidate State Machine Constants (they are scattered now)
-- [ ] Add Stage Comments to Wire Declarations (Group wires by pipeline stage for easier navigation
-- [ ] Consider Prefix Conventions (hazard_, dep_, stall conditions, flush conditions, etc
-- [ ] Use forwarding logic for AddressDecoder and controlUnit so that there is no need for instantiating them in different stages
-- [ ] Document Magic Numbers (named constants for magic numbers)
-- [ ] Perhaps, split B32P2 into smaller modules like _hazards, _forwarding, _pipeline, _top
+- [ ] Determine what improvements did not really affect the timings and clean them up

@@ -21,7 +21,6 @@ B32CC_OUTPUT = $(B32CC_DIR)/output/b32cc
 .PHONY: docs-serve docs-deploy
 .PHONY: sim-cpu sim-cpu-uart sim-gpu sim-sdram sim-bootloader
 .PHONY: test-cpu test-cpu-sequential test-cpu-single debug-cpu quartus-timing
-.PHONY: test-b32p3 test-b32p3-single debug-b32p3
 .PHONY: compile-asm compile-bootloader compile-c-baremetal
 .PHONY: flash-asm-uart run-asm-uart flash-c-baremetal-uart run-c-baremetal-uart
 .PHONY: flash-c-baremetal-spi
@@ -113,7 +112,7 @@ check: format-check lint test-asmpy test-cpu test-b32cc
 
 b32cc: $(B32CC_OUTPUT)
 
-$(B32CC_OUTPUT): $(B32CC_SOURCES) $(B32CC_DIR)/cgb32p2.inc
+$(B32CC_OUTPUT): $(B32CC_SOURCES) $(B32CC_DIR)/cgb32p3.inc
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -DNO_ANNOTATIONS $(B32CC_SOURCES) -o $@
 
@@ -229,36 +228,6 @@ quartus-timing:
 	./Scripts/Tests/quartus_timing.sh
 
 # =============================================================================
-# B32P3 CPU Testing (New Pipeline Design)
-# =============================================================================
-
-test-b32p3:
-	@mkdir -p $(SIMULATION_OUTPUT_DIR)
-	uv run python Scripts/Tests/b32p3_tests.py
-
-test-b32p3-single:
-	@mkdir -p $(SIMULATION_OUTPUT_DIR)
-	@if [ -z "$(file)" ]; then \
-		echo "Usage: make test-b32p3-single file=<test_file>"; \
-		echo "Example: make test-b32p3-single file=09_pipeline_hazards/data_hazards_alu.asm"; \
-		echo "Available tests:"; \
-		find Tests/CPU -name "*.asm" -type f | grep -v "tmp" | sed 's|Tests/CPU/||' | sort; \
-		exit 1; \
-	fi
-	uv run python Scripts/Tests/b32p3_tests.py $(file)
-
-debug-b32p3:
-	@mkdir -p $(SIMULATION_OUTPUT_DIR)
-	@if [ -z "$(file)" ]; then \
-		echo "Usage: make debug-b32p3 file=<test_file>"; \
-		echo "Example: make debug-b32p3 file=09_pipeline_hazards/data_hazards_alu.asm"; \
-		echo "Available tests:"; \
-		find Tests/CPU -name "*.asm" -type f | grep -v "tmp" | sed 's|Tests/CPU/||' | sort; \
-		exit 1; \
-	fi
-	./Scripts/Tests/debug_b32p3_test.sh $(file)
-
-# =============================================================================
 # Compilation
 # =============================================================================
 
@@ -359,9 +328,9 @@ help:
 	@echo "  ruff-format-check   - Check ruff formatting only"
 	@echo ""
 	@echo "--- B32CC (C Compiler) ---"
-	@echo "  b32cc               - Build the B32P2 C compiler"
-	@echo "  test-b32cc          - Run all B32P2 C compiler tests (parallel)"
-	@echo "  test-b32cc-sequential - Run all B32P2 C compiler tests sequentially"
+	@echo "  b32cc               - Build the B32P3 C compiler"
+	@echo "  test-b32cc          - Run all B32P3 C compiler tests (parallel)"
+	@echo "  test-b32cc-sequential - Run all B32P3 C compiler tests sequentially"
 	@echo "  test-b32cc-single   - Run a single test"
 	@echo "                        Usage: make test-b32cc-single file=<test_file>"
 	@echo "  debug-b32cc         - Debug a single test with GTKWave"

@@ -5,7 +5,7 @@ from asmpy.models.data_types import SourceLine, Number
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Assembler for B32P2.", add_help=False)
+    parser = argparse.ArgumentParser(description="Assembler for B32P3.", add_help=False)
     parser.add_argument("file", help="The asm file to assemble")
     parser.add_argument("output", help="The assembled output file")
     parser.add_argument(

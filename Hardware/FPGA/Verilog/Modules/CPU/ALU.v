@@ -23,8 +23,8 @@ localparam
     // OP_XXX      = 4'b1001, // Reserved
     OP_SLT      = 4'b1010, // Set on less than signed
     OP_SLTU     = 4'b1011, // Set on less than unsigned
-    OP_LOAD     = 4'b1100, // [USED IN CONTROL UNIT!] Load input B ( y := b )
-    OP_LOADHI   = 4'b1101, // [USED IN CONTROL UNIT!] Loadhi input B ( y := {(b<<16), a} )
+    OP_LOAD     = 4'b1100, // Load input B ( y := b )
+    OP_LOADHI   = 4'b1101, // Loadhi input B ( y := {(b<<16), a} )
     OP_SHIFTRS  = 4'b1110; // Shift right with sign extension
     // OP_XXX      = 4'b1111; // Reserved
 
