@@ -2,7 +2,6 @@
  * CacheController (SDRAM)
  * Cache controller for L1 instruction and data cache, to use with SDRAM via custom SDRAM controller
  * Runs at 100 MHz
- * - Aside from the CPU pipeline interface (50 MHz), everything else is also in the 100 MHz domain
  * Connects to:
  * - DPRAM for L1 instruction cache (hardcoded to 7 bits, or 128 lines)
  * - DPRAM for L1 data cache (hardcoded to 7 bits, or 128 lines)
@@ -23,7 +22,7 @@ module CacheController (
     input  wire         reset,
 
     //========================
-    // CPU pipeline interface (50 MHz domain)
+    // CPU pipeline interface
     //========================
     // FE2 stage
     input  wire         cpu_FE2_start,
@@ -79,7 +78,6 @@ localparam
     STATE_L1I_SEND_READ_CMD      = 8'd1,
     STATE_L1I_WAIT_READ_DATA     = 8'd2,
     STATE_L1I_WRITE_TO_CACHE     = 8'd3,
-    STATE_L1I_SIGNAL_CPU_DONE    = 8'd4,
 
     // L1 Data Cache Read States
     STATE_L1D_READ_WAIT_CACHE_READ       = 8'd5,
@@ -90,7 +88,6 @@ localparam
     STATE_UNUSED_2                       = 8'd10,
     STATE_L1D_READ_WAIT_DATA             = 8'd11,
     STATE_L1D_READ_WRITE_TO_CACHE        = 8'd12,
-    STATE_L1D_READ_SIGNAL_CPU_DONE       = 8'd13,
 
     // L1 Data Cache Write States
     STATE_L1D_WRITE_WAIT_CACHE_READ             = 8'd14,
@@ -101,7 +98,6 @@ localparam
     STATE_UNUSED_4                              = 8'd19,
     STATE_L1D_WRITE_MISS_FETCH_WAIT_DATA        = 8'd20,
     STATE_L1D_WRITE_WRITE_TO_CACHE              = 8'd21,
-    STATE_L1D_WRITE_SIGNAL_CPU_DONE             = 8'd22,
 
     // Cache Clear States
     STATE_CLEARCACHE_REQUESTED                  = 8'd23,
@@ -133,14 +129,12 @@ reg [7:0] state = STATE_IDLE;
 
 
 // Storing requests from CPU pipeline when they arrive, to process them when state machine is ready for new requests
-reg cpu_FE2_start_prev = 1'b0; // For edge detection as the start signal will be at 50 MHz
 reg cpu_FE2_new_request = 1'b0;
 reg [31:0] cpu_FE2_addr_stored = 32'd0;
 reg [31:0] cpu_FE2_addr_in_flight = 32'd0; // Address captured when SDRAM request is sent
 // For reference: cpu_FE2_cache_tag = cpu_FE2_addr_stored[25:10]
 // For reference: cpu_FE2_cache_index = cpu_FE2_addr_stored[2:0]
 
-reg cpu_EXMEM2_start_prev = 1'b0; // For edge detection as the start signal will be at 50 MHz
 reg cpu_EXMEM2_new_request = 1'b0;
 reg [31:0] cpu_EXMEM2_addr_stored = 32'd0;
 reg [31:0] cpu_EXMEM2_data_stored = 32'd0;
@@ -202,11 +196,9 @@ begin
 
         state <= STATE_IDLE;
 
-        cpu_FE2_start_prev <= 1'b0;
         cpu_FE2_new_request <= 1'b0;
         cpu_FE2_addr_stored <= 32'd0;
         cpu_FE2_addr_in_flight <= 32'd0;
-        cpu_EXMEM2_start_prev <= 1'b0;
         cpu_EXMEM2_new_request <= 1'b0;
         cpu_EXMEM2_addr_stored <= 32'd0;
         cpu_EXMEM2_data_stored <= 32'd0;
@@ -227,12 +219,8 @@ begin
     end
     else
     begin
-        // Edge detection on CPU start signals
-        cpu_FE2_start_prev <= cpu_FE2_start;
-        cpu_EXMEM2_start_prev <= cpu_EXMEM2_start;
-
         // Check for CPU FE2 request
-        if (cpu_FE2_start && !cpu_FE2_start_prev)
+        if (cpu_FE2_start)
         begin
             cpu_FE2_new_request <= 1'b1;
             if (ignore_fe2_result)
@@ -253,7 +241,7 @@ begin
         end
 
         // Check for CPU EXMEM2 request
-        if (cpu_EXMEM2_start && !cpu_EXMEM2_start_prev)                                                                                                                                  
+        if (cpu_EXMEM2_start)                                                                                                                                  
         begin
             cpu_EXMEM2_new_request <= 1'b1;
             cpu_EXMEM2_addr_stored <= cpu_EXMEM2_addr;
@@ -426,6 +414,9 @@ begin
                 if (!ignore_fe2_result && !cpu_FE2_flush)
                 begin
                     cpu_FE2_done <= 1'b1;
+                    // Next cache line is current address + 8 words (one cache line)
+                    l1i_prefetch_pending <= 1'b1;
+                    l1i_prefetch_addr <= cpu_FE2_addr_stored[23:0] + 24'd8; // Next cache line
                     //$display("%d: CacheController FE2 OPERATION COMPLETE: addr=0x%h, result=0x%h", $time, cpu_FE2_addr_stored, cpu_FE2_result);
                 end
                 else
@@ -433,22 +424,10 @@ begin
                     //$display("%d: CacheController FE2 OPERATION COMPLETE: addr=0x%h, result=0x%h -- BUT IGNORED DUE TO FLUSH", $time, cpu_FE2_addr_stored, cpu_FE2_result);
                     ignore_fe2_result <= 1'b0; // Clear the ignore flag
                 end
-                state <= STATE_L1I_SIGNAL_CPU_DONE; // Extra stage for the 50 MHz CPU to see the results
-            end
-
-            STATE_L1I_SIGNAL_CPU_DONE: begin
-                // L1I PREFETCH: Queue prefetch of next sequential cache line
-                // The prefetch will execute during idle time, not affecting current instruction stream.
-                // Only queue if not flushed
-                if (!ignore_fe2_result && !cpu_FE2_flush)
-                begin
-                    // Next cache line is current address + 8 words (one cache line)
-                    l1i_prefetch_pending <= 1'b1;
-                    l1i_prefetch_addr <= cpu_FE2_addr_stored[23:0] + 24'd8; // Next cache line
-                end
                 
                 state <= STATE_IDLE;
             end
+
 
             // ------------------------
             // L1I Prefetch States
@@ -629,12 +608,8 @@ begin
                 // Set cpu_done
                 cpu_EXMEM2_done <= 1'b1;
                 //$display("%d: CacheController EXMEM2 READ OPERATION COMPLETE: addr=0x%h, result=0x%h", $time, cpu_EXMEM2_addr_stored, cpu_EXMEM2_result);
-                state <= STATE_L1D_READ_SIGNAL_CPU_DONE; // Extra stage for the 50 MHz CPU to see the results
-
-            end
-
-            STATE_L1D_READ_SIGNAL_CPU_DONE: begin
                 state <= STATE_IDLE; // After this stage, we can return to IDLE state
+
             end
 
             // ------------------------
@@ -684,9 +659,7 @@ begin
                 cpu_EXMEM2_done <= 1'b1;
                 //$display("%d: CacheController L1D READ FAST PATH COMPLETE: addr=0x%h, result=0x%h", $time, cpu_EXMEM2_addr_stored, cpu_EXMEM2_result);
                 
-                // Go directly to IDLE (skip SIGNAL_CPU_DONE state for even faster return)
-                // Wait, we need to keep the done signal high for a cycle for the 50MHz CPU
-                state <= STATE_L1D_READ_SIGNAL_CPU_DONE;
+                state <= STATE_IDLE;
             end
 
             // ------------------------
@@ -886,11 +859,7 @@ begin
                 // Set cpu_done
                 cpu_EXMEM2_done <= 1'b1;
                 //$display("%d: CacheController EXMEM2 WRITE OPERATION COMPLETE: addr=0x%h, data=0x%h", $time, cpu_EXMEM2_addr_stored, cpu_EXMEM2_data_stored);
-                state <= STATE_L1D_WRITE_SIGNAL_CPU_DONE; // Extra stage for the 50 MHz CPU to see the results
-            end
-
-            STATE_L1D_WRITE_SIGNAL_CPU_DONE: begin
-                state <= STATE_IDLE; // After this stage, we can return to IDLE state
+                state <= STATE_IDLE;
             end
 
             // ------------------------

@@ -2,12 +2,6 @@
  * Regbank
  * Contains 16 registers of 32 bit each
  * Reg0 is always 0
- * 
- * Fully registered design for optimal FPGA timing:
- * - Addresses are registered on input
- * - Data outputs are registered
- * - Total latency: 2 cycles from address to data
- * - Write-through forwarding handles WB conflicts
  */
 module Regbank (
     // Clock and reset

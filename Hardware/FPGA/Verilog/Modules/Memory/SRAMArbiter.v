@@ -3,26 +3,27 @@
  * Arbiter for external SRAM access between CPU writes and GPU reads
  * 
  * Key design principles:
- * - Runs at 100MHz (4× GPU clock, 2× CPU clock)
- * - GPU reads directly from SRAM
- * - CPU writes only during blanking periods
- * - Continuous SRAM reads during active video for minimal latency
+ * - Runs at 100MHz (4× GPU clock, same as CPU clock)
+ * - GPU reads directly from SRAM (even lines only - odd lines use line buffer)
+ * - CPU writes during blanking OR during odd lines (when GPU uses line buffer)
+ * - This doubles the effective CPU write bandwidth
  * 
  * Operation:
  * - During GPU blanking: drain write FIFO to SRAM
- * - During active video: continuously read current GPU address from SRAM
+ * - During active video, even lines: continuously read for GPU
+ * - During active video, odd lines: drain write FIFO (GPU uses line buffer)
  * 
  * Clock relationships (all from same PLL, phase-aligned):
  * - clk100: 100MHz arbiter clock (this module)
  * - GPU: 25MHz (1:4 ratio)
- * - CPU: 50MHz (1:2 ratio)
+ * - CPU: 100MHz (1:1 ratio)
  * 
  * SRAM timing:
  * - IS61LV5128AL has 10ns access time
  * - At 100MHz (10ns period), we have exactly 1 cycle for read/write
  * 
  * GPU read approach:
- * - During active video, continuously output current GPU address to SRAM
+ * - During active video (even lines), continuously output current GPU address
  * - SRAM data is registered, providing stable output with 1-2 cycle latency
  */
 module SRAMArbiter (
@@ -36,6 +37,7 @@ module SRAMArbiter (
     // GPU timing (directly from TimingGenerator)
     input  wire         blank,         // High during blanking period
     input  wire         vsync,         // For debug/monitoring
+    input  wire         using_line_buffer, // High when GPU uses line buffer (SRAM free)
     
     // CPU Write FIFO interface (read side, 100MHz)
     input  wire [16:0]  cpu_wr_addr,
@@ -59,6 +61,11 @@ assign sram_cs_n = 1'b0;
 reg [7:0] sram_data_reg = 8'd0;
 assign gpu_data = sram_data_reg;
 
+// Determine when we can process CPU writes:
+// - During blanking (no GPU reads needed)
+// - During odd lines when GPU uses line buffer (SRAM is free)
+wire can_write = blank || using_line_buffer;
+
 // CPU write state machine
 localparam STATE_IDLE       = 2'd0;
 localparam STATE_WRITE_WAIT = 2'd1;  // Wait one cycle for FIFO data
@@ -79,11 +86,10 @@ always @(posedge clk100) begin
         // Default: no FIFO read
         cpu_fifo_rd_en <= 1'b0;
         
-        if (blank) begin
+        if (can_write) begin
             //=================================================================
-            // BLANKING PERIOD: Process CPU writes
-            // But also keep reading GPU address in last few cycles before active
-            // to prime the data for first pixel
+            // WRITE PERIOD: Blanking OR GPU using line buffer (odd lines)
+            // Process CPU writes from FIFO
             //=================================================================
             case (write_state)
                 STATE_IDLE: begin
@@ -125,9 +131,9 @@ always @(posedge clk100) begin
             endcase
         end else begin
             //=================================================================
-            // ACTIVE VIDEO: Read for GPU
+            // ACTIVE VIDEO (even lines): Read for GPU
             //=================================================================
-            // Reset write state when exiting blanking
+            // Reset write state when entering GPU read mode
             write_state <= STATE_IDLE;
             
             // Continuously read current GPU address

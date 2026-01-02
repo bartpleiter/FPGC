@@ -1,16 +1,15 @@
 /*
  * VRAMPXSram
- * Simplified top-level module for pixel framebuffer using external SRAM
+ * Top-level module for pixel framebuffer using external SRAM
  * 
  * Interfaces:
- * - CPU: Write-only access to pixel framebuffer (50MHz)
+ * - CPU: Write-only access to pixel framebuffer (100MHz)
  * - GPU: Direct read access through arbiter (25MHz, synced internally)
  * - SRAM: External IS61LV5128AL interface
  */
 module VRAMPXSram (
     // Clocks and reset
-    input  wire         clk50,         // 50MHz CPU clock
-    input  wire         clk100,        // 100MHz arbiter clock
+    input  wire         clk100,        // 100MHz CPU/arbiter clock
     input  wire         clkPixel,      // 25MHz GPU clock
     input  wire         reset,
     
@@ -22,6 +21,7 @@ module VRAMPXSram (
     // GPU interface (25MHz domain)
     input  wire [16:0]  gpu_addr,      // Requested pixel address
     output wire [7:0]   gpu_data,      // Pixel data output
+    input  wire         using_line_buffer, // High when GPU uses line buffer (SRAM free)
     
     // GPU timing signals (25MHz domain)
     input  wire         blank,         // Active during blanking
@@ -50,6 +50,12 @@ end
 wire blank_sync = blank;
 wire vsync_sync = vsync;
 
+// Sync using_line_buffer to 100MHz domain
+reg using_line_buffer_sync = 1'b0;
+always @(posedge clk100) begin
+    using_line_buffer_sync <= using_line_buffer;
+end
+
 //=============================================================================
 // GPU data from arbiter to PixelEngine
 // The arbiter already registers the SRAM data, so we can pass it directly
@@ -62,8 +68,8 @@ wire [7:0] gpu_data_from_arbiter;
 assign gpu_data = gpu_data_from_arbiter;
 
 //=============================================================================
-// CPU Write FIFO (50MHz write, 100MHz read)
-// Using proper async FIFO with Gray-coded pointers for robust CDC
+// CPU Write FIFO (100MHz, synchronous)
+// Buffers CPU writes for processing during blanking or line buffer periods
 //=============================================================================
 wire [24:0] cpu_fifo_data_out;
 wire [16:0] cpu_fifo_addr = cpu_fifo_data_out[24:8];
@@ -72,21 +78,20 @@ wire        cpu_fifo_empty;
 wire        cpu_fifo_full;
 wire        cpu_fifo_rd_en;
 
-AsyncFIFO #(
+SyncFIFO #(
     .DATA_WIDTH(25),    // 17-bit address + 8-bit data
     .ADDR_WIDTH(9),     // 512 entries
     .DEPTH(512)
 ) cpu_write_fifo (
-    // Write side (50MHz)
-    .wr_clk(clk50),
-    .wr_reset(reset),
+    .clk(clk100),
+    .reset(reset),
+
+    // Write side (100MHz)
     .wr_data({cpu_addr, cpu_data}),
     .wr_en(cpu_we && !cpu_fifo_full),
     .wr_full(cpu_fifo_full),
     
     // Read side (100MHz)
-    .rd_clk(clk100),
-    .rd_reset(reset),
     .rd_data(cpu_fifo_data_out),
     .rd_empty(cpu_fifo_empty),
     .rd_en(cpu_fifo_rd_en)
@@ -113,6 +118,7 @@ SRAMArbiter arbiter (
     // GPU timing
     .blank(blank_sync),
     .vsync(vsync_sync),
+    .using_line_buffer(using_line_buffer_sync),
     
     // CPU Write FIFO interface
     .cpu_wr_addr(cpu_fifo_addr),

@@ -326,6 +326,7 @@ wire [7:0]  vramPX_cpu_q;  // Not used in this design (write-only from CPU)
 // GPU pixel interface - direct SRAM read
 wire [16:0] gpu_pixel_addr;
 wire [7:0]  gpu_pixel_data;
+wire        gpu_pixel_using_line_buffer;
 
 // Timing signals from FSX (25MHz domain)
 wire [11:0] fsx_h_count;
@@ -335,12 +336,11 @@ wire        fsx_blank;
 
 VRAMPXSram vrampx_sram (
     // Clocks and reset
-    .clk50(clk100),
     .clk100(clk100),
     .clkPixel(clkGPU),
     .reset(reset),
     
-    // CPU interface (50MHz)
+    // CPU interface (100MHz)
     .cpu_addr(vramPX_cpu_addr),
     .cpu_data(vramPX_cpu_d),
     .cpu_we(vramPX_cpu_we),
@@ -348,6 +348,7 @@ VRAMPXSram vrampx_sram (
     // GPU interface - direct SRAM read
     .gpu_addr(gpu_pixel_addr),
     .gpu_data(gpu_pixel_data),
+    .using_line_buffer(gpu_pixel_using_line_buffer),
     
     // GPU timing
     .blank(fsx_blank),
@@ -557,6 +558,7 @@ FSX_SRAM fsx (
     // Pixel SRAM interface
     .pixel_sram_addr(gpu_pixel_addr),
     .pixel_sram_data(gpu_pixel_data),
+    .pixel_using_line_buffer(gpu_pixel_using_line_buffer),
 
     // Timing outputs
     .h_count_out(fsx_h_count),

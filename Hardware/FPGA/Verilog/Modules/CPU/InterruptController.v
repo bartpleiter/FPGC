@@ -22,8 +22,8 @@ module InterruptController #(
 
 // CDC: Two-stage synchronizer for each interrupt input
 // This prevents metastability from propagating
-(* ASYNC_REG = "TRUE" *) reg [NUM_INTERRUPTS-1:0] int_sync1 = {NUM_INTERRUPTS{1'b0}};
-(* ASYNC_REG = "TRUE" *) reg [NUM_INTERRUPTS-1:0] int_sync2 = {NUM_INTERRUPTS{1'b0}};
+reg [NUM_INTERRUPTS-1:0] int_sync1 = {NUM_INTERRUPTS{1'b0}};
+reg [NUM_INTERRUPTS-1:0] int_sync2 = {NUM_INTERRUPTS{1'b0}};
 
 reg [NUM_INTERRUPTS-1:0] int_prev = {NUM_INTERRUPTS{1'b0}};
 reg [NUM_INTERRUPTS-1:0] int_triggered = {NUM_INTERRUPTS{1'b0}};

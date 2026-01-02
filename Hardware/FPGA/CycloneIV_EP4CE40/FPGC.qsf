@@ -423,7 +423,7 @@ set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/TimingGenerator.
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/PixelEngineSRAM.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/FSX_SRAM.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/Memory/SRAMArbiter.v
-set_global_assignment -name VERILOG_FILE ../Verilog/Modules/Memory/AsyncFIFO.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/Memory/SyncFIFO.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/Memory/VRAMPXSram.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/BGWrenderer.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/MultiCycleAluOps/Multu.v
