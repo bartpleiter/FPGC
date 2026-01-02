@@ -1,4 +1,4 @@
-; Simplified function call test
+; Simplified C function call test
 Main:
 
     ; Skip this test is run from ROM:

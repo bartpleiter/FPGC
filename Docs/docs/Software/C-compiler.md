@@ -312,9 +312,6 @@ B32CC can be tested in combination with the Assembler (ASMPY) and Verilog simula
 # Run all compiler tests (parallel, memory intensive)
 make test-b32cc
 
-# Run tests sequentially
-make test-b32cc-sequential
-
 # Run a single test
 make test-b32cc-single file=04_control_flow/if_statements.c
 

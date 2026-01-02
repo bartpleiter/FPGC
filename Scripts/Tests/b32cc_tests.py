@@ -679,11 +679,6 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="B32CC Compiler Test Suite")
     parser.add_argument(
-        "--sequential",
-        action="store_true",
-        help="Run tests sequentially instead of in parallel",
-    )
-    parser.add_argument(
         "--workers",
         type=int,
         default=None,
@@ -697,7 +692,7 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.test_file:
-        # Run single test (always sequential)
+        # Run single test
         runner = B32CCTestRunner()
         try:
             os.makedirs(runner.config.TMP_DIRECTORY, exist_ok=True)
@@ -705,15 +700,6 @@ def main() -> None:
             logger.info(f"PASS: {args.test_file}")
         except Exception as e:
             logger.error(f"FAIL: {args.test_file} -> {e}")
-            sys.exit(1)
-    elif args.sequential:
-        # Run all tests sequentially
-        runner = B32CCTestRunner()
-        passed, failed = runner.run_tests()
-        failed_with_errors = [(t, "") for t in failed]
-        total = len(passed) + len(failed)
-        _display_results_grouped(passed, failed_with_errors, total)
-        if failed:
             sys.exit(1)
     else:
         # Run all tests in parallel (default)

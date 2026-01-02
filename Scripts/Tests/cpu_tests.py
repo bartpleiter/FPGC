@@ -834,11 +834,6 @@ def main() -> None:
         help="Run both ROM and RAM tests with combined output (default)",
     )
     parser.add_argument(
-        "--sequential",
-        action="store_true",
-        help="Run tests sequentially instead of in parallel",
-    )
-    parser.add_argument(
         "--workers",
         type=int,
         default=None,
@@ -858,7 +853,7 @@ def main() -> None:
     use_ram = args.ram
 
     if args.test_file:
-        # Run a single test (always sequential)
+        # Run a single test
         runner = CPUTestRunner()
         if use_combined:
             # Run both ROM and RAM for single test
@@ -890,15 +885,6 @@ def main() -> None:
             except Exception as e:
                 logger.error(f"FAIL: {args.test_file} -> {e}")
                 sys.exit(1)
-    elif args.sequential:
-        # Run all tests sequentially
-        runner = CPUTestRunner()
-        if use_ram:
-            failed = runner.run_tests_from_ram()
-        else:
-            failed = runner.run_tests_from_rom()
-        if failed:
-            sys.exit(1)
     elif use_combined:
         # Run all tests in parallel with combined ROM+RAM output (default)
         runner = ParallelCPUTestRunner(max_workers=args.workers)

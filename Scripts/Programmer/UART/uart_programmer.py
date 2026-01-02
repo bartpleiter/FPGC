@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-UART Flasher Tool for FPGC
-A tool to flash binary files to FPGC via UART communication.
+UART Programmer Tool for FPGC
+A tool to program binary files onto FPGC via the UART bootloader.
 """
 
 import argparse
@@ -16,14 +16,14 @@ import serial
 from serial.serialutil import SerialException
 
 
-class UARTFlasherError(Exception):
-    """Custom exception for UART flasher errors."""
+class UARTProgrammerError(Exception):
+    """Custom exception for UART programmer errors."""
 
     pass
 
 
-class UARTFlasher:
-    """UART flasher for FPGC."""
+class UARTProgrammer:
+    """UART programmer for FPGC."""
 
     def __init__(
         self,
@@ -32,7 +32,7 @@ class UARTFlasher:
         timeout: Optional[float] = None,
         reset: bool = False,
     ):
-        """Initialize the UART flasher.
+        """Initialize the UART programmer.
 
         Args:
             port: Serial port path
@@ -65,7 +65,9 @@ class UARTFlasher:
                 logging.info("FPGC reset complete")
             return self
         except SerialException as e:
-            raise UARTFlasherError(f"Failed to open serial port {self.port_path}: {e}")
+            raise UARTProgrammerError(
+                f"Failed to open serial port {self.port_path}: {e}"
+            )
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit."""
@@ -83,7 +85,7 @@ class UARTFlasher:
             Binary data as bytearray
 
         Raises:
-            UARTFlasherError: If file cannot be read
+            UARTProgrammerError: If file cannot be read
         """
         try:
             with open(file_path, "rb") as f:
@@ -91,7 +93,7 @@ class UARTFlasher:
             logging.info(f"Read {len(data)} bytes from {file_path}")
             return data
         except IOError as e:
-            raise UARTFlasherError(f"Failed to read file {file_path}: {e}")
+            raise UARTProgrammerError(f"Failed to read file {file_path}: {e}")
 
     def create_word_list(self, data: bytearray) -> list[bytearray]:
         """Convert bytearray to list of 4-byte words.
@@ -115,8 +117,8 @@ class UARTFlasher:
         logging.info(f"Created {len(word_list)} words from data")
         return word_list
 
-    def flash_program(self, file_path: Path, test_mode: bool = False) -> int:
-        """Flash program to FPGC.
+    def send_program(self, file_path: Path, test_mode: bool = False) -> int:
+        """Program FPGC with binary file.
 
         Args:
             file_path: Path to binary file
@@ -126,10 +128,10 @@ class UARTFlasher:
             Exit code (0 for success, or FPGC return value in test mode)
 
         Raises:
-            UARTFlasherError: If flashing fails
+            UARTProgrammerError: If programming fails
         """
         if not self.serial_port:
-            raise UARTFlasherError("Serial port not initialized")
+            raise UARTProgrammerError("Serial port not initialized")
 
         # Give FPGC time to reset
         sleep(0.5)
@@ -139,7 +141,7 @@ class UARTFlasher:
         word_list = self.create_word_list(data)
 
         if len(word_list) < 3:
-            raise UARTFlasherError("Binary file too small - needs at least 3 words")
+            raise UARTProgrammerError("Binary file too small - needs at least 3 words")
 
         # Get file size from address 2 (third word)
         file_size_bytes = bytes(word_list[2])
@@ -148,7 +150,7 @@ class UARTFlasher:
         logging.info(f"Program size: {file_size} words")
 
         if file_size < 3:
-            raise UARTFlasherError("Program size too small - needs at least 3 words")
+            raise UARTProgrammerError("Program size too small - needs at least 3 words")
 
         try:
             # Send file size
@@ -167,7 +169,7 @@ class UARTFlasher:
             # Wait for completion signal
             completion_signal = self.serial_port.read(1)
             if len(completion_signal) != 1:
-                raise UARTFlasherError("Failed to receive completion signal")
+                raise UARTProgrammerError("Failed to receive completion signal")
 
             logging.info(f"Program sent successfully: {completion_signal}")
 
@@ -175,14 +177,14 @@ class UARTFlasher:
                 # Read return code from FPGC
                 return_code_bytes = self.serial_port.read(1)
                 if len(return_code_bytes) != 1:
-                    raise UARTFlasherError("Failed to receive test mode return code")
+                    raise UARTProgrammerError("Failed to receive test mode return code")
 
                 return_code = int.from_bytes(return_code_bytes, "little")
                 logging.info(f"FPGC returned: {return_code}")
                 return return_code
 
         except SerialException as e:
-            raise UARTFlasherError(f"Serial communication error: {e}")
+            raise UARTProgrammerError(f"Serial communication error: {e}")
 
         return 0
 
@@ -193,7 +195,7 @@ class UARTFlasher:
             duration: Duration in seconds to monitor (0 for indefinite)
         """
         if not self.serial_port:
-            raise UARTFlasherError("Serial port not initialized")
+            raise UARTProgrammerError("Serial port not initialized")
 
         if duration > 0:
             print(
@@ -221,7 +223,9 @@ class UARTFlasher:
         except KeyboardInterrupt:
             print("\n--- Serial monitor stopped. ---")
         except SerialException as e:
-            raise UARTFlasherError(f"Serial communication error during monitoring: {e}")
+            raise UARTProgrammerError(
+                f"Serial communication error during monitoring: {e}"
+            )
         finally:
             # Restore original timeout
             self.serial_port.timeout = original_timeout
@@ -240,7 +244,7 @@ def setup_logging(verbose: bool = False) -> None:
 def parse_arguments() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="UART flasher tool for FPGC",
+        description="UART programmer tool for FPGC",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
@@ -249,7 +253,7 @@ def parse_arguments() -> argparse.Namespace:
         "--file",
         type=Path,
         default=Path("Software/ASM/Output/code.bin"),
-        help="Path to binary file to flash",
+        help="Path to binary file to program",
     )
 
     parser.add_argument(
@@ -277,21 +281,21 @@ def parse_arguments() -> argparse.Namespace:
         "-m",
         "--monitor",
         action="store_true",
-        help="After flashing, monitor and print serial output",
+        help="After programming, monitor and print serial output",
     )
 
     parser.add_argument(
         "--monitor-duration",
         type=int,
         default=0,
-        help="Duration in seconds to monitor serial output after flashing (0 for indefinite)",
+        help="Duration in seconds to monitor serial output after programming (0 for indefinite)",
     )
 
     parser.add_argument(
         "-r",
         "--reset",
         action="store_true",
-        help="Reset FPGC via magic sequence before flashing",
+        help="Reset FPGC via magic sequence before programming",
     )
 
     return parser.parse_args()
@@ -312,13 +316,13 @@ def main() -> int:
         return 1
 
     try:
-        with UARTFlasher(args.port, args.baudrate, reset=args.reset) as flasher:
-            result = flasher.flash_program(args.file, args.test_mode)
+        with UARTProgrammer(args.port, args.baudrate, reset=args.reset) as programmer:
+            result = programmer.send_program(args.file, args.test_mode)
             if args.monitor:
-                flasher.monitor_serial(args.monitor_duration)
+                programmer.monitor_serial(args.monitor_duration)
             return result
-    except UARTFlasherError as e:
-        logging.error(f"Flasher error: {e}")
+    except UARTProgrammerError as e:
+        logging.error(f"Programmer error: {e}")
         return 1
     except KeyboardInterrupt:
         logging.info("Operation interrupted by user")
