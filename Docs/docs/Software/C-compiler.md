@@ -214,6 +214,7 @@ Lower addresses
 ### Functions
 
 **Supported:**
+
 - Function declarations and definitions
 - Function calls with arguments
 - Return values

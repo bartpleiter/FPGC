@@ -312,10 +312,7 @@ VRAM #(
 );
 
 /******************************************************************************
- * VRAMPX SRAM Interface V2
- * CPU writes go to SRAM via block RAM FIFO during blanking
- * GPU reads directly from SRAM via arbiter during active video
- * Arbiter runs at 100MHz for proper SRAM timing
+ * VRAMPX SRAM Interface
  ******************************************************************************/
 
 wire [16:0] vramPX_cpu_addr;
@@ -366,7 +363,7 @@ VRAMPXSram vrampx_sram (
 assign vramPX_cpu_q = 8'd0;
 
 /******************************************************************************
- * L1i RAM (100&50MHz)
+ * L1i RAM
  ******************************************************************************/
 wire [270:0] l1i_pipe_d;
 wire [6:0]   l1i_pipe_addr;
@@ -401,7 +398,7 @@ DPRAM #(
 );
 
 /******************************************************************************
- * L1d RAM (100&50MHz)
+ * L1d RAM
  ******************************************************************************/
 wire [270:0] l1d_pipe_d;
 wire [6:0]   l1d_pipe_addr;
@@ -436,7 +433,7 @@ DPRAM #(
 );
 
 /******************************************************************************
- * SDRAM Controller (100MHz)
+ * SDRAM Controller
  ******************************************************************************/
 wire [20:0]     sdc_addr;
 wire [255:0]    sdc_data;
@@ -468,7 +465,7 @@ SDRAMcontroller sdc (
 );
 
 /******************************************************************************
- * CacheController (100MHz)
+ * CacheController
  ******************************************************************************/
 wire [31:0] l1i_cache_controller_addr;
 wire        l1i_cache_controller_start;
@@ -490,7 +487,7 @@ CacheController cache_controller (
     .clk100(clk100),
     .reset(reset),
 
-    // CPU pipeline interface (50 MHz domain)
+    // CPU pipeline interface
     .cpu_FE2_start(l1i_cache_controller_start),
     .cpu_FE2_addr(l1i_cache_controller_addr),
     .cpu_FE2_flush(l1i_cache_controller_flush),
@@ -574,7 +571,7 @@ FSX_SRAM fsx (
 );
 
 /******************************************************************************
- * Memory Unit (50MHz)
+ * Memory Unit
  ******************************************************************************/
 // Bus
 wire        mu_start;
@@ -650,7 +647,7 @@ MemoryUnit memory_unit (
 );
 
 /******************************************************************************
- * CPU (50MHz)
+ * CPU
  ******************************************************************************/
 // Convert frameDrawn to CPU clock domain
 wire frameDrawn_CPU; // Interrupt synchronized to 100MHz clock
