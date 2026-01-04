@@ -33,7 +33,7 @@ mkdir -p Software/ASM/Output
 echo "Compiling C to assembly..."
 # Change to Software/C directory so includes work correctly
 cd Software/C
-if ../../"$B32CC" "BDOS/${C_FILENAME}.c" "../../${ASM_OUTPUT}"
+if ../../"$B32CC" "BDOS/${C_FILENAME}.c" "../../${ASM_OUTPUT}" "-bdos"
 then
     echo "C compilation successful"
 else

@@ -534,6 +534,8 @@ int opsp = 0;
 int OutputFormat = FormatSegmented;
 int GenExterns = 1;
 int UseBss = 1;
+int BDOS = 0; // if set, compile program as BDOS
+int UserBDOS = 0; // if set, compile program as BDOS User Program
 
 // Names of C functions and variables are usually prefixed with an underscore.
 // One notable exception is the ELF format used by gcc in Linux.
@@ -8177,6 +8179,20 @@ int main(int argc, char** argv)
   // Parse the command line arguments
   for (i = 1; i < argc; i++)
   {
+    if (!strcmp(argv[i], "-bdos"))
+    {
+      // Program to compile is BDOS
+      BDOS = 1;
+      UserBDOS = 0;
+      continue;
+    }
+    if (!strcmp(argv[i], "-user-bdos"))
+    {
+      // Program to compile is BDOS User Program
+      UserBDOS = 1;
+      BDOS = 0; // If both -bdos and -user-bdos are present, -user-bdos takes precedence
+      continue;
+    }
     if (!strcmp(argv[i], "-signed-char"))
     {
       // this is the default option

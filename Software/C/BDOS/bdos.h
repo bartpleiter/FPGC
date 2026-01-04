@@ -23,6 +23,7 @@
 #define KERNEL_TIMER
 #include "libs/kernel/kernel.h"
 
+// Functions that can be called from BDOS modules
 void bdos_panic(const char* msg);
 
 #endif // BDOS_H
