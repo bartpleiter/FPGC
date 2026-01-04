@@ -21,9 +21,9 @@ B32CC_OUTPUT = $(B32CC_DIR)/output/b32cc
 .PHONY: docs-serve docs-deploy
 .PHONY: sim-cpu sim-gpu sim-sdram sim-bootloader
 .PHONY: test-cpu test-cpu-single debug-cpu quartus-timing
-.PHONY: compile-asm compile-bootloader compile-c-baremetal
-.PHONY: run-uart run-asm-uart run-c-baremetal-uart
-.PHONY: flash-c-baremetal-spi
+.PHONY: compile-asm compile-bootloader compile-c-baremetal compile-bdos
+.PHONY: run-uart run-asm-uart run-c-baremetal-uart run-bdos
+.PHONY: flash-c-baremetal-spi flash-bdos
 .PHONY: b32cc test-b32cc test-b32cc-single debug-b32cc clean-b32cc
 .PHONY: check
 
@@ -237,6 +237,9 @@ compile-c-baremetal: $(B32CC_OUTPUT)
 	fi
 	./Scripts/BCC/compile_bare_metal_c.sh $(file)
 
+compile-bdos:
+	./Scripts/BCC/compile_bdos.sh
+
 # =============================================================================
 # Hardware Programming
 # =============================================================================
@@ -248,6 +251,8 @@ run-asm-uart: compile-asm run-uart
 
 run-c-baremetal-uart: compile-c-baremetal run-uart
 
+run-bdos: compile-bdos run-uart
+
 flash-c-baremetal-spi: $(B32CC_OUTPUT)
 	@if [ -z "$(file)" ]; then \
 		echo "Usage: make flash-c-baremetal-spi file=<c_filename_in_bareMetal_dir_without_extension>"; \
@@ -257,6 +262,9 @@ flash-c-baremetal-spi: $(B32CC_OUTPUT)
 		exit 1; \
 	fi
 	./Scripts/Programmer/flash_spi.sh $(file)
+
+flash-bdos: compile-bdos
+	./Scripts/Programmer/flash_bdos.sh
 
 # =============================================================================
 # Cleanup
@@ -340,13 +348,16 @@ help:
 	@echo "  compile-c-baremetal - Compile bare-metal C file"
 	@echo "                        Usage: make compile-c-baremetal file=<filename>"
 	@echo "  compile-bootloader  - Compile bootloader"
+	@echo "  compile-bdos        - Compile BDOS"
 	@echo ""
 	@echo "--- Hardware Programming ---"
 	@echo "  run-uart              - Run compiled ASM binary via UART"
 	@echo "  run-asm-uart          - Compile and run ASM binary via UART"
 	@echo "  run-c-baremetal-uart  - Compile and run C binary via UART"
+	@echo "  run-bdos              - Compile and run BDOS binary via UART"
 	@echo "  flash-c-baremetal-spi - Flash C binary to SPI flash (persistent)"
 	@echo "                          Usage: make flash-c-baremetal-spi file=<filename>"
+	@echo "  flash-bdos            - Flash BDOS binary to SPI flash (persistent)"
 	@echo ""
 	@echo "--- Cleanup ---"
 	@echo "  clean               - Clean all build artifacts and environments"

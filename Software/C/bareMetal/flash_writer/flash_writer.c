@@ -70,7 +70,7 @@ void debug_check_uart()
     {
         uart_puts(" Word ");;
         uart_putint(j);
-        uart_puts(": 0x");
+        uart_puts(": ");
         uart_puthex(read_buffer[j], 1);
         uart_puts("\n");
     }
