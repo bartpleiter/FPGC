@@ -2,33 +2,37 @@
  * BDOS main module and entry point.
  */
 
-// Include common libraries
-#define COMMON_STRING
-#define COMMON_STDLIB
-#define COMMON_CTYPE
-#include "libs/common/common.h"
+#include "BDOS/bdos.h"
 
-// Include kernel libraries
-#define KERNEL_GPU_HAL
-#define KERNEL_GPU_FB
-#define KERNEL_GPU_DATA_ASCII
-#define KERNEL_TERM
-#define KERNEL_UART
-#define KERNEL_SPI
-#define KERNEL_SPI_FLASH
-#define KERNEL_BRFS
-#define KERNEL_TIMER
-#include "libs/kernel/kernel.h"
+// Include BDOS code modules
+#include "BDOS/init.c"
+
+void bdos_panic(const char* msg)
+{
+  // Print panic message to terminal and UART
+  term_set_palette(PALETTE_WHITE_ON_RED);
+  term_puts("BDOS PANIC:\n");
+  term_puts(msg);
+  term_puts("\n\nSystem halted.\n");
+
+  uart_puts("BDOS PANIC:\n");
+  uart_puts(msg);
+  uart_puts("\n\nSystem halted.\n");
+
+  // Halt system
+  asm("halt");
+}
 
 // Main entry point
 int main()
 {
+  // Initialize BDOS
+  bdos_init();
 
   // Return value gets printed over UART
   // Should not reach here in normal operation
   return 0x42;
 }
-
 
 // Interrupt handler
 void interrupt()
@@ -39,10 +43,13 @@ void interrupt()
     case INTID_UART:
       break;
     case INTID_TIMER0:
+      timer_isr_handler(TIMER_0);
       break;
     case INTID_TIMER1:
+      timer_isr_handler(TIMER_1);
       break;
     case INTID_TIMER2:
+      timer_isr_handler(TIMER_2);
       break;
     case INTID_FRAME_DRAWN:
       break;
