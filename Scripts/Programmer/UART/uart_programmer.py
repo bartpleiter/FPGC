@@ -49,9 +49,18 @@ class UARTProgrammer:
     def __enter__(self):
         """Context manager entry."""
         try:
-            self.serial_port = serial.Serial(
-                self.port_path, baudrate=self.baudrate, timeout=self.timeout
-            )
+            # If using rfc2217, use serial_for_url
+            if self.port_path.startswith("rfc2217://"):
+                # Note: I could not find a proper fix, so you have to manually disable
+                #  all the purge calls for rfc2217 in the serial library.
+                self.serial_port = serial.serial_for_url(
+                    self.port_path, baudrate=self.baudrate, timeout=self.timeout
+                )
+            else:
+                self.serial_port = serial.Serial(
+                    self.port_path, baudrate=self.baudrate, timeout=self.timeout
+                )
+            
             logging.info(f"Connected to {self.port_path} at {self.baudrate} baud")
 
             if self.reset:

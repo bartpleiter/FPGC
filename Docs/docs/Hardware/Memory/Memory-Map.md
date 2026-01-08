@@ -44,13 +44,13 @@ $7000000    +------------------------+
             | SPI1_CS            $0B |
             | SPI2_data (USB H1) $0C |
             | SPI2_CS            $0D |
-            | Reserved           $0E |
+            | SPI2_nint          $0E |
             | SPI3_data (USB H2) $0F |
             | SPI3_CS            $10 |
-            | Reserved           $11 |
+            | SPI3_nint          $11 |
             | SPI4_data (Eth)    $12 |
             | SPI4_CS            $13 |
-            | Reserved           $14 |
+            | SPI4_nint          $14 |
             | SPI5_data (SD)     $15 |
             | SPI5_CS            $16 |
             | GPIO_mode          $17 |

@@ -626,18 +626,21 @@ MemoryUnit memory_unit (
     .SPI2_mosi(usb1_mosi),
     .SPI2_miso(usb1_miso),
     .SPI2_cs(usb1_cs),
+    .SPI2_nint(usb1_nint),
 
     // USB 2
     .SPI3_clk(usb2_clk),
     .SPI3_mosi(usb2_mosi),
     .SPI3_miso(usb2_miso),
     .SPI3_cs(usb2_cs),
+    .SPI3_nint(usb2_nint),
 
     // Ethernet
     .SPI4_clk(eth_clk),
     .SPI4_mosi(eth_mosi),
     .SPI4_miso(eth_miso),
     .SPI4_cs(eth_cs),
+    .SPI4_nint(eth_nint),
 
     // SD Card
     .SPI5_clk(sd_clk),

@@ -32,6 +32,12 @@
 #endif
 #endif
 
+#ifdef KERNEL_CH376
+#ifndef KERNEL_SPI
+#define KERNEL_SPI
+#endif
+#endif
+
 #ifdef KERNEL_MEM_DEBUG
 #ifndef KERNEL_UART
 #define KERNEL_UART
@@ -70,6 +76,10 @@
 
 #ifdef KERNEL_SPI_FLASH
 #include "libs/kernel/io/spi_flash.h"
+#endif
+
+#ifdef KERNEL_CH376
+#include "libs/kernel/io/ch376.h"
 #endif
 
 #ifdef KERNEL_BRFS
@@ -118,6 +128,10 @@
 
 #ifdef KERNEL_SPI_FLASH
 #include "libs/kernel/io/spi_flash.c"
+#endif
+
+#ifdef KERNEL_CH376
+#include "libs/kernel/io/ch376.c"
 #endif
 
 #ifdef KERNEL_BRFS

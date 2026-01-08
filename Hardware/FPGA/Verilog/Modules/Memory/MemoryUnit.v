@@ -54,18 +54,21 @@ module MemoryUnit (
     output reg          SPI2_cs = 1'b1,
     output wire         SPI2_mosi,
     input wire          SPI2_miso,
+    input wire          SPI2_nint,
 
     // SPI3 (USB Host 2)
     output wire         SPI3_clk,
     output reg          SPI3_cs = 1'b1,
     output wire         SPI3_mosi,
     input wire          SPI3_miso,
+    input wire          SPI3_nint,
 
     // SPI4 (Ethernet)
     output wire         SPI4_clk,
     output reg          SPI4_cs = 1'b1,
     output wire         SPI4_mosi,
     input wire          SPI4_miso,
+    input wire          SPI4_nint,
 
     // SPI5 (SD Card)
     output wire         SPI5_clk,
@@ -307,13 +310,13 @@ localparam ADDR_SPI1_DATA       = 32'h700000A; // SPI1 data (Flash2)
 localparam ADDR_SPI1_CS         = 32'h700000B; // SPI1 CS
 localparam ADDR_SPI2_DATA       = 32'h700000C; // SPI2 data (USB H1)
 localparam ADDR_SPI2_CS         = 32'h700000D; // SPI2 CS
-localparam ADDR_RESERVED_0E     = 32'h700000E; // Reserved
+localparam ADDR_SPI2_NINT       = 32'h700000E; // SPI2 NINT
 localparam ADDR_SPI3_DATA       = 32'h700000F; // SPI3 data (USB H2)
 localparam ADDR_SPI3_CS         = 32'h7000010; // SPI3 CS
-localparam ADDR_RESERVED_11     = 32'h7000011; // Reserved
+localparam ADDR_SPI3_NINT       = 32'h7000011; // SPI3 NINT
 localparam ADDR_SPI4_DATA       = 32'h7000012; // SPI4 data (Ethernet)
 localparam ADDR_SPI4_CS         = 32'h7000013; // SPI4 CS
-localparam ADDR_RESERVED_14     = 32'h7000014; // Reserved
+localparam ADDR_SPI4_NINT       = 32'h7000014; // SPI4 NINT
 localparam ADDR_SPI5_DATA       = 32'h7000015; // SPI5 data (SD)
 localparam ADDR_SPI5_CS         = 32'h7000016; // SPI5 CS
 localparam ADDR_GPIO_MODE       = 32'h7000017; // GPIO mode
@@ -334,14 +337,17 @@ localparam STATE_WAIT_SPI1_DATA         = 8'd6;
 localparam STATE_WAIT_SPI1_CS           = 8'd7;
 localparam STATE_WAIT_SPI2_DATA         = 8'd8;
 localparam STATE_WAIT_SPI2_CS           = 8'd9;
-localparam STATE_WAIT_SPI3_DATA         = 8'd10;
-localparam STATE_WAIT_SPI3_CS           = 8'd11;
-localparam STATE_WAIT_SPI4_DATA         = 8'd12;
-localparam STATE_WAIT_SPI4_CS           = 8'd13;
-localparam STATE_WAIT_SPI5_DATA         = 8'd14;
-localparam STATE_WAIT_SPI5_CS           = 8'd15;
-localparam STATE_WAIT_BOOT_MODE         = 8'd16;
-localparam STATE_WAIT_MICROS            = 8'd17;
+localparam STATE_WAIT_SPI2_NINT         = 8'd10;
+localparam STATE_WAIT_SPI3_DATA         = 8'd11;
+localparam STATE_WAIT_SPI3_CS           = 8'd12;
+localparam STATE_WAIT_SPI3_NINT         = 8'd13;
+localparam STATE_WAIT_SPI4_DATA         = 8'd14;
+localparam STATE_WAIT_SPI4_CS           = 8'd15;
+localparam STATE_WAIT_SPI4_NINT         = 8'd16;
+localparam STATE_WAIT_SPI5_DATA         = 8'd17;
+localparam STATE_WAIT_SPI5_CS           = 8'd18;
+localparam STATE_WAIT_BOOT_MODE         = 8'd19;
+localparam STATE_WAIT_MICROS            = 8'd20;
 
 
 reg [7:0] state = 8'd0;
@@ -540,6 +546,11 @@ always @(posedge clk) begin
                         state <= STATE_WAIT_SPI2_CS;
                     end
 
+                    if (addr == ADDR_SPI2_NINT)
+                    begin
+                        state <= STATE_WAIT_SPI2_NINT;
+                    end
+
                     // SPI3
                     if (addr == ADDR_SPI3_DATA)
                     begin
@@ -561,6 +572,11 @@ always @(posedge clk) begin
                         state <= STATE_WAIT_SPI3_CS;
                     end
 
+                    if (addr == ADDR_SPI3_NINT)
+                    begin
+                        state <= STATE_WAIT_SPI3_NINT;
+                    end
+
                     // SPI4
                     if (addr == ADDR_SPI4_DATA)
                     begin
@@ -580,6 +596,11 @@ always @(posedge clk) begin
                             SPI4_cs <= data[0];
                         end
                         state <= STATE_WAIT_SPI4_CS;
+                    end
+
+                    if (addr == ADDR_SPI4_NINT)
+                    begin
+                        state <= STATE_WAIT_SPI4_NINT;
                     end
 
                     // SPI5
@@ -706,6 +727,13 @@ always @(posedge clk) begin
                 state <= STATE_IDLE;
             end
 
+            STATE_WAIT_SPI2_NINT:
+            begin
+                done <= 1'b1;
+                q <= {31'd0, SPI2_nint};
+                state <= STATE_IDLE;
+            end
+
             STATE_WAIT_SPI3_DATA:
             begin
                 wait_done <= 1'b1;
@@ -724,6 +752,13 @@ always @(posedge clk) begin
                 state <= STATE_IDLE;
             end
 
+            STATE_WAIT_SPI3_NINT:
+            begin
+                done <= 1'b1;
+                q <= {31'd0, SPI3_nint};
+                state <= STATE_IDLE;
+            end
+
             STATE_WAIT_SPI4_DATA:
             begin
                 wait_done <= 1'b1;
@@ -739,6 +774,13 @@ always @(posedge clk) begin
             begin
                 done <= 1'b1;
                 q <= {31'd0, SPI4_cs};
+                state <= STATE_IDLE;
+            end
+
+            STATE_WAIT_SPI4_NINT:
+            begin
+                done <= 1'b1;
+                q <= {31'd0, SPI4_nint};
                 state <= STATE_IDLE;
             end
 

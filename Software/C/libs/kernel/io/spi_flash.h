@@ -6,8 +6,8 @@
  * Builds on top of the SPI library to provide flash-specific functions.
  */
 
-#define SPI_FLASH_0 0
-#define SPI_FLASH_1 1
+#define SPI_FLASH_0 SPI_ID_FLASH_0
+#define SPI_FLASH_1 SPI_ID_FLASH_1
 
 // Read JEDEC ID
 void spi_flash_read_jedec_id(int spi_id, int* manufacturer_id, int* memory_type, int* capacity);
