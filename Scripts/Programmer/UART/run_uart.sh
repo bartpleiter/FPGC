@@ -6,7 +6,7 @@ source .venv/bin/activate
 # Run code via UART runner
 echo "Programming FPGC via UART"
 SCRIPT=Scripts/Programmer/UART/uart_programmer.py
-ARGS=(-p "rfc2217://192.168.0.240:12345" -f Software/ASM/Output/code.bin -m --monitor-duration 4)
+ARGS=(-p "rfc2217://192.168.0.240:12345" -f Software/ASM/Output/code.bin -m --monitor-duration 2)
 #ARGS=(-p /dev/ttyUSB0 -f Software/ASM/Output/code.bin -m --monitor-duration 4)
 
 
