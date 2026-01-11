@@ -33,6 +33,7 @@
 #define CH376_CMD_SET_ENDP7         0x1D
 #define CH376_CMD_GET_STATUS        0x22
 #define CH376_CMD_RD_USB_DATA0      0x27
+#define CH376_CMD_RD_USB_DATA       0x28
 #define CH376_CMD_WR_HOST_DATA      0x2C
 #define CH376_CMD_SET_USB_ADDR      0x13
 #define CH376_CMD_SET_ADDRESS       0x45
@@ -40,6 +41,7 @@
 #define CH376_CMD_SET_CONFIG        0x49
 #define CH376_CMD_AUTO_SETUP        0x4D
 #define CH376_CMD_ISSUE_TKN_X       0x4E
+#define CH376_CMD_ISSUE_TOKEN       0x4F
 #define CH376_CMD_CLR_STALL         0x41
 
 /* USB Mode codes */
@@ -331,12 +333,11 @@ int ch376_set_device_config(int spi_id, int config);
 /**
  * Execute a USB transaction.
  * @param spi_id SPI ID
- * @param sync_flag Sync flag (bit7=RX toggle, bit6=TX toggle)
  * @param endpoint Endpoint number (0-15)
  * @param pid Transaction type (CH376_PID_*)
  * @return Interrupt status code
  */
-int ch376_issue_token(int spi_id, int sync_flag, int endpoint, int pid);
+int ch376_issue_token(int spi_id, int endpoint, int pid);
 
 /**
  * Set receiver (host IN endpoint) toggle.

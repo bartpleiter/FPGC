@@ -107,7 +107,7 @@ int ch376_set_usb_mode(int spi_id, int mode)
   spi_transfer(spi_id, mode);
 
   // Wait a long time for the mode to take effect
-  delay(50);
+  delay(10);
 
   status = spi_transfer(spi_id, 0x00);
   ch376_end_cmd(spi_id);
@@ -137,6 +137,7 @@ int ch376_wait_interrupt(int spi_id, int timeout_ms)
 {
   int now = 0;
   int start = get_micros();
+  int i;
 
   while (1)
   {
@@ -148,8 +149,12 @@ int ch376_wait_interrupt(int spi_id, int timeout_ms)
     now = get_micros();
     if ((now - start) >= (timeout_ms * 1000))
     {
+      uart_puts("CH376 wait_interrupt timeout\n");
       return -1; /* Timeout */
     }
+
+    /* Small delay to avoid busy waiting too tightly */
+    for (i = 0; i < 1000; i++);
   }
   return -1; // Should not reach here
 }
@@ -191,6 +196,9 @@ int ch376_read_data(int spi_id, char *buffer, int max_len)
 
   if (len > max_len)
   {
+    uart_puts("Warning: CH376 read length exceeds buffer size!\n");
+    uart_puthex(len, 1);
+    uart_putchar('\n');
     len = max_len;
   }
 
@@ -269,7 +277,15 @@ int ch376_detect_device(int spi_id, int *is_low_speed)
 
 void ch376_set_rx_toggle(int spi_id, int toggle)
 {
-  int mode = 0x80 | (toggle ? 0x40 : 0x00);
+  int mode;
+  if (toggle)
+  {
+    mode = 0xC0;
+  }
+  else
+  {
+    mode = 0x80;
+  }
   ch376_send_cmd(spi_id, CH376_CMD_SET_ENDP6);
   spi_transfer(spi_id, mode);
   ch376_end_cmd(spi_id);
@@ -283,18 +299,25 @@ void ch376_set_tx_toggle(int spi_id, int toggle)
   ch376_end_cmd(spi_id);
 }
 
-int ch376_issue_token(int spi_id, int sync_flag, int endpoint, int pid)
+int ch376_issue_token(int spi_id, int endpoint, int pid)
 {
   int transaction_attr;
   int status;
 
   transaction_attr = ((endpoint & 0x0F) << 4) | (pid & 0x0F);
 
-  ch376_send_cmd(spi_id, CH376_CMD_ISSUE_TKN_X);
-  spi_transfer(spi_id, sync_flag);
+  // uart_puts("Issuing token: EP=");
+  // uart_puthex(endpoint, 1);
+  // uart_puts(" PID=");
+  // uart_puthex(pid, 1);
+  // uart_puts("\n, transaction_attr=");
+  // uart_puthex(transaction_attr, 1);
+  // uart_putchar('\n');
+
+  ch376_send_cmd(spi_id, CH376_CMD_ISSUE_TOKEN);
   spi_transfer(spi_id, transaction_attr);
   ch376_end_cmd(spi_id);
-
+  
   /* Wait for transaction to complete */
   status = ch376_wait_interrupt(spi_id, 500);
 
@@ -373,7 +396,11 @@ int ch376_set_device_config(int spi_id, int config)
   ch376_end_cmd(spi_id);
 
   status = ch376_wait_interrupt(spi_id, 500);
-  return (status == CH376_INT_SUCCESS) ? 1 : 0;
+  if (status == CH376_INT_SUCCESS)
+  {
+    return 1;
+  }
+  return 0;
 }
 
 /* ============================================ */
@@ -462,6 +489,7 @@ int ch376_enumerate_device(int spi_id, usb_device_info_t *info)
   int is_low_speed = 0;
   char config_buffer[64];
   int config_len;
+  int status = 0;
 
   /* Clear the info structure */
   info->connected = 0;
@@ -496,10 +524,21 @@ int ch376_enumerate_device(int spi_id, usb_device_info_t *info)
   ch376_set_usb_mode(spi_id, CH376_MODE_HOST_RESET);
   ch376_set_usb_mode(spi_id, CH376_MODE_HOST_SOF);
 
+  /* Wait for device to connect again */
+  status = ch376_wait_interrupt(spi_id, 2000);
+  if (status != CH376_INT_CONNECT)
+  {
+    return 0;
+  }
+
   /* Set speed again after mode change */
   if (is_low_speed)
   {
     ch376_set_usb_speed(spi_id, CH376_SPEED_LOW);
+  }
+  else
+  {
+    ch376_set_usb_speed(spi_id, CH376_SPEED_FULL);
   }
 
   /* Get device descriptor at address 0 */
@@ -515,18 +554,18 @@ int ch376_enumerate_device(int spi_id, usb_device_info_t *info)
   }
   info->address = 1;
 
+  /* Set configuration (use configuration 1) */
+  if (!ch376_set_device_config(spi_id, 1))
+  {
+    return 0;
+  }
+
   /* Get configuration descriptor */
   config_len = ch376_get_config_descriptor(spi_id, config_buffer, 64);
 
   if (config_len > 0)
   {
     parse_config_descriptor(config_buffer, config_len, info);
-  }
-
-  /* Set configuration (use configuration 1) */
-  if (!ch376_set_device_config(spi_id, 1))
-  {
-    return 0;
   }
 
   info->connected = 1;
@@ -561,7 +600,7 @@ static int ch376_control_transfer_in(int spi_id, char *setup, int setup_len,
   /* Setup stage: send SETUP packet with DATA0 */
   ch376_set_tx_toggle(spi_id, 0);
   ch376_write_data(spi_id, setup, setup_len);
-  status = ch376_issue_token(spi_id, 0x00, 0, CH376_PID_SETUP);
+  status = ch376_issue_token(spi_id, 0x00, CH376_PID_SETUP);
   if (status != CH376_INT_SUCCESS)
   {
     return -1;
@@ -571,7 +610,7 @@ static int ch376_control_transfer_in(int spi_id, char *setup, int setup_len,
   while (total_len < max_data_len && total_len < requested_len)
   {
     ch376_set_rx_toggle(spi_id, toggle);
-    status = ch376_issue_token(spi_id, toggle ? 0x80 : 0x00, 0, CH376_PID_IN);
+    status = ch376_issue_token(spi_id, toggle ? 0x80 : 0x00, CH376_PID_IN);
 
     if (status != CH376_INT_SUCCESS)
     {
@@ -600,7 +639,7 @@ static int ch376_control_transfer_in(int spi_id, char *setup, int setup_len,
   /* Status stage: send zero-length OUT with DATA1 */
   ch376_set_tx_toggle(spi_id, 1);
   ch376_write_data(spi_id, setup, 0); /* Zero length */
-  status = ch376_issue_token(spi_id, 0x40, 0, CH376_PID_OUT);
+  status = ch376_issue_token(spi_id, 0x40, CH376_PID_OUT);
   /* Ignore status stage errors for now */
 
   return total_len;
@@ -626,57 +665,14 @@ int ch376_get_config_descriptor(int spi_id, char *buffer, int max_len)
 
   return (len > 0) ? len : 0;
 }
-static int ch376_hid_class_request(int spi_id, usb_device_info_t *info,
-                                   int request, int value, int index)
-{
-  char setup[8];
-  int status;
 
-  /* Build SETUP packet: bmRequestType, bRequest, wValue, wIndex, wLength */
-  setup[0] = 0x21; /* Host to Device, Class, Interface */
-  setup[1] = request;
-  setup[2] = value & 0xFF;
-  setup[3] = (value >> 8) & 0xFF;
-  setup[4] = index & 0xFF;
-  setup[5] = (index >> 8) & 0xFF;
-  setup[6] = 0; /* wLength = 0 */
-  setup[7] = 0;
-
-  /* Setup stage */
-  ch376_set_tx_toggle(spi_id, 0);
-  ch376_write_data(spi_id, setup, 8);
-  status = ch376_issue_token(spi_id, 0x00, 0, CH376_PID_SETUP);
-  if (status != CH376_INT_SUCCESS)
-  {
-    return 0;
-  }
-
-  /* Status stage (IN with DATA1) */
-  ch376_set_rx_toggle(spi_id, 1);
-  status = ch376_issue_token(spi_id, 0x80, 0, CH376_PID_IN);
-
-  return (status == CH376_INT_SUCCESS) ? 1 : 0;
-}
-
-int ch376_hid_set_idle(int spi_id, usb_device_info_t *info, int duration)
-{
-  /* SET_IDLE: request 0x0A, value = (duration << 8) | reportId */
-  return ch376_hid_class_request(spi_id, info, 0x0A, duration << 8, 0);
-}
-
-int ch376_hid_set_protocol(int spi_id, usb_device_info_t *info, int protocol)
-{
-  /* SET_PROTOCOL: request 0x0B, value = protocol */
-  return ch376_hid_class_request(spi_id, info, 0x0B, protocol, 0);
-}
 
 int ch376_read_keyboard(int spi_id, usb_device_info_t *info, hid_keyboard_report_t *report)
 {
   int endpoint;
   int status;
-  char buffer[8];
+  char buffer[64];
   int len;
-  int sync_flag;
   int i;
 
   if (!info->connected || info->interrupt_endpoint == 0)
@@ -690,11 +686,9 @@ int ch376_read_keyboard(int spi_id, usb_device_info_t *info, hid_keyboard_report
   /* Set receiver toggle based on current state */
   ch376_set_rx_toggle(spi_id, info->toggle_in);
 
-  /* Set up sync flag based on current toggle state */
-  sync_flag = info->toggle_in ? 0x80 : 0x00;
-
   /* Issue IN transaction to interrupt endpoint */
-  status = ch376_issue_token(spi_id, sync_flag, endpoint, CH376_PID_IN);
+  // Sadly this fully crashes the CH376 chip, requiring a power cycle to recover
+  status = ch376_issue_token(spi_id, endpoint, CH376_PID_IN);
 
   if (status == CH376_INT_SUCCESS)
   {
@@ -702,7 +696,11 @@ int ch376_read_keyboard(int spi_id, usb_device_info_t *info, hid_keyboard_report
     info->toggle_in = info->toggle_in ? 0 : 1;
 
     /* Read the data */
-    len = ch376_read_data(spi_id, buffer, 8);
+    // Note: Length can be >8 bytes here on some devices, so we set the full 64 buffer size as max
+    len = ch376_read_data(spi_id, buffer, 64);
+    uart_puts("Keyboard data length: ");
+    uart_puthex(len, 1);
+    uart_putchar('\n');
     if (len >= 1)
     {
       report->modifier = buffer[0] & 0xFF;
@@ -713,17 +711,21 @@ int ch376_read_keyboard(int spi_id, usb_device_info_t *info, hid_keyboard_report
       }
       return 1;
     }
+    uart_puts("Got success but no data\n");
     return 0; /* Got success but no data */
   }
   /* Check for NAK: status byte with bits 5 set and lower bits 1010 = NAK */
   else if ((status & 0x3F) == 0x2A)
   {
     /* NAK - no new data */
+    uart_puts("Keyboard IN NAK\n");
     return 0;
   }
 
-  /* Return negative status code for debugging */
-  return -(status & 0xFF);
+  uart_puts("Keyboard IN error, status: ");
+  uart_puthex(status, 1);
+  uart_putchar('\n');
+  return 0;
 }
 
 /* HID keycode to ASCII lookup table (US keyboard layout) */

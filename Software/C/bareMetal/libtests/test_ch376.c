@@ -57,10 +57,27 @@ void print_device_info(usb_device_info_t *info)
   }
 }
 
+void print_kb_report(hid_keyboard_report_t *report)
+{
+  uart_puts("Keyboard Report:\n");
+  uart_puts("  Modifier: ");
+  uart_puthex(report->modifier, 1);
+  uart_putchar('\n');
+  uart_puts("  Keycodes: ");
+  for (int i = 0; i < 6; i++)
+  {
+    uart_puthex(report->keycode[i], 1);
+    uart_puts(" ");
+  }
+  uart_putchar('\n');
+}
+
 int test_usb_device(int spi_id)
 {
   int version;
   usb_device_info_t usb_device;
+  hid_keyboard_report_t kb_report;
+  int i;
   int result;
 
   /* Test 1: Initialize as USB host */
@@ -113,6 +130,21 @@ int test_usb_device(int spi_id)
   if (ch376_is_keyboard(&usb_device))
   {
     uart_puts("\n5. Keyboard detected!\n");
+
+
+    // This function hard crashes the ch376 after calling ch376_issue_token
+    result = ch376_read_keyboard(spi_id, &usb_device, &kb_report);
+
+    if (result == 1)
+    {
+      print_kb_report(&kb_report);
+    }
+    else if (result < 0)
+    {
+      uart_puts("\n   Read error! Status: ");
+      uart_puthex(-result, 1);
+      uart_putchar('\n');
+    }
   }
 
   return 1;
@@ -122,66 +154,8 @@ int main()
 {
   uart_puts("\n=== CH376 USB Host Library Test ===\n\n");
 
-  // uart_puts("Testing top CH376 port...\n");
-  // test_usb_device(CH376_SPI_TOP);
-
-  uart_puts("\n\nTesting bottom CH376 port...\n");
+  uart_puts("\n\nTesting bottom CH376 port (with USB keyboard)...\n");
   test_usb_device(CH376_SPI_BOTTOM);
-
-  // /* Test 5: If keyboard, try reading keys */
-  // if (ch376_is_keyboard(&usb_device))
-  // {
-  //     uart_puts("\n5. Keyboard detected! Setting up...\n");
-
-  //     /* Set boot protocol for simpler reports */
-  //     ch376_hid_set_protocol(spi_id, &usb_device, 0);
-
-  //     /* Set idle to 0 (only report on change) */
-  //     ch376_hid_set_idle(spi_id, &usb_device, 0);
-
-  //     uart_puts("   Press keys (showing first 10):\n   ");
-
-  //     /* Try reading a few key presses */
-  //     while (key_count < 10)
-  //     {
-  //         result = ch376_read_keyboard(spi_id, &usb_device, &kb_report);
-
-  //         if (result == 1)
-  //         {
-  //             /* Check for any key pressed */
-  //             for (i = 0; i < 6; i++)
-  //             {
-  //                 if (kb_report.keycode[i] != 0)
-  //                 {
-  //                     char c = ch376_keycode_to_ascii(kb_report.keycode[i], kb_report.modifier);
-  //                     if (c != 0)
-  //                     {
-  //                         uart_putchar(c);
-  //                         key_count++;
-  //                     }
-  //                     else
-  //                     {
-  //                         uart_puts("[");
-  //                         uart_puthex(kb_report.keycode[i], 1);
-  //                         uart_puts("]");
-  //                         key_count++;
-  //                     }
-  //                 }
-  //             }
-  //         }
-  //         else if (result < 0)
-  //         {
-  //             uart_puts("\n   Read error! Status: ");
-  //             uart_puthex(-result, 1);
-  //             uart_putchar('\n');
-  //             break;
-  //         }
-
-  //         delay(10);
-  //     }
-  //     uart_puts("\n");
-  // }
-
   uart_puts("\n=== Test Complete ===\n");
   return 1;
 }
