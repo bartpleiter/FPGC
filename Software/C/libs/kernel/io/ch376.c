@@ -149,7 +149,6 @@ int ch376_wait_interrupt(int spi_id, int timeout_ms)
     now = get_micros();
     if ((now - start) >= (timeout_ms * 1000))
     {
-      uart_puts("CH376 wait_interrupt timeout\n");
       return -1; /* Timeout */
     }
 
@@ -196,9 +195,6 @@ int ch376_read_data(int spi_id, char *buffer, int max_len)
 
   if (len > max_len)
   {
-    uart_puts("Warning: CH376 read length exceeds buffer size!\n");
-    uart_puthex(len, 1);
-    uart_putchar('\n');
     len = max_len;
   }
 
@@ -306,15 +302,27 @@ int ch376_issue_token(int spi_id, int endpoint, int pid)
 
   transaction_attr = ((endpoint & 0x0F) << 4) | (pid & 0x0F);
 
-  // uart_puts("Issuing token: EP=");
-  // uart_puthex(endpoint, 1);
-  // uart_puts(" PID=");
-  // uart_puthex(pid, 1);
-  // uart_puts("\n, transaction_attr=");
-  // uart_puthex(transaction_attr, 1);
-  // uart_putchar('\n');
-
   ch376_send_cmd(spi_id, CH376_CMD_ISSUE_TOKEN);
+  spi_transfer(spi_id, transaction_attr);
+  ch376_end_cmd(spi_id);
+  
+  /* Wait for transaction to complete */
+  status = ch376_wait_interrupt(spi_id, 500);
+
+  return status;
+}
+
+/* Issue token with explicit sync flags (CMD_ISSUE_TKN_X) */
+/* sync_flags: bit 7 = RX sync toggle, bit 6 = TX sync toggle */
+int ch376_issue_token_x(int spi_id, int sync_flags, int endpoint, int pid)
+{
+  int transaction_attr;
+  int status;
+
+  transaction_attr = ((endpoint & 0x0F) << 4) | (pid & 0x0F);
+
+  ch376_send_cmd(spi_id, CH376_CMD_ISSUE_TKN_X);
+  spi_transfer(spi_id, sync_flags);
   spi_transfer(spi_id, transaction_attr);
   ch376_end_cmd(spi_id);
   
@@ -674,6 +682,7 @@ int ch376_read_keyboard(int spi_id, usb_device_info_t *info, hid_keyboard_report
   char buffer[64];
   int len;
   int i;
+  int sync_flags;
 
   if (!info->connected || info->interrupt_endpoint == 0)
   {
@@ -683,12 +692,16 @@ int ch376_read_keyboard(int spi_id, usb_device_info_t *info, hid_keyboard_report
   /* Get endpoint number (remove direction bit) */
   endpoint = info->interrupt_endpoint & 0x0F;
 
-  /* Set receiver toggle based on current state */
-  ch376_set_rx_toggle(spi_id, info->toggle_in);
+  /* Set retry behavior: no infinite NAK retry, limited timeout retries */
+  /* Bits 7-6 = 00: NAK notified as result, Bits 5-0 = 0x0F: 15 timeout retries */
+  ch376_set_retry(spi_id, 0x0F);
+
+  /* Build sync flags: bit 7 = RX toggle, bit 6 = TX toggle (not used for IN) */
+  /* According to datasheet, for IN transactions we set the RX sync toggle in bit 7 */
+  sync_flags = info->toggle_in ? 0x80 : 0x00;
 
   /* Issue IN transaction to interrupt endpoint */
-  // Sadly this fully crashes the CH376 chip, requiring a power cycle to recover
-  status = ch376_issue_token(spi_id, endpoint, CH376_PID_IN);
+  status = ch376_issue_token_x(spi_id, sync_flags, endpoint, CH376_PID_IN);
 
   if (status == CH376_INT_SUCCESS)
   {
@@ -696,11 +709,7 @@ int ch376_read_keyboard(int spi_id, usb_device_info_t *info, hid_keyboard_report
     info->toggle_in = info->toggle_in ? 0 : 1;
 
     /* Read the data */
-    // Note: Length can be >8 bytes here on some devices, so we set the full 64 buffer size as max
     len = ch376_read_data(spi_id, buffer, 64);
-    uart_puts("Keyboard data length: ");
-    uart_puthex(len, 1);
-    uart_putchar('\n');
     if (len >= 1)
     {
       report->modifier = buffer[0] & 0xFF;
@@ -711,21 +720,17 @@ int ch376_read_keyboard(int spi_id, usb_device_info_t *info, hid_keyboard_report
       }
       return 1;
     }
-    uart_puts("Got success but no data\n");
     return 0; /* Got success but no data */
   }
   /* Check for NAK: status byte with bits 5 set and lower bits 1010 = NAK */
   else if ((status & 0x3F) == 0x2A)
   {
-    /* NAK - no new data */
-    uart_puts("Keyboard IN NAK\n");
+    /* NAK - no new data, this is normal for interrupt endpoints */
     return 0;
   }
 
-  uart_puts("Keyboard IN error, status: ");
-  uart_puthex(status, 1);
-  uart_putchar('\n');
-  return 0;
+  // Other error
+  return -status;
 }
 
 /* HID keycode to ASCII lookup table (US keyboard layout) */

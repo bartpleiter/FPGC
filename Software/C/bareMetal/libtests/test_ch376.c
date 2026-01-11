@@ -129,22 +129,35 @@ int test_usb_device(int spi_id)
 
   if (ch376_is_keyboard(&usb_device))
   {
-    uart_puts("\n5. Keyboard detected!\n");
+    // Test 5: Read keyboard input
+    uart_puts("\n5. Keyboard detected! Polling for keypresses...\n");
+    uart_puts("   (Press some keys on the USB keyboard)\n\n");
 
-
-    // This function hard crashes the ch376 after calling ch376_issue_token
-    result = ch376_read_keyboard(spi_id, &usb_device, &kb_report);
-
-    if (result == 1)
+    // Poll keyboard
+    while (1)
     {
-      print_kb_report(&kb_report);
+      result = ch376_read_keyboard(spi_id, &usb_device, &kb_report);
+
+      if (result == 1)
+      {
+        print_kb_report(&kb_report);
+      }
+      else if (result < 0)
+      {
+        uart_puts("\nRead error! Status: ");
+        uart_puthex(-result, 1);
+        uart_putchar('\n');
+        break;
+      }
+      else
+      {
+        /* NAK no new data */
+      }
+      
+      /* Small delay between polls */
+      delay(10);
     }
-    else if (result < 0)
-    {
-      uart_puts("\n   Read error! Status: ");
-      uart_puthex(-result, 1);
-      uart_putchar('\n');
-    }
+    uart_putchar('\n');
   }
 
   return 1;

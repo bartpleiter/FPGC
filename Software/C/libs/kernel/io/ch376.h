@@ -340,6 +340,16 @@ int ch376_set_device_config(int spi_id, int config);
 int ch376_issue_token(int spi_id, int endpoint, int pid);
 
 /**
+ * Execute a USB transaction with explicit sync flags (CMD_ISSUE_TKN_X).
+ * @param spi_id SPI ID
+ * @param sync_flags Sync flags (bit 7 = RX toggle, bit 6 = TX toggle)
+ * @param endpoint Endpoint number (0-15)
+ * @param pid Transaction type (CH376_PID_*)
+ * @return Interrupt status code
+ */
+int ch376_issue_token_x(int spi_id, int sync_flags, int endpoint, int pid);
+
+/**
  * Set receiver (host IN endpoint) toggle.
  * @param spi_id SPI ID
  * @param toggle 0 or 1
