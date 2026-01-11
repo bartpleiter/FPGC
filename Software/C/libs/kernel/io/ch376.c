@@ -153,7 +153,7 @@ int ch376_wait_interrupt(int spi_id, int timeout_ms)
     }
 
     /* Small delay to avoid busy waiting too tightly */
-    for (i = 0; i < 1000; i++);
+    for (i = 0; i < 100; i++);
   }
   return -1; // Should not reach here
 }
