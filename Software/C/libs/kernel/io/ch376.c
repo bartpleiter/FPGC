@@ -174,7 +174,11 @@ int ch376_test_connect(int spi_id)
   {
     return CH376_CONN_READY;
   }
-  return CH376_CONN_DISCONNECTED;
+  else if (status == CH376_INT_DISCONNECT)
+  {
+    return CH376_CONN_DISCONNECTED;
+  }
+  return CH376_CONN_UNKNOWN;
 }
 
 void ch376_set_retry(int spi_id, int retry)

@@ -101,6 +101,7 @@
 #define CH376_CONN_DISCONNECTED     0
 #define CH376_CONN_CONNECTED        1
 #define CH376_CONN_READY            2
+#define CH376_CONN_UNKNOWN          3
 
 /* USB Device Descriptor structure (18 bytes) */
 typedef struct {
