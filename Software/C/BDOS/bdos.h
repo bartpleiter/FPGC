@@ -55,6 +55,11 @@ usb_device_info_t bdos_usb_keyboard_device;
 #define BDOS_KEY_F11          (BDOS_KEY_SPECIAL_BASE + 21)
 #define BDOS_KEY_F12          (BDOS_KEY_SPECIAL_BASE + 22)
 
+/* Shell configuration */
+#define BDOS_SHELL_INPUT_MAX   160
+#define BDOS_SHELL_ARGV_MAX    8
+#define BDOS_SHELL_PROMPT_MAX  64
+
 // Functions that can be called between BDOS modules
 void bdos_panic(char* msg);
 
@@ -65,5 +70,9 @@ void bdos_poll_usb_keyboard(int timer_id);
 int bdos_keyboard_event_available();
 
 int bdos_keyboard_event_read();
+
+void bdos_shell_init();
+
+void bdos_shell_tick();
 
 #endif // BDOS_H

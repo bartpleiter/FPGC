@@ -7,6 +7,7 @@
 // Include BDOS code modules
 #include "BDOS/init.c"
 #include "BDOS/hid.c"
+#include "BDOS/shell.c"
 
 void bdos_panic(char* msg)
 {
@@ -24,20 +25,6 @@ void bdos_panic(char* msg)
   asm("halt");
 }
 
-void bdos_test_consume_keyboard_fifo()
-{
-  while (bdos_keyboard_event_available())
-  {
-    int key_event = bdos_keyboard_event_read();
-    if (key_event != -1)
-    {
-      term_puts("Key event: ");
-      term_puthex(key_event, 1);
-      term_putchar('\n');
-    }
-  }
-}
-
 void bdos_loop()
 {
   // Main loop for BDOS after initialization
@@ -46,8 +33,8 @@ void bdos_loop()
     // Poll for USB keyboard connection and input
     bdos_usb_keyboard_main_loop();
 
-    // Consume keyboard FIFO
-    bdos_test_consume_keyboard_fifo(); 
+    // Run shell using keyboard FIFO events
+    bdos_shell_tick();
   }
 }
 
@@ -56,6 +43,9 @@ int main()
 {
   // Initialize BDOS
   bdos_init();
+
+  // Start shell (clears startup messages and prints welcome banner)
+  bdos_shell_init();
 
   // Enter main loop
   bdos_loop();
