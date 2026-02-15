@@ -260,14 +260,18 @@ void bdos_usb_keyboard_main_loop()
     {
       // Device was previously connected, now disconnected
       bdos_reset_keyboard_state();
-      // Sadly the below does not prevent the CH376 from getting into a non-functional state that only can be solved by a power cycle
+      // We need to fully reset the CH376 to prevent it from getting into a non-functional state
+      // There is probably a better way to prevent this
       ch376_reset(bdos_usb_keyboard_spi_id);
-      bdos_init_usb_keyboard(); // Re-initialize to be ready for next connection
+      ch376_host_init(bdos_usb_keyboard_spi_id);
       uart_puts("[BDOS] USB keyboard disconnected\n");
     }
   }
   if (status == CH376_CONN_CONNECTED)
   {
+    // To prevent the CH376 from getting into a non-functional state, we wait a long time after detecting a connection before trying to do anything
+    delay(1000);
+    
     // Device connected, but not initialized yet
     if (ch376_enumerate_device(bdos_usb_keyboard_spi_id, &bdos_usb_keyboard_device))
     {
