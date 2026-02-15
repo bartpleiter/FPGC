@@ -120,7 +120,7 @@ int brfs_format(unsigned int total_blocks, unsigned int words_per_block,
 Mount filesystem from flash into RAM cache.
 
 ```c
-int brfs_mount(void);
+int brfs_mount();
 ```
 
 **Returns:** `BRFS_OK` on success, error code on failure.
@@ -130,7 +130,7 @@ int brfs_mount(void);
 Sync dirty data to flash and unmount filesystem.
 
 ```c
-int brfs_unmount(void);
+int brfs_unmount();
 ```
 
 **Returns:** `BRFS_OK` on success, error code on failure.
@@ -140,7 +140,7 @@ int brfs_unmount(void);
 Sync all dirty blocks to flash without unmounting.
 
 ```c
-int brfs_sync(void);
+int brfs_sync();
 ```
 
 **Returns:** `BRFS_OK` on success, error code on failure.

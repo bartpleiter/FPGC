@@ -300,13 +300,13 @@ STATIC
 int truncInt(int);
 
 STATIC
-int GetToken(void);
+int GetToken();
 STATIC
 char* GetTokenName(int token);
 
 #ifndef NO_ANNOTATIONS
 STATIC
-void DumpMacroTable(void);
+void DumpMacroTable();
 #endif
 
 STATIC
@@ -315,19 +315,19 @@ STATIC
 int FindIdent(char* name);
 #ifndef NO_ANNOTATIONS
 STATIC
-void DumpIdentTable(void);
+void DumpIdentTable();
 #endif
 STATIC
 char* lab2str(char* p, int n);
 
 STATIC
-void GenInit(void);
+void GenInit();
 STATIC
-void GenFin(void);
+void GenFin();
 STATIC
-void GenInitFinalize(void);
+void GenInitFinalize();
 STATIC
-void GenStartCommentLine(void);
+void GenStartCommentLine();
 STATIC
 void GenWordAlignment(int bss);
 STATIC
@@ -339,7 +339,7 @@ void GenZeroData(unsigned Size, int bss);
 STATIC
 void GenIntData(int Size, int Val);
 STATIC
-void GenStartAsciiString(void);
+void GenStartAsciiString();
 STATIC
 void GenAddrData(int Size, char* Label, int ofs);
 
@@ -353,19 +353,19 @@ STATIC
 void GenJumpIfEqual(int val, int Label);
 
 STATIC
-void GenFxnProlog(void);
+void GenFxnProlog();
 STATIC
-void GenFxnEpilog(void);
-void GenIsrProlog(void);
-void GenIsrEpilog(void);
+void GenFxnEpilog();
+void GenIsrProlog();
+void GenIsrEpilog();
 
 STATIC
-int GenMaxLocalsSize(void);
+int GenMaxLocalsSize();
 
 STATIC
 void GenDumpChar(int ch);
 STATIC
-void GenExpr(void);
+void GenExpr();
 
 STATIC
 void PushSyntax(int t);
@@ -374,7 +374,7 @@ void PushSyntax2(int t, int v);
 
 #ifndef NO_ANNOTATIONS
 STATIC
-void DumpSynDecls(void);
+void DumpSynDecls();
 #endif
 
 STATIC
@@ -392,7 +392,7 @@ STATIC
 int ParseDecl(int tok, unsigned structInfo[4], int cast, int label);
 
 STATIC
-void ShiftChar(void);
+void ShiftChar();
 STATIC
 int puts2(char*);
 STATIC
@@ -405,35 +405,35 @@ void warning(char* format, ...);
 STATIC
 void errorFile(char* n);
 STATIC
-void errorFileName(void);
+void errorFileName();
 STATIC
 void errorInternal(int n);
 STATIC
-void errorChrStr(void);
+void errorChrStr();
 STATIC
-void errorStrLen(void);
+void errorStrLen();
 STATIC
 void errorUnexpectedToken(int tok);
 STATIC
-void errorDirective(void);
+void errorDirective();
 STATIC
-void errorCtrlOutOfScope(void);
+void errorCtrlOutOfScope();
 STATIC
-void errorDecl(void);
+void errorDecl();
 STATIC
-void errorVarSize(void);
+void errorVarSize();
 STATIC
-void errorInit(void);
+void errorInit();
 STATIC
-void errorUnexpectedVoid(void);
+void errorUnexpectedVoid();
 STATIC
-void errorOpType(void);
+void errorOpType();
 STATIC
-void errorNotLvalue(void);
+void errorNotLvalue();
 STATIC
-void errorNotConst(void);
+void errorNotConst();
 STATIC
-void errorLongExpr(void);
+void errorLongExpr();
 
 STATIC
 int FindSymbol(char* s);
@@ -725,7 +725,7 @@ void DefineMacro(char* name, char* expansion)
 
 #ifndef NO_ANNOTATIONS
 STATIC
-void DumpMacroTable(void)
+void DumpMacroTable()
 {
   int i, j;
 
@@ -843,7 +843,7 @@ void AddCase(int val, int label)
 
 #ifndef NO_ANNOTATIONS
 STATIC
-void DumpIdentTable(void)
+void DumpIdentTable()
 {
   int i;
   puts2("");
@@ -964,7 +964,7 @@ char* GetTokenName(int token)
 }
 
 STATIC
-int GetNextChar(void)
+int GetNextChar()
 {
   int ch = EOF;
 
@@ -987,7 +987,7 @@ int GetNextChar(void)
 }
 
 STATIC
-void ShiftChar(void)
+void ShiftChar()
 {
   if (CharQueueLen)
     memmove(CharQueue, CharQueue + 1, --CharQueueLen);
@@ -1099,7 +1099,7 @@ void IncludeFile(int quot)
 }
 
 STATIC
-int EndOfFiles(void)
+int EndOfFiles()
 {
   // if there are no including files, we're done
   if (!--FileCnt)
@@ -1186,7 +1186,7 @@ void SkipSpace(int SkipNewLines)
 }
 
 STATIC
-void SkipLine(void)
+void SkipLine()
 {
   char* p = CharQueue;
 
@@ -1210,7 +1210,7 @@ void SkipLine(void)
 }
 
 STATIC
-void GetIdent(void)
+void GetIdent()
 {
   char* p = CharQueue;
 
@@ -1243,7 +1243,6 @@ unsigned GetCharValue(int wide)
   char* p = CharQueue;
   unsigned ch = 0;
   int cnt = 0;
-  (void)wide;
   if (*p == '\\')
   {
     ShiftCharN(1);
@@ -1403,7 +1402,7 @@ void pushPrep(int NoSkip)
 }
 
 STATIC
-int popPrep(void)
+int popPrep()
 {
   if (PrepSp <= 0)
     error("#else or #endif without #if(n)def\n");
@@ -1412,7 +1411,7 @@ int popPrep(void)
 }
 
 STATIC
-int GetNumber(void)
+int GetNumber()
 {
   char* p = CharQueue;
   int ch = *p;
@@ -1525,7 +1524,7 @@ int GetNumber(void)
 }
 
 STATIC
-int GetTokenInner(void)
+int GetTokenInner()
 {
   char* p = CharQueue;
   int ch = *p;
@@ -1657,7 +1656,7 @@ void Reserve4Expansion(char* name, int len)
 // TBD??? implement file I/O for input source code and output code (use fxn ptrs/wrappers to make librarization possible)
 // DONE: support string literals
 STATIC
-int GetToken(void)
+int GetToken()
 {
   char* p = CharQueue;
   int ch;
@@ -2981,7 +2980,7 @@ int GetFxnInfo(int ExprTypeSynPtr, int* MinParams, int* MaxParams, int* ReturnEx
 
   if (SyntaxStack0[ExprTypeSynPtr + 1] == tokVoid)
   {
-    // "fxn(void)": 0 parameters
+    // "fxn()": 0 parameters
     *ReturnExprTypeSynPtr = ExprTypeSynPtr + 3;
     return 1;
   }
@@ -4829,7 +4828,7 @@ void errorFile(char* n)
 }
 
 STATIC
-void errorFileName(void)
+void errorFileName()
 {
   error("Invalid or too long file name or path name\n");
 }
@@ -4841,13 +4840,13 @@ void errorInternal(int n)
 }
 
 STATIC
-void errorChrStr(void)
+void errorChrStr()
 {
   error("Invalid or unsupported character constant or string literal\n");
 }
 
 STATIC
-void errorStrLen(void)
+void errorStrLen()
 {
   error("String literal too long\n");
 }
@@ -4859,19 +4858,19 @@ void errorUnexpectedToken(int tok)
 }
 
 STATIC
-void errorDirective(void)
+void errorDirective()
 {
   error("Invalid or unsupported preprocessor directive\n");
 }
 
 STATIC
-void errorCtrlOutOfScope(void)
+void errorCtrlOutOfScope()
 {
   error("break, continue, case or default in wrong scope\n");
 }
 
 STATIC
-void errorDecl(void)
+void errorDecl()
 {
   error("Invalid or unsupported declaration\n");
 }
@@ -4883,43 +4882,43 @@ void errorTagRedef(int ident)
 }
 
 STATIC
-void errorVarSize(void)
+void errorVarSize()
 {
   error("Variable(s) take(s) too much space\n");
 }
 
 STATIC
-void errorInit(void)
+void errorInit()
 {
   error("Invalid or unsupported initialization\n");
 }
 
 STATIC
-void errorUnexpectedVoid(void)
+void errorUnexpectedVoid()
 {
   error("Unexpected declaration or expression of type void\n");
 }
 
 STATIC
-void errorOpType(void)
+void errorOpType()
 {
   error("Unexpected operand type\n");
 }
 
 STATIC
-void errorNotLvalue(void)
+void errorNotLvalue()
 {
   error("lvalue expected\n");
 }
 
 STATIC
-void errorNotConst(void)
+void errorNotConst()
 {
   error("Non-constant expression\n");
 }
 
 STATIC
-void errorLongExpr(void)
+void errorLongExpr()
 {
   error("Expression too long\n");
 }
@@ -5453,7 +5452,7 @@ void DumpDecl(int SyntaxPtr, int IsParam)
 
 #ifndef NO_ANNOTATIONS
 STATIC
-void DumpSynDecls(void)
+void DumpSynDecls()
 {
   int used = SyntaxStackCnt * (sizeof SyntaxStack0[0] + sizeof SyntaxStack1[0]);
   int total = SYNTAX_STACK_MAX * (sizeof SyntaxStack0[0] + sizeof SyntaxStack1[0]);

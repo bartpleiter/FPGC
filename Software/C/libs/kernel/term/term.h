@@ -12,13 +12,13 @@
 #define TAB_WIDTH   4
 
 // Initialize the terminal library
-void term_init(void);
+void term_init();
 
 // Clear the entire screen and reset cursor
-void term_clear(void);
+void term_clear();
 
 // Scroll screen content up by one line
-void term_scroll(void);
+void term_scroll();
 
 // Set cursor position (clamped to valid range)
 void term_set_cursor(unsigned int x, unsigned int y);

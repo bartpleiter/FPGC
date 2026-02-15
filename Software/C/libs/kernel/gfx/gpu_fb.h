@@ -9,7 +9,7 @@
 #define FB_WIDTH 320
 #define FB_HEIGHT 240
 
-void fb_clear(void);
+void fb_clear();
 void fb_set_pixel(unsigned int x, unsigned int y, unsigned int color);
 void fb_draw_line( int x0, int y0, int x1, int y1, unsigned int color);
 void fb_draw_rect(int x, int y, int w, int h, unsigned int color);

@@ -26,7 +26,7 @@ static void ch376_end_cmd(int spi_id)
 /*          Interrupt Pin Reading               */
 /* ============================================ */
 
-int ch376_get_top_nint(void)
+int ch376_get_top_nint()
 {
   int retval = 0;
   asm(
@@ -36,7 +36,7 @@ int ch376_get_top_nint(void)
   return retval;
 }
 
-int ch376_get_bottom_nint(void)
+int ch376_get_bottom_nint()
 {
   int retval = 0;
   asm(

@@ -25,7 +25,7 @@ unsigned int gfx_scroll_top = 0;
 unsigned int gfx_scroll_bottom = 24;
 
 // Initialize the graphics system
-void GFX_init(void)
+void GFX_init()
 {
     // Reset cursor position
     gfx_cursor_x = 0;
@@ -95,14 +95,14 @@ void GFX_cursor_get(unsigned int *x, unsigned int *y)
 }
 
 // Save cursor position
-void GFX_cursor_save(void)
+void GFX_cursor_save()
 {
     gfx_saved_cursor_x = gfx_cursor_x;
     gfx_saved_cursor_y = gfx_cursor_y;
 }
 
 // Restore saved cursor position
-void GFX_cursor_restore(void)
+void GFX_cursor_restore()
 {
     gfx_cursor_x = gfx_saved_cursor_x;
     gfx_cursor_y = gfx_saved_cursor_y;
@@ -188,7 +188,7 @@ void GFX_puts(char *str)
 }
 
 // Clear the entire screen
-void GFX_clear(void)
+void GFX_clear()
 {
     int i;
     unsigned int tile_addr;

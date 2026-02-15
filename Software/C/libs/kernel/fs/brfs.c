@@ -18,10 +18,10 @@ struct brfs_state brfs;
  * Internal Helper Functions - Forward Declarations
  *============================================================================*/
 
-static unsigned int* brfs_get_superblock(void);
-static unsigned int* brfs_get_fat(void);
+static unsigned int* brfs_get_superblock();
+static unsigned int* brfs_get_fat();
 static unsigned int* brfs_get_data_block(unsigned int block_idx);
-static int brfs_find_free_block(void);
+static int brfs_find_free_block();
 static int brfs_find_free_dir_entry(unsigned int* dir_block);
 static int brfs_get_dir_fat_idx(const char* dir_path);
 static int brfs_find_in_directory(unsigned int dir_fat_idx, const char* name, 
@@ -203,12 +203,12 @@ int brfs_parse_path(const char* path, char* dir_path, char* filename,
  * Internal Cache Access Functions
  *============================================================================*/
 
-static unsigned int* brfs_get_superblock(void)
+static unsigned int* brfs_get_superblock()
 {
     return brfs.cache;
 }
 
-static unsigned int* brfs_get_fat(void)
+static unsigned int* brfs_get_fat()
 {
     return brfs.cache + BRFS_SUPERBLOCK_SIZE;
 }
@@ -226,7 +226,7 @@ static unsigned int* brfs_get_data_block(unsigned int block_idx)
  * Block Allocation Functions
  *============================================================================*/
 
-static int brfs_find_free_block(void)
+static int brfs_find_free_block()
 {
     struct brfs_superblock* sb;
     unsigned int* fat;
@@ -641,7 +641,7 @@ static int brfs_validate_superblock(struct brfs_superblock* sb)
  * Mount/Unmount Functions
  *============================================================================*/
 
-int brfs_mount(void)
+int brfs_mount()
 {
     struct brfs_superblock* sb;
     unsigned int* fat;
@@ -700,7 +700,7 @@ int brfs_mount(void)
     return BRFS_OK;
 }
 
-int brfs_unmount(void)
+int brfs_unmount()
 {
     int result;
     unsigned int i;
@@ -784,7 +784,7 @@ static void brfs_write_data_sector(unsigned int sector_idx)
     }
 }
 
-int brfs_sync(void)
+int brfs_sync()
 {
     struct brfs_superblock* sb;
     unsigned int blocks_per_sector;

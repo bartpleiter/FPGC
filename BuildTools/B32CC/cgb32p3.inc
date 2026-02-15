@@ -22,7 +22,7 @@
 /*****************************************************************************/
 
 STATIC
-void GenInit(void)
+void GenInit()
 {
   // initialization of target-specific code generator
   // Assembler is responsible to move all non-.code parts away from the code
@@ -39,7 +39,7 @@ void GenInit(void)
 }
 
 STATIC
-void GenInitFinalize(void)
+void GenInitFinalize()
 {
   // finalization of initialization of target-specific code generator
   // This is the place where we put the top of the wrapper code
@@ -100,7 +100,7 @@ void GenInitFinalize(void)
 }
 
 STATIC
-void GenStartCommentLine(void)
+void GenStartCommentLine()
 {
   printf2(" ; ");
 }
@@ -108,7 +108,6 @@ void GenStartCommentLine(void)
 STATIC
 void GenWordAlignment(int bss)
 {
-  (void)bss;
   // B32P3 doesn't need explicit alignment directives for words
 }
 
@@ -149,7 +148,6 @@ void GenPrintNumLabel(int label)
 STATIC
 void GenZeroData(unsigned Size, int bss)
 {
-  (void)bss;
   // B32P3: Generate zero words for uninitialized data
   // In word-addressable mode, Size is already in words, not bytes
   unsigned words = WordAddressable ? Size : (Size + 3) / 4;
@@ -177,7 +175,7 @@ void GenIntData(int Size, int Val)
 }
 
 STATIC
-void GenStartAsciiString(void)
+void GenStartAsciiString()
 {
   printf2("  .dsw "); // Each character gets its own 32-bit word (word-addressable)
 }
@@ -195,7 +193,7 @@ void GenAddrData(int Size, char* Label, int ofs)
 }
 
 STATIC
-int GenFxnSizeNeeded(void)
+int GenFxnSizeNeeded()
 {
   return 0;
 }
@@ -203,8 +201,6 @@ int GenFxnSizeNeeded(void)
 STATIC
 void GenRecordFxnSize(char* startLabelName, int endLabelNo)
 {
-  (void)startLabelName;
-  (void)endLabelNo;
 }
 
 #define B32InstrNop     0x00
@@ -255,8 +251,6 @@ STATIC
 void GenPrintInstr(int instr, int val)
 {
   char* p = "";
-
-  (void)val;
 
   switch (instr)
   {
@@ -403,13 +397,13 @@ void GenPrintOperand(int op, int val)
 }
 
 STATIC
-void GenPrintOperandSeparator(void)
+void GenPrintOperandSeparator()
 {
   printf2(" ");
 }
 
 STATIC
-void GenPrintNewLine(void)
+void GenPrintNewLine()
 {
   puts2("");
 }
@@ -614,7 +608,7 @@ fpos_t GenPrologPos;
 int GenLeaf;
 
 STATIC
-void GenWriteFrameSize(void)
+void GenWriteFrameSize()
 {
   // In word-addressable mode, RA + FP take 2 words (addresses), not 8 bytes
   unsigned size = 2/*RA + FP*/ - CurFxnMinLocalOfs;
@@ -625,7 +619,7 @@ void GenWriteFrameSize(void)
 }
 
 STATIC
-void GenUpdateFrameSize(void)
+void GenUpdateFrameSize()
 {
   fpos_t pos;
   fgetpos(OutFile, &pos);
@@ -635,7 +629,7 @@ void GenUpdateFrameSize(void)
 }
 
 STATIC
-void GenFxnProlog(void)
+void GenFxnProlog()
 {
   if (CurFxnParamCntMin && CurFxnParamCntMax)
   {
@@ -687,7 +681,7 @@ void GenGrowStack(int size)
 }
 
 STATIC
-void GenFxnEpilog(void)
+void GenFxnEpilog()
 {
   GenUpdateFrameSize();
 
@@ -715,7 +709,7 @@ void GenFxnEpilog(void)
 }
 
 STATIC
-int GenMaxLocalsSize(void)
+int GenMaxLocalsSize()
 {
   return 0x7FFFFFFF;
 }
@@ -793,7 +787,7 @@ void GenPreIdentAccess(int label)
 }
 
 STATIC
-void GenPostIdentAccess(void)
+void GenPostIdentAccess()
 {
   // B32P3: No cleanup needed
 }
@@ -834,7 +828,7 @@ void GenReadIndirect(int regDst, int regSrc, int opSz)
 STATIC
 void GenWriteIdent(int regSrc, int opSz, int label)
 {
-  (void)opSz; // B32P3: All writes are word-sized
+  // B32P3: All writes are word-sized
   GenPreIdentAccess(label);
   GenPrintInstr3Operands(B32InstrWrite, 0,
                          B32OpConst, 0,
@@ -846,7 +840,7 @@ void GenWriteIdent(int regSrc, int opSz, int label)
 STATIC
 void GenWriteLocal(int regSrc, int opSz, int ofs)
 {
-  (void)opSz; // B32P3: All writes are word-sized
+  // B32P3: All writes are word-sized
   GenPrintInstr3Operands(B32InstrWrite, 0,
                          B32OpConst, ofs,
                          B32OpRegFp, 0,
@@ -856,7 +850,7 @@ void GenWriteLocal(int regSrc, int opSz, int ofs)
 STATIC
 void GenWriteIndirect(int regDst, int regSrc, int opSz)
 {
-  (void)opSz; // B32P3: All writes are word-sized
+  // B32P3: All writes are word-sized
   GenPrintInstr3Operands(B32InstrWrite, 0,
                          B32OpConst, 0,
                          regDst, 0,
@@ -1049,7 +1043,7 @@ void GenWregInc(int inc)
 }
 
 STATIC
-void GenPushReg(void)
+void GenPushReg()
 {
   if (CanUseTempRegs && TempsUsed < MAX_TEMP_REGS)
   {
@@ -1072,7 +1066,7 @@ void GenPushReg(void)
 }
 
 STATIC
-void GenPopReg(void)
+void GenPopReg()
 {
   TempsUsed--;
 
@@ -1594,7 +1588,7 @@ int GenIsCmp(int t)
 // Improved register/stack-based code generator
 // DONE: test 32-bit code generation
 STATIC
-void GenExpr0(void)
+void GenExpr0()
 {
   int i;
   int gotUnary = 0;
@@ -2304,13 +2298,13 @@ void GenDumpChar(int ch)
 }
 
 STATIC
-void GenExpr(void)
+void GenExpr()
 {
   GenExpr0();
 }
 
 STATIC
-void GenFin(void)
+void GenFin()
 {
   // To be honest, I am not sure what this does and just converted it to B32P3 assembly
   if (StructCpyLabel)

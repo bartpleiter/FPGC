@@ -189,7 +189,7 @@ int brfs_format(unsigned int total_blocks, unsigned int words_per_block,
  * 
  * @return  BRFS_OK on success, error code on failure
  */
-int brfs_mount(void);
+int brfs_mount();
 
 /**
  * Unmount filesystem
@@ -197,7 +197,7 @@ int brfs_mount(void);
  * 
  * @return  BRFS_OK on success, error code on failure
  */
-int brfs_unmount(void);
+int brfs_unmount();
 
 /**
  * Sync all dirty blocks to flash
@@ -205,7 +205,7 @@ int brfs_unmount(void);
  * 
  * @return  BRFS_OK on success, error code on failure
  */
-int brfs_sync(void);
+int brfs_sync();
 
 //============================================================================
 // File Operations

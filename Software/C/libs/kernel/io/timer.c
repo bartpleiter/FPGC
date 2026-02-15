@@ -45,7 +45,7 @@ static int timer_valid(int timer_id)
     return (timer_id >= 0 && timer_id < TIMER_COUNT);
 }
 
-void timer_init(void)
+void timer_init()
 {
     int i;
     for (i = 0; i < TIMER_COUNT; i++) {

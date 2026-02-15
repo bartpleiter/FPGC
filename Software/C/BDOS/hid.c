@@ -181,9 +181,7 @@ void bdos_poll_usb_keyboard(int timer_id)
   int new_keycode;
   int key_event;
   unsigned int now;
-
-  (void)timer_id;
-
+  
   // Check if we can poll for keyboard input
   if (bdos_usb_keyboard_device.connected)
   {

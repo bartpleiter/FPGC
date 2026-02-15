@@ -48,7 +48,7 @@ typedef void (*timer_callback_t)(int timer_id);
  * Clears all callbacks and periodic settings.
  * Call this once at program startup.
  */
-void timer_init(void);
+void timer_init();
 
 /**
  * Set the timer value in milliseconds (does not start the timer).

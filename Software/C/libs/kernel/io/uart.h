@@ -35,7 +35,7 @@
  * Initialize the UART subsystem.
  * Clears the RX buffer. Call once at program startup.
  */
-void uart_init(void);
+void uart_init();
 
 /*
  * ============================================================
@@ -88,25 +88,25 @@ void uart_write(char *buf, unsigned int len);
  * Reads the received byte from hardware and stores it in
  * the ring buffer.
  */
-void uart_isr_handler(void);
+void uart_isr_handler();
 
 /**
  * Get number of bytes available in RX buffer.
  * @return Number of bytes available to read
  */
-int uart_available(void);
+int uart_available();
 
 /**
  * Read one byte from RX buffer (non-blocking).
  * @return Byte read (0-255), or -1 if buffer empty
  */
-int uart_read(void);
+int uart_read();
 
 /**
  * Peek at next byte without removing from buffer.
  * @return Next byte (0-255), or -1 if buffer empty
  */
-int uart_peek(void);
+int uart_peek();
 
 /**
  * Read multiple bytes from RX buffer (non-blocking).
@@ -139,13 +139,13 @@ int uart_read_line(char *buf, int len);
 /**
  * Clear the RX buffer, discarding all received data.
  */
-void uart_flush_rx(void);
+void uart_flush_rx();
 
 /**
  * Check if RX buffer is full.
  * When full, new incoming bytes will be dropped.
  * @return Non-zero if buffer is full
  */
-int uart_rx_overflow(void);
+int uart_rx_overflow();
 
 #endif // UART_H

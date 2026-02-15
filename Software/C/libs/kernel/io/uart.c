@@ -17,7 +17,7 @@ static volatile int rx_tail = 0;  /* Read position (user reads here) */
 static volatile int rx_overflow_flag = 0;  /* Set if data was dropped */
 
 /* Helper: Get number of bytes in buffer */
-static int rx_count(void)
+static int rx_count()
 {
     int head = rx_head;
     int tail = rx_tail;
@@ -33,7 +33,7 @@ static int rx_count(void)
  * ============================================================
  */
 
-void uart_init(void)
+void uart_init()
 {
     rx_head = 0;
     rx_tail = 0;
@@ -100,7 +100,7 @@ void uart_write(char *buf, unsigned int len)
  * ============================================================
  */
 
-void uart_isr_handler(void)
+void uart_isr_handler()
 {
     volatile int *rx_reg = (volatile int *)UART_RX_ADDR;
     char byte;
@@ -124,12 +124,12 @@ void uart_isr_handler(void)
     rx_head = next_head;
 }
 
-int uart_available(void)
+int uart_available()
 {
     return rx_count();
 }
 
-int uart_read(void)
+int uart_read()
 {
     char byte;
     
@@ -145,7 +145,7 @@ int uart_read(void)
     return (int)(unsigned char)byte;
 }
 
-int uart_peek(void)
+int uart_peek()
 {
     /* Check if buffer empty */
     if (rx_head == rx_tail) {
@@ -206,14 +206,14 @@ int uart_read_line(char *buf, int len)
     return uart_read_until(buf, len, '\n');
 }
 
-void uart_flush_rx(void)
+void uart_flush_rx()
 {
     rx_head = 0;
     rx_tail = 0;
     rx_overflow_flag = 0;
 }
 
-int uart_rx_overflow(void)
+int uart_rx_overflow()
 {
     int flag = rx_overflow_flag;
     rx_overflow_flag = 0;  /* Clear on read */

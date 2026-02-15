@@ -18,11 +18,11 @@
 #define GPU_PARAMETERS_ADDR         0x7A02000 // GPU parameters
 #define GPU_PIXEL_DATA_ADDR         0x7B00000 // Pixel plane data
 
-void gpu_clear_tables(void);
-void gpu_clear_bg(void);
-void gpu_clear_window(void);
-void gpu_clear_pixel(void);
-void gpu_clear_vram(void);
+void gpu_clear_tables();
+void gpu_clear_bg();
+void gpu_clear_window();
+void gpu_clear_pixel();
+void gpu_clear_vram();
 void gpu_load_pattern_table(const unsigned int *pattern_table);
 void gpu_load_palette_table(const unsigned int *palette_table);
 void gpu_set_bg_tile_scroll(unsigned int tile_x);

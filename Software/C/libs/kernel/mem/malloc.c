@@ -30,7 +30,7 @@ static int heap_initialized = 0;
  * Initialize the heap allocator.
  * Called automatically on first malloc if not initialized.
  */
-static void malloc_init(void)
+static void malloc_init()
 {
     if (heap_initialized)
     {

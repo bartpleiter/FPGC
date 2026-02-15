@@ -133,9 +133,6 @@ int bdos_shell_cmd_ls(int argc, char** argv);
 
 int bdos_shell_cmd_help(int argc, char** argv)
 {
-  (void)argc;
-  (void)argv;
-
   term_puts("Commands:\n");
   term_puts("  help - List available commands\n");
   term_puts("  clear - Clear the terminal\n");
@@ -150,8 +147,6 @@ int bdos_shell_cmd_help(int argc, char** argv)
 
 int bdos_shell_cmd_clear(int argc, char** argv)
 {
-  (void)argc;
-  (void)argv;
   term_clear();
   return 0;
 }
@@ -175,9 +170,6 @@ int bdos_shell_cmd_echo(int argc, char** argv)
 
 int bdos_shell_cmd_version(int argc, char** argv)
 {
-  (void)argc;
-  (void)argv;
-
   term_puts("BDOS v2.0-dev1\n");
   return 0;
 }
@@ -186,9 +178,6 @@ int bdos_shell_cmd_uptime(int argc, char** argv)
 {
   unsigned int elapsed_us;
   unsigned int elapsed_ms;
-
-  (void)argc;
-  (void)argv;
 
   elapsed_us = get_micros() - bdos_shell_start_micros;
   elapsed_ms = elapsed_us / 1000;
@@ -201,9 +190,6 @@ int bdos_shell_cmd_uptime(int argc, char** argv)
 
 int bdos_shell_cmd_pwd(int argc, char** argv)
 {
-  (void)argc;
-  (void)argv;
-
   term_puts("/");
   term_puts(bdos_shell_cwd);
   term_putchar('\n');
@@ -212,9 +198,6 @@ int bdos_shell_cmd_pwd(int argc, char** argv)
 
 int bdos_shell_cmd_ls(int argc, char** argv)
 {
-  (void)argc;
-  (void)argv;
-
   term_puts("error: filesystem not implemented yet\n");
   return 0;
 }

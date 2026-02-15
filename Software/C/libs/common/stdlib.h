@@ -87,7 +87,7 @@ int int_clamp(int x, int lo, int hi);
  * Generate pseudo-random number.
  * @return Random number between 0 and RAND_MAX
  */
-int rand(void);
+int rand();
 
 /**
  * Seed the random number generator.

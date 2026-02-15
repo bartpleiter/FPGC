@@ -94,7 +94,7 @@ long labs(long j)
 /* Random number generator (Linear Congruential Generator) */
 static unsigned int stdlib_rand_seed = 1;
 
-int rand(void)
+int rand()
 {
     /* LCG parameters (same as glibc) */
     stdlib_rand_seed = stdlib_rand_seed * 1103515245 + 12345;
