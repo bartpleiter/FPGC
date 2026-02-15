@@ -22,7 +22,7 @@ This document gives **only the BDOS-relevant context** needed to work effectivel
 ## Important architectural constraints
 
 - **No linker**: BDOS follows the project’s orchestrator pattern.
-- `main.c` directly includes module `.c` files (`init.c`, `hid.c`) for composition.
+- `main.c` directly includes module `.c` files (`init.c`, `hid.c`, `fs.c`, `shell_cmds.c`, `shell.c`) for composition.
 - `bdos.h` enables required libraries using `#define` flags before including `libs/kernel/kernel.h`.
 - Keep code compatible with B32CC limits (simple C patterns, avoid advanced/complex constructs).
 
@@ -30,10 +30,18 @@ This document gives **only the BDOS-relevant context** needed to work effectivel
 
 ### Entry and control flow
 
-- `main()` calls `bdos_init()`, then enters `bdos_loop()` forever.
+- `main()` calls `bdos_init()`, then performs BRFS boot init (`bdos_fs_boot_init()`), then enters `bdos_loop()` forever.
 - `bdos_loop()` currently:
   - polls USB keyboard device state (`bdos_usb_keyboard_main_loop()`),
-  - consumes key events from the HID FIFO (temporary test consumer).
+  - runs shell tick (`bdos_shell_tick()`) which consumes key events and drives command processing.
+
+### BRFS boot policy
+
+- BDOS uses `SPI_FLASH_1` for BRFS persistence.
+- On boot, BDOS attempts `brfs_mount()`.
+- If mount fails, shell startup asks user whether to format.
+- Declining format triggers `bdos_panic()` because filesystem availability is required.
+- Flash sync is explicit only: after successful format and when user runs `sync`.
 
 ### Interrupt model
 
@@ -91,6 +99,8 @@ This document gives **only the BDOS-relevant context** needed to work effectivel
 - Boot/init and timer registration: `Software/C/BDOS/init.c`
 - HID/input event pipeline: `Software/C/BDOS/hid.c`
 - Main loop + interrupt dispatcher: `Software/C/BDOS/main.c`
+- Filesystem integration: `Software/C/BDOS/fs.c`
+- Shell command handlers + format wizard: `Software/C/BDOS/shell_cmds.c`
 - Memory layout constants: `Software/C/BDOS/mem_map.h`
 
 ## Practical guidance for AI edits

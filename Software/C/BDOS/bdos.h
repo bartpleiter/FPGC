@@ -58,7 +58,20 @@ usb_device_info_t bdos_usb_keyboard_device;
 /* Shell configuration */
 #define BDOS_SHELL_INPUT_MAX   160
 #define BDOS_SHELL_ARGV_MAX    8
-#define BDOS_SHELL_PROMPT_MAX  64
+#define BDOS_SHELL_PROMPT_MAX  192
+#define BDOS_SHELL_PATH_MAX    (BRFS_MAX_PATH_LENGTH + 1)
+
+/* BRFS persistence policy */
+#define BDOS_FS_FLASH_ID SPI_FLASH_1
+
+/* Shared shell globals */
+extern char bdos_shell_cwd[BDOS_SHELL_PATH_MAX];
+extern unsigned int bdos_shell_start_micros;
+
+/* Shared filesystem state */
+extern int bdos_fs_ready;
+extern int bdos_fs_boot_needs_format;
+extern int bdos_fs_last_mount_error;
 
 // Functions that can be called between BDOS modules
 void bdos_panic(char* msg);
@@ -71,8 +84,23 @@ int bdos_keyboard_event_available();
 
 int bdos_keyboard_event_read();
 
+void bdos_fs_boot_init();
+
+int bdos_fs_format_and_sync(unsigned int total_blocks, unsigned int words_per_block,
+							char* label, int full_format);
+
+int bdos_fs_sync_now();
+
+char* bdos_fs_error_string(int error_code);
+
 void bdos_shell_init();
 
 void bdos_shell_tick();
+
+void bdos_shell_execute_line(char* line);
+
+int bdos_shell_handle_special_mode_line(char* line);
+
+void bdos_shell_on_startup();
 
 #endif // BDOS_H

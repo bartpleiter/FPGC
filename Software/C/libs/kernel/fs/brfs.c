@@ -13,6 +13,15 @@
  *============================================================================*/
 
 struct brfs_state brfs;
+static brfs_progress_callback_t brfs_progress_callback = NULL;
+
+static void brfs_report_progress(const char* phase, unsigned int current, unsigned int total)
+{
+    if (brfs_progress_callback != NULL)
+    {
+        brfs_progress_callback(phase, current, total);
+    }
+}
 
 /*============================================================================
  * Internal Helper Functions - Forward Declarations
@@ -518,6 +527,11 @@ int brfs_init(unsigned int flash_id)
     return BRFS_OK;
 }
 
+void brfs_set_progress_callback(brfs_progress_callback_t callback)
+{
+    brfs_progress_callback = callback;
+}
+
 int brfs_format(unsigned int total_blocks, unsigned int words_per_block,
                 const char* label, int full_format)
 {
@@ -526,6 +540,11 @@ int brfs_format(unsigned int total_blocks, unsigned int words_per_block,
     unsigned int* root_block;
     unsigned int i;
     unsigned int data_size;
+    unsigned int data_words;
+    unsigned int data_sectors;
+    unsigned int sector;
+    unsigned int sector_offset;
+    unsigned int words_in_sector;
     
     // Validate parameters
     if (total_blocks == 0 || total_blocks > BRFS_MAX_BLOCKS)
@@ -582,7 +601,22 @@ int brfs_format(unsigned int total_blocks, unsigned int words_per_block,
     if (full_format)
     {
         root_block = brfs_get_data_block(0);
-        memset(root_block, 0, total_blocks * words_per_block);
+        data_words = total_blocks * words_per_block;
+        data_sectors = (data_words + BRFS_FLASH_WORDS_PER_SECTOR - 1) / BRFS_FLASH_WORDS_PER_SECTOR;
+
+        for (sector = 0; sector < data_sectors; sector++)
+        {
+            sector_offset = sector * BRFS_FLASH_WORDS_PER_SECTOR;
+            words_in_sector = BRFS_FLASH_WORDS_PER_SECTOR;
+
+            if ((sector_offset + words_in_sector) > data_words)
+            {
+                words_in_sector = data_words - sector_offset;
+            }
+
+            memset(root_block + sector_offset, 0, words_in_sector);
+            brfs_report_progress("format-zero", sector + 1, data_sectors);
+        }
     }
     
     // Initialize root directory (block 0)
@@ -649,6 +683,13 @@ int brfs_mount()
     unsigned int data_size;
     unsigned int i;
     int result;
+    unsigned int words_remaining;
+    unsigned int words_this_sector;
+    unsigned int fat_sectors;
+    unsigned int data_sectors;
+    unsigned int sector;
+    unsigned int progress_total;
+    unsigned int progress_step;
     
     // Read superblock from flash
     sb = (struct brfs_superblock*)brfs_get_superblock();
@@ -670,16 +711,55 @@ int brfs_mount()
         return BRFS_ERR_NO_SPACE;
     }
     
-    // Read FAT from flash
+    // Read FAT from flash (with progress)
     fat = brfs_get_fat();
-    spi_flash_read_words(brfs.flash_id, brfs.flash_fat_addr,
-                        fat, sb->total_blocks);
+    words_remaining = sb->total_blocks;
+    fat_sectors = (words_remaining + BRFS_FLASH_WORDS_PER_SECTOR - 1) / BRFS_FLASH_WORDS_PER_SECTOR;
+    data_sectors = (sb->total_blocks * sb->words_per_block + BRFS_FLASH_WORDS_PER_SECTOR - 1) / BRFS_FLASH_WORDS_PER_SECTOR;
+    progress_total = fat_sectors + data_sectors;
+    progress_step = 0;
+
+    for (sector = 0; sector < fat_sectors; sector++)
+    {
+        words_this_sector = BRFS_FLASH_WORDS_PER_SECTOR;
+        if (words_this_sector > words_remaining)
+        {
+            words_this_sector = words_remaining;
+        }
+
+        spi_flash_read_words(brfs.flash_id,
+                            brfs.flash_fat_addr + (sector * BRFS_FLASH_SECTOR_SIZE),
+                            fat + (sector * BRFS_FLASH_WORDS_PER_SECTOR),
+                            words_this_sector);
+
+        words_remaining -= words_this_sector;
+        progress_step++;
+        brfs_report_progress("mount", progress_step, progress_total);
+    }
     
-    // Read data blocks from flash
+    // Read data blocks from flash (with progress)
     data = brfs_get_data_block(0);
     data_size = sb->total_blocks * sb->words_per_block;
-    spi_flash_read_words(brfs.flash_id, brfs.flash_data_addr,
-                        data, data_size);
+    words_remaining = data_size;
+    data_sectors = (words_remaining + BRFS_FLASH_WORDS_PER_SECTOR - 1) / BRFS_FLASH_WORDS_PER_SECTOR;
+
+    for (sector = 0; sector < data_sectors; sector++)
+    {
+        words_this_sector = BRFS_FLASH_WORDS_PER_SECTOR;
+        if (words_this_sector > words_remaining)
+        {
+            words_this_sector = words_remaining;
+        }
+
+        spi_flash_read_words(brfs.flash_id,
+                            brfs.flash_data_addr + (sector * BRFS_FLASH_SECTOR_SIZE),
+                            data + (sector * BRFS_FLASH_WORDS_PER_SECTOR),
+                            words_this_sector);
+
+        words_remaining -= words_this_sector;
+        progress_step++;
+        brfs_report_progress("mount", progress_step, progress_total);
+    }
     
     // Clear dirty flags - everything is in sync with flash
     for (i = 0; i < sizeof(brfs.dirty_blocks) / sizeof(brfs.dirty_blocks[0]); i++)
@@ -794,6 +874,8 @@ int brfs_sync()
     unsigned int fat_sectors;
     unsigned int data_sectors;
     int sector_dirty;
+    unsigned int progress_total;
+    unsigned int progress_step;
     
     if (!brfs.initialized)
     {
@@ -814,6 +896,8 @@ int brfs_sync()
                    BRFS_FLASH_WORDS_PER_SECTOR;
     data_sectors = (sb->total_blocks * sb->words_per_block + 
                     BRFS_FLASH_WORDS_PER_SECTOR - 1) / BRFS_FLASH_WORDS_PER_SECTOR;
+    progress_total = fat_sectors + data_sectors;
+    progress_step = 0;
     
     // Write dirty FAT sectors
     for (sector = 0; sector < fat_sectors; sector++)
@@ -834,6 +918,9 @@ int brfs_sync()
         {
             brfs_write_fat_sector(sector);
         }
+
+        progress_step++;
+        brfs_report_progress("sync-fat", progress_step, progress_total);
     }
     
     // Write dirty data sectors
@@ -855,6 +942,9 @@ int brfs_sync()
         {
             brfs_write_data_sector(sector);
         }
+
+        progress_step++;
+        brfs_report_progress("sync-data", progress_step, progress_total);
     }
     
     // Clear dirty flags

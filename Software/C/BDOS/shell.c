@@ -9,7 +9,7 @@ char bdos_shell_input[BDOS_SHELL_INPUT_MAX];
 int bdos_shell_input_len;
 int bdos_shell_input_overflow;
 char bdos_shell_prompt[BDOS_SHELL_PROMPT_MAX];
-char bdos_shell_cwd[24] = "root";
+char bdos_shell_cwd[BDOS_SHELL_PATH_MAX] = "/";
 unsigned int bdos_shell_prompt_x;
 unsigned int bdos_shell_prompt_y;
 int bdos_shell_last_render_len;
@@ -356,181 +356,9 @@ void bdos_shell_print_welcome()
 }
 
 /* ------------------------------------------------------------------------- */
-/* Command parsing and execution                                               */
 /* ------------------------------------------------------------------------- */
-
-// Parse input line into argc/argv by splitting on spaces/tabs.
-int bdos_shell_parse_line(char* line, int* argc_out, char** argv)
-{
-  int argc = 0;
-  char* p = line;
-
-  while (*p != '\0')
-  {
-    while (*p == ' ' || *p == '\t')
-    {
-      p++;
-    }
-
-    if (*p == '\0')
-    {
-      break;
-    }
-
-    if (argc >= BDOS_SHELL_ARGV_MAX)
-    {
-      return -1;
-    }
-
-    argv[argc] = p;
-    argc++;
-
-    while (*p != '\0' && *p != ' ' && *p != '\t')
-    {
-      p++;
-    }
-
-    if (*p == '\0')
-    {
-      break;
-    }
-
-    *p = '\0';
-    p++;
-  }
-
-  *argc_out = argc;
-  return 0;
-}
-
-// Built-in: print available shell commands and key hints.
-int bdos_shell_cmd_help(int argc, char** argv)
-{
-  term_puts("Commands:\n");
-  term_puts("  help - List available commands\n");
-  term_puts("  clear - Clear the terminal\n");
-  term_puts("  echo - Echo arguments\n");
-  term_puts("  uptime - Show shell uptime in ms\n");
-  term_puts("  pwd - Print current directory\n");
-  term_puts("  ls - List directory (placeholder)\n");
-  return 0;
-}
-
-// Built-in: clear terminal screen.
-int bdos_shell_cmd_clear(int argc, char** argv)
-{
-  (void)argc;
-  (void)argv;
-  term_clear();
-  return 0;
-}
-
-// Built-in: echo provided arguments.
-int bdos_shell_cmd_echo(int argc, char** argv)
-{
-  int i;
-
-  for (i = 1; i < argc; i++)
-  {
-    term_puts(argv[i]);
-    if (i < argc - 1)
-    {
-      term_putchar(' ');
-    }
-  }
-  term_putchar('\n');
-
-  return 0;
-}
-
-// Built-in: show shell uptime in milliseconds.
-int bdos_shell_cmd_uptime(int argc, char** argv)
-{
-  unsigned int elapsed_us;
-  unsigned int elapsed_ms;
-
-  elapsed_us = get_micros() - bdos_shell_start_micros;
-  elapsed_ms = elapsed_us / 1000;
-
-  term_puts("Uptime: ");
-  term_putint((int)elapsed_ms);
-  term_puts(" ms\n");
-  return 0;
-}
-
-// Built-in: print current shell working directory token.
-int bdos_shell_cmd_pwd(int argc, char** argv)
-{
-  term_puts("/");
-  term_puts(bdos_shell_cwd);
-  term_putchar('\n');
-  return 0;
-}
-
-// Built-in placeholder until filesystem operations are available.
-int bdos_shell_cmd_ls(int argc, char** argv)
-{
-  term_puts("error: filesystem not implemented yet\n");
-  return 0;
-}
-
-// Dispatch parsed command to built-ins.
-void bdos_shell_execute_line(char* line)
-{
-  int argc;
-  char* argv[BDOS_SHELL_ARGV_MAX];
-
-  if (bdos_shell_parse_line(line, &argc, argv) != 0)
-  {
-    term_puts("error: too many arguments\n");
-    return;
-  }
-
-  if (argc == 0)
-  {
-    return;
-  }
-
-  if (strcmp(argv[0], "help") == 0)
-  {
-    bdos_shell_cmd_help(argc, argv);
-    return;
-  }
-
-  if (strcmp(argv[0], "clear") == 0)
-  {
-    bdos_shell_cmd_clear(argc, argv);
-    return;
-  }
-
-  if (strcmp(argv[0], "echo") == 0)
-  {
-    bdos_shell_cmd_echo(argc, argv);
-    return;
-  }
-
-  if (strcmp(argv[0], "uptime") == 0)
-  {
-    bdos_shell_cmd_uptime(argc, argv);
-    return;
-  }
-
-  if (strcmp(argv[0], "pwd") == 0)
-  {
-    bdos_shell_cmd_pwd(argc, argv);
-    return;
-  }
-
-  if (strcmp(argv[0], "ls") == 0)
-  {
-    bdos_shell_cmd_ls(argc, argv);
-    return;
-  }
-
-  term_puts("error: unknown command: ");
-  term_puts(argv[0]);
-  term_puts("\nType 'help' to list commands.\n");
-}
+/* Command submit lifecycle                                                   */
+/* ------------------------------------------------------------------------- */
 
 // Submit current input line and start next prompt line.
 void bdos_shell_submit_input()
@@ -545,8 +373,16 @@ void bdos_shell_submit_input()
   else
   {
     bdos_shell_input[bdos_shell_input_len] = '\0';
-    bdos_shell_history_add(bdos_shell_input);
-    bdos_shell_execute_line(bdos_shell_input);
+
+    if (bdos_shell_handle_special_mode_line(bdos_shell_input))
+    {
+      // Special-mode line consumed (boot format confirmation / format wizard).
+    }
+    else
+    {
+      bdos_shell_history_add(bdos_shell_input);
+      bdos_shell_execute_line(bdos_shell_input);
+    }
   }
 
   bdos_shell_input_len = 0;
@@ -686,6 +522,7 @@ void bdos_shell_init()
   bdos_shell_start_micros = get_micros();
 
   bdos_shell_print_welcome();
+  bdos_shell_on_startup();
   bdos_shell_start_line();
 }
 

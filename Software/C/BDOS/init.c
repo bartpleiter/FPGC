@@ -21,7 +21,7 @@ void bdos_init_usb_keyboard()
 {
   term_puts("Initializing CH376 (ID ");
   term_putint(bdos_usb_keyboard_spi_id);
-  term_puts(") for keyboard\n");
+  term_puts(") for input\n");
 
   if (!ch376_host_init(bdos_usb_keyboard_spi_id))
   {

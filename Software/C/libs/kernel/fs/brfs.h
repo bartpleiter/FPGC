@@ -28,6 +28,8 @@
 #include "libs/common/stddef.h"
 #include "libs/kernel/mem/mem_defs.h"
 
+typedef void (*brfs_progress_callback_t)(const char* phase, unsigned int current, unsigned int total);
+
 //============================================================================
 // Configuration Constants
 //============================================================================
@@ -169,6 +171,13 @@ struct brfs_state
  * @return              BRFS_OK on success, error code on failure
  */
 int brfs_init(unsigned int flash_id);
+
+/**
+ * Set optional progress callback for long-running operations.
+ * Callback receives phase name and current/total progress counters.
+ * Pass NULL to disable progress callbacks.
+ */
+void brfs_set_progress_callback(brfs_progress_callback_t callback);
 
 /**
  * Format the filesystem

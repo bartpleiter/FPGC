@@ -464,3 +464,7 @@ Block 0 is always reserved for the root directory. It is initialized during `brf
 - No timestamps (RTC support reserved but not implemented)
 - Single-user, no locking
 - Cache must fit entire filesystem in RAM
+
+## Formatting parameters
+
+The number of blocks and block size should be a multiple of 64. The size of the superblock and FAT need to be taken into account when calculating total flash usage. For example, formatting an SPI Flash of 16MiB with 256-word blocks can best be done with 16320 blocks.

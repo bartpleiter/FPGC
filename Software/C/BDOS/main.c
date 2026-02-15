@@ -7,6 +7,8 @@
 // Include BDOS code modules
 #include "BDOS/init.c"
 #include "BDOS/hid.c"
+#include "BDOS/fs.c"
+#include "BDOS/shell_cmds.c"
 #include "BDOS/shell.c"
 
 void bdos_panic(char* msg)
@@ -44,7 +46,10 @@ int main()
   // Initialize BDOS
   bdos_init();
 
-  // Start shell (clears startup messages and prints welcome banner)
+  // Initialize filesystem
+  bdos_fs_boot_init();
+
+  // Start shell
   bdos_shell_init();
 
   // Enter main loop
