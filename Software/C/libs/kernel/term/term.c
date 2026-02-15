@@ -214,6 +214,37 @@ void term_write(char *buf, unsigned int len)
   }
 }
 
+// Read tile and palette at a terminal cell
+void term_get_cell(unsigned int x, unsigned int y, unsigned char *tile, unsigned char *palette)
+{
+  if (x >= TERM_WIDTH || y >= TERM_HEIGHT)
+  {
+    return;
+  }
+
+  if (tile != (unsigned char *)0)
+  {
+    *tile = screen_tiles[y][x];
+  }
+  if (palette != (unsigned char *)0)
+  {
+    *palette = screen_palettes[y][x];
+  }
+}
+
+// Write tile and palette at a terminal cell without moving cursor
+void term_put_cell(unsigned int x, unsigned int y, unsigned char tile, unsigned char palette)
+{
+  if (x >= TERM_WIDTH || y >= TERM_HEIGHT)
+  {
+    return;
+  }
+
+  screen_tiles[y][x] = tile;
+  screen_palettes[y][x] = palette;
+  gpu_write_window_tile(x, y, tile, palette);
+}
+
 // Set the palette index for subsequent character output
 void term_set_palette(unsigned int palette_index)
 {

@@ -41,6 +41,12 @@ void term_puthex(unsigned int value, int prefix);
 // Output a buffer of specified length
 void term_write(char *buf, unsigned int len);
 
+// Read tile and palette at a terminal cell
+void term_get_cell(unsigned int x, unsigned int y, unsigned char *tile, unsigned char *palette);
+
+// Write tile and palette at a terminal cell without moving cursor
+void term_put_cell(unsigned int x, unsigned int y, unsigned char tile, unsigned char palette);
+
 // Set the palette index for subsequent character output
 void term_set_palette(unsigned int palette_index);
 
