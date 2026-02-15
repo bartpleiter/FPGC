@@ -50,6 +50,7 @@ void bdos_shell_render_line()
 {
   int i;
 
+  bdos_shell_clear_cursor();
   term_set_palette(PALETTE_WHITE_ON_BLACK);
   term_set_cursor(bdos_shell_prompt_x, bdos_shell_prompt_y);
   for (i = 0; i < bdos_shell_last_render_len; i++)
@@ -74,10 +75,10 @@ void bdos_shell_start_line()
 
 void bdos_shell_print_welcome()
 {
-  term_puts(" ____  ____   ___   ____\n");
-  term_puts("| __ )|  _ \\ / _ \\ / ___|\n");
-  term_puts("|  _ \\| |_| | |_| |\\___ \\\n");
-  term_puts("|____/|____/ \\___/ |____/v2.0-dev1\n\n");
+  term_puts(" ___ ___   ___  ___ \n");
+  term_puts("| _ )   \\ / _ \\/ __|\n");
+  term_puts("| _ \\ |) | (_) \\__ \\\n");
+  term_puts("|___/___/ \\___/|___/v2.0-dev1\n\n");
 }
 
 int bdos_shell_parse_line(char* line, int* argc_out, char** argv)
@@ -123,21 +124,12 @@ int bdos_shell_parse_line(char* line, int* argc_out, char** argv)
   return 0;
 }
 
-int bdos_shell_cmd_help(int argc, char** argv);
-int bdos_shell_cmd_clear(int argc, char** argv);
-int bdos_shell_cmd_echo(int argc, char** argv);
-int bdos_shell_cmd_version(int argc, char** argv);
-int bdos_shell_cmd_uptime(int argc, char** argv);
-int bdos_shell_cmd_pwd(int argc, char** argv);
-int bdos_shell_cmd_ls(int argc, char** argv);
-
 int bdos_shell_cmd_help(int argc, char** argv)
 {
   term_puts("Commands:\n");
   term_puts("  help - List available commands\n");
   term_puts("  clear - Clear the terminal\n");
   term_puts("  echo - Echo arguments\n");
-  term_puts("  version - Show BDOS shell version\n");
   term_puts("  uptime - Show shell uptime in ms\n");
   term_puts("  pwd - Print current directory\n");
   term_puts("  ls - List directory (placeholder)\n");
@@ -165,12 +157,6 @@ int bdos_shell_cmd_echo(int argc, char** argv)
   }
   term_putchar('\n');
 
-  return 0;
-}
-
-int bdos_shell_cmd_version(int argc, char** argv)
-{
-  term_puts("BDOS v2.0-dev1\n");
   return 0;
 }
 
@@ -233,12 +219,6 @@ void bdos_shell_execute_line(char* line)
   if (strcmp(argv[0], "echo") == 0)
   {
     bdos_shell_cmd_echo(argc, argv);
-    return;
-  }
-
-  if (strcmp(argv[0], "version") == 0)
-  {
-    bdos_shell_cmd_version(argc, argv);
     return;
   }
 
