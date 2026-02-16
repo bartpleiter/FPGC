@@ -2,6 +2,7 @@
 
 #define BOOT_MODE_ADDR  0x7000019
 #define MICROS_ADDR     0x700001A
+#define USER_LED_ADDR   0x700001B
 
 
 int get_int_id()
@@ -24,4 +25,10 @@ unsigned int get_micros()
 {
     unsigned int* micros_ptr = (unsigned int*)MICROS_ADDR;
     return *micros_ptr;
+}
+
+void set_user_led(int on)
+{
+    int* user_led_ptr = (int*)USER_LED_ADDR;
+    *user_led_ptr = on;
 }

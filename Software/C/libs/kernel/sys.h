@@ -17,4 +17,6 @@ int get_boot_mode();
 
 unsigned int get_micros();
 
+void set_user_led(int on);
+
 #endif // SYS_H

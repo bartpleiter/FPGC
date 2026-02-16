@@ -190,23 +190,91 @@ assign reset = reset_sync[1];
 /******************************************************************************
  * LEDs
  ******************************************************************************/
-// Invert UART signals as they idle at high state
-assign led_uart_rx = ~uart_rx;
-assign led_uart_tx = ~uart_tx;
+wire led_flash_activity;
+wire led_usb_activity;
+wire led_eth_activity;
+wire led_gpu_activity;
+wire led_user_state;
 
-// TODO: integrate into memory unit:
-// - led_flash
-// - led_usb
-// - led_eth
-// - led_user
-assign led_flash = 1'b0;
-assign led_usb   = 1'b0;
-assign led_eth   = 1'b0;
-assign led_user  = 1'b0;
+localparam LED_ACTIVITY_HOLD_CYCLES = 24'd8000000;
 
-// TODO: integrate into GPU:
-// - led_gpu
-assign led_gpu = 1'b0;
+ActivityLED #(
+    .HOLD_CYCLES(LED_ACTIVITY_HOLD_CYCLES)
+) led_flash_activity_driver (
+    .clk(clk100),
+    .reset(reset),
+    .activity(led_flash_activity),
+    .led(led_flash)
+);
+
+ActivityLED #(
+    .HOLD_CYCLES(LED_ACTIVITY_HOLD_CYCLES)
+) led_usb_activity_driver (
+    .clk(clk100),
+    .reset(reset),
+    .activity(led_usb_activity),
+    .led(led_usb)
+);
+
+ActivityLED #(
+    .HOLD_CYCLES(LED_ACTIVITY_HOLD_CYCLES)
+) led_eth_activity_driver (
+    .clk(clk100),
+    .reset(reset),
+    .activity(led_eth_activity),
+    .led(led_eth)
+);
+
+ActivityLED #(
+    .HOLD_CYCLES(LED_ACTIVITY_HOLD_CYCLES)
+) led_gpu_activity_driver (
+    .clk(clk100),
+    .reset(reset),
+    .activity(led_gpu_activity),
+    .led(led_gpu)
+);
+
+ActivityLED #(
+    .HOLD_CYCLES(LED_ACTIVITY_HOLD_CYCLES)
+) led_uart_rx_activity_driver (
+    .clk(clk100),
+    .reset(reset),
+    .activity(uart_rx_line_activity),
+    .led(led_uart_rx)
+);
+
+ActivityLED #(
+    .HOLD_CYCLES(LED_ACTIVITY_HOLD_CYCLES)
+) led_uart_tx_activity_driver (
+    .clk(clk100),
+    .reset(reset),
+    .activity(uart_tx_line_activity),
+    .led(led_uart_tx)
+);
+
+assign led_user = led_user_state;
+
+assign led_gpu_activity = vram32_cpu_we | vram8_cpu_we | vramPX_cpu_we;
+
+// UART line activity detection
+reg uart_rx_prev = 1'b1;
+reg uart_tx_prev = 1'b1;
+wire uart_rx_line_activity = (uart_rx != uart_rx_prev);
+wire uart_tx_line_activity = (uart_tx != uart_tx_prev);
+
+always @(posedge clk100)
+begin
+    if (reset)
+    begin
+        uart_rx_prev <= 1'b1;
+        uart_tx_prev <= 1'b1;
+    end
+    else
+    begin
+        uart_rx_prev <= uart_rx;
+        uart_tx_prev <= uart_tx;
+    end
+end
 
 /******************************************************************************
  * ROM
@@ -606,6 +674,11 @@ MemoryUnit memory_unit (
     .OST1_int(OST1_int),
     .OST2_int(OST2_int),
     .OST3_int(OST3_int),
+
+    .flash_spi_activity(led_flash_activity),
+    .usb_spi_activity(led_usb_activity),
+    .eth_spi_activity(led_eth_activity),
+    .user_led_state(led_user_state),
 
     .boot_mode(boot_mode),
 

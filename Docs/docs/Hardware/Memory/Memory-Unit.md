@@ -63,7 +63,7 @@ The Memory Unit implements the I/O portion of the CPU memory map starting at add
     See [Memory Map](Memory-Map.md) for the complete FPGC memory layout and addressing scheme.
 
 !!! note "Write-Only Assumption"
-    The current implementation assumes write operations for most addresses to prevent CPU lockup. Read operations on write-only addresses (e.g. UART TX) will still complete but may not return meaningful data.
+    The current implementation assumes write operations for most addresses to prevent CPU lockup. Read operations on write-only addresses (e.g. UART TX and User LED) will still complete but shall probably return 0.
 
 ## State Machine Operation
 

@@ -414,6 +414,7 @@ set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/UARTrx.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/SimpleSPI.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/OStimer.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/MicrosCounter.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/ActivityLED.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/DTRreset.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/HDMI/TMDSenc.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/HDMI/RGB8toRGB24.v
@@ -439,6 +440,7 @@ set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/B32P3.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/ALU.v
 set_global_assignment -name QIP_FILE main_pll.qip
 set_global_assignment -name QIP_FILE ddr.qip
+
 
 
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

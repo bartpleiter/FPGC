@@ -40,6 +40,9 @@ void bdos_init_usb_keyboard()
 // BDOS initialization function to be called from main
 void bdos_init()
 {
+  // Indicate core initialization in progress by turning on user LED
+  set_user_led(1);
+
   // Initialize GPU
   bdos_init_gpu();
 
@@ -61,4 +64,7 @@ void bdos_init()
 
   // Initialize USB host subsystem for keyboard polling
   bdos_init_usb_keyboard();
+
+  // Core initialization complete, turn off user LED
+  set_user_led(0);
 }

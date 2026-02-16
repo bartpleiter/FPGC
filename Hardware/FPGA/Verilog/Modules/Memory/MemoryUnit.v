@@ -34,6 +34,14 @@ module MemoryUnit (
     output wire         OST2_int,
     output wire         OST3_int,
 
+    // Activity outputs for LEDs
+    output reg          flash_spi_activity = 1'b0,
+    output reg          usb_spi_activity = 1'b0,
+    output reg          eth_spi_activity = 1'b0,
+
+    // User LED state
+    output reg          user_led_state = 1'b0,
+
     // Boot mode signal
     input wire          boot_mode,
 
@@ -323,8 +331,9 @@ localparam ADDR_GPIO_MODE       = 32'h7000017; // GPIO mode
 localparam ADDR_GPIO_STATE      = 32'h7000018; // GPIO state
 localparam ADDR_BOOT_MODE       = 32'h7000019; // Boot mode
 localparam ADDR_MICROS          = 32'h700001A; // Micros
+localparam ADDR_LED_USER        = 32'h700001B; // User LED control
 
-localparam ADDR_OOB             = 32'h700001B; // All addresses >= this are out of bounds and return a constant
+localparam ADDR_OOB             = 32'h700001C; // All addresses >= this are out of bounds and return a constant
 
 // State machine states
 localparam STATE_IDLE                   = 8'd0;
@@ -363,6 +372,11 @@ always @(posedge clk) begin
 
         uart_tx_start <= 1'b0;
         uart_tx_data <= 8'd0;
+
+        flash_spi_activity <= 1'b0;
+        usb_spi_activity <= 1'b0;
+        eth_spi_activity <= 1'b0;
+        user_led_state <= 1'b0;
 
         OST1_trigger <= 1'b0;
         OST1_set <= 1'b0;
@@ -407,6 +421,10 @@ always @(posedge clk) begin
         wait_done <= 1'b0;
 
         uart_tx_start <= 1'b0;
+
+        flash_spi_activity <= 1'b0;
+        usb_spi_activity <= 1'b0;
+        eth_spi_activity <= 1'b0;
 
         OST1_set <= 1'b0;
         OST1_trigger <= 1'b0;
@@ -490,6 +508,7 @@ always @(posedge clk) begin
                         begin
                             SPI0_in <= data[7:0];
                             SPI0_start <= 1'b1;
+                            flash_spi_activity <= 1'b1;
                             wait_done <= 1'b1;
                         end
                         state <= STATE_WAIT_SPI0_DATA;
@@ -511,6 +530,7 @@ always @(posedge clk) begin
                         begin
                             SPI1_in <= data[7:0];
                             SPI1_start <= 1'b1;
+                            flash_spi_activity <= 1'b1;
                             wait_done <= 1'b1;
                         end
                         state <= STATE_WAIT_SPI1_DATA;
@@ -532,6 +552,7 @@ always @(posedge clk) begin
                         begin
                             SPI2_in <= data[7:0];
                             SPI2_start <= 1'b1;
+                            usb_spi_activity <= 1'b1;
                             wait_done <= 1'b1;
                         end
                         state <= STATE_WAIT_SPI2_DATA;
@@ -558,6 +579,7 @@ always @(posedge clk) begin
                         begin
                             SPI3_in <= data[7:0];
                             SPI3_start <= 1'b1;
+                            usb_spi_activity <= 1'b1;
                             wait_done <= 1'b1;
                         end
                         state <= STATE_WAIT_SPI3_DATA;
@@ -584,6 +606,7 @@ always @(posedge clk) begin
                         begin
                             SPI4_in <= data[7:0];
                             SPI4_start <= 1'b1;
+                            eth_spi_activity <= 1'b1;
                             wait_done <= 1'b1;
                         end
                         state <= STATE_WAIT_SPI4_DATA;
@@ -610,6 +633,7 @@ always @(posedge clk) begin
                         begin
                             SPI5_in <= data[7:0];
                             SPI5_start <= 1'b1;
+                            flash_spi_activity <= 1'b1;
                             wait_done <= 1'b1;
                         end
                         state <= STATE_WAIT_SPI5_DATA;
@@ -647,6 +671,16 @@ always @(posedge clk) begin
                     if (addr == ADDR_MICROS)
                     begin
                         state <= STATE_WAIT_MICROS;
+                    end
+
+                    // User LED
+                    if (addr == ADDR_LED_USER)
+                    begin
+                        if (we)
+                        begin
+                            user_led_state <= data[0];
+                        end
+                        state <= STATE_RETURN_ZERO;
                     end
 
                     if (addr >= ADDR_OOB)

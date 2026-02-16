@@ -56,7 +56,8 @@ $7000000    +------------------------+
             | GPIO_mode          $17 |
             | GPIO_state         $18 |
             | Boot_mode          $19 |
-            | Micros             $1A | $700001A
+            | Micros             $1A |
+            | User_led           $1B | $700001B
             +------------------------+
 
 Single Cycle Memory
