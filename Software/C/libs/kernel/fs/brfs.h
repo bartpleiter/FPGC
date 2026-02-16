@@ -51,6 +51,7 @@ typedef void (*brfs_progress_callback_t)(const char* phase, unsigned int current
 // Superblock: 16 words = 64 bytes, stored in first sector
 // FAT: stored starting at 4KB (next sector)
 // Data: stored starting at 64KB
+// TODO: optimize these or make them configurable based on format parameters
 #define BRFS_FLASH_SUPERBLOCK_ADDR  0x00000     // Superblock at byte 0
 #define BRFS_FLASH_FAT_ADDR         0x01000     // FAT starts at byte 4096 (4KB)
 #define BRFS_FLASH_DATA_ADDR        0x10000     // Data blocks start at byte 65536 (64KB)
