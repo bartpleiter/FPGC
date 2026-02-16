@@ -343,3 +343,84 @@ def test_assembler_label_in_data_section():
         assert len(assembler._label_address_mappings) > 0
     finally:
         os.unlink(temp_file.name)
+
+
+def test_assembler_independent_header_does_not_require_int_label():
+    """Test that independent+header mode replaces jump Int with nop."""
+    source_lines = [
+        SourceLine(line=".code", source_line_number=1, source_file_name="test.asm"),
+        SourceLine(line="Main:", source_line_number=2, source_file_name="test.asm"),
+        SourceLine(line="halt", source_line_number=3, source_file_name="test.asm"),
+    ]
+    temp_file = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".bin")
+    temp_file.close()
+
+    try:
+        assembler = Assembler(source_lines, temp_file.name, independent=True)
+
+        assembler.assemble(add_header=True)
+
+        with open(temp_file.name, "r") as f:
+            lines = [line.strip() for line in f.readlines()]
+
+        # header jump Main + header nop + header line count + halt
+        assert len(lines) == 4
+        # second instruction is NOP
+        assert lines[1].startswith("00000000000000000000000000000000")
+    finally:
+        os.unlink(temp_file.name)
+
+
+def test_assembler_independent_jump_label_becomes_jumpo():
+    """Test that jump label is converted to relative jumpo in independent mode."""
+    source_lines = [
+        SourceLine(line=".code", source_line_number=1, source_file_name="test.asm"),
+        SourceLine(line="Main:", source_line_number=2, source_file_name="test.asm"),
+        SourceLine(line="jump Main", source_line_number=3, source_file_name="test.asm"),
+    ]
+    temp_file = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".bin")
+    temp_file.close()
+
+    try:
+        assembler = Assembler(source_lines, temp_file.name, independent=True)
+
+        assembler.assemble()
+
+        with open(temp_file.name, "r") as f:
+            line = f.readline().strip()
+
+        assert line.startswith("1001")
+        assert line.endswith("1")
+    finally:
+        os.unlink(temp_file.name)
+
+
+def test_assembler_independent_addr2reg_becomes_savpc_add():
+    """Test that addr2reg label rewrites to savpc+add sequence in independent mode."""
+    source_lines = [
+        SourceLine(line=".code", source_line_number=1, source_file_name="test.asm"),
+        SourceLine(line="Main:", source_line_number=2, source_file_name="test.asm"),
+        SourceLine(
+            line="addr2reg Target r1", source_line_number=3, source_file_name="test.asm"
+        ),
+        SourceLine(line="halt", source_line_number=4, source_file_name="test.asm"),
+        SourceLine(line="Target:", source_line_number=5, source_file_name="test.asm"),
+        SourceLine(line="halt", source_line_number=6, source_file_name="test.asm"),
+    ]
+    temp_file = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".bin")
+    temp_file.close()
+
+    try:
+        assembler = Assembler(source_lines, temp_file.name, independent=True)
+
+        assembler.assemble()
+
+        with open(temp_file.name, "r") as f:
+            lines = [line.strip() for line in f.readlines()]
+
+        # savpc + add + halt + halt
+        assert len(lines) == 4
+        assert lines[0].startswith("0101")
+        assert lines[1].startswith("0001")
+    finally:
+        os.unlink(temp_file.name)

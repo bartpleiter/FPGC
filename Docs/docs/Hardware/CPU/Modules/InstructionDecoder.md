@@ -68,7 +68,7 @@ assign dreg = instr[3:0];
 ### Constants
 
 ```verilog
-// 27-bit constant for JUMP instruction
+// 27-bit constant for JUMP/JUMPO instruction
 assign const27 = instr[27:1];
 
 // 16-bit constants with sign extension
@@ -83,7 +83,7 @@ assign constAluu = {16'b0, instr[23:8]};            // Unsigned
 ### Control Bits
 
 ```verilog
-assign oe  = instr[0];   // Offset enable for jumps
+assign oe  = instr[0];   // Offset enable for jumps (JUMPO uses signed const27)
 assign sig = instr[0];   // Signed comparison for branches
 assign he  = instr[0];   // High-enable (unused in current design)
 ```

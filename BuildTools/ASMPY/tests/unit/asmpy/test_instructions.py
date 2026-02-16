@@ -1,5 +1,6 @@
 from asmpy.models.assembly_line import InstructionAssemblyLine
 from asmpy.models.data_types import SourceLine
+import pytest
 
 
 def make_line(code: str) -> InstructionAssemblyLine:
@@ -67,6 +68,23 @@ def test_jump_offset():
     # Assert
     assert b.startswith("1001")
     assert b.endswith("1")  # Is an offset jump
+
+
+def test_jump_offset_negative():
+    """Test that JUMPO accepts signed negative offsets."""
+    jmpo = make_line("jumpo -1")
+    b = jmpo.to_binary_string()
+
+    assert b.startswith("1001")
+    assert b.endswith("1")
+    assert b[4:31] == "1" * 27
+
+
+def test_jump_offset_signed_range_error():
+    """Test that JUMPO rejects out-of-range signed offsets."""
+    jmpo = make_line("jumpo 67108864")
+    with pytest.raises(ValueError):
+        jmpo.to_binary_string()
 
 
 def test_push_pop():

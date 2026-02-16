@@ -73,7 +73,7 @@ begin
     if (jumpc)
     begin
         if (oe)
-            jump_addr <= pc + {5'b0, const27};
+            jump_addr <= pc + {{5{const27[26]}}, const27}; // Sign-extend const27
         else
             jump_addr <= {5'b0, const27};
     end

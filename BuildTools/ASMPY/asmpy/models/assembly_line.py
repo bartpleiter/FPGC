@@ -564,9 +564,9 @@ class InstructionAssemblyLine(AssemblyLine):
             offset = self.arguments[0]
             if not isinstance(offset, Number):
                 raise ValueError("JUMPO argument must be number")
-            if not (0 <= offset.value < (1 << 27)):
-                raise ValueError("Jump offset must fit in 27 bits unsigned")
-            const27 = f"{offset.value:027b}"
+            if not (-(1 << 26) <= offset.value <= (1 << 26) - 1):
+                raise ValueError("Jump offset must fit in 27 bits signed")
+            const27 = f"{offset.value & ((1 << 27) - 1):027b}"
             return f"{InstructionOpcode.JUMP.value}{const27}1"
         if self.instruction_type in (
             JumpOperation.JUMP_REGISTER,

@@ -25,6 +25,7 @@ def test_parse_args():
     assert args.log_details is False
     assert args.header is False
     assert args.offset == "0"
+    assert args.independent is False
 
 
 def test_parse_args_with_optional_arguments():
@@ -39,6 +40,7 @@ def test_parse_args_with_optional_arguments():
         "-h",
         "-o",
         "0x1000",
+        "-i",
     ]
 
     # Act
@@ -52,6 +54,7 @@ def test_parse_args_with_optional_arguments():
     assert args.log_details is True
     assert args.header is True
     assert args.offset == "0x1000"
+    assert args.independent is True
 
 
 def test_parse_args_missing_file():

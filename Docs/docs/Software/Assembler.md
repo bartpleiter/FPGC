@@ -34,6 +34,9 @@ asmpy input.asm output.bin --log-level debug --log-details
 - `output` - Output binary file path (required)
 - `-l, --log-level` - Set logging level: debug, info, warning, error, critical (default: info)
 - `-d, --log-details` - Enable detailed logging with timestamps and line numbers
+- `-h, --header` - Add bare-metal header (`jump Main`, `jump Int`, `.dw line_count`)
+- `-o, --offset` - Set address offset for absolute label placement (ignored with `--independent`)
+- `-i, --independent` - Enable position-independent output (PIC): converts label `jump` to relative `jumpo`, rewrites `addr2reg` to `savpc` + `add/sub` chain, and with `--header` replaces `jump Int` by `nop`
 
 ## Assembly Language Syntax
 
@@ -114,7 +117,7 @@ The following table provides a complete overview of all B32P3 instructions suppo
 | `blts` | R | R | C16/L | If Arg1 < Arg2 (signed), jump to 16-bit signed offset or label in Arg3 |
 | `bles` | R | R | C16/L | If Arg1 <= Arg2 (signed), jump to 16-bit signed offset or label in Arg3 |
 | `jump` | C27/L | - | - | Jump to label or 27-bit constant address in Arg1 |
-| `jumpo` | C27 | - | - | Jump to unsigned 27-bit constant offset in Arg1 |
+| `jumpo` | C27 | - | - | Jump to signed 27-bit constant offset in Arg1 |
 | `jumpr` | C16 | R | - | Jump to Arg2 with 16-bit signed offset in Arg1 |
 | `jumpro` | C16 | R | - | Jump to offset in Arg2 with 16-bit signed offset in Arg1 |
 

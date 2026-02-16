@@ -29,14 +29,21 @@ def main():
         logger.error(f"Preprocessor failed: {e}")
         sys.exit(1)
 
-    try:
-        offset_address = Number(args.offset)
-    except ValueError as e:
-        logger.error(f"Invalid offset value: {args.offset}. {e}")
-        sys.exit(1)
+    if args.independent:
+        offset_address = Number(0)
+        logger.info("Independent mode enabled: ignoring --offset")
+    else:
+        try:
+            offset_address = Number(args.offset)
+        except ValueError as e:
+            logger.error(f"Invalid offset value: {args.offset}. {e}")
+            sys.exit(1)
 
     assembler = Assembler(
-        preprocessed_lines, args.output, offset_address=offset_address
+        preprocessed_lines,
+        args.output,
+        offset_address=offset_address,
+        independent=args.independent,
     )
     try:
         assembler.assemble(add_header=args.header)

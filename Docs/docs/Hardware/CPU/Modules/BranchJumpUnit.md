@@ -72,7 +72,7 @@ end
 Uses a 27-bit constant for the target address:
 
 - **Absolute** (`O=0`): `PC ← {5'b0, const27}`
-- **Relative** (`O=1`): `PC ← PC + {5'b0, const27}`
+- **Relative** (`O=1`): `PC ← PC + sign_extend_32(const27)`
 
 ### Jump with Register (JUMPR)
 
@@ -87,7 +87,7 @@ To improve timing, target addresses are pre-computed before being used:
 
 ```verilog
 // Computed in MEM stage before BranchJumpUnit
-wire [31:0] pre_jump_const_addr = oe ? (pc + {5'b0, const27}) : {5'b0, const27};
+wire [31:0] pre_jump_const_addr = oe ? (pc + {{5{const27[26]}}, const27}) : {5'b0, const27};
 wire [31:0] pre_branch_addr = pc + const16;
 ```
 

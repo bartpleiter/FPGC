@@ -76,6 +76,15 @@ def test_jump_offset_flag():
     assert j_off[-1] == "1"
 
 
+def test_jump_offset_negative_encoding():
+    """Test that negative JUMPO offset is encoded as 27-bit two's complement."""
+    j_neg = bits(parse("jumpo -1").to_binary_string())
+
+    assert j_neg[:4] == "1001"
+    assert j_neg[-1] == "1"
+    assert j_neg[4:31] == "1" * 27
+
+
 def test_jumpr_offset_flag():
     """Test that JUMPR and JUMPRO have correct offset flags."""
     # Arrange & Act

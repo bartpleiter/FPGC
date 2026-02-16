@@ -36,6 +36,12 @@ def parse_args() -> argparse.Namespace:
         "Can be decimal (21), hex (0xabcd), or binary (0b1010). Default is 0.",
     )
     parser.add_argument(
+        "-i",
+        "--independent",
+        action="store_true",
+        help="Generate position independent output: ignore --offset, use relative jumps, and rewrite addr2reg as PC-relative code",
+    )
+    parser.add_argument(
         "--help",
         action="help",
         help="Show this help message and exit",
