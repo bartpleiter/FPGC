@@ -372,6 +372,15 @@ const char* brfs_strerror(int error_code);
 int brfs_statfs(unsigned int* total_blocks, unsigned int* free_blocks, 
                 unsigned int* block_size);
 
+/**
+ * Get the mounted filesystem label.
+ *
+ * @param label_buffer   Output buffer for null-terminated label
+ * @param buffer_size    Size of label_buffer in chars
+ * @return               BRFS_OK on success, error code on failure
+ */
+int brfs_get_label(char* label_buffer, unsigned int buffer_size);
+
 //============================================================================
 // Internal Helper Functions (exposed for testing)
 //============================================================================

@@ -1815,6 +1815,42 @@ int brfs_statfs(unsigned int* total_blocks, unsigned int* free_blocks,
     return BRFS_OK;
 }
 
+int brfs_get_label(char* label_buffer, unsigned int buffer_size)
+{
+    struct brfs_superblock* sb;
+    unsigned int i;
+
+    if (!brfs.initialized)
+    {
+        return BRFS_ERR_NOT_INITIALIZED;
+    }
+
+    if (label_buffer == NULL || buffer_size == 0)
+    {
+        return BRFS_ERR_INVALID_PARAM;
+    }
+
+    sb = (struct brfs_superblock*)brfs_get_superblock();
+
+    i = 0;
+    while (i < 10 && i < (buffer_size - 1))
+    {
+        char c;
+
+        c = (char)(sb->label[i] & 0xFF);
+        if (c == '\0')
+        {
+            break;
+        }
+
+        label_buffer[i] = c;
+        i++;
+    }
+
+    label_buffer[i] = '\0';
+    return BRFS_OK;
+}
+
 /*============================================================================
  * Error Strings
  *============================================================================*/

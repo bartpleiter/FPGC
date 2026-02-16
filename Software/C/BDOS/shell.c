@@ -36,9 +36,8 @@ char bdos_shell_history_saved_input[BDOS_SHELL_INPUT_MAX];
 void bdos_shell_build_prompt()
 {
   bdos_shell_prompt[0] = '\0';
-  strcat(bdos_shell_prompt, "[");
   strcat(bdos_shell_prompt, bdos_shell_cwd);
-  strcat(bdos_shell_prompt, "] bdos> ");
+  strcat(bdos_shell_prompt, "> ");
 }
 
 int bdos_shell_prompt_len()

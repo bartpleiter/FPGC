@@ -319,6 +319,35 @@ void bdos_shell_print_2digit(unsigned int value)
   term_putint((int)value);
 }
 
+int bdos_shell_u32_to_str(unsigned int value, char* out)
+{
+  char temp[11];
+  int len;
+  int i;
+
+  if (value == 0)
+  {
+    out[0] = '0';
+    out[1] = '\0';
+    return 1;
+  }
+
+  len = 0;
+  while (value > 0)
+  {
+    temp[len] = (char)('0' + (value % 10));
+    value = value / 10;
+    len++;
+  }
+
+  for (i = 0; i < len; i++)
+  {
+    out[i] = temp[len - 1 - i];
+  }
+  out[len] = '\0';
+  return len;
+}
+
 unsigned int bdos_shell_words_to_kiw_1dp(unsigned int words)
 {
   return (words * 10) / 1024;
@@ -333,6 +362,102 @@ void bdos_shell_print_kiw(unsigned int words)
   term_putchar('.');
   term_putint((int)(kiw_1dp % 10));
   term_puts(" KiW");
+}
+
+void bdos_shell_print_hline(unsigned int length)
+{
+  unsigned int i;
+
+  for (i = 0; i < length; i++)
+  {
+    term_putchar('-');
+  }
+  term_putchar('\n');
+}
+
+void bdos_shell_print_field_prefix(char* name, int value_col)
+{
+  int len;
+  int i;
+
+  term_puts(name);
+  len = strlen(name);
+  for (i = len; i < value_col; i++)
+  {
+    term_putchar(' ');
+  }
+}
+
+int bdos_shell_format_word_size(unsigned int words, char* out)
+{
+  int len;
+  unsigned int kiw_1dp;
+
+  if (words >= 1024)
+  {
+    kiw_1dp = bdos_shell_words_to_kiw_1dp(words);
+    len = 0;
+    len += bdos_shell_u32_to_str(kiw_1dp / 10, out + len);
+    out[len++] = '.';
+    out[len++] = (char)('0' + (kiw_1dp % 10));
+    out[len++] = ' ';
+    out[len++] = 'K';
+    out[len++] = 'i';
+    out[len++] = 'W';
+    out[len] = '\0';
+    return len;
+  }
+
+  len = bdos_shell_u32_to_str(words, out);
+  out[len++] = ' ';
+  out[len++] = 'W';
+  out[len] = '\0';
+  return len;
+}
+
+void bdos_shell_sort_names(char names[][BRFS_MAX_FILENAME_LENGTH + 1], int count)
+{
+  int i;
+  int j;
+  char tmp[BRFS_MAX_FILENAME_LENGTH + 1];
+
+  for (i = 0; i < count; i++)
+  {
+    for (j = i + 1; j < count; j++)
+    {
+      if (strcmp(names[i], names[j]) > 0)
+      {
+        strcpy(tmp, names[i]);
+        strcpy(names[i], names[j]);
+        strcpy(names[j], tmp);
+      }
+    }
+  }
+}
+
+void bdos_shell_sort_files(char names[][BRFS_MAX_FILENAME_LENGTH + 1], unsigned int* sizes, int count)
+{
+  int i;
+  int j;
+  unsigned int tmp_size;
+  char tmp_name[BRFS_MAX_FILENAME_LENGTH + 1];
+
+  for (i = 0; i < count; i++)
+  {
+    for (j = i + 1; j < count; j++)
+    {
+      if (strcmp(names[i], names[j]) > 0)
+      {
+        strcpy(tmp_name, names[i]);
+        strcpy(names[i], names[j]);
+        strcpy(names[j], tmp_name);
+
+        tmp_size = sizes[i];
+        sizes[i] = sizes[j];
+        sizes[j] = tmp_size;
+      }
+    }
+  }
 }
 
 /* ------------------------------------------------------------------------- */
@@ -485,15 +610,16 @@ int bdos_shell_cmd_help(int argc, char** argv)
   (void)argc;
   (void)argv;
 
-  term_puts("Available commands\n");
-  term_puts("------------------\n");
-  term_puts("General:\n");
-  term_puts("  help  clear  echo  uptime\n");
-  term_puts("Filesystem:\n");
+  term_puts("BDOS shell help\n");
+  term_puts("--------------\n");
+  term_puts("General\n");
+  term_puts("  help  clear  echo\n");
+  term_puts("  uptime\n");
+  term_puts("Filesystem\n");
   term_puts("  pwd  cd  ls  df\n");
-  term_puts("  mkdir  touch  rm\n");
+  term_puts("  mkdir  mkfile  rm\n");
   term_puts("  cat  write\n");
-  term_puts("Maintenance:\n");
+  term_puts("Maintenance\n");
   term_puts("  format  sync\n");
   return 0;
 }
@@ -602,11 +728,21 @@ int bdos_shell_cmd_cd(int argc, char** argv)
 int bdos_shell_cmd_ls(int argc, char** argv)
 {
   struct brfs_dir_entry entries[BDOS_SHELL_LS_MAX_ENTRIES];
+  char dir_names[BDOS_SHELL_LS_MAX_ENTRIES][BRFS_MAX_FILENAME_LENGTH + 1];
+  char file_names[BDOS_SHELL_LS_MAX_ENTRIES][BRFS_MAX_FILENAME_LENGTH + 1];
+  unsigned int file_sizes[BDOS_SHELL_LS_MAX_ENTRIES];
   char resolved[BDOS_SHELL_PATH_MAX];
+  char size_buf[20];
   char name[BRFS_MAX_FILENAME_LENGTH + 1];
   int result;
   int count;
   int i;
+  int dir_count;
+  int file_count;
+  int prefix_len;
+  int size_len;
+  int size_col;
+  int spaces;
 
   if (!bdos_shell_require_fs_ready())
   {
@@ -642,6 +778,10 @@ int bdos_shell_cmd_ls(int argc, char** argv)
     return 0;
   }
 
+  dir_count = 0;
+  file_count = 0;
+  size_col = 20;
+
   for (i = 0; i < count; i++)
   {
     brfs_decompress_string(name, entries[i].filename, 4);
@@ -653,18 +793,54 @@ int bdos_shell_cmd_ls(int argc, char** argv)
 
     if (entries[i].flags & BRFS_FLAG_DIRECTORY)
     {
-      term_puts("[DIR]  ");
-      term_puts(name);
-      term_putchar('\n');
+      if (dir_count < BDOS_SHELL_LS_MAX_ENTRIES)
+      {
+        strcpy(dir_names[dir_count], name);
+        dir_count++;
+      }
     }
     else
     {
-      term_puts("[FILE] ");
-      term_puts(name);
-      term_puts(" (");
-      term_putint((int)entries[i].filesize);
-      term_puts(" words)\n");
+      if (file_count < BDOS_SHELL_LS_MAX_ENTRIES)
+      {
+        strcpy(file_names[file_count], name);
+        file_sizes[file_count] = entries[i].filesize;
+        file_count++;
+      }
     }
+  }
+
+  bdos_shell_sort_names(dir_names, dir_count);
+  bdos_shell_sort_files(file_names, file_sizes, file_count);
+
+  for (i = 0; i < dir_count; i++)
+  {
+    term_puts("D ");
+    term_puts(dir_names[i]);
+    term_putchar('\n');
+  }
+
+  for (i = 0; i < file_count; i++)
+  {
+    term_puts("F ");
+    term_puts(file_names[i]);
+
+    size_len = bdos_shell_format_word_size(file_sizes[i], size_buf);
+    prefix_len = 2 + strlen(file_names[i]);
+    spaces = size_col - prefix_len;
+    if (spaces < 1)
+    {
+      spaces = 1;
+    }
+
+    while (spaces > 0)
+    {
+      term_putchar(' ');
+      spaces--;
+    }
+
+    term_puts(size_buf);
+    term_putchar('\n');
   }
 
   return 0;
@@ -702,7 +878,7 @@ int bdos_shell_cmd_mkdir(int argc, char** argv)
   return 0;
 }
 
-int bdos_shell_cmd_touch(int argc, char** argv)
+int bdos_shell_cmd_mkfile(int argc, char** argv)
 {
   char resolved[BDOS_SHELL_PATH_MAX];
   int result;
@@ -714,7 +890,7 @@ int bdos_shell_cmd_touch(int argc, char** argv)
 
   if (argc != 2)
   {
-    term_puts("usage: touch <path>\n");
+    term_puts("usage: mkfile <path>\n");
     return 0;
   }
 
@@ -728,7 +904,7 @@ int bdos_shell_cmd_touch(int argc, char** argv)
   result = brfs_create_file(resolved);
   if (result != BRFS_OK)
   {
-    bdos_shell_print_fs_error("touch", result);
+    bdos_shell_print_fs_error("mkfile", result);
   }
 
   return 0;
@@ -971,8 +1147,13 @@ int bdos_shell_cmd_df(int argc, char** argv)
   unsigned int used_blocks;
   unsigned int total_words;
   unsigned int used_words;
-  unsigned int free_words;
   unsigned int usage_percent;
+  char label[11];
+  char line_header[20];
+  char value_buf[32];
+  int result_label;
+  int line_len;
+  int value_col;
   int result;
 
   (void)argc;
@@ -993,31 +1174,42 @@ int bdos_shell_cmd_df(int argc, char** argv)
   used_blocks = total_blocks - free_blocks;
   total_words = total_blocks * words_per_block;
   used_words = used_blocks * words_per_block;
-  free_words = free_blocks * words_per_block;
   usage_percent = (total_blocks == 0) ? 0 : ((used_blocks * 100) / total_blocks);
 
-  term_puts("Filesystem usage\n");
-  term_puts("----------------\n");
-  term_puts("Total: ");
+  result_label = brfs_get_label(label, sizeof(label));
+  if (result_label != BRFS_OK || strlen(label) == 0)
+  {
+    strcpy(label, "(unnamed)");
+  }
+
+  strcpy(line_header, "Label: ");
+  strcat(line_header, label);
+  line_len = strlen(line_header);
+  value_col = 14;
+
+  term_puts(line_header);
+  term_putchar('\n');
+  bdos_shell_print_hline((unsigned int)line_len);
+
+  bdos_shell_print_field_prefix("Total:", value_col);
   bdos_shell_print_kiw(total_words);
   term_putchar('\n');
-  term_puts("Used : ");
+
+  bdos_shell_print_field_prefix("Used:", value_col);
   bdos_shell_print_kiw(used_words);
   term_puts(" (");
   term_putint((int)usage_percent);
   term_puts("%)\n");
-  term_puts("Free : ");
-  bdos_shell_print_kiw(free_words);
-  term_putchar('\n');
-  term_puts("Blocks: ");
-  term_putint((int)used_blocks);
-  term_puts("/");
-  term_putint((int)total_blocks);
+
+  bdos_shell_print_field_prefix("Blocks:", value_col);
+  bdos_shell_u32_to_str(used_blocks, value_buf);
+  term_puts(value_buf);
+  term_putchar('/');
+  bdos_shell_u32_to_str(total_blocks, value_buf);
+  term_puts(value_buf);
   term_puts(" used\n");
-  term_puts("Free blocks: ");
-  term_putint((int)free_blocks);
-  term_putchar('\n');
-  term_puts("Block size: ");
+
+  bdos_shell_print_field_prefix("Block size:", value_col);
   term_putint((int)words_per_block);
   term_puts(" W\n");
 
@@ -1104,9 +1296,9 @@ void bdos_shell_execute_line(char* line)
     return;
   }
 
-  if (strcmp(argv[0], "touch") == 0)
+  if (strcmp(argv[0], "mkfile") == 0)
   {
-    bdos_shell_cmd_touch(argc, argv);
+    bdos_shell_cmd_mkfile(argc, argv);
     return;
   }
 
