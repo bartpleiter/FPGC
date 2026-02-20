@@ -60,7 +60,7 @@ class UARTProgrammer:
                 self.serial_port = serial.Serial(
                     self.port_path, baudrate=self.baudrate, timeout=self.timeout
                 )
-            
+
             logging.info(f"Connected to {self.port_path} at {self.baudrate} baud")
 
             if self.reset:

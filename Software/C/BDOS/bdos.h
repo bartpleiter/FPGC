@@ -2,7 +2,7 @@
 #define BDOS_H
 
 /*
- * BDOS main header file.
+ * Imports
  */
 
 // Include common libraries
@@ -22,15 +22,30 @@
 #define KERNEL_BRFS
 #define KERNEL_TIMER
 #define KERNEL_CH376
+#define KERNEL_ENC28J60
 #include "libs/kernel/kernel.h"
 
-// Global variables
+/*
+* Global variables and defines
+*/
+
+// USB keyboard variables
 // Global as there is currently no way to pass context to the polling timer callback
 int bdos_usb_keyboard_spi_id = CH376_SPI_BOTTOM;
 // USB device info struct to store enumeration results for the keyboard
 usb_device_info_t bdos_usb_keyboard_device;
 
-/* Special (non-ASCII) keyboard event codes pushed by HID FIFO */
+// Ethernet variables
+#define BDOS_ETH_RX_SLOTS    8
+#define BDOS_ETH_RX_BUF_SIZE 256
+
+char bdos_eth_rx_buf[BDOS_ETH_RX_SLOTS][BDOS_ETH_RX_BUF_SIZE];
+int  bdos_eth_rx_len[BDOS_ETH_RX_SLOTS];
+int  bdos_eth_rx_head = 0;
+int  bdos_eth_rx_tail = 0;
+
+// HID configuration
+// Special (non-ASCII) keyboard event codes pushed by HID FIFO
 #define BDOS_KEY_SPECIAL_BASE 0x100
 #define BDOS_KEY_UP           (BDOS_KEY_SPECIAL_BASE + 1)
 #define BDOS_KEY_DOWN         (BDOS_KEY_SPECIAL_BASE + 2)
@@ -55,25 +70,26 @@ usb_device_info_t bdos_usb_keyboard_device;
 #define BDOS_KEY_F11          (BDOS_KEY_SPECIAL_BASE + 21)
 #define BDOS_KEY_F12          (BDOS_KEY_SPECIAL_BASE + 22)
 
-/* Shell configuration */
+// Shell configuration and variables
 #define BDOS_SHELL_INPUT_MAX   160
 #define BDOS_SHELL_ARGV_MAX    8
 #define BDOS_SHELL_PROMPT_MAX  192
 #define BDOS_SHELL_PATH_MAX    (BRFS_MAX_PATH_LENGTH + 1)
 
-/* BRFS persistence policy */
-#define BDOS_FS_FLASH_ID SPI_FLASH_1
-
-/* Shared shell globals */
 extern char bdos_shell_cwd[BDOS_SHELL_PATH_MAX];
 extern unsigned int bdos_shell_start_micros;
 
-/* Shared filesystem state */
+// BRFS flash target
+#define BDOS_FS_FLASH_ID SPI_FLASH_1
+
+// Shared filesystem state
 extern int bdos_fs_ready;
 extern int bdos_fs_boot_needs_format;
 extern int bdos_fs_last_mount_error;
 
-// Functions that can be called between BDOS modules
+/*
+* Function declarations
+*/
 void bdos_panic(char* msg);
 
 void bdos_init();
@@ -102,5 +118,7 @@ void bdos_shell_execute_line(char* line);
 int bdos_shell_handle_special_mode_line(char* line);
 
 void bdos_shell_on_startup();
+
+void bdos_poll_ethernet();
 
 #endif // BDOS_H

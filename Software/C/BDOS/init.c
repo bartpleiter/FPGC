@@ -27,7 +27,6 @@ void bdos_init_usb_keyboard()
   {
     bdos_panic("Failed to initialize CH376 USB host");
   }
-  term_puts("CH376 USB host initialized\n");
 
   // Initialize bdos_usb_keyboard_device struct with default values
   memset(&bdos_usb_keyboard_device, 0, sizeof(usb_device_info_t));
@@ -35,6 +34,50 @@ void bdos_init_usb_keyboard()
   // Setup polling timer for keyboard
   timer_set_callback(TIMER_1, bdos_poll_usb_keyboard);
   timer_start_periodic(TIMER_1, 10); // Poll every 10ms
+
+  term_puts("CH376 USB host initialized\n");
+}
+
+void bdos_init_ethernet()
+{
+  int bdos_eth_mac[6];
+  int rev;
+  
+  term_puts("Initializing ENC28J60 Ethernet\n");
+
+  // Set MAC address (02:B4:B4:00:00:01)
+  // TODO: Make this configurable from flash when working on FPGC cluster
+  bdos_eth_mac[0] = 0x02;
+  bdos_eth_mac[1] = 0xB4;
+  bdos_eth_mac[2] = 0xB4;
+  bdos_eth_mac[3] = 0x00;
+  bdos_eth_mac[4] = 0x00;
+  bdos_eth_mac[5] = 0x01;
+
+  rev = enc28j60_init(bdos_eth_mac);
+  if (rev == 0)
+  {
+    bdos_panic("ENC28J60 init failed (rev=0)\n");
+  }
+
+  // Initialize RX ring buffer
+  {
+    int i;
+    i = 0;
+    while (i < BDOS_ETH_RX_SLOTS)
+    {
+      bdos_eth_rx_len[i] = 0;
+      i = i + 1;
+    }
+  }
+  bdos_eth_rx_head = 0;
+  bdos_eth_rx_tail = 0;
+
+  // Setup periodic timer to poll the ENC28J60
+  timer_set_callback(TIMER_0, bdos_poll_ethernet);
+  timer_start_periodic(TIMER_0, 10);
+
+  term_puts("ENC28J60 Ethernet initialized\n");
 }
 
 // BDOS initialization function to be called from main
@@ -61,6 +104,9 @@ void bdos_init()
   // Initialize UART subsystem
   uart_init();
   term_puts("UART initialized\n");
+
+  // Initialize Ethernet controller
+  bdos_init_ethernet();
 
   // Initialize USB host subsystem for keyboard polling
   bdos_init_usb_keyboard();

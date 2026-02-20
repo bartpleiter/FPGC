@@ -38,6 +38,15 @@
 #endif
 #endif
 
+#ifdef KERNEL_ENC28J60
+#ifndef KERNEL_SPI
+#define KERNEL_SPI
+#endif
+#ifndef KERNEL_TIMER
+#define KERNEL_TIMER
+#endif
+#endif
+
 #ifdef KERNEL_MEM_DEBUG
 #ifndef KERNEL_UART
 #define KERNEL_UART
@@ -80,6 +89,10 @@
 
 #ifdef KERNEL_CH376
 #include "libs/kernel/io/ch376.h"
+#endif
+
+#ifdef KERNEL_ENC28J60
+#include "libs/kernel/io/enc28j60.h"
 #endif
 
 #ifdef KERNEL_BRFS
@@ -132,6 +145,10 @@
 
 #ifdef KERNEL_CH376
 #include "libs/kernel/io/ch376.c"
+#endif
+
+#ifdef KERNEL_ENC28J60
+#include "libs/kernel/io/enc28j60.c"
 #endif
 
 #ifdef KERNEL_BRFS

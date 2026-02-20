@@ -202,7 +202,9 @@ class Assembler:
             current_address += line_word_sizes.get(idx, 1)
 
         if pending_labels:
-            raise ValueError(f"Label {pending_labels[-1]} has no instruction to point to.")
+            raise ValueError(
+                f"Label {pending_labels[-1]} has no instruction to point to."
+            )
 
         return label_addresses, line_addresses
 
@@ -218,8 +220,8 @@ class Assembler:
 
         max_iterations = 32
         for _ in range(max_iterations):
-            label_addresses, line_addresses = self._calculate_label_addresses_with_word_sizes(
-                addr2reg_word_sizes
+            label_addresses, line_addresses = (
+                self._calculate_label_addresses_with_word_sizes(addr2reg_word_sizes)
             )
 
             updated_sizes: dict[int, int] = {}
@@ -239,8 +241,8 @@ class Assembler:
         else:
             raise ValueError("Could not stabilize PIC addr2reg expansion.")
 
-        label_addresses, line_addresses = self._calculate_label_addresses_with_word_sizes(
-            addr2reg_word_sizes
+        label_addresses, line_addresses = (
+            self._calculate_label_addresses_with_word_sizes(addr2reg_word_sizes)
         )
 
         rewritten_lines: list[AssemblyLine] = []
