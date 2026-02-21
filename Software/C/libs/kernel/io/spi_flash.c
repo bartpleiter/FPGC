@@ -46,15 +46,13 @@
 #define SPIFLASH_DUMMY_BYTE             0x00
 
 
-// spi flash read jedec id
+// Read JEDEC manufacturer/type/capacity identifiers.
 void spi_flash_read_jedec_id(int spi_id, int* manufacturer_id, int* memory_type, int* capacity)
 {
     spi_select(spi_id);
     
-    // Send JEDEC ID command
     spi_transfer(spi_id, SPIFLASH_CMD_JEDEC_ID);
     
-    // Read 3 bytes of ID information
     *manufacturer_id = spi_transfer(spi_id, SPIFLASH_DUMMY_BYTE);
     *memory_type = spi_transfer(spi_id, SPIFLASH_DUMMY_BYTE);
     *capacity = spi_transfer(spi_id, SPIFLASH_DUMMY_BYTE);
@@ -62,7 +60,7 @@ void spi_flash_read_jedec_id(int spi_id, int* manufacturer_id, int* memory_type,
     spi_deselect(spi_id);
 }
 
-// spi flash enable write
+// Set write-enable latch for erase/program operations.
 void spi_flash_enable_write(int spi_id)
 {
     spi_select(spi_id);
@@ -70,7 +68,7 @@ void spi_flash_enable_write(int spi_id)
     spi_deselect(spi_id);
 }
 
-// spi flash disable write
+// Clear write-enable latch.
 void spi_flash_disable_write(int spi_id)
 {
     spi_select(spi_id);
@@ -78,7 +76,7 @@ void spi_flash_disable_write(int spi_id)
     spi_deselect(spi_id);
 }
 
-// spi flash read status
+// Read status register 1.
 int spi_flash_read_status(int spi_id)
 {
     int status;
@@ -91,13 +89,13 @@ int spi_flash_read_status(int spi_id)
     return status;
 }
 
-// spi flash is busy
+// Return non-zero while the flash is busy.
 int spi_flash_is_busy(int spi_id)
 {
     return spi_flash_read_status(spi_id) & SPIFLASH_STATUS_BUSY;
 }
 
-// spi flash wait busy
+// Block until the flash reports idle.
 void spi_flash_wait_busy(int spi_id)
 {
     while (spi_flash_is_busy(spi_id))
@@ -106,7 +104,7 @@ void spi_flash_wait_busy(int spi_id)
     }
 }
 
-// spi flash write status
+// Write status register bits.
 void spi_flash_write_status(int spi_id, int status)
 {
     spi_flash_enable_write(spi_id);
@@ -119,31 +117,26 @@ void spi_flash_write_status(int spi_id, int status)
     spi_flash_wait_busy(spi_id);
 }
 
-// spi flash write page
+// Program up to one page (256 bytes).
 void spi_flash_write_page(int spi_id, int address, int* data, int length)
 {
     int i;
     
-    // Length should not exceed page size
     if (length > SPIFLASH_PAGE_SIZE)
     {
         length = SPIFLASH_PAGE_SIZE;
     }
     
-    // Enable write operations
     spi_flash_enable_write(spi_id);
     
     spi_select(spi_id);
     
-    // Send page program command
     spi_transfer(spi_id, SPIFLASH_CMD_PAGE_PROGRAM);
     
-    // Send 24-bit address (big endian)
     spi_transfer(spi_id, (address >> 16) & 0xFF);
     spi_transfer(spi_id, (address >> 8) & 0xFF);
     spi_transfer(spi_id, address & 0xFF);
     
-    // Write data bytes
     for (i = 0; i < length; i++)
     {
         spi_transfer(spi_id, data[i] & 0xFF);
@@ -151,26 +144,22 @@ void spi_flash_write_page(int spi_id, int address, int* data, int length)
     
     spi_deselect(spi_id);
     
-    // Wait for write to complete
     spi_flash_wait_busy(spi_id);
 }
 
-// spi flash read data
+// Read raw bytes starting at a 24-bit address.
 void spi_flash_read_data(int spi_id, int address, int* buffer, int length)
 {
     int i;
     
     spi_select(spi_id);
     
-    // Send read data command
     spi_transfer(spi_id, SPIFLASH_CMD_READ_DATA);
     
-    // Send 24-bit address (big endian)
     spi_transfer(spi_id, (address >> 16) & 0xFF);
     spi_transfer(spi_id, (address >> 8) & 0xFF);
     spi_transfer(spi_id, address & 0xFF);
     
-    // Read data bytes
     for (i = 0; i < length; i++)
     {
         buffer[i] = spi_transfer(spi_id, SPIFLASH_DUMMY_BYTE);
@@ -179,106 +168,88 @@ void spi_flash_read_data(int spi_id, int address, int* buffer, int length)
     spi_deselect(spi_id);
 }
 
-// spi flash erase sector
+// Erase a 4KB sector.
 void spi_flash_erase_sector(int spi_id, int address)
 {
-    // Enable write operations
     spi_flash_enable_write(spi_id);
     
     spi_select(spi_id);
     
-    // Send sector erase command (4KB)
     spi_transfer(spi_id, SPIFLASH_CMD_SECTOR_ERASE);
     
-    // Send 24-bit address (big endian)
     spi_transfer(spi_id, (address >> 16) & 0xFF);
     spi_transfer(spi_id, (address >> 8) & 0xFF);
     spi_transfer(spi_id, address & 0xFF);
     
     spi_deselect(spi_id);
     
-    // Wait for erase to complete
     spi_flash_wait_busy(spi_id);
 }
 
-// spi flash erase block 32k
+// Erase a 32KB block.
 void spi_flash_erase_block_32k(int spi_id, int address)
 {
-    // Enable write operations
     spi_flash_enable_write(spi_id);
     
     spi_select(spi_id);
     
-    // Send 32KB block erase command
     spi_transfer(spi_id, SPIFLASH_CMD_BLOCK_ERASE_32K);
     
-    // Send 24-bit address (big endian)
     spi_transfer(spi_id, (address >> 16) & 0xFF);
     spi_transfer(spi_id, (address >> 8) & 0xFF);
     spi_transfer(spi_id, address & 0xFF);
     
     spi_deselect(spi_id);
     
-    // Wait for erase to complete
     spi_flash_wait_busy(spi_id);
 }
 
-// spi flash erase block 64k
+// Erase a 64KB block.
 void spi_flash_erase_block_64k(int spi_id, int address)
 {
-    // Enable write operations
     spi_flash_enable_write(spi_id);
     
     spi_select(spi_id);
     
-    // Send 64KB block erase command
     spi_transfer(spi_id, SPIFLASH_CMD_BLOCK_ERASE_64K);
     
-    // Send 24-bit address (big endian)
     spi_transfer(spi_id, (address >> 16) & 0xFF);
     spi_transfer(spi_id, (address >> 8) & 0xFF);
     spi_transfer(spi_id, address & 0xFF);
     
     spi_deselect(spi_id);
     
-    // Wait for erase to complete
     spi_flash_wait_busy(spi_id);
 }
 
-// spi flash erase chip
+// Erase the entire flash chip.
 void spi_flash_erase_chip(int spi_id)
 {
-    // Enable write operations
     spi_flash_enable_write(spi_id);
     
     spi_select(spi_id);
     
-    // Send chip erase command
     spi_transfer(spi_id, SPIFLASH_CMD_CHIP_ERASE);
     
     spi_deselect(spi_id);
     
-    // Wait for erase to complete (this can take a long time)
     spi_flash_wait_busy(spi_id);
 }
 
-// spi flash read unique id
+// Read the 64-bit unique identifier.
 void spi_flash_read_unique_id(int spi_id, int* id_buffer)
 {
     int i;
     
     spi_select(spi_id);
     
-    // Send unique ID command
     spi_transfer(spi_id, SPIFLASH_CMD_UNIQUE_ID);
     
-    // Send 4 dummy bytes
     spi_transfer(spi_id, SPIFLASH_DUMMY_BYTE);
     spi_transfer(spi_id, SPIFLASH_DUMMY_BYTE);
     spi_transfer(spi_id, SPIFLASH_DUMMY_BYTE);
     spi_transfer(spi_id, SPIFLASH_DUMMY_BYTE);
     
-    // Read 8 bytes of unique ID
     for (i = 0; i < 8; i++)
     {
         id_buffer[i] = spi_transfer(spi_id, SPIFLASH_DUMMY_BYTE);
@@ -287,32 +258,27 @@ void spi_flash_read_unique_id(int spi_id, int* id_buffer)
     spi_deselect(spi_id);
 }
 
-// spi flash write words
+// Program up to 64 32-bit words at one page address.
 void spi_flash_write_words(int spi_id, int address, unsigned int* data, int word_count)
 {
     int i;
     unsigned int word;
     
-    // Max 64 words (256 bytes) per page
     if (word_count > 64)
     {
         word_count = 64;
     }
     
-    // Enable write operations
     spi_flash_enable_write(spi_id);
     
     spi_select(spi_id);
     
-    // Send page program command
     spi_transfer(spi_id, SPIFLASH_CMD_PAGE_PROGRAM);
     
-    // Send 24-bit address (big endian)
     spi_transfer(spi_id, (address >> 16) & 0xFF);
     spi_transfer(spi_id, (address >> 8) & 0xFF);
     spi_transfer(spi_id, address & 0xFF);
     
-    // Write data words as 4 bytes each (big-endian)
     for (i = 0; i < word_count; i++)
     {
         word = data[i];
@@ -324,11 +290,10 @@ void spi_flash_write_words(int spi_id, int address, unsigned int* data, int word
     
     spi_deselect(spi_id);
     
-    // Wait for write to complete
     spi_flash_wait_busy(spi_id);
 }
 
-// spi flash read words
+// Read 32-bit words in big-endian byte order.
 void spi_flash_read_words(int spi_id, int address, unsigned int* buffer, int word_count)
 {
     int i;
@@ -339,15 +304,12 @@ void spi_flash_read_words(int spi_id, int address, unsigned int* buffer, int wor
     
     spi_select(spi_id);
     
-    // Send read data command
     spi_transfer(spi_id, SPIFLASH_CMD_READ_DATA);
     
-    // Send 24-bit address (big endian)
     spi_transfer(spi_id, (address >> 16) & 0xFF);
     spi_transfer(spi_id, (address >> 8) & 0xFF);
     spi_transfer(spi_id, address & 0xFF);
     
-    // Read data words as 4 bytes each (big-endian)
     for (i = 0; i < word_count; i++)
     {
         b0 = spi_transfer(spi_id, SPIFLASH_DUMMY_BYTE);

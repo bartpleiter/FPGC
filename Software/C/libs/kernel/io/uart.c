@@ -8,10 +8,7 @@
 #define UART_TX_ADDR  0x7000000
 #define UART_RX_ADDR  0x7000001
 
-// ============================================================
-// RX Ring Buffer
-// ============================================================
-
+// ---- RX Ring Buffer ----
 // Ring buffer structure
 static volatile char rx_buffer[UART_RX_BUFFER_SIZE];
 static volatile int rx_head = 0; // Write position (ISR writes here)
@@ -29,10 +26,7 @@ static int rx_count()
     return UART_RX_BUFFER_SIZE - tail + head;
 }
 
-// ============================================================
-// Initialization
-// ============================================================
-
+// ---- Initialization ----
 void uart_init()
 {
     rx_head = 0;
@@ -40,10 +34,7 @@ void uart_init()
     rx_overflow_flag = 0;
 }
 
-// ============================================================
-// Transmit Functions
-// ============================================================
-
+// ---- Transmit Functions ----
 void uart_putchar(char c)
 {
     int *tx_reg = (volatile int *)UART_TX_ADDR;
@@ -96,10 +87,7 @@ void uart_write(char *buf, unsigned int len)
     }
 }
 
-// ============================================================
-// Receive Functions
-// ============================================================
-
+// ---- Receive Functions ----
 void uart_isr_handler()
 {
     volatile int *rx_reg = (volatile int *)UART_RX_ADDR;

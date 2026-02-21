@@ -20,18 +20,12 @@
 // RX buffer size - must be power of 2 for efficient modulo
 #define UART_RX_BUFFER_SIZE 64
 
-// ============================================================
-// Initialization
-// ============================================================
-
+// ---- Initialization ----
 // Initialize the UART subsystem.
 // Clears the RX buffer. Call once at program startup.
 void uart_init();
 
-// ============================================================
-// Transmit Functions (no buffering, direct output)
-// ============================================================
-
+// ---- Transmit Functions (no buffering, direct output) ----
 // Output a single character.
 void uart_putchar(char c);
 
@@ -47,10 +41,7 @@ void uart_puthex(unsigned int value, int prefix);
 // Output a buffer of specified length.
 void uart_write(char *buf, unsigned int len);
 
-// ============================================================
-// Receive Functions (ring buffer, non-blocking)
-// ============================================================
-
+// ---- Receive Functions (ring buffer, non-blocking) ----
 // UART ISR handler. MUST be called from interrupt handler
 // when INTID_UART is received.
 // Reads the received byte from hardware and stores it in

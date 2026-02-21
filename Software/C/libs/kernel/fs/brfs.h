@@ -23,10 +23,7 @@
 
 typedef void (*brfs_progress_callback_t)(const char* phase, unsigned int current, unsigned int total);
 
-//============================================================================
-// Configuration Constants
-//============================================================================
-
+// ---- Configuration Constants ----
 // BRFS Version
 #define BRFS_VERSION                1
 
@@ -67,10 +64,7 @@ typedef void (*brfs_progress_callback_t)(const char* phase, unsigned int current
 #define BRFS_FLAG_DIRECTORY         0x01        // Entry is a directory
 #define BRFS_FLAG_HIDDEN            0x02        // Entry is hidden
 
-//============================================================================
-// Error Codes
-//============================================================================
-
+// ---- Error Codes ----
 #define BRFS_OK                     0       // Success
 #define BRFS_ERR_INVALID_PARAM      -1      // Invalid parameter
 #define BRFS_ERR_NOT_FOUND          -2      // File or directory not found
@@ -92,10 +86,7 @@ typedef void (*brfs_progress_callback_t)(const char* phase, unsigned int current
 #define BRFS_ERR_WRITE_ERROR        -18     // Write operation failed
 #define BRFS_ERR_NOT_INITIALIZED    -19     // Filesystem not initialized
 
-//============================================================================
-// Data Structures
-//============================================================================
-
+// ---- Data Structures ----
 // Superblock structure - stored at the beginning of the filesystem
 // Total size: 16 words
 struct brfs_superblock
@@ -144,10 +135,7 @@ struct brfs_state
     unsigned int dirty_blocks[(BRFS_MAX_BLOCKS + 31) / 32]; // Dirty block bitmap
 };
 
-//============================================================================
-// Initialization Functions
-//============================================================================
-
+// ---- Initialization Functions ----
 // Initialize the BRFS subsystem
 // Must be called before any other BRFS functions
 int brfs_init(unsigned int flash_id);
@@ -174,10 +162,7 @@ int brfs_unmount();
 // Should be called periodically to ensure data persistence
 int brfs_sync();
 
-//============================================================================
-// File Operations
-//============================================================================
-
+// ---- File Operations ----
 // Create a new file
 int brfs_create_file(const char* path);
 
@@ -202,20 +187,14 @@ int brfs_tell(int fd);
 // Get file size
 int brfs_file_size(int fd);
 
-//============================================================================
-// Directory Operations
-//============================================================================
-
+// ---- Directory Operations ----
 // Create a new directory
 int brfs_create_dir(const char* path);
 
 // Read directory entries
 int brfs_read_dir(const char* path, struct brfs_dir_entry* buffer, unsigned int max_entries);
 
-//============================================================================
-// File/Directory Management
-//============================================================================
-
+// ---- File/Directory Management ----
 // Delete a file or empty directory
 int brfs_delete(const char* path);
 
@@ -228,10 +207,7 @@ int brfs_exists(const char* path);
 // Check if path is a directory
 int brfs_is_dir(const char* path);
 
-//============================================================================
-// Utility Functions
-//============================================================================
-
+// ---- Utility Functions ----
 // Get error description string
 const char* brfs_strerror(int error_code);
 
@@ -242,10 +218,7 @@ int brfs_statfs(unsigned int* total_blocks, unsigned int* free_blocks,
 // Get the mounted filesystem label.
 int brfs_get_label(char* label_buffer, unsigned int buffer_size);
 
-//============================================================================
-// Internal Helper Functions (exposed for testing)
-//============================================================================
-
+// ---- Internal Helper Functions (exposed for testing) ----
 // Compress a string from 1-char-per-word to 4-chars-per-word format
 // Used for storing filenames efficiently
 void brfs_compress_string(unsigned int* dest, const char* src);

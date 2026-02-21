@@ -174,10 +174,7 @@ typedef struct {
     int toggle_in; // Data toggle for IN endpoint
 } usb_device_info_t;
 
-// ============================================
-// Basic CH376 Functions
-// ============================================
-
+// ---- Basic CH376 Functions ----
 // Read the interrupt pin state (active low, inverted in function).
 int ch376_read_int(int spi_id);
 
@@ -214,10 +211,7 @@ int ch376_read_data(int spi_id, char* buffer, int max_len);
 // Write data to USB host buffer.
 void ch376_write_data(int spi_id, char* buffer, int len);
 
-// ============================================
-// USB Host Functions
-// ============================================
-
+// ---- USB Host Functions ----
 // Initialize CH376 as USB host.
 int ch376_host_init(int spi_id);
 
@@ -252,10 +246,7 @@ void ch376_set_rx_toggle(int spi_id, int toggle);
 // Set transmitter (host OUT endpoint) toggle.
 void ch376_set_tx_toggle(int spi_id, int toggle);
 
-// ============================================
-// High-Level USB Functions
-// ============================================
-
+// ---- High-Level USB Functions ----
 // Initialize and enumerate a USB device.
 int ch376_enumerate_device(int spi_id, usb_device_info_t* info);
 

@@ -5,17 +5,11 @@
 #include "libs/kernel/io/enc28j60.h"
 #include "libs/kernel/io/spi.h"
 
-// ============================================
-// Internal State
-// ============================================
-
+// ---- Internal State ----
 static int enc28j60_current_bank = 0;
 static int enc28j60_next_pkt_ptr = 0;
 
-// ============================================
-// Low-Level SPI Operations
-// ============================================
-
+// ---- Low-Level SPI Operations ----
 static int enc28j60_read_op(int op, int address)
 {
     int result;
@@ -39,10 +33,7 @@ static void enc28j60_write_op(int op, int address, int data)
     spi_deselect(ENC28J60_SPI_ID);
 }
 
-// ============================================
-// Register Access (with bank switching)
-// ============================================
-
+// ---- Register Access (with bank switching) ----
 static void enc28j60_set_bank(int address)
 {
     int new_bank;
@@ -86,10 +77,7 @@ static void enc28j60_write_reg16(int address, int data)
     enc28j60_write_reg(address + 1, (data >> 8) & 0xFF);
 }
 
-// ============================================
-// PHY Register Access
-// ============================================
-
+// ---- PHY Register Access ----
 static int enc28j60_read_phy(int address)
 {
     int result;
@@ -113,10 +101,7 @@ static void enc28j60_write_phy(int address, int data)
         ;
 }
 
-// ============================================
-// Buffer Memory Read/Write
-// ============================================
-
+// ---- Buffer Memory Read/Write ----
 static void enc28j60_read_buffer(char* buf, int len)
 {
     int i;
@@ -146,10 +131,7 @@ static void enc28j60_write_buffer(char* buf, int len)
     spi_deselect(ENC28J60_SPI_ID);
 }
 
-// ============================================
-// RX Buffer Management
-// ============================================
-
+// ---- RX Buffer Management ----
 static void enc28j60_free_rx_space()
 {
     // Errata B7 #14: ERXRDPT must be odd
@@ -164,10 +146,7 @@ static void enc28j60_free_rx_space()
     enc28j60_write_op(ENC_OP_BFS, ECON2, ECON2_PKTDEC);
 }
 
-// ============================================
-// Public API Implementation
-// ============================================
-
+// ---- Public API Implementation ----
 int enc28j60_init(int* mac)
 {
     int rev;

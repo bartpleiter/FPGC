@@ -5,10 +5,7 @@
 #include "libs/kernel/io/ch376.h"
 #include "libs/kernel/io/spi.h"
 
-// ============================================
-// Internal Helper Functions
-// ============================================
-
+// ---- Internal Helper Functions ----
 // Send a command byte to CH376
 static void ch376_send_cmd(int spi_id, int cmd)
 {
@@ -26,10 +23,7 @@ static void ch376_end_cmd(int spi_id)
   spi_deselect(spi_id);
 }
 
-// ============================================
-// Interrupt Pin Reading
-// ============================================
-
+// ---- Interrupt Pin Reading ----
 int ch376_get_top_nint()
 {
   int retval = 0;
@@ -66,10 +60,7 @@ int ch376_read_int(int spi_id)
   return 0;
 }
 
-// ============================================
-// Basic CH376 Functions
-// ============================================
-
+// ---- Basic CH376 Functions ----
 int ch376_get_version(int spi_id)
 {
   int version;
@@ -242,10 +233,7 @@ void ch376_write_data(int spi_id, char *buffer, int len)
   ch376_end_cmd(spi_id);
 }
 
-// ============================================
-// USB Host Functions
-// ============================================
-
+// ---- USB Host Functions ----
 int ch376_host_init(int spi_id)
 {
   // Ensure clean state
@@ -438,10 +426,7 @@ int ch376_set_device_config(int spi_id, int config)
   return 0;
 }
 
-// ============================================
-// High-Level USB Functions
-// ============================================
-
+// ---- High-Level USB Functions ----
 // Parse configuration descriptor to find HID interface and interrupt endpoint
 static int parse_config_descriptor(char *buffer, int len, usb_device_info_t *info)
 {
