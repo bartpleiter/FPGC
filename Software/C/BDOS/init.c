@@ -41,6 +41,7 @@ void bdos_init_ethernet()
 {
   int bdos_eth_mac[6];
   int rev;
+  int i;
   
   term_puts("Initializing ENC28J60 Ethernet\n");
 
@@ -59,21 +60,16 @@ void bdos_init_ethernet()
     bdos_panic("ENC28J60 init failed (rev=0)\n");
   }
 
-  // Initialize RX ring buffer
+  // Store our MAC in FNP state for frame building
+  i = 0;
+  while (i < 6)
   {
-    int i;
-    i = 0;
-    while (i < BDOS_ETH_RX_SLOTS)
-    {
-      bdos_eth_rx_len[i] = 0;
-      i = i + 1;
-    }
+    fnp_our_mac[i] = bdos_eth_mac[i];
+    i = i + 1;
   }
-  bdos_eth_rx_head = 0;
-  bdos_eth_rx_tail = 0;
 
-  timer_set_callback(TIMER_0, bdos_poll_ethernet);
-  timer_start_periodic(TIMER_0, 10);
+  // Initialize FNP protocol state
+  bdos_fnp_init();
 }
 
 void bdos_init()

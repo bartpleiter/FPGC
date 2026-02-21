@@ -34,14 +34,77 @@ int bdos_usb_keyboard_spi_id = CH376_SPI_BOTTOM;
 // USB device info struct to store enumeration results for the keyboard
 usb_device_info_t bdos_usb_keyboard_device;
 
-// Ethernet variables
-#define BDOS_ETH_RX_SLOTS    8
-#define BDOS_ETH_RX_BUF_SIZE 256
+// ---- FNP Protocol Constants ----
 
-char bdos_eth_rx_buf[BDOS_ETH_RX_SLOTS][BDOS_ETH_RX_BUF_SIZE];
-int  bdos_eth_rx_len[BDOS_ETH_RX_SLOTS];
-int  bdos_eth_rx_head = 0;
-int  bdos_eth_rx_tail = 0;
+// FNP EtherType
+#define FNP_ETHERTYPE 0xB4B4
+
+// FNP protocol version
+#define FNP_VERSION 0x01
+
+// FNP header size (Ver + Type + Seq + Flags + Length)
+#define FNP_HEADER_SIZE 7
+
+// Ethernet header size (Dst MAC + Src MAC + EtherType)
+#define FNP_ETH_HEADER_SIZE 14
+
+// Maximum raw frame buffer (max Ethernet frame without CRC)
+#define FNP_FRAME_BUF_SIZE 1518
+
+// Maximum FNP data payload per frame
+#define FNP_MAX_DATA 1024
+
+// Maximum FILE_DATA chunk in bytes (must be multiple of 4)
+#define FNP_FILE_CHUNK_SIZE 1024
+
+// FNP message types
+#define FNP_TYPE_ACK        0x01
+#define FNP_TYPE_NACK       0x02
+#define FNP_TYPE_FILE_START 0x10
+#define FNP_TYPE_FILE_DATA  0x11
+#define FNP_TYPE_FILE_END   0x12
+#define FNP_TYPE_FILE_ABORT 0x13
+#define FNP_TYPE_KEYCODE    0x20
+#define FNP_TYPE_MESSAGE    0x30
+
+// FNP flags
+#define FNP_FLAG_MORE_DATA    0x01
+#define FNP_FLAG_REQUIRES_ACK 0x02
+
+// FNP error codes
+#define FNP_ERR_GENERIC 0xFF
+
+// ACK timeout and retry
+#define FNP_ACK_TIMEOUT_US 100000
+#define FNP_MAX_RETRIES    2
+
+// FNP file transfer states
+#define FNP_STATE_IDLE      0
+#define FNP_STATE_RECEIVING 1
+
+// ---- FNP State Variables ----
+
+// RX frame buffer (single buffer, processed inline)
+char fnp_rx_buf[FNP_FRAME_BUF_SIZE];
+
+// TX frame buffer
+char fnp_tx_buf[FNP_FRAME_BUF_SIZE];
+
+// Our MAC address (set during init)
+int fnp_our_mac[6];
+
+// Peer MAC address (saved from last received frame for replies)
+char fnp_peer_mac[6];
+
+// Per-peer TX sequence counter
+int fnp_tx_seq = 0;
+
+// File transfer state
+int fnp_transfer_state = 0;
+int fnp_transfer_fd = -1;
+unsigned int fnp_transfer_checksum = 0;
+unsigned int fnp_transfer_size = 0;
+unsigned int fnp_transfer_received = 0;
 
 // HID configuration
 // Special (non-ASCII) keyboard event codes pushed by HID FIFO
@@ -98,6 +161,8 @@ int bdos_keyboard_event_available();
 
 int bdos_keyboard_event_read();
 
+int bdos_keyboard_event_fifo_push(int key_event);
+
 void bdos_fs_boot_init();
 
 int bdos_fs_format_and_sync(unsigned int total_blocks, unsigned int words_per_block,
@@ -117,6 +182,7 @@ int bdos_shell_handle_special_mode_line(char* line);
 
 void bdos_shell_on_startup();
 
-void bdos_poll_ethernet();
+void bdos_fnp_poll();
+void bdos_fnp_init();
 
 #endif // BDOS_H

@@ -820,14 +820,12 @@ int bdos_shell_cmd_ls(int argc, char** argv)
 
   for (i = 0; i < dir_count; i++)
   {
-    term_puts("D ");
     term_puts(dir_names[i]);
     term_putchar('\n');
   }
 
   for (i = 0; i < file_count; i++)
   {
-    term_puts("F ");
     term_puts(file_names[i]);
 
     size_len = bdos_shell_format_word_size(file_sizes[i], size_buf);

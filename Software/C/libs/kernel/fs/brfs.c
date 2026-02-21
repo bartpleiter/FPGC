@@ -1332,11 +1332,40 @@ int brfs_write(int fd, const unsigned int *buffer, unsigned int length)
   result = brfs_get_fat_idx_at_offset(file->fat_idx, file->cursor);
   if (result < 0)
   {
-    // Cursor is past current allocated blocks - need to allocate
-    // For simplicity, only allow writing at or before EOF
-    return BRFS_ERR_SEEK_ERROR;
+    // Cursor is past allocated blocks.
+    // If we are exactly at the filesize (appending), allocate a new block.
+    if (file->cursor == file->dir_entry->filesize &&
+        (file->cursor % sb->words_per_block) == 0 &&
+        file->cursor > 0)
+    {
+      // Find the last block in the chain
+      unsigned int last_idx;
+      last_idx = file->fat_idx;
+      while (fat[last_idx] != BRFS_FAT_EOF)
+      {
+        last_idx = fat[last_idx];
+      }
+      // Allocate a new block
+      next_block = brfs_find_free_block();
+      if (next_block < 0)
+      {
+        return BRFS_ERR_NO_SPACE;
+      }
+      fat[last_idx] = next_block;
+      fat[next_block] = BRFS_FAT_EOF;
+      memset(brfs_get_data_block(next_block), 0, sb->words_per_block);
+      brfs_mark_block_dirty(next_block);
+      current_fat_idx = (unsigned int)next_block;
+    }
+    else
+    {
+      return BRFS_ERR_SEEK_ERROR;
+    }
   }
-  current_fat_idx = (unsigned int)result;
+  else
+  {
+    current_fat_idx = (unsigned int)result;
+  }
 
   total_written = 0;
 

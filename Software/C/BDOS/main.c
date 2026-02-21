@@ -33,6 +33,7 @@ void bdos_loop()
   while (1)
   {
     bdos_usb_keyboard_main_loop();
+    bdos_fnp_poll();
     bdos_shell_tick();
   }
 }
@@ -61,8 +62,6 @@ void interrupt()
     case INTID_UART:
       break;
     case INTID_TIMER0:
-      // Used for Ethernet polling
-      timer_isr_handler(TIMER_0);
       break;
     case INTID_TIMER1:
       // Used for USB keyboard polling
