@@ -38,6 +38,37 @@ asmpy input.asm output.bin --log-level debug --log-details
 - `-o, --offset` - Set address offset for absolute label placement (ignored with `--independent`)
 - `-i, --independent` - Enable position-independent output (PIC): converts label `jump` to relative `jumpo`, rewrites `addr2reg` to `savpc` + `add/sub` chain, and with `--header` replaces `jump Int` by `nop`
 
+## Position-Independent Code (PIC)
+
+When a program is loaded at an address that is not known at assembly time (e.g. user programs loaded by BDOS into a program slot), it must not contain absolute addresses. The `-i` flag makes the assembler produce position-independent output by transforming three constructs:
+
+**1. Jumps to labels** — `jump Label` becomes `jumpo offset`, which adds a signed offset to the program counter instead of loading an absolute address.
+
+**2. Label address loading** — `addr2reg Label r1` (which normally loads an absolute address into a register) is rewritten as a `savpc` + `add`/`sub` sequence:
+
+```asm
+; Before (-i):
+addr2reg Label r1      ; r1 = absolute address of Label
+
+; After (-i):
+savpc r1               ; r1 = current PC
+add r1 <offset> r1     ; r1 = PC + offset to Label
+```
+
+This computes the label's address relative to the current program counter, so it works regardless of where the program is loaded in memory.
+
+**3. Interrupt vector** — With `-h`, the header normally contains `jump Int` at offset 1. With `-i`, this becomes `nop` because user programs don't handle interrupts (BDOS handles them).
+
+### When to Use PIC
+
+Use `-h -i` together when assembling user programs for BDOS:
+
+```bash
+asmpy program.asm program.list -h -i
+```
+
+Bare-metal programs and the BDOS kernel itself do **not** use `-i` because they run at a fixed address.
+
 ## Assembly Language Syntax
 
 ### Basic Structure
