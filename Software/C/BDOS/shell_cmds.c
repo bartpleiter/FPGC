@@ -21,6 +21,15 @@ unsigned int bdos_shell_format_words = 0;
 char bdos_shell_format_label[BDOS_SHELL_FORMAT_LABEL_MAX + 1];
 int bdos_shell_format_full = 0;
 
+// ---- Program runner globals ----
+// These are used by the inline assembly in bdos_shell_cmd_run to
+// save/restore BDOS state across user program execution.
+unsigned int bdos_run_entry = 0;    // Entry address (start of slot)
+unsigned int bdos_run_stack = 0;    // Stack top for user program
+unsigned int bdos_run_saved_sp = 0; // Saved BDOS stack pointer (r13)
+unsigned int bdos_run_saved_bp = 0; // Saved BDOS base pointer (r14)
+int bdos_run_retval = 0;           // Return value from user program
+
 // ---- Utility helpers ----
 
 // Trim leading and trailing whitespace in-place.
@@ -620,6 +629,8 @@ int bdos_shell_cmd_help(int argc, char** argv)
   term_puts("General\n");
   term_puts("  help  clear  echo\n");
   term_puts("  uptime\n");
+  term_puts("Programs\n");
+  term_puts("  run <program>\n");
   term_puts("Filesystem\n");
   term_puts("  pwd  cd  ls  df\n");
   term_puts("  mkdir  mkfile  rm\n");
@@ -1221,6 +1232,210 @@ int bdos_shell_cmd_df(int argc, char** argv)
   return 0;
 }
 
+// Load a binary from BRFS into the first user program slot and execute it.
+// If the path has no directory component, tries /bin/<name> as fallback.
+// The program runs to completion; BDOS regains control when main() returns.
+int bdos_shell_cmd_run(int argc, char** argv)
+{
+  char resolved[BDOS_SHELL_PATH_MAX];
+  char bin_path[BDOS_SHELL_PATH_MAX];
+  int result;
+  int fd;
+  int file_size;
+  int words_remaining;
+  int chunk_len;
+  int words_read;
+  unsigned int *dest;
+
+  if (!bdos_shell_require_fs_ready())
+  {
+    return 0;
+  }
+
+  if (argc < 2)
+  {
+    term_puts("usage: run <program>\n");
+    term_puts("  Loads and runs a binary from the filesystem.\n");
+    term_puts("  If no path separator, looks in /bin/ directory.\n");
+    return 0;
+  }
+
+  // Try to resolve the path as given
+  result = bdos_shell_resolve_path(argv[1], resolved);
+  if (result != BRFS_OK)
+  {
+    // If the name has no slash, try /bin/<name>
+    if (strchr(argv[1], '/') == 0)
+    {
+      strcpy(bin_path, "/bin/");
+      strcat(bin_path, argv[1]);
+
+      result = bdos_shell_resolve_path(bin_path, resolved);
+      if (result != BRFS_OK)
+      {
+        bdos_shell_print_fs_error("resolve path", result);
+        return 0;
+      }
+    }
+    else
+    {
+      bdos_shell_print_fs_error("resolve path", result);
+      return 0;
+    }
+  }
+
+  // Open the binary file
+  fd = brfs_open(resolved);
+  if (fd < 0)
+  {
+    // If direct open failed and name has no slash, try /bin/
+    if (strchr(argv[1], '/') == 0)
+    {
+      strcpy(bin_path, "/bin/");
+      strcat(bin_path, argv[1]);
+      result = bdos_shell_resolve_path(bin_path, resolved);
+      if (result == BRFS_OK)
+      {
+        fd = brfs_open(resolved);
+      }
+    }
+
+    if (fd < 0)
+    {
+      bdos_shell_print_fs_error("open", fd);
+      return 0;
+    }
+  }
+
+  file_size = brfs_file_size(fd);
+  if (file_size <= 0)
+  {
+    term_puts("error: empty or invalid binary\n");
+    brfs_close(fd);
+    return 0;
+  }
+
+  // Check if the binary fits in one slot (512 KiW)
+  if ((unsigned int)file_size > MEM_SLOT_SIZE)
+  {
+    term_puts("error: binary too large for one slot (");
+    term_putint(file_size);
+    term_puts(" words, max ");
+    term_putint((int)MEM_SLOT_SIZE);
+    term_puts(")\n");
+    brfs_close(fd);
+    return 0;
+  }
+
+  // Load binary into slot 0 (MEM_PROGRAM_START)
+  term_puts("Loading ");
+  term_puts(resolved);
+  term_puts(" (");
+  term_putint(file_size);
+  term_puts(" words)...\n");
+
+  dest = (unsigned int *)MEM_PROGRAM_START;
+  words_remaining = file_size;
+
+  while (words_remaining > 0)
+  {
+    chunk_len = words_remaining;
+    if (chunk_len > 256)
+    {
+      chunk_len = 256;
+    }
+
+    words_read = brfs_read(fd, dest, (unsigned int)chunk_len);
+    if (words_read < 0)
+    {
+      bdos_shell_print_fs_error("read", words_read);
+      brfs_close(fd);
+      return 0;
+    }
+
+    if (words_read == 0)
+    {
+      break;
+    }
+
+    dest = dest + words_read;
+    words_remaining = words_remaining - words_read;
+  }
+
+  brfs_close(fd);
+
+  // Flush the instruction cache since we just wrote new code to RAM
+  asm("ccache");
+
+  // Set up globals for the inline assembly trampoline
+  bdos_run_entry = MEM_PROGRAM_START;
+  bdos_run_stack = MEM_PROGRAM_START + MEM_SLOT_SIZE - 1;
+
+  term_puts("Running...\n");
+
+  // Execute the user program via inline assembly.
+  //
+  // We save all BDOS registers to the stack (except r13/r14 which go
+  // to globals, since the user program gets its own stack).
+  // The program's entry point at slot offset 0 is the ASMPY header
+  // "jump Main".  When the user's main() returns, r15 brings execution
+  // back to Label_bdos_run_return.  Return value is in r1.
+  asm(
+      "push r1"
+      "push r2"
+      "push r3"
+      "push r4"
+      "push r5"
+      "push r6"
+      "push r7"
+      "push r8"
+      "push r9"
+      "push r10"
+      "push r11"
+      "push r12"
+      "push r15"
+      "addr2reg Label_bdos_run_saved_sp r11"
+      "write 0 r11 r13                       ; save BDOS stack pointer"
+      "addr2reg Label_bdos_run_saved_bp r11"
+      "write 0 r11 r14                       ; save BDOS base pointer"
+      "addr2reg Label_bdos_run_entry r11"
+      "read 0 r11 r11                        ; r11 = user program entry"
+      "addr2reg Label_bdos_run_stack r12"
+      "read 0 r12 r13                        ; r13 = user program stack"
+      "addr2reg Label_bdos_run_return r15     ; r15 = return-to-BDOS address"
+      "jumpr 0 r11                            ; jump to user program"
+      "Label_bdos_run_return:"
+      "addr2reg Label_bdos_run_retval r11"
+      "write 0 r11 r1                         ; save user return value"
+      "addr2reg Label_bdos_run_saved_sp r11"
+      "read 0 r11 r13                         ; restore BDOS stack pointer"
+      "addr2reg Label_bdos_run_saved_bp r11"
+      "read 0 r11 r14                         ; restore BDOS base pointer"
+      "pop r15"
+      "pop r12"
+      "pop r11"
+      "pop r10"
+      "pop r9"
+      "pop r8"
+      "pop r7"
+      "pop r6"
+      "pop r5"
+      "pop r4"
+      "pop r3"
+      "pop r2"
+      "pop r1"
+  );
+
+  // Flush cache again after user program execution
+  asm("ccache");
+
+  term_puts("Program exited with code ");
+  term_putint(bdos_run_retval);
+  term_putchar('\n');
+
+  return 0;
+}
+
 int bdos_shell_cmd_format(int argc, char** argv)
 {
   if (argc != 1)
@@ -1321,6 +1536,12 @@ void bdos_shell_execute_line(char* line)
   if (strcmp(argv[0], "write") == 0)
   {
     bdos_shell_cmd_write(argc, argv);
+    return;
+  }
+
+  if (strcmp(argv[0], "run") == 0)
+  {
+    bdos_shell_cmd_run(argc, argv);
     return;
   }
 
