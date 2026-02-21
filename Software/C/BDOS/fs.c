@@ -1,6 +1,6 @@
-/*
- * BDOS filesystem integration module.
- */
+//
+// BDOS filesystem integration module.
+//
 
 #include "BDOS/bdos.h"
 
@@ -17,6 +17,7 @@ void bdos_fs_progress_reset()
   bdos_fs_progress_last_pct = -1;
 }
 
+// Render a progress bar on the terminal.
 void bdos_fs_render_progress(char* label, unsigned int current, unsigned int total)
 {
   int percent;
@@ -86,6 +87,7 @@ void bdos_fs_render_progress(char* label, unsigned int current, unsigned int tot
   }
 }
 
+// BRFS progress callback that routes phases to the progress bar.
 void bdos_fs_progress_callback(const char* phase, unsigned int current, unsigned int total)
 {
   if (strncmp(phase, "mount", 5) == 0)
@@ -109,6 +111,7 @@ void bdos_fs_progress_callback(const char* phase, unsigned int current, unsigned
   bdos_fs_render_progress("fs    ", current, total);
 }
 
+// Initialize BRFS and attempt mount. Sets bdos_fs_boot_needs_format on failure.
 void bdos_fs_boot_init()
 {
   int result;
@@ -140,6 +143,7 @@ void bdos_fs_boot_init()
   bdos_fs_last_mount_error = result;
 }
 
+// Format the filesystem and sync to flash.
 int bdos_fs_format_and_sync(unsigned int total_blocks, unsigned int words_per_block,
                             char* label, int full_format)
 {
@@ -170,6 +174,7 @@ int bdos_fs_format_and_sync(unsigned int total_blocks, unsigned int words_per_bl
   return BRFS_OK;
 }
 
+// Sync dirty blocks to flash.
 int bdos_fs_sync_now()
 {
   int result;

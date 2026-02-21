@@ -1,7 +1,7 @@
-/*
- * BDOS shell module.
- * Provides a simple interactive command shell.
- */
+//
+// BDOS shell module.
+// Provides a simple interactive command shell.
+//
 
 #include "BDOS/bdos.h"
 
@@ -28,9 +28,7 @@ int bdos_shell_history_count;
 int bdos_shell_history_nav_offset;
 char bdos_shell_history_saved_input[BDOS_SHELL_INPUT_MAX];
 
-/* ------------------------------------------------------------------------- */
-/* Prompt and cursor rendering                                                */
-/* ------------------------------------------------------------------------- */
+// ---- Prompt and cursor rendering ----
 
 // Build the dynamic prompt string, currently carrying a future-ready cwd field.
 void bdos_shell_build_prompt()
@@ -164,9 +162,7 @@ void bdos_shell_render_line()
   bdos_shell_draw_cursor();
 }
 
-/* ------------------------------------------------------------------------- */
-/* History management                                                         */
-/* ------------------------------------------------------------------------- */
+// ---- History management ----
 
 int bdos_shell_history_index_from_offset(int nav_offset)
 {
@@ -271,9 +267,7 @@ void bdos_shell_history_nav_down()
   bdos_shell_set_input(bdos_shell_history[idx]);
 }
 
-/* ------------------------------------------------------------------------- */
-/* Line editor                                                                */
-/* ------------------------------------------------------------------------- */
+// ---- Line editor ----
 
 // Insert character at current cursor index.
 void bdos_shell_insert_char(char c)
@@ -354,10 +348,7 @@ void bdos_shell_print_welcome()
   term_puts("|___/___/ \\___/|___/v2.0-dev2\n\n");
 }
 
-/* ------------------------------------------------------------------------- */
-/* ------------------------------------------------------------------------- */
-/* Command submit lifecycle                                                   */
-/* ------------------------------------------------------------------------- */
+// ---- Command submit lifecycle ----
 
 // Submit current input line and start next prompt line.
 void bdos_shell_submit_input()
@@ -393,21 +384,19 @@ void bdos_shell_submit_input()
   bdos_shell_start_line();
 }
 
-/* ------------------------------------------------------------------------- */
-/* Event handling and lifecycle                                                */
-/* ------------------------------------------------------------------------- */
+// ---- Event handling and lifecycle ----
 
 // Handle one shell key event from keyboard FIFO.
 void bdos_shell_handle_key_event(int key_event)
 {
-  // Enter/Return: submit the current input line for parsing and execution.
+  // Enter
   if (key_event == '\n' || key_event == '\r')
   {
     bdos_shell_submit_input();
     return;
   }
 
-  // Backspace: remove the character immediately to the left of the cursor.
+  // Backspace
   if (key_event == '\b' || key_event == 127)
   {
     bdos_shell_backspace_char();
@@ -415,7 +404,7 @@ void bdos_shell_handle_key_event(int key_event)
     return;
   }
 
-  // Delete: remove the character immediately to the right of the cursor.
+  // Delete
   if (key_event == BDOS_KEY_DELETE)
   {
     bdos_shell_delete_char();
@@ -423,7 +412,7 @@ void bdos_shell_handle_key_event(int key_event)
     return;
   }
 
-  // Left arrow: move the editing cursor one character to the left.
+  // Left arrow
   if (key_event == BDOS_KEY_LEFT)
   {
     if (bdos_shell_cursor_index > 0)
@@ -434,7 +423,7 @@ void bdos_shell_handle_key_event(int key_event)
     return;
   }
 
-  // Right arrow: move the editing cursor one character to the right.
+  // Right arrow
   if (key_event == BDOS_KEY_RIGHT)
   {
     if (bdos_shell_cursor_index < bdos_shell_input_len)
@@ -445,7 +434,7 @@ void bdos_shell_handle_key_event(int key_event)
     return;
   }
 
-  // Up arrow: recall an older command from the in-memory history.
+  // Up arrow: recall older history entry
   if (key_event == BDOS_KEY_UP)
   {
     bdos_shell_history_nav_up();
@@ -453,7 +442,7 @@ void bdos_shell_handle_key_event(int key_event)
     return;
   }
 
-  // Down arrow: move toward newer history entries or restore current draft.
+  // Down arrow: recall newer history entry or restore draft
   if (key_event == BDOS_KEY_DOWN)
   {
     bdos_shell_history_nav_down();
@@ -461,7 +450,7 @@ void bdos_shell_handle_key_event(int key_event)
     return;
   }
 
-  // Ctrl+C (ASCII 3): clear the current input line content.
+  // Ctrl+C: clear input
   if (key_event == 3)
   {
     bdos_shell_input_len = 0;
@@ -473,7 +462,7 @@ void bdos_shell_handle_key_event(int key_event)
     return;
   }
 
-  // Ctrl+L (ASCII 12): clear terminal and redraw a fresh prompt line.
+  // Ctrl+L: clear screen and redraw
   if (key_event == 12)
   {
     term_clear();
@@ -486,15 +475,13 @@ void bdos_shell_handle_key_event(int key_event)
     return;
   }
 
-  // Printable ASCII: insert at cursor position (supports mid-line insertion).
+  // Printable ASCII
   if (key_event >= 32 && key_event <= 126)
   {
     bdos_shell_insert_char((char)key_event);
     bdos_shell_render_line();
     return;
   }
-
-  // Unhandled key events are ignored by the shell input editor.
 }
 
 // Initialize shell state and show startup banner.
@@ -528,9 +515,11 @@ void bdos_shell_init()
 // Consume all queued keyboard events and feed shell editor.
 void bdos_shell_tick()
 {
+  int key_event;
+
   while (bdos_keyboard_event_available())
   {
-    int key_event = bdos_keyboard_event_read();
+    key_event = bdos_keyboard_event_read();
     if (key_event != -1)
     {
       bdos_shell_handle_key_event(key_event);

@@ -1,6 +1,6 @@
-/*
- * BDOS shell command module.
- */
+//
+// BDOS shell command module.
+//
 
 #include "BDOS/bdos.h"
 
@@ -21,10 +21,9 @@ unsigned int bdos_shell_format_words = 0;
 char bdos_shell_format_label[BDOS_SHELL_FORMAT_LABEL_MAX + 1];
 int bdos_shell_format_full = 0;
 
-/* ------------------------------------------------------------------------- */
-/* Utility helpers                                                            */
-/* ------------------------------------------------------------------------- */
+// ---- Utility helpers ----
 
+// Trim leading and trailing whitespace in-place.
 void bdos_shell_trim_whitespace(char* s)
 {
   int len;
@@ -55,6 +54,7 @@ void bdos_shell_trim_whitespace(char* s)
   s[len - start] = '\0';
 }
 
+// Split line into argc/argv tokens. Returns -1 if too many arguments.
 int bdos_shell_parse_line(char* line, int* argc_out, char** argv)
 {
   int argc;
@@ -101,6 +101,7 @@ int bdos_shell_parse_line(char* line, int* argc_out, char** argv)
   return 0;
 }
 
+// Parse "yes"/"no" style input. Returns 0 on success, -1 on invalid input.
 int bdos_shell_parse_yes_no(char* value, int* out_yes)
 {
   if (strcmp(value, "y") == 0 || strcmp(value, "yes") == 0 || strcmp(value, "1") == 0)
@@ -123,6 +124,7 @@ int bdos_shell_path_is_absolute(char* path)
   return (path[0] == '/');
 }
 
+// Prepend cwd to a relative path.
 int bdos_shell_build_absolute_path(char* input_path, char* out_path)
 {
   int in_len;
@@ -172,6 +174,7 @@ int bdos_shell_build_absolute_path(char* input_path, char* out_path)
   return BRFS_OK;
 }
 
+// Resolve . and .. components in an absolute path.
 int bdos_shell_normalize_path(char* input_path, char* out_path)
 {
   char token[BRFS_MAX_FILENAME_LENGTH + 1];
@@ -181,6 +184,7 @@ int bdos_shell_normalize_path(char* input_path, char* out_path)
   int token_len;
   int out_i;
   int j;
+  int k;
 
   if (input_path == NULL || out_path == NULL)
   {
@@ -255,8 +259,6 @@ int bdos_shell_normalize_path(char* input_path, char* out_path)
 
   for (j = 0; j < comp_count; j++)
   {
-    int k;
-
     if (j > 0)
     {
       out_path[out_i++] = '/';
@@ -276,6 +278,7 @@ int bdos_shell_normalize_path(char* input_path, char* out_path)
   return BRFS_OK;
 }
 
+// Resolve a possibly relative path to a normalized absolute path.
 int bdos_shell_resolve_path(char* input_path, char* out_path)
 {
   int result;
@@ -290,6 +293,7 @@ int bdos_shell_resolve_path(char* input_path, char* out_path)
   return bdos_shell_normalize_path(abs_path, out_path);
 }
 
+// Check filesystem is mounted, print error if not.
 int bdos_shell_require_fs_ready()
 {
   if (!bdos_fs_ready)
@@ -301,6 +305,7 @@ int bdos_shell_require_fs_ready()
   return 1;
 }
 
+// Print a filesystem error with context.
 void bdos_shell_print_fs_error(char* action, int result)
 {
   term_puts("error: ");
@@ -319,6 +324,7 @@ void bdos_shell_print_2digit(unsigned int value)
   term_putint((int)value);
 }
 
+// Convert unsigned int to decimal string, return length.
 int bdos_shell_u32_to_str(unsigned int value, char* out)
 {
   char temp[11];
@@ -388,6 +394,7 @@ void bdos_shell_print_field_prefix(char* name, int value_col)
   }
 }
 
+// Format a word count as human-readable size string.
 int bdos_shell_format_word_size(unsigned int words, char* out)
 {
   int len;
@@ -460,9 +467,7 @@ void bdos_shell_sort_files(char names[][BRFS_MAX_FILENAME_LENGTH + 1], unsigned 
   }
 }
 
-/* ------------------------------------------------------------------------- */
-/* Format wizard / special modes                                              */
-/* ------------------------------------------------------------------------- */
+// ---- Format wizard / special modes ----
 
 void bdos_shell_start_format_wizard()
 {
@@ -491,6 +496,7 @@ void bdos_shell_finish_format_wizard()
   bdos_shell_mode = BDOS_SHELL_MODE_NORMAL;
 }
 
+// Handle input lines during format wizard or boot format confirmation.
 int bdos_shell_handle_special_mode_line(char* line)
 {
   int value;
@@ -583,6 +589,7 @@ int bdos_shell_handle_special_mode_line(char* line)
   return 0;
 }
 
+// Run on shell startup to handle failed mount scenarios.
 void bdos_shell_on_startup()
 {
   if (bdos_fs_ready)
@@ -601,9 +608,7 @@ void bdos_shell_on_startup()
   }
 }
 
-/* ------------------------------------------------------------------------- */
-/* Built-in commands                                                          */
-/* ------------------------------------------------------------------------- */
+// ---- Built-in commands ----
 
 int bdos_shell_cmd_help(int argc, char** argv)
 {
@@ -942,6 +947,7 @@ int bdos_shell_cmd_rm(int argc, char** argv)
   return 0;
 }
 
+// Print file contents to terminal.
 int bdos_shell_cmd_cat(int argc, char** argv)
 {
   char resolved[BDOS_SHELL_PATH_MAX];
@@ -1022,6 +1028,7 @@ int bdos_shell_cmd_cat(int argc, char** argv)
   return 0;
 }
 
+// Write text arguments into a file (replacing if it exists).
 int bdos_shell_cmd_write(int argc, char** argv)
 {
   char resolved[BDOS_SHELL_PATH_MAX];
@@ -1029,6 +1036,7 @@ int bdos_shell_cmd_write(int argc, char** argv)
   int result;
   int fd;
   int i;
+  int j;
   int write_index;
 
   if (!bdos_shell_require_fs_ready())
@@ -1082,8 +1090,6 @@ int bdos_shell_cmd_write(int argc, char** argv)
   write_index = 0;
   for (i = 2; i < argc; i++)
   {
-    int j;
-
     if (i > 2)
     {
       if (write_index >= BDOS_SHELL_INPUT_MAX)
@@ -1139,6 +1145,7 @@ int bdos_shell_cmd_sync(int argc, char** argv)
   return 0;
 }
 
+// Show filesystem usage statistics.
 int bdos_shell_cmd_df(int argc, char** argv)
 {
   unsigned int total_blocks;
@@ -1228,10 +1235,9 @@ int bdos_shell_cmd_format(int argc, char** argv)
   return 0;
 }
 
-/* ------------------------------------------------------------------------- */
-/* Command dispatcher                                                         */
-/* ------------------------------------------------------------------------- */
+// ---- Command dispatcher ----
 
+// Dispatch a parsed command line to the appropriate handler.
 void bdos_shell_execute_line(char* line)
 {
   int argc;

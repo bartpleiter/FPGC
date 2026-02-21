@@ -1,9 +1,7 @@
 #ifndef BDOS_H
 #define BDOS_H
 
-/*
- * Imports
- */
+// ---- Imports ----
 
 // Include common libraries
 #define COMMON_STRING
@@ -25,9 +23,7 @@
 #define KERNEL_ENC28J60
 #include "libs/kernel/kernel.h"
 
-/*
-* Global variables and defines
-*/
+// ---- Global variables and defines ----
 
 // USB keyboard variables
 // Global as there is currently no way to pass context to the polling timer callback
@@ -87,9 +83,8 @@ extern int bdos_fs_ready;
 extern int bdos_fs_boot_needs_format;
 extern int bdos_fs_last_mount_error;
 
-/*
-* Function declarations
-*/
+// ---- Function declarations ----
+
 void bdos_panic(char* msg);
 
 void bdos_init();

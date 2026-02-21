@@ -1,9 +1,10 @@
-/*
- * BDOS ethernet module
- */
+//
+// BDOS ethernet module.
+//
 
 #include "BDOS/bdos.h"
 
+// Timer callback: drain packets from ENC28J60 into RX ring buffer
 void bdos_poll_ethernet()
 {
   int next_head;

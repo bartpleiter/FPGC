@@ -1,9 +1,7 @@
-/*
- * BDOS Human Interface Device (HID) module.
- * This module implements the following:
- * - USB keyboard driver
- * - HID subsystem for exposing input devices to BDOS
- */
+//
+// BDOS Human Interface Device (HID) module.
+// USB keyboard driver and input event pipeline.
+//
 
 #include "BDOS/bdos.h"
 
@@ -21,10 +19,14 @@ int bdos_repeat_event;
 unsigned int bdos_repeat_start_us;
 unsigned int bdos_repeat_last_us;
 
+// Return number of events in the FIFO.
 int bdos_keyboard_event_fifo_count()
 {
-  int head = bdos_keyboard_event_fifo_head;
-  int tail = bdos_keyboard_event_fifo_tail;
+  int head;
+  int tail;
+
+  head = bdos_keyboard_event_fifo_head;
+  tail = bdos_keyboard_event_fifo_tail;
 
   if (head >= tail)
   {
@@ -33,9 +35,12 @@ int bdos_keyboard_event_fifo_count()
   return BDOS_KEY_EVENT_FIFO_SIZE - tail + head;
 }
 
+// Push a key event into the FIFO. Returns 0 if full.
 int bdos_keyboard_event_fifo_push(int key_event)
 {
-  int next_head = (bdos_keyboard_event_fifo_head + 1) % BDOS_KEY_EVENT_FIFO_SIZE;
+  int next_head;
+
+  next_head = (bdos_keyboard_event_fifo_head + 1) % BDOS_KEY_EVENT_FIFO_SIZE;
 
   if (next_head == bdos_keyboard_event_fifo_tail)
   {
@@ -48,11 +53,13 @@ int bdos_keyboard_event_fifo_push(int key_event)
   return 1;
 }
 
+// Return 1 if there are keyboard events available.
 int bdos_keyboard_event_available()
 {
   return bdos_keyboard_event_fifo_count();
 }
 
+// Read next keyboard event from FIFO, or -1 if empty.
 int bdos_keyboard_event_read()
 {
   int key_event;
@@ -67,6 +74,7 @@ int bdos_keyboard_event_read()
   return key_event;
 }
 
+// Check if keycode is present in a HID report.
 int bdos_keycode_in_report(const hid_keyboard_report_t *report, int keycode)
 {
   int i;
@@ -81,10 +89,13 @@ int bdos_keycode_in_report(const hid_keyboard_report_t *report, int keycode)
   return 0;
 }
 
+// Translate HID keycode + modifier to a BDOS key event value.
 int bdos_translate_key_event(int keycode, int modifier)
 {
   int ascii;
-  int ctrl_held = modifier & (USB_HID_MOD_LCTRL | USB_HID_MOD_RCTRL);
+  int ctrl_held;
+
+  ctrl_held = modifier & (USB_HID_MOD_LCTRL | USB_HID_MOD_RCTRL);
 
   if (ctrl_held && keycode >= 0x04 && keycode <= 0x1D)
   {
@@ -143,6 +154,7 @@ void bdos_start_repeat_state(int keycode, int modifier, int key_event, unsigned 
   bdos_repeat_last_us = now;
 }
 
+// Find the first newly pressed keycode between two reports.
 int bdos_find_new_keycode(const hid_keyboard_report_t *prev, const hid_keyboard_report_t *curr)
 {
   int i;
@@ -163,6 +175,7 @@ int bdos_find_new_keycode(const hid_keyboard_report_t *prev, const hid_keyboard_
   return 0;
 }
 
+// Reset all keyboard state (called on disconnect).
 void bdos_reset_keyboard_state()
 {
   memset(&bdos_prev_kb_report, 0, sizeof(hid_keyboard_report_t));
@@ -172,7 +185,7 @@ void bdos_reset_keyboard_state()
   memset(&bdos_usb_keyboard_device, 0, sizeof(usb_device_info_t));
 }
 
-// To run during timer interrupt routine
+// Timer callback: poll keyboard and handle key repeat.
 void bdos_poll_usb_keyboard(int timer_id)
 {
   hid_keyboard_report_t kb_report;
@@ -181,8 +194,6 @@ void bdos_poll_usb_keyboard(int timer_id)
   int new_keycode;
   int key_event;
   unsigned int now;
-  
-  // Check if we can poll for keyboard input
   if (bdos_usb_keyboard_device.connected)
   {
     if (ch376_test_connect(bdos_usb_keyboard_spi_id) == CH376_CONN_READY)
@@ -249,19 +260,19 @@ void bdos_poll_usb_keyboard(int timer_id)
   }
 }
 
-// To run within the main loop of BDOS after initialization
+// Main loop: handle USB keyboard connect/disconnect lifecycle.
 void bdos_usb_keyboard_main_loop()
 {
-  // Check device status
-  int status = ch376_test_connect(bdos_usb_keyboard_spi_id);
+  int status;
+
+  status = ch376_test_connect(bdos_usb_keyboard_spi_id);
   if (status == CH376_CONN_DISCONNECTED)
   {
     if (bdos_usb_keyboard_device.connected)
     {
-      // Device was previously connected, now disconnected
+      // Device disconnected, reset state and reinitialize CH376
       bdos_reset_keyboard_state();
-      // We need to fully reset the CH376 to prevent it from getting into a non-functional state
-      // There is probably a better way to prevent this
+      // This reset sequence is to prevent the CH376 from getting into a bad state, there might be a better way to prevent this
       ch376_reset(bdos_usb_keyboard_spi_id);
       ch376_host_init(bdos_usb_keyboard_spi_id);
       uart_puts("[BDOS] USB keyboard disconnected\n");
@@ -269,10 +280,10 @@ void bdos_usb_keyboard_main_loop()
   }
   if (status == CH376_CONN_CONNECTED)
   {
-    // To prevent the CH376 from getting into a non-functional state, we wait a long time after detecting a connection before trying to do anything
+    // Wait for device to stabilize before enumeration
+    // Not doing this might cause the CH376 to get into a non-functional state
     delay(1000);
-    
-    // Device connected, but not initialized yet
+
     if (ch376_enumerate_device(bdos_usb_keyboard_spi_id, &bdos_usb_keyboard_device))
     {
       uart_puts("[BDOS] USB keyboard connected and enumerated!\n");
