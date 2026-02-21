@@ -2,28 +2,38 @@
 """
 fnp_tool.py — FPGC Network Protocol (FNP) PC-side tool.
 
-Supports file upload and remote keyboard input to an FPGC device over
-raw Ethernet frames using the FNP protocol (EtherType 0xB4B4).
+Supports file upload, remote keyboard input, and interactive keyboard
+streaming to an FPGC device over raw Ethernet frames using the FNP
+protocol (EtherType 0xB4B4).
 
 Usage:
-  python fnp_tool.py <interface> upload [-t] <local_file> <fpgc_path>
-  python fnp_tool.py <interface> key <text>
-  python fnp_tool.py <interface> keycode <hex_code>
+  python fnp_tool.py [<interface>] upload [-t] <local_file> <fpgc_path>
+  python fnp_tool.py [<interface>] key <text>
+  python fnp_tool.py [<interface>] keycode <hex_code>
+  python fnp_tool.py [<interface>] keyboard
+  python fnp_tool.py [<interface>] abort
+  python fnp_tool.py detect-iface
+
+If <interface> is omitted, the tool auto-detects a USB Ethernet adapter.
 
 The -t / --text flag on upload treats the file as text: each byte is
 stored as a full 32-bit word (one character per word) matching how the
 FPGC's word-addressable memory represents strings.
 
-Requires root unless you do something like `sudo setcap cap_net_raw+ep /usr/bin/python3.13`
+Requires raw socket capability. Either run as root, or grant it with:
+  sudo setcap cap_net_raw+ep $(which python3)
 """
 
 import fcntl
 import math
 import os
+import select
 import socket
 import struct
 import sys
+import termios
 import time
+import tty
 
 # ---- FNP Protocol Constants ----
 
@@ -58,6 +68,101 @@ FILE_CHUNK_SIZE = 1024
 
 # Default FPGC MAC
 FPGC_MAC = bytes([0x02, 0xB4, 0xB4, 0x00, 0x00, 0x01])
+
+# HID keycode mapping for keyboard streaming mode
+# Maps terminal escape sequences and characters to FPGC HID-style keycodes.
+# Standard printable ASCII maps directly (0x20–0x7E).
+# Special keys use well-known HID codes (shifted to upper byte if needed).
+HID_KEY_ENTER = 0x0A
+HID_KEY_BACKSPACE = 0x08
+HID_KEY_TAB = 0x09
+HID_KEY_ESCAPE = 0x1B
+HID_KEY_UP = 0xF700
+HID_KEY_DOWN = 0xF701
+HID_KEY_RIGHT = 0xF702
+HID_KEY_LEFT = 0xF703
+HID_KEY_DELETE = 0x7F
+
+# Map escape sequences to keycodes
+ESCAPE_SEQ_MAP: dict[bytes, int] = {
+    b"\x1b[A": HID_KEY_UP,
+    b"\x1b[B": HID_KEY_DOWN,
+    b"\x1b[C": HID_KEY_RIGHT,
+    b"\x1b[D": HID_KEY_LEFT,
+    b"\x1b[3~": HID_KEY_DELETE,
+}
+
+
+def detect_interface() -> str:
+    """
+    Auto-detect a USB Ethernet adapter interface.
+
+    Looks for network interfaces that appear to be USB Ethernet adapters
+    (names starting with 'enx' on systemd-based Linux, which encodes the
+    MAC address in the interface name). Falls back to any non-loopback,
+    non-wireless Ethernet interface if no 'enx' interface is found.
+    """
+    import subprocess
+
+    result = subprocess.run(
+        ["ip", "-o", "link", "show"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    interfaces: list[str] = []
+    fallback: list[str] = []
+
+    for line in result.stdout.strip().split("\n"):
+        # Format: "2: eth0: <FLAGS> ..."
+        parts = line.split(": ")
+        if len(parts) < 2:
+            continue
+        name = parts[1].split("@")[0]  # Handle e.g. "enx...@if2"
+
+        if name == "lo":
+            continue
+
+        # Check if interface is UP
+        if "UP" not in line:
+            continue
+
+        # Primary: USB Ethernet adapters (systemd naming)
+        if name.startswith("enx"):
+            interfaces.append(name)
+        # Fallback: wired Ethernet (not wireless)
+        elif name.startswith(("eth", "en")) and not name.startswith("enp0s"):
+            fallback.append(name)
+
+    if interfaces:
+        if len(interfaces) > 1:
+            print(
+                f"Warning: multiple USB Ethernet adapters found: {interfaces}",
+                file=sys.stderr,
+            )
+            print(f"Using: {interfaces[0]}", file=sys.stderr)
+        return interfaces[0]
+
+    if fallback:
+        return fallback[0]
+
+    print(
+        "Error: could not auto-detect Ethernet interface.\n"
+        "Available interfaces:",
+        file=sys.stderr,
+    )
+    result2 = subprocess.run(
+        ["ip", "-o", "link", "show"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    for line in result2.stdout.strip().split("\n"):
+        parts = line.split(": ")
+        if len(parts) >= 2:
+            print(f"  {parts[1].split('@')[0]}", file=sys.stderr)
+    sys.exit(1)
 
 
 def get_mac(sock: socket.socket, iface: str) -> bytes:
@@ -305,16 +410,116 @@ class FNPConnection:
         """Send FILE_ABORT to cancel any in-progress transfer."""
         return self._send_and_wait_ack(FNP_TYPE_FILE_ABORT, 0, b"")
 
+    def keyboard_stream(self) -> None:
+        """
+        Interactive keyboard streaming mode.
+
+        Puts the terminal in raw mode and forwards every keypress to the
+        FPGC as KEYCODE messages in real-time.  Press Ctrl+C to exit.
+        """
+        print("Keyboard streaming mode — press Ctrl+C to exit.")
+        print(f"  Interface: {self.iface}")
+        print(f"  FPGC MAC:  {':'.join(f'{b:02X}' for b in self.fpgc_mac)}")
+        print()
+
+        old_settings = termios.tcgetattr(sys.stdin)
+        try:
+            tty.setraw(sys.stdin)
+            buf = b""
+
+            while True:
+                # Wait for input (stdin fd=0)
+                rlist, _, _ = select.select([sys.stdin], [], [], 0.05)
+                if not rlist:
+                    # Process any buffered escape sequence on timeout
+                    if buf:
+                        self._process_key_buffer(buf)
+                        buf = b""
+                    continue
+
+                ch = os.read(sys.stdin.fileno(), 1)
+                if not ch:
+                    continue
+
+                # Ctrl+C → exit
+                if ch == b"\x03":
+                    break
+
+                buf += ch
+
+                # Check if buffer matches a known escape sequence
+                if buf[0:1] == b"\x1b":
+                    # Check for complete match
+                    matched = False
+                    for seq, _code in ESCAPE_SEQ_MAP.items():
+                        if buf == seq:
+                            self._process_key_buffer(buf)
+                            buf = b""
+                            matched = True
+                            break
+                    if matched:
+                        continue
+
+                    # Check if buffer could still become a match
+                    prefix_match = any(
+                        seq.startswith(buf) for seq in ESCAPE_SEQ_MAP
+                    )
+                    if prefix_match:
+                        continue  # Wait for more bytes
+
+                    # No match possible — send what we have
+                    self._process_key_buffer(buf)
+                    buf = b""
+                else:
+                    # Regular character — send immediately
+                    self._process_key_buffer(buf)
+                    buf = b""
+
+        except KeyboardInterrupt:
+            pass
+        finally:
+            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+            print("\nKeyboard streaming ended.")
+
+    def _process_key_buffer(self, buf: bytes) -> None:
+        """Process a key buffer and send the appropriate keycode(s)."""
+        # Check for escape sequence match first
+        if buf in ESCAPE_SEQ_MAP:
+            code = ESCAPE_SEQ_MAP[buf]
+            self.send_keycode(code)
+            return
+
+        # Process individual characters
+        for b in buf:
+            if b == 0x0D:  # Enter (CR in raw mode)
+                code = HID_KEY_ENTER
+            elif b == 0x7F:  # Backspace (DEL in raw mode)
+                code = HID_KEY_BACKSPACE
+            else:
+                code = b  # Direct ASCII
+            self.send_keycode(code)
+
 
 def print_usage():
     print(__doc__)
+    print("Commands:")
+    print("  upload [-t] <local_file> <fpgc_path>   Upload a file")
+    print("  key <text>                              Send text as keycodes")
+    print("  keycode <hex_code>                      Send a single HID keycode")
+    print("  keyboard                                Interactive keyboard streaming")
+    print("  abort                                   Abort in-progress transfer")
+    print("  detect-iface                            Print detected interface and exit")
+    print()
     print("Options:")
     print("  --mac XX:XX:XX:XX:XX:XX   FPGC MAC address (default: 02:B4:B4:00:00:01)")
     print("  -t, --text                Upload as text (one char per word)")
     print()
+    print("If <interface> is omitted, auto-detects a USB Ethernet adapter.")
+    print()
     print("Examples:")
-    print("  python fnp_tool.py eth0 upload firmware.bin /user/firmware.bin")
-    print("  python fnp_tool.py eth0 upload -t readme.txt /user/readme.txt")
+    print("  python fnp_tool.py upload firmware.bin /user/firmware.bin")
+    print("  python fnp_tool.py upload -t readme.txt /user/readme.txt")
+    print("  python fnp_tool.py keyboard")
     print("  python fnp_tool.py eth0 key 'hello world'")
     print("  python fnp_tool.py eth0 keycode 0x0041")
 
@@ -327,8 +532,12 @@ def parse_mac(mac_str: str) -> bytes:
     return bytes(int(p, 16) for p in parts)
 
 
+# Known FNP commands (used for auto-detect logic)
+FNP_COMMANDS = {"upload", "key", "keycode", "keyboard", "abort", "detect-iface"}
+
+
 def main():
-    if len(sys.argv) < 3:
+    if len(sys.argv) < 2:
         print_usage()
         sys.exit(1)
 
@@ -343,19 +552,38 @@ def main():
         fpgc_mac = parse_mac(args[idx + 1])
         args = args[:idx] + args[idx + 2 :]
 
-    if len(args) < 2:
+    if len(args) < 1:
         print_usage()
         sys.exit(1)
 
-    iface = args[0]
-    cmd = args[1]
+    # Determine if first arg is an interface name or a command.
+    # If it's a known command, auto-detect the interface.
+    if args[0] in FNP_COMMANDS:
+        cmd = args[0]
+        cmd_args = args[1:]
+
+        # Special case: detect-iface doesn't need a connection
+        if cmd == "detect-iface":
+            iface = detect_interface()
+            print(iface)
+            sys.exit(0)
+
+        iface = detect_interface()
+        print(f"Auto-detected interface: {iface}")
+    else:
+        iface = args[0]
+        if len(args) < 2:
+            print_usage()
+            sys.exit(1)
+        cmd = args[1]
+        cmd_args = args[2:]
 
     conn = FNPConnection(iface, fpgc_mac)
 
     try:
         if cmd == "upload":
             # Parse -t/--text flag
-            upload_args = args[2:]
+            upload_args = list(cmd_args)
             text_mode = False
             if "-t" in upload_args:
                 text_mode = True
@@ -365,7 +593,9 @@ def main():
                 upload_args.remove("--text")
 
             if len(upload_args) < 2:
-                print("Usage: fnp_tool.py <iface> upload [-t] <local_file> <fpgc_path>")
+                print(
+                    "Usage: fnp_tool.py [<iface>] upload [-t] <local_file> <fpgc_path>"
+                )
                 sys.exit(1)
             local_file = upload_args[0]
             fpgc_path = upload_args[1]
@@ -378,21 +608,25 @@ def main():
             sys.exit(0 if success else 1)
 
         elif cmd == "key":
-            if len(args) < 3:
-                print("Usage: fnp_tool.py <iface> key <text>")
+            if len(cmd_args) < 1:
+                print("Usage: fnp_tool.py [<iface>] key <text>")
                 sys.exit(1)
-            text = " ".join(args[2:])
+            text = " ".join(cmd_args)
             success = conn.send_text(text)
             sys.exit(0 if success else 1)
 
         elif cmd == "keycode":
-            if len(args) < 3:
-                print("Usage: fnp_tool.py <iface> keycode <hex_code>")
+            if len(cmd_args) < 1:
+                print("Usage: fnp_tool.py [<iface>] keycode <hex_code>")
                 sys.exit(1)
-            code = int(args[2], 0)  # Supports 0x prefix
+            code = int(cmd_args[0], 0)  # Supports 0x prefix
             success = conn.send_keycode(code)
             print(f"Sent keycode 0x{code:04X}: {'OK' if success else 'FAILED'}")
             sys.exit(0 if success else 1)
+
+        elif cmd == "keyboard":
+            conn.keyboard_stream()
+            sys.exit(0)
 
         elif cmd == "abort":
             success = conn.abort_transfer()

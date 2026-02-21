@@ -26,6 +26,7 @@ B32CC_OUTPUT = $(B32CC_DIR)/output/b32cc
 .PHONY: flash-c-baremetal-spi flash-bdos
 .PHONY: b32cc test-b32cc test-b32cc-single debug-b32cc clean-b32cc
 .PHONY: check
+.PHONY: fnp-upload-text fnp-upload-userbdos fnp-keyboard fnp-detect-iface
 
 # -----------------------------------------------------------------------------
 # Default Target
@@ -267,6 +268,34 @@ flash-bdos: compile-bdos
 	./Scripts/Programmer/flash_bdos.sh
 
 # =============================================================================
+# FNP (Network Programming)
+# =============================================================================
+
+fnp-detect-iface:
+	@.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py detect-iface
+
+fnp-upload-text:
+	@if [ -z "$(file)" ] || [ -z "$(dest)" ]; then \
+		echo "Usage: make fnp-upload-text file=<local_file> dest=<fpgc_path>"; \
+		echo "Example: make fnp-upload-text file=readme.txt dest=/user/readme.txt"; \
+		exit 1; \
+	fi
+	./Scripts/Programmer/Network/fnp_upload_text.sh $(file) $(dest)
+
+fnp-upload-userbdos: $(B32CC_OUTPUT)
+	@if [ -z "$(file)" ]; then \
+		echo "Usage: make fnp-upload-userbdos file=<c_filename_in_userBDOS_dir_without_extension>"; \
+		echo "Example: make fnp-upload-userbdos file=hello"; \
+		echo "Available programs:"; \
+		find Software/C/userBDOS -name "*.c" -type f 2>/dev/null | grep -v "tmp" | sed 's|Software/C/userBDOS/||' | sed 's|.c||' | sort; \
+		exit 1; \
+	fi
+	./Scripts/Programmer/Network/fnp_upload_userbdos.sh $(file)
+
+fnp-keyboard:
+	./Scripts/Programmer/Network/fnp_keyboard.sh
+
+# =============================================================================
 # Cleanup
 # =============================================================================
 
@@ -358,6 +387,14 @@ help:
 	@echo "  flash-c-baremetal-spi - Flash C binary to SPI flash (persistent)"
 	@echo "                          Usage: make flash-c-baremetal-spi file=<filename>"
 	@echo "  flash-bdos            - Flash BDOS binary to SPI flash (persistent)"
+	@echo ""
+	@echo "--- FNP (Network Programming) ---"
+	@echo "  fnp-detect-iface      - Print auto-detected Ethernet interface"
+	@echo "  fnp-upload-text       - Upload a text file to the FPGC"
+	@echo "                          Usage: make fnp-upload-text file=<local> dest=<fpgc_path>"
+	@echo "  fnp-upload-userbdos   - Compile and upload a userBDOS C program to /bin"
+	@echo "                          Usage: make fnp-upload-userbdos file=<name>"
+	@echo "  fnp-keyboard          - Interactive keyboard streaming to FPGC"
 	@echo ""
 	@echo "--- Cleanup ---"
 	@echo "  clean               - Clean all build artifacts and environments"

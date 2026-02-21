@@ -71,7 +71,20 @@ void GenInitFinalize()
   }
   else if (UserBDOS)
   {
-    errorInternal(404); // User BDOS not yet supported
+    // UserBDOS program: runs under BDOS in a user memory slot.
+    // The BDOS loader sets r13 (stack pointer) and r15 (return address)
+    // before jumping to Main. We only need to initialize r14 (base pointer)
+    // and jump to the C main function.
+    printf2(
+        ".code\n"
+        "; UserBDOS program entry point\n"
+        "; The BDOS loader sets r13 (stack) and r15 (return to BDOS) before entry\n"
+        "Main:\n"
+        "  load32 0 r14            ; initialize base pointer address\n"
+        "  jump Label_main         ; jump to main of C program\n"
+        "                          ; should return to the address in r15\n"
+        "  halt                    ; should not get here\n"
+        "\n");
   }
   else
   {
@@ -2399,7 +2412,15 @@ void GenFin()
   }
   else if (UserBDOS)
   {
-    errorInternal(404); // User BDOS not yet supported
+    // UserBDOS programs don't handle interrupts directly — BDOS handles
+    // all interrupts. Generate a minimal Int label stub required by the
+    // ASMPY -h header (which emits 'jump Int' at offset 1).
+    printf2(
+        ".code\n"
+        "; User programs do not handle interrupts (BDOS handles them)\n"
+        "Int:\n"
+        "  reti        ; return immediately if ever reached\n"
+        "  halt        ; should not get here\n");
   }
   else
   {
