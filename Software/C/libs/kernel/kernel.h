@@ -79,10 +79,6 @@
 #include "libs/kernel/io/spi.h"
 #endif
 
-#ifdef KERNEL_MALLOC
-#include "libs/kernel/mem/malloc.h"
-#endif
-
 #ifdef KERNEL_SPI_FLASH
 #include "libs/kernel/io/spi_flash.h"
 #endif
@@ -133,10 +129,6 @@
 
 #ifdef KERNEL_SPI
 #include "libs/kernel/io/spi.c"
-#endif
-
-#ifdef KERNEL_MALLOC
-#include "libs/kernel/mem/malloc.c"
 #endif
 
 #ifdef KERNEL_SPI_FLASH
