@@ -1,12 +1,10 @@
 #ifndef GPU_HAL_H
 #define GPU_HAL_H
 
-/*
- * GPU Hardware Abstraction Layer (HAL)
- * Provides an abstraction for GPU VRAM memory access.
- * If more speed is needed, inline assembly could be used in these functions.
- * For writing entire frames to the pixel plane, consider not using this library and accessing VRAM directly.
- */
+// GPU Hardware Abstraction Layer (HAL)
+// Provides an abstraction for GPU VRAM memory access.
+// If more speed is needed, inline assembly could be used in these functions.
+// For writing entire frames to the pixel plane, consider not using this library and accessing VRAM directly.
 
 // GPU VRAM memory addresses
 #define GPU_PATTERN_TABLE_ADDR      0x7900000 // 256 patterns × 4 words each

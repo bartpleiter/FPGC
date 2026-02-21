@@ -1,6 +1,10 @@
+//
+// string library implementation.
+//
+
 #include "libs/common/string.h"
 
-/* Memory functions */
+// Memory functions
 
 void *memcpy(void *dest, const void *src, size_t n)
 {
@@ -37,7 +41,7 @@ void *memmove(void *dest, const void *src, size_t n)
 
     if (d < s)
     {
-        /* Copy forward */
+        // Copy forward
         for (i = 0; i < n; i++)
         {
             d[i] = s[i];
@@ -45,17 +49,18 @@ void *memmove(void *dest, const void *src, size_t n)
     }
     else if (d > s)
     {
-        /* Copy backward to handle overlap */
+        // Copy backward to handle overlap
         for (i = n; i > 0; i--)
         {
             d[i - 1] = s[i - 1];
         }
     }
-    /* If d == s, no copy needed */
+    // If d == s, no copy needed
 
     return dest;
 }
 
+// memcmp
 int memcmp(const void *s1, const void *s2, size_t n)
 {
     const unsigned int *p1 = (const unsigned int *)s1;
@@ -77,7 +82,7 @@ int memcmp(const void *s1, const void *s2, size_t n)
     return 0;
 }
 
-/* String functions */
+// String functions
 
 size_t strlen(const char *s)
 {
@@ -113,7 +118,7 @@ char *strncpy(char *dest, const char *src, size_t n)
         dest[i] = src[i];
     }
 
-    /* Pad with nulls if src is shorter than n */
+    // Pad with nulls if src is shorter than n
     for (; i < n; i++)
     {
         dest[i] = '\0';
@@ -122,6 +127,7 @@ char *strncpy(char *dest, const char *src, size_t n)
     return dest;
 }
 
+// strcmp
 int strcmp(const char *s1, const char *s2)
 {
     while (*s1 != '\0' && *s1 == *s2)
@@ -133,6 +139,7 @@ int strcmp(const char *s1, const char *s2)
     return (unsigned char)*s1 - (unsigned char)*s2;
 }
 
+// strncmp
 int strncmp(const char *s1, const char *s2, size_t n)
 {
     size_t i;
@@ -156,13 +163,13 @@ char *strcat(char *dest, const char *src)
 {
     char *d = dest;
 
-    /* Find end of dest */
+    // Find end of dest
     while (*d != '\0')
     {
         d++;
     }
 
-    /* Copy src to end */
+    // Copy src to end
     while (*src != '\0')
     {
         *d++ = *src++;
@@ -177,13 +184,13 @@ char *strncat(char *dest, const char *src, size_t n)
     char *d = dest;
     size_t i;
 
-    /* Find end of dest */
+    // Find end of dest
     while (*d != '\0')
     {
         d++;
     }
 
-    /* Copy at most n characters from src */
+    // Copy at most n characters from src
     for (i = 0; i < n && src[i] != '\0'; i++)
     {
         d[i] = src[i];
@@ -206,7 +213,7 @@ char *strchr(const char *s, int c)
         s++;
     }
 
-    /* Also check for null terminator if searching for '\0' */
+    // Also check for null terminator if searching for '\0'
     if (ch == '\0')
     {
         return (char *)s;
@@ -229,7 +236,7 @@ char *strrchr(const char *s, int c)
         s++;
     }
 
-    /* Check for null terminator if searching for '\0' */
+    // Check for null terminator if searching for '\0'
     if (ch == '\0')
     {
         return (char *)s;

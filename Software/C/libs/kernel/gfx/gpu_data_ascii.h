@@ -1,11 +1,9 @@
 #ifndef GPU_DATA_ASCII_H
 #define GPU_DATA_ASCII_H
 
-/*
- * Contains default ASCII table with default terminal style palette table.
- * Assembly is used as workaround to store them efficiently.
- * An offset of 3 words should be used to get to the actual data because of the function prologue.
- */
+// Contains default ASCII table with default terminal style palette table.
+// Assembly is used as workaround to store them efficiently.
+// An offset of 3 words should be used to get to the actual data because of the function prologue.
 
 #define PALETTE_WHITE_ON_BLACK      0
 #define PALETTE_BLACK_ON_WHITE      1

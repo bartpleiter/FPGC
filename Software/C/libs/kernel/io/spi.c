@@ -1,5 +1,10 @@
+//
+// spi library implementation.
+//
+
 #include "libs/kernel/io/spi.h"
 
+// spi 0 select
 void spi_0_select()
 {
     asm(
@@ -8,6 +13,7 @@ void spi_0_select()
     );
 }
 
+// spi 0 deselect
 void spi_0_deselect()
 {
     asm(
@@ -18,6 +24,7 @@ void spi_0_deselect()
 
 }
 
+// spi 0 transfer
 int spi_0_transfer(int data)
 {
     int retval = 0;
@@ -30,6 +37,7 @@ int spi_0_transfer(int data)
     return retval;
 }
 
+// spi 1 select
 void spi_1_select()
 {
     asm(
@@ -38,6 +46,7 @@ void spi_1_select()
     );
 }
 
+// spi 1 deselect
 void spi_1_deselect()
 {
     asm(
@@ -48,6 +57,7 @@ void spi_1_deselect()
 
 }
 
+// spi 1 transfer
 int spi_1_transfer(int data)
 {
     int retval = 0;
@@ -60,6 +70,7 @@ int spi_1_transfer(int data)
     return retval;
 }
 
+// spi 2 select
 void spi_2_select()
 {
     asm(
@@ -68,6 +79,7 @@ void spi_2_select()
     );
 }
 
+// spi 2 deselect
 void spi_2_deselect()
 {
     asm(
@@ -77,6 +89,7 @@ void spi_2_deselect()
     );
 }
 
+// spi 2 transfer
 int spi_2_transfer(int data)
 {
     int retval = 0;
@@ -89,6 +102,7 @@ int spi_2_transfer(int data)
     return retval;
 }
 
+// spi 3 select
 void spi_3_select()
 {
     asm(
@@ -97,6 +111,7 @@ void spi_3_select()
     );
 }
 
+// spi 3 deselect
 void spi_3_deselect()
 {
     asm(
@@ -106,6 +121,7 @@ void spi_3_deselect()
     );
 }
 
+// spi 3 transfer
 int spi_3_transfer(int data)
 {
     int retval = 0;
@@ -118,6 +134,7 @@ int spi_3_transfer(int data)
     return retval;
 }
 
+// spi 4 select
 void spi_4_select()
 {
     asm(
@@ -126,6 +143,7 @@ void spi_4_select()
     );
 }
 
+// spi 4 deselect
 void spi_4_deselect()
 {
     asm(
@@ -135,6 +153,7 @@ void spi_4_deselect()
     );
 }
 
+// spi 4 transfer
 int spi_4_transfer(int data)
 {
     int retval = 0;
@@ -147,6 +166,7 @@ int spi_4_transfer(int data)
     return retval;
 }
 
+// spi 5 select
 void spi_5_select()
 {
     asm(
@@ -155,6 +175,7 @@ void spi_5_select()
     );
 }
 
+// spi 5 deselect
 void spi_5_deselect()
 {
     asm(
@@ -164,6 +185,7 @@ void spi_5_deselect()
     );
 }
 
+// spi 5 transfer
 int spi_5_transfer(int data)
 {
     int retval = 0;
@@ -176,6 +198,7 @@ int spi_5_transfer(int data)
     return retval;
 }
 
+// spi transfer
 int spi_transfer(int spi_id, int data)
 {
     int retval = 0;
@@ -205,6 +228,7 @@ int spi_transfer(int spi_id, int data)
     return retval;
 }
 
+// spi select
 void spi_select(int spi_id)
 {
     switch (spi_id) {
@@ -232,6 +256,7 @@ void spi_select(int spi_id)
     }
 }
 
+// spi deselect
 void spi_deselect(int spi_id)
 {
     switch (spi_id) {

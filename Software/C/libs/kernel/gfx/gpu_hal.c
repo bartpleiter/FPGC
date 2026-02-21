@@ -1,5 +1,10 @@
+//
+// gpu_hal library implementation.
+//
+
 #include "libs/kernel/gfx/gpu_hal.h"
 
+// gpu clear tables
 void gpu_clear_tables()
 {
   // Clear pattern and palette tables
@@ -16,6 +21,7 @@ void gpu_clear_tables()
   }
 }
 
+// gpu clear bg
 void gpu_clear_bg()
 {
   // Clear background tile/color tables
@@ -38,6 +44,7 @@ void gpu_clear_bg()
   }
 }
 
+// gpu clear window
 void gpu_clear_window()
 {
   // Clear window tile/color tables
@@ -54,6 +61,7 @@ void gpu_clear_window()
   }
 }
 
+// gpu clear pixel
 void gpu_clear_pixel()
 {
   // Clear pixel plane
@@ -65,6 +73,7 @@ void gpu_clear_pixel()
   }
 }
 
+// gpu clear vram
 void gpu_clear_vram()
 {
   gpu_clear_tables();
@@ -73,6 +82,7 @@ void gpu_clear_vram()
   gpu_clear_pixel();
 }
 
+// gpu load pattern table
 void gpu_load_pattern_table(const unsigned int *pattern_table)
 {
   int i;
@@ -85,6 +95,7 @@ void gpu_load_pattern_table(const unsigned int *pattern_table)
   }
 }
 
+// gpu load palette table
 void gpu_load_palette_table(const unsigned int *palette_table)
 {
   int i;
@@ -133,6 +144,7 @@ void gpu_set_bg_palette(unsigned int palette_index)
   }
 }
 
+// gpu write window tile
 void gpu_write_window_tile(unsigned int x, unsigned int y, unsigned int tile_index, unsigned int palette_index)
 {
   // The window plane is 40x25 tiles, we wrap around if out of bounds to prevent out-of-bounds writes
@@ -154,6 +166,7 @@ void gpu_write_window_tile(unsigned int x, unsigned int y, unsigned int tile_ind
   window_color_table[index] = palette_index;
 }
 
+// gpu write bg tile
 void gpu_write_bg_tile(unsigned int x, unsigned int y, unsigned int tile_index, unsigned int palette_index)
 {
   // Background plane is 64x25 tiles, we wrap around if out of bounds to prevent out-of-bounds writes
@@ -175,6 +188,7 @@ void gpu_write_bg_tile(unsigned int x, unsigned int y, unsigned int tile_index, 
   bg_color_table[index] = palette_index;
 }
 
+// gpu write pixel data
 void gpu_write_pixel_data(unsigned int x, unsigned int y, unsigned int color)
 {
   // Pixel plane is 320x240 pixels, we wrap around if out of bounds to prevent out-of-bounds writes

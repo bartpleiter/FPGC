@@ -1,11 +1,9 @@
 #ifndef KERNEL_H
 #define KERNEL_H
 
-/*
- * Kernel Library Orchestrator
- * Handles inclusion of kernel modules.
- * Allows inclusion of only needed libraries without needing a linker.
- */
+// Kernel Library Orchestrator
+// Handles inclusion of kernel modules.
+// Allows inclusion of only needed libraries without needing a linker.
 
 // Dependency resolution
 #ifdef KERNEL_GPU_FB

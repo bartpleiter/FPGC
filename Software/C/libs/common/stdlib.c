@@ -1,19 +1,23 @@
+//
+// stdlib library implementation.
+//
+
 #include "libs/common/stdlib.h"
 
-/* Conversion functions */
+// Conversion functions
 
 int atoi(const char *nptr)
 {
     int result = 0;
     int sign = 1;
 
-    /* Skip whitespace */
+    // Skip whitespace
     while (*nptr == ' ' || *nptr == '\t' || *nptr == '\n')
     {
         nptr++;
     }
 
-    /* Handle sign */
+    // Handle sign
     if (*nptr == '-')
     {
         sign = -1;
@@ -24,7 +28,7 @@ int atoi(const char *nptr)
         nptr++;
     }
 
-    /* Convert digits */
+    // Convert digits
     while (*nptr >= '0' && *nptr <= '9')
     {
         result = result * 10 + (*nptr - '0');
@@ -43,7 +47,7 @@ int *utoa(unsigned int value, int *buf, int base, int uppercase)
     int *first = buf;
     int tmp;
 
-    /* Generate digits in reverse order */
+    // Generate digits in reverse order
     do
     {
         *p++ = digits[value % base];
@@ -52,7 +56,7 @@ int *utoa(unsigned int value, int *buf, int base, int uppercase)
 
     *p = '\0';
 
-    /* Reverse the string */
+    // Reverse the string
     p--;
     while (first < p)
     {
@@ -79,34 +83,37 @@ int *itoa(int value, int *buf, int base)
     return buf;
 }
 
-/* Utility functions */
+// Utility functions
 
 int abs(int j)
 {
     return (j < 0) ? -j : j;
 }
 
+// labs
 long labs(long j)
 {
     return (j < 0) ? -j : j;
 }
 
-/* Random number generator (Linear Congruential Generator) */
+// Random number generator (Linear Congruential Generator)
 static unsigned int stdlib_rand_seed = 1;
 
+// rand
 int rand()
 {
-    /* LCG parameters (same as glibc) */
+    // LCG parameters (same as glibc)
     stdlib_rand_seed = stdlib_rand_seed * 1103515245 + 12345;
     return (int)((stdlib_rand_seed >> 16) & RAND_MAX);
 }
 
+// srand
 void srand(unsigned int seed)
 {
     stdlib_rand_seed = seed;
 }
 
-/* Quicksort implementation */
+// Quicksort implementation
 
 static void swap_words(unsigned int *a, unsigned int *b, size_t size)
 {
@@ -132,7 +139,7 @@ static void quicksort_internal(unsigned int *base, size_t lo, size_t hi,
         return;
     }
 
-    /* Choose last element as pivot */
+    // Choose last element as pivot
     pivot = base + hi * size;
     i = lo;
 
@@ -147,7 +154,7 @@ static void quicksort_internal(unsigned int *base, size_t lo, size_t hi,
 
     swap_words(base + i * size, pivot, size);
 
-    /* Recursively sort partitions */
+    // Recursively sort partitions
     if (i > 0)
     {
         quicksort_internal(base, lo, i - 1, size, compar);
@@ -197,7 +204,7 @@ void *bsearch(const void *key, const void *base, size_t nmemb, size_t size,
     return NULL;
 }
 
-/* Utility functions */
+// Utility functions
 
 int int_min(int a, int b)
 {
@@ -208,6 +215,7 @@ int int_min(int a, int b)
     return b;
 }
 
+// int max
 int int_max(int a, int b)
 {
     if (a > b)
@@ -217,6 +225,7 @@ int int_max(int a, int b)
     return b;
 }
 
+// int clamp
 int int_clamp(int x, int lo, int hi)
 {
     if (x < lo)

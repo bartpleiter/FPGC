@@ -1,16 +1,20 @@
+//
+// enc28j60 library implementation.
+//
+
 #include "libs/kernel/io/enc28j60.h"
 #include "libs/kernel/io/spi.h"
 
-/* ============================================ */
-/*          Internal State                      */
-/* ============================================ */
+// ============================================
+// Internal State
+// ============================================
 
 static int enc28j60_current_bank = 0;
 static int enc28j60_next_pkt_ptr = 0;
 
-/* ============================================ */
-/*   Low-Level SPI Operations                   */
-/* ============================================ */
+// ============================================
+// Low-Level SPI Operations
+// ============================================
 
 static int enc28j60_read_op(int op, int address)
 {
@@ -26,6 +30,7 @@ static int enc28j60_read_op(int op, int address)
     return result & 0xFF;
 }
 
+// enc28j60 write op
 static void enc28j60_write_op(int op, int address, int data)
 {
     spi_select(ENC28J60_SPI_ID);
@@ -34,9 +39,9 @@ static void enc28j60_write_op(int op, int address, int data)
     spi_deselect(ENC28J60_SPI_ID);
 }
 
-/* ============================================ */
-/*   Register Access (with bank switching)      */
-/* ============================================ */
+// ============================================
+// Register Access (with bank switching)
+// ============================================
 
 static void enc28j60_set_bank(int address)
 {
@@ -50,12 +55,14 @@ static void enc28j60_set_bank(int address)
     }
 }
 
+// enc28j60 read reg
 static int enc28j60_read_reg(int address)
 {
     enc28j60_set_bank(address);
     return enc28j60_read_op(ENC_OP_RCR, address);
 }
 
+// enc28j60 read reg16
 static int enc28j60_read_reg16(int address)
 {
     int low;
@@ -65,21 +72,23 @@ static int enc28j60_read_reg16(int address)
     return low | (high << 8);
 }
 
+// enc28j60 write reg
 static void enc28j60_write_reg(int address, int data)
 {
     enc28j60_set_bank(address);
     enc28j60_write_op(ENC_OP_WCR, address, data);
 }
 
+// enc28j60 write reg16
 static void enc28j60_write_reg16(int address, int data)
 {
     enc28j60_write_reg(address, data & 0xFF);
     enc28j60_write_reg(address + 1, (data >> 8) & 0xFF);
 }
 
-/* ============================================ */
-/*   PHY Register Access                        */
-/* ============================================ */
+// ============================================
+// PHY Register Access
+// ============================================
 
 static int enc28j60_read_phy(int address)
 {
@@ -94,6 +103,7 @@ static int enc28j60_read_phy(int address)
     return result;
 }
 
+// enc28j60 write phy
 static void enc28j60_write_phy(int address, int data)
 {
     enc28j60_write_reg(MIREGADR, address);
@@ -103,9 +113,9 @@ static void enc28j60_write_phy(int address, int data)
         ;
 }
 
-/* ============================================ */
-/*   Buffer Memory Read/Write                   */
-/* ============================================ */
+// ============================================
+// Buffer Memory Read/Write
+// ============================================
 
 static void enc28j60_read_buffer(char* buf, int len)
 {
@@ -121,6 +131,7 @@ static void enc28j60_read_buffer(char* buf, int len)
     spi_deselect(ENC28J60_SPI_ID);
 }
 
+// enc28j60 write buffer
 static void enc28j60_write_buffer(char* buf, int len)
 {
     int i;
@@ -135,13 +146,13 @@ static void enc28j60_write_buffer(char* buf, int len)
     spi_deselect(ENC28J60_SPI_ID);
 }
 
-/* ============================================ */
-/*   RX Buffer Management                       */
-/* ============================================ */
+// ============================================
+// RX Buffer Management
+// ============================================
 
 static void enc28j60_free_rx_space()
 {
-    /* Errata B7 #14: ERXRDPT must be odd */
+    // Errata B7 #14: ERXRDPT must be odd
     if (enc28j60_next_pkt_ptr == 0)
     {
         enc28j60_write_reg16(ERXRDPTL, ENC_RXSTOP);
@@ -153,9 +164,9 @@ static void enc28j60_free_rx_space()
     enc28j60_write_op(ENC_OP_BFS, ECON2, ECON2_PKTDEC);
 }
 
-/* ============================================ */
-/*          Public API Implementation           */
-/* ============================================ */
+// ============================================
+// Public API Implementation
+// ============================================
 
 int enc28j60_init(int* mac)
 {
@@ -163,53 +174,51 @@ int enc28j60_init(int* mac)
 
     spi_deselect(ENC28J60_SPI_ID);
 
-    /* Soft reset */
+    // Soft reset
     spi_select(ENC28J60_SPI_ID);
     spi_transfer(ENC28J60_SPI_ID, ENC_OP_SRC);
     spi_deselect(ENC28J60_SPI_ID);
 
-    /* Errata B7 #2: wait at least 1ms after reset */
+    // Errata B7 #2: wait at least 1ms after reset
     delay(2);
 
-    /* Wait for CLKRDY */
+    // Wait for CLKRDY
     while (!(enc28j60_read_op(ENC_OP_RCR, ESTAT) & ESTAT_CLKRDY));
 
     enc28j60_next_pkt_ptr = ENC_RXSTART;
 
-    /* RX buffer */
+    // RX buffer
     enc28j60_write_reg16(ERXSTL, ENC_RXSTART);
     enc28j60_write_reg16(ERXRDPTL, ENC_RXSTART);
     enc28j60_write_reg16(ERXNDL, ENC_RXSTOP);
 
-    /* TX buffer */
+    // TX buffer
     enc28j60_write_reg16(ETXSTL, ENC_TXSTART);
     enc28j60_write_reg16(ETXNDL, ENC_TXSTOP);
 
-    /*
-     * Receive filter: unicast + CRC only.
-     * Only accept frames addressed to our MAC (unicast) with valid CRC.
-     * Broadcast/multicast frames are rejected in hardware.
-     * TODO: reconsider if I want to implement FPGC discovery.
-     */
+    // Receive filter: unicast + CRC only.
+    // Only accept frames addressed to our MAC (unicast) with valid CRC.
+    // Broadcast/multicast frames are rejected in hardware.
+    // TODO: reconsider if I want to implement FPGC discovery.
     enc28j60_write_reg(ERXFCON, ERXFCON_UCEN | ERXFCON_CRCEN);
 
-    /* MAC init: MARXEN|TXPAUS|RXPAUS */
+    // MAC init: MARXEN|TXPAUS|RXPAUS
     enc28j60_write_reg(MACON1, MACON1_MARXEN | MACON1_TXPAUS | MACON1_RXPAUS);
 
-    /* MACON3: BFS PADCFG0|TXCRCEN|FRMLNEN */
+    // MACON3: BFS PADCFG0|TXCRCEN|FRMLNEN
     enc28j60_write_op(ENC_OP_BFS, MACON3,
                       MACON3_PADCFG0 | MACON3_TXCRCEN | MACON3_FRMLNEN);
 
-    /* Inter-packet gap */
+    // Inter-packet gap
     enc28j60_write_reg16(MAIPGL, 0x0C12);
 
-    /* Back-to-back inter-packet gap */
+    // Back-to-back inter-packet gap
     enc28j60_write_reg(MABBIPG, 0x12);
 
-    /* Max frame length */
+    // Max frame length
     enc28j60_write_reg16(MAMXFLL, ENC28J60_MAX_FRAME);
 
-    /* Set MAC address */
+    // Set MAC address
     enc28j60_write_reg(MAADR5, mac[0]);
     enc28j60_write_reg(MAADR4, mac[1]);
     enc28j60_write_reg(MAADR3, mac[2]);
@@ -217,24 +226,24 @@ int enc28j60_init(int* mac)
     enc28j60_write_reg(MAADR1, mac[4]);
     enc28j60_write_reg(MAADR0, mac[5]);
 
-    /* PHY: PHCON2 */
+    // PHY: PHCON2
     enc28j60_write_phy(PHCON2, PHCON2_HDLDIS);
 
-    /* PHY: PHLCON */
+    // PHY: PHLCON
     enc28j60_write_phy(PHLCON, 0x0476);
 
-    /* ECON2: BFS AUTOINC */
+    // ECON2: BFS AUTOINC
     enc28j60_write_op(ENC_OP_BFS, ECON2, ECON2_AUTOINC);
 
-    /* EIE: BFS INTIE|PKTIE */
+    // EIE: BFS INTIE|PKTIE
     enc28j60_write_op(ENC_OP_BFS, EIE, EIE_INTIE | EIE_PKTIE);
 
-    /* ECON1: BFS RXEN */
+    // ECON1: BFS RXEN
     enc28j60_write_op(ENC_OP_BFS, ECON1, ECON1_RXEN);
 
     enc28j60_current_bank = 0;
 
-    /* Read revision */
+    // Read revision
     rev = enc28j60_read_reg(EREVID);
     if (rev > 5)
     {
@@ -243,6 +252,7 @@ int enc28j60_init(int* mac)
     return rev;
 }
 
+// enc28j60 link up
 int enc28j60_link_up()
 {
     int phstat2;
@@ -250,6 +260,7 @@ int enc28j60_link_up()
     return (phstat2 & PHSTAT2_LSTAT) ? 1 : 0;
 }
 
+// enc28j60 get revision
 int enc28j60_get_revision()
 {
     int rev;
@@ -261,11 +272,13 @@ int enc28j60_get_revision()
     return rev;
 }
 
+// enc28j60 packet count
 int enc28j60_packet_count()
 {
     return enc28j60_read_reg(EPKTCNT);
 }
 
+// enc28j60 packet send
 int enc28j60_packet_send(char* buf, int len)
 {
     int count;
@@ -275,27 +288,27 @@ int enc28j60_packet_send(char* buf, int len)
         return 0;
     }
 
-    /* Errata #12: reset TX logic */
+    // Errata #12: reset TX logic
     enc28j60_write_op(ENC_OP_BFS, ECON1, ECON1_TXRST);
     enc28j60_write_op(ENC_OP_BFC, ECON1, ECON1_TXRST);
     enc28j60_write_op(ENC_OP_BFC, EIR, EIR_TXIF | EIR_TXERIF);
 
-    /* Set write pointer to TX start */
+    // Set write pointer to TX start
     enc28j60_write_reg16(EWRPTL, ENC_TXSTART);
 
-    /* Set TX end */
+    // Set TX end
     enc28j60_write_reg16(ETXNDL, ENC_TXSTART + len);
 
-    /* Per-packet control byte */
+    // Per-packet control byte
     enc28j60_write_op(ENC_OP_WBM, 0, 0x00);
 
-    /* Write frame data */
+    // Write frame data
     enc28j60_write_buffer(buf, len);
 
-    /* Start TX */
+    // Start TX
     enc28j60_write_op(ENC_OP_BFS, ECON1, ECON1_TXRTS);
 
-    /* Wait for TXIF or TXERIF */
+    // Wait for TXIF or TXERIF
     count = 0;
     while (count < 10000)
     {
@@ -308,7 +321,7 @@ int enc28j60_packet_send(char* buf, int len)
         count = count + 1;
     }
 
-    /* Check for error */
+    // Check for error
     if (enc28j60_read_op(ENC_OP_RCR, EIR) & EIR_TXERIF)
     {
         enc28j60_write_op(ENC_OP_BFC, ECON1, ECON1_TXRTS);
@@ -324,6 +337,7 @@ int enc28j60_packet_send(char* buf, int len)
     return 1;
 }
 
+// enc28j60 packet receive
 int enc28j60_packet_receive(char* buf, int max_len)
 {
     int pkt_count;
@@ -338,21 +352,21 @@ int enc28j60_packet_receive(char* buf, int max_len)
         return 0;
     }
 
-    /* Set read pointer */
+    // Set read pointer
     enc28j60_write_reg16(ERDPTL, enc28j60_next_pkt_ptr);
 
-    /* Read 6-byte receive status vector */
+    // Read 6-byte receive status vector
     enc28j60_read_buffer(hdr, 6);
 
     next_ptr = (hdr[0] & 0xFF) | ((hdr[1] & 0xFF) << 8);
     pkt_len = (hdr[2] & 0xFF) | ((hdr[3] & 0xFF) << 8);
     status = (hdr[4] & 0xFF) | ((hdr[5] & 0xFF) << 8);
 
-    pkt_len = pkt_len - 4; /* Remove CRC */
+    pkt_len = pkt_len - 4; // Remove CRC
 
     enc28j60_next_pkt_ptr = next_ptr;
 
-    /* Check "Received OK" bit (status bit 7) */
+    // Check "Received OK" bit (status bit 7)
     if (!(status & 0x80))
     {
         enc28j60_free_rx_space();
@@ -378,6 +392,7 @@ int enc28j60_packet_receive(char* buf, int max_len)
     return pkt_len;
 }
 
+// enc28j60 enable broadcast
 void enc28j60_enable_broadcast()
 {
     int val;
@@ -385,6 +400,7 @@ void enc28j60_enable_broadcast()
     enc28j60_write_reg(ERXFCON, val | ERXFCON_BCEN);
 }
 
+// enc28j60 disable broadcast
 void enc28j60_disable_broadcast()
 {
     int val;

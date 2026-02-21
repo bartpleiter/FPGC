@@ -1,3 +1,7 @@
+//
+// gpu_data_ascii library implementation.
+//
+
 #include "libs/kernel/gfx/gpu_data_ascii.h"
 
 // Palette data - 32 palettes, each is a 32-bit word

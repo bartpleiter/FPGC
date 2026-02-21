@@ -1,3 +1,7 @@
+//
+// term library implementation.
+//
+
 #include "libs/kernel/term/term.h"
 
 // Internal state variables

@@ -1,10 +1,8 @@
 #ifndef SPI_H
 #define SPI_H
 
-/*
- * SPI library for SPI communication
- * Provides functions to select/deselect the SPI device and transfer data.
- */
+// SPI library for SPI communication
+// Provides functions to select/deselect the SPI device and transfer data.
 
 #define SPI_ID_FLASH_0 0
 #define SPI_ID_FLASH_1 1

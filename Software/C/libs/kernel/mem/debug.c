@@ -1,5 +1,10 @@
+//
+// debug library implementation.
+//
+
 #include "libs/kernel/mem/debug.h"
 
+// debug mem dump
 void debug_mem_dump(unsigned int* start, unsigned int length)
 {
     for (unsigned int i = 0; i < length; i++)

@@ -1,11 +1,9 @@
 #ifndef TERM_H
 #define TERM_H
 
-/*
- * Terminal Library
- * Provides text output capabilities on the window plane of the GPU.
- * Emulates basic terminal behavior.
- */
+// Terminal Library
+// Provides text output capabilities on the window plane of the GPU.
+// Emulates basic terminal behavior.
 
 #define TERM_WIDTH  40
 #define TERM_HEIGHT 25

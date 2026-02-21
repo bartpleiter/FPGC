@@ -1,10 +1,8 @@
 #ifndef GPU_FB_H
 #define GPU_FB_H
 
-/*
- * GPU Framebuffer Library
- * Provides functions to manipulate the pixel plane of the GPU.
- */
+// GPU Framebuffer Library
+// Provides functions to manipulate the pixel plane of the GPU.
 
 #define FB_WIDTH 320
 #define FB_HEIGHT 240

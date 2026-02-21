@@ -1,9 +1,7 @@
 #ifndef SYS_H
 #define SYS_H
 
-/*
- * System-level definitions and utilities
- */
+// System-level definitions and utilities
 
 #define INTID_UART          1
 #define INTID_TIMER0        2

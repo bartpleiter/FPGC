@@ -1,10 +1,8 @@
 #ifndef SPI_FLASH_H
 #define SPI_FLASH_H
 
-/*
- * Library for SPI flash memory operations
- * Builds on top of the SPI library to provide flash-specific functions.
- */
+// Library for SPI flash memory operations
+// Builds on top of the SPI library to provide flash-specific functions.
 
 #define SPI_FLASH_0 SPI_ID_FLASH_0
 #define SPI_FLASH_1 SPI_ID_FLASH_1
@@ -51,11 +49,9 @@ void spi_flash_write_status(int spi_id, int status);
 // Read unique ID
 void spi_flash_read_unique_id(int spi_id, int* id_buffer);
 
-/*
- * Word-based operations for 32-bit data
- * These functions handle the conversion between 32-bit words and bytes.
- * Addresses are in bytes, but data is 32-bit words (4 bytes each, big-endian).
- */
+// Word-based operations for 32-bit data
+// These functions handle the conversion between 32-bit words and bytes.
+// Addresses are in bytes, but data is 32-bit words (4 bytes each, big-endian).
 
 // Write words to flash (max 64 words = 256 bytes per page)
 // Each word is written as 4 bytes in big-endian order

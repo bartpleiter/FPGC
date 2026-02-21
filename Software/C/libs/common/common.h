@@ -1,11 +1,9 @@
 #ifndef COMMON_H
 #define COMMON_H
 
-/*
- * Common Library Orchestrator
- * Handles inclusion of common modules between kernel and user programs.
- * Allows inclusion of only needed libraries without needing a linker.
- */
+// Common Library Orchestrator
+// Handles inclusion of common modules between kernel and user programs.
+// Allows inclusion of only needed libraries without needing a linker.
 
 // Dependency resolution
 #ifdef COMMON_STDLIB

@@ -1,20 +1,18 @@
-/*
- * Bart's RAM File System (BRFS) Implementation
- * 
- * See brfs.h for architecture documentation and API details.
- */
+// Bart's RAM File System (BRFS) Implementation
+// See brfs.h for architecture documentation and API details.
 
 #include "libs/kernel/fs/brfs.h"
 #include "libs/kernel/io/spi_flash.h"
 #include "libs/common/string.h"
 
-/*============================================================================
- * Global State
- *============================================================================*/
+// ============================================================================
+// Global State
+// ============================================================================
 
 struct brfs_state brfs;
 static brfs_progress_callback_t brfs_progress_callback = NULL;
 
+// brfs report progress
 static void brfs_report_progress(const char* phase, unsigned int current, unsigned int total)
 {
     if (brfs_progress_callback != NULL)
@@ -23,9 +21,9 @@ static void brfs_report_progress(const char* phase, unsigned int current, unsign
     }
 }
 
-/*============================================================================
- * Internal Helper Functions - Forward Declarations
- *============================================================================*/
+// ============================================================================
+// Internal Helper Functions - Forward Declarations
+// ============================================================================
 
 static unsigned int* brfs_get_superblock();
 static unsigned int* brfs_get_fat();
@@ -43,12 +41,11 @@ static void brfs_create_dir_entry(struct brfs_dir_entry* entry, const char* file
                                    unsigned int fat_idx, unsigned int filesize, 
                                    unsigned int flags);
 
-/*============================================================================
- * String Compression/Decompression
- * 
- * Filenames are stored with 4 characters packed per word to save space.
- * Format: chars[0] in bits 31-24, chars[1] in bits 23-16, etc.
- *============================================================================*/
+// ============================================================================
+// String Compression/Decompression
+// Filenames are stored with 4 characters packed per word to save space.
+// Format: chars[0] in bits 31-24, chars[1] in bits 23-16, etc.
+// ============================================================================
 
 void brfs_compress_string(unsigned int* dest, const char* src)
 {
@@ -100,6 +97,7 @@ void brfs_compress_string(unsigned int* dest, const char* src)
     }
 }
 
+// brfs decompress string
 void brfs_decompress_string(char* dest, const unsigned int* src, unsigned int src_words)
 {
     unsigned int word_idx;
@@ -133,9 +131,9 @@ void brfs_decompress_string(char* dest, const unsigned int* src, unsigned int sr
     dest[char_idx] = '\0';
 }
 
-/*============================================================================
- * Path Parsing
- *============================================================================*/
+// ============================================================================
+// Path Parsing
+// ============================================================================
 
 int brfs_parse_path(const char* path, char* dir_path, char* filename, 
                     unsigned int dir_path_size)
@@ -208,20 +206,22 @@ int brfs_parse_path(const char* path, char* dir_path, char* filename,
     return BRFS_OK;
 }
 
-/*============================================================================
- * Internal Cache Access Functions
- *============================================================================*/
+// ============================================================================
+// Internal Cache Access Functions
+// ============================================================================
 
 static unsigned int* brfs_get_superblock()
 {
     return brfs.cache;
 }
 
+// brfs get fat
 static unsigned int* brfs_get_fat()
 {
     return brfs.cache + BRFS_SUPERBLOCK_SIZE;
 }
 
+// brfs get data block
 static unsigned int* brfs_get_data_block(unsigned int block_idx)
 {
     struct brfs_superblock* sb;
@@ -231,9 +231,9 @@ static unsigned int* brfs_get_data_block(unsigned int block_idx)
            (block_idx * sb->words_per_block);
 }
 
-/*============================================================================
- * Block Allocation Functions
- *============================================================================*/
+// ============================================================================
+// Block Allocation Functions
+// ============================================================================
 
 static int brfs_find_free_block()
 {
@@ -255,6 +255,7 @@ static int brfs_find_free_block()
     return BRFS_ERR_NO_SPACE;
 }
 
+// brfs find free dir entry
 static int brfs_find_free_dir_entry(unsigned int* dir_block)
 {
     struct brfs_superblock* sb;
@@ -277,19 +278,21 @@ static int brfs_find_free_dir_entry(unsigned int* dir_block)
     return BRFS_ERR_NO_ENTRY;
 }
 
+// brfs mark block dirty
 static void brfs_mark_block_dirty(unsigned int block_idx)
 {
     brfs.dirty_blocks[block_idx >> 5] |= (1u << (block_idx & 31));
 }
 
+// brfs is block dirty
 static int brfs_is_block_dirty(unsigned int block_idx)
 {
     return (brfs.dirty_blocks[block_idx >> 5] >> (block_idx & 31)) & 1;
 }
 
-/*============================================================================
- * FAT Chain Navigation
- *============================================================================*/
+// ============================================================================
+// FAT Chain Navigation
+// ============================================================================
 
 static int brfs_get_fat_idx_at_offset(unsigned int start_fat_idx, unsigned int offset)
 {
@@ -317,14 +320,12 @@ static int brfs_get_fat_idx_at_offset(unsigned int start_fat_idx, unsigned int o
     return (int)current_idx;
 }
 
-/*============================================================================
- * Directory Navigation and Lookup
- *============================================================================*/
+// ============================================================================
+// Directory Navigation and Lookup
+// ============================================================================
 
-/**
- * Get the FAT index of a directory given its path
- * Returns the FAT index or a negative error code
- */
+// Get the FAT index of a directory given its path
+// Returns the FAT index or a negative error code
 static int brfs_get_dir_fat_idx(const char* dir_path)
 {
     struct brfs_superblock* sb;
@@ -413,10 +414,8 @@ static int brfs_get_dir_fat_idx(const char* dir_path)
     return (int)current_fat_idx;
 }
 
-/**
- * Find an entry in a directory by name
- * If found, sets entry_out to point to the entry in the cache
- */
+// Find an entry in a directory by name
+// If found, sets entry_out to point to the entry in the cache
 static int brfs_find_in_directory(unsigned int dir_fat_idx, const char* name,
                                    struct brfs_dir_entry** entry_out)
 {
@@ -453,9 +452,9 @@ static int brfs_find_in_directory(unsigned int dir_fat_idx, const char* name,
     return BRFS_ERR_NOT_FOUND;
 }
 
-/*============================================================================
- * Directory Entry Creation
- *============================================================================*/
+// ============================================================================
+// Directory Entry Creation
+// ============================================================================
 
 static void brfs_create_dir_entry(struct brfs_dir_entry* entry, const char* filename,
                                    unsigned int fat_idx, unsigned int filesize,
@@ -493,9 +492,9 @@ static void brfs_init_directory_block(unsigned int* block_addr, unsigned int dir
     memcpy(block_addr + BRFS_DIR_ENTRY_SIZE, &entry, sizeof(entry));
 }
 
-/*============================================================================
- * Initialization Functions
- *============================================================================*/
+// ============================================================================
+// Initialization Functions
+// ============================================================================
 
 int brfs_init(unsigned int flash_id)
 {
@@ -527,6 +526,7 @@ int brfs_init(unsigned int flash_id)
     return BRFS_OK;
 }
 
+// brfs set progress callback
 void brfs_set_progress_callback(brfs_progress_callback_t callback)
 {
     brfs_progress_callback = callback;
@@ -642,9 +642,9 @@ int brfs_format(unsigned int total_blocks, unsigned int words_per_block,
     return BRFS_OK;
 }
 
-/*============================================================================
- * Superblock Validation
- *============================================================================*/
+// ============================================================================
+// Superblock Validation
+// ============================================================================
 
 static int brfs_validate_superblock(struct brfs_superblock* sb)
 {
@@ -671,9 +671,9 @@ static int brfs_validate_superblock(struct brfs_superblock* sb)
     return BRFS_OK;
 }
 
-/*============================================================================
- * Mount/Unmount Functions
- *============================================================================*/
+// ============================================================================
+// Mount/Unmount Functions
+// ============================================================================
 
 int brfs_mount()
 {
@@ -780,6 +780,7 @@ int brfs_mount()
     return BRFS_OK;
 }
 
+// brfs unmount
 int brfs_unmount()
 {
     int result;
@@ -810,9 +811,9 @@ int brfs_unmount()
     return BRFS_OK;
 }
 
-/*============================================================================
- * Flash Sync Functions
- *============================================================================*/
+// ============================================================================
+// Flash Sync Functions
+// ============================================================================
 
 static void brfs_write_fat_sector(unsigned int sector_idx)
 {
@@ -838,6 +839,7 @@ static void brfs_write_fat_sector(unsigned int sector_idx)
     }
 }
 
+// brfs write data sector
 static void brfs_write_data_sector(unsigned int sector_idx)
 {
     struct brfs_superblock* sb;
@@ -864,6 +866,7 @@ static void brfs_write_data_sector(unsigned int sector_idx)
     }
 }
 
+// brfs sync
 int brfs_sync()
 {
     struct brfs_superblock* sb;
@@ -956,9 +959,9 @@ int brfs_sync()
     return BRFS_OK;
 }
 
-/*============================================================================
- * File Creation
- *============================================================================*/
+// ============================================================================
+// File Creation
+// ============================================================================
 
 int brfs_create_file(const char* path)
 {
@@ -1037,9 +1040,9 @@ int brfs_create_file(const char* path)
     return BRFS_OK;
 }
 
-/*============================================================================
- * Directory Creation
- *============================================================================*/
+// ============================================================================
+// Directory Creation
+// ============================================================================
 
 int brfs_create_dir(const char* path)
 {
@@ -1125,9 +1128,9 @@ int brfs_create_dir(const char* path)
     return BRFS_OK;
 }
 
-/*============================================================================
- * File Open/Close
- *============================================================================*/
+// ============================================================================
+// File Open/Close
+// ============================================================================
 
 int brfs_open(const char* path)
 {
@@ -1205,6 +1208,7 @@ int brfs_open(const char* path)
     return fd;
 }
 
+// brfs close
 int brfs_close(int fd)
 {
     if (!brfs.initialized)
@@ -1230,9 +1234,9 @@ int brfs_close(int fd)
     return BRFS_OK;
 }
 
-/*============================================================================
- * File Read
- *============================================================================*/
+// ============================================================================
+// File Read
+// ============================================================================
 
 int brfs_read(int fd, unsigned int* buffer, unsigned int length)
 {
@@ -1323,9 +1327,9 @@ int brfs_read(int fd, unsigned int* buffer, unsigned int length)
     return (int)total_read;
 }
 
-/*============================================================================
- * File Write
- *============================================================================*/
+// ============================================================================
+// File Write
+// ============================================================================
 
 int brfs_write(int fd, const unsigned int* buffer, unsigned int length)
 {
@@ -1445,9 +1449,9 @@ int brfs_write(int fd, const unsigned int* buffer, unsigned int length)
     return (int)total_written;
 }
 
-/*============================================================================
- * File Seek/Tell
- *============================================================================*/
+// ============================================================================
+// File Seek/Tell
+// ============================================================================
 
 int brfs_seek(int fd, unsigned int offset)
 {
@@ -1482,6 +1486,7 @@ int brfs_seek(int fd, unsigned int offset)
     return (int)offset;
 }
 
+// brfs tell
 int brfs_tell(int fd)
 {
     struct brfs_file* file;
@@ -1506,6 +1511,7 @@ int brfs_tell(int fd)
     return (int)file->cursor;
 }
 
+// brfs file size
 int brfs_file_size(int fd)
 {
     struct brfs_file* file;
@@ -1530,9 +1536,9 @@ int brfs_file_size(int fd)
     return (int)file->dir_entry->filesize;
 }
 
-/*============================================================================
- * Directory Reading
- *============================================================================*/
+// ============================================================================
+// Directory Reading
+// ============================================================================
 
 int brfs_read_dir(const char* path, struct brfs_dir_entry* buffer, unsigned int max_entries)
 {
@@ -1581,9 +1587,9 @@ int brfs_read_dir(const char* path, struct brfs_dir_entry* buffer, unsigned int 
     return (int)count;
 }
 
-/*============================================================================
- * Delete
- *============================================================================*/
+// ============================================================================
+// Delete
+// ============================================================================
 
 int brfs_delete(const char* path)
 {
@@ -1683,9 +1689,9 @@ int brfs_delete(const char* path)
     return BRFS_OK;
 }
 
-/*============================================================================
- * Stat Functions
- *============================================================================*/
+// ============================================================================
+// Stat Functions
+// ============================================================================
 
 int brfs_stat(const char* path, struct brfs_dir_entry* entry)
 {
@@ -1748,6 +1754,7 @@ int brfs_stat(const char* path, struct brfs_dir_entry* entry)
     return BRFS_OK;
 }
 
+// brfs exists
 int brfs_exists(const char* path)
 {
     struct brfs_dir_entry entry;
@@ -1755,6 +1762,7 @@ int brfs_exists(const char* path)
     return (brfs_stat(path, &entry) == BRFS_OK) ? 1 : 0;
 }
 
+// brfs is dir
 int brfs_is_dir(const char* path)
 {
     struct brfs_dir_entry entry;
@@ -1767,9 +1775,9 @@ int brfs_is_dir(const char* path)
     return (entry.flags & BRFS_FLAG_DIRECTORY) ? 1 : 0;
 }
 
-/*============================================================================
- * Filesystem Statistics
- *============================================================================*/
+// ============================================================================
+// Filesystem Statistics
+// ============================================================================
 
 int brfs_statfs(unsigned int* total_blocks, unsigned int* free_blocks,
                 unsigned int* block_size)
@@ -1815,6 +1823,7 @@ int brfs_statfs(unsigned int* total_blocks, unsigned int* free_blocks,
     return BRFS_OK;
 }
 
+// brfs get label
 int brfs_get_label(char* label_buffer, unsigned int buffer_size)
 {
     struct brfs_superblock* sb;
@@ -1851,9 +1860,9 @@ int brfs_get_label(char* label_buffer, unsigned int buffer_size)
     return BRFS_OK;
 }
 
-/*============================================================================
- * Error Strings
- *============================================================================*/
+// ============================================================================
+// Error Strings
+// ============================================================================
 
 const char* brfs_strerror(int error_code)
 {
