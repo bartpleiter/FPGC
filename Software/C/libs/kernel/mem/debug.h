@@ -4,6 +4,6 @@
 // Debugging Utilities for Memory Management
 
 // Dump a memory region in hexadecimal format over UART
-void debug_mem_dump(unsigned int* start, unsigned int length);
+void debug_mem_dump(unsigned int *start, unsigned int length);
 
 #endif // DEBUG_H

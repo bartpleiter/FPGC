@@ -23,6 +23,9 @@
 #define KERNEL_ENC28J60
 #include "libs/kernel/kernel.h"
 
+// Include memory map definitions
+#include "BDOS/mem_map.h"
+
 // ---- Global variables and defines ----
 
 // USB keyboard variables

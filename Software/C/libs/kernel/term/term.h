@@ -5,9 +5,9 @@
 // Provides text output capabilities on the window plane of the GPU.
 // Emulates basic terminal behavior.
 
-#define TERM_WIDTH  40
+#define TERM_WIDTH 40
 #define TERM_HEIGHT 25
-#define TAB_WIDTH   4
+#define TAB_WIDTH 4
 
 // Initialize the terminal library
 void term_init();

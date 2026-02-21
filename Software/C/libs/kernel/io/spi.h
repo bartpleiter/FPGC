@@ -6,9 +6,9 @@
 
 #define SPI_ID_FLASH_0 0
 #define SPI_ID_FLASH_1 1
-#define SPI_ID_USB_0   2
-#define SPI_ID_USB_1   3
-#define SPI_ID_ETH     4
+#define SPI_ID_USB_0 2
+#define SPI_ID_USB_1 3
+#define SPI_ID_ETH 4
 #define SPI_ID_SD_CARD 5
 
 int spi_transfer(int spi_id, int data);

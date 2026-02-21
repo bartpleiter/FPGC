@@ -8,271 +8,271 @@
 
 void *memcpy(void *dest, const void *src, size_t n)
 {
-    unsigned int *d = (unsigned int *)dest;
-    const unsigned int *s = (const unsigned int *)src;
-    size_t i;
+  unsigned int *d = (unsigned int *)dest;
+  const unsigned int *s = (const unsigned int *)src;
+  size_t i;
 
-    for (i = 0; i < n; i++)
-    {
-        d[i] = s[i];
-    }
+  for (i = 0; i < n; i++)
+  {
+    d[i] = s[i];
+  }
 
-    return dest;
+  return dest;
 }
 
 void *memset(void *s, int c, size_t n)
 {
-    unsigned int *p = (unsigned int *)s;
-    size_t i;
+  unsigned int *p = (unsigned int *)s;
+  size_t i;
 
-    for (i = 0; i < n; i++)
-    {
-        p[i] = c;
-    }
+  for (i = 0; i < n; i++)
+  {
+    p[i] = c;
+  }
 
-    return s;
+  return s;
 }
 
 void *memmove(void *dest, const void *src, size_t n)
 {
-    unsigned int *d = (unsigned int *)dest;
-    const unsigned int *s = (const unsigned int *)src;
-    size_t i;
+  unsigned int *d = (unsigned int *)dest;
+  const unsigned int *s = (const unsigned int *)src;
+  size_t i;
 
-    if (d < s)
+  if (d < s)
+  {
+    // Copy forward
+    for (i = 0; i < n; i++)
     {
-        // Copy forward
-        for (i = 0; i < n; i++)
-        {
-            d[i] = s[i];
-        }
+      d[i] = s[i];
     }
-    else if (d > s)
+  }
+  else if (d > s)
+  {
+    // Copy backward to handle overlap
+    for (i = n; i > 0; i--)
     {
-        // Copy backward to handle overlap
-        for (i = n; i > 0; i--)
-        {
-            d[i - 1] = s[i - 1];
-        }
+      d[i - 1] = s[i - 1];
     }
-    // If d == s, no copy needed
+  }
+  // If d == s, no copy needed
 
-    return dest;
+  return dest;
 }
 
 // memcmp
 int memcmp(const void *s1, const void *s2, size_t n)
 {
-    const unsigned int *p1 = (const unsigned int *)s1;
-    const unsigned int *p2 = (const unsigned int *)s2;
-    size_t i;
+  const unsigned int *p1 = (const unsigned int *)s1;
+  const unsigned int *p2 = (const unsigned int *)s2;
+  size_t i;
 
-    for (i = 0; i < n; i++)
+  for (i = 0; i < n; i++)
+  {
+    if (p1[i] < p2[i])
     {
-        if (p1[i] < p2[i])
-        {
-            return -1;
-        }
-        if (p1[i] > p2[i])
-        {
-            return 1;
-        }
+      return -1;
     }
+    if (p1[i] > p2[i])
+    {
+      return 1;
+    }
+  }
 
-    return 0;
+  return 0;
 }
 
 // String functions
 
 size_t strlen(const char *s)
 {
-    size_t len = 0;
+  size_t len = 0;
 
-    while (s[len] != '\0')
-    {
-        len++;
-    }
+  while (s[len] != '\0')
+  {
+    len++;
+  }
 
-    return len;
+  return len;
 }
 
 char *strcpy(char *dest, const char *src)
 {
-    char *d = dest;
+  char *d = dest;
 
-    while (*src != '\0')
-    {
-        *d++ = *src++;
-    }
-    *d = '\0';
+  while (*src != '\0')
+  {
+    *d++ = *src++;
+  }
+  *d = '\0';
 
-    return dest;
+  return dest;
 }
 
 char *strncpy(char *dest, const char *src, size_t n)
 {
-    size_t i;
+  size_t i;
 
-    for (i = 0; i < n && src[i] != '\0'; i++)
-    {
-        dest[i] = src[i];
-    }
+  for (i = 0; i < n && src[i] != '\0'; i++)
+  {
+    dest[i] = src[i];
+  }
 
-    // Pad with nulls if src is shorter than n
-    for (; i < n; i++)
-    {
-        dest[i] = '\0';
-    }
+  // Pad with nulls if src is shorter than n
+  for (; i < n; i++)
+  {
+    dest[i] = '\0';
+  }
 
-    return dest;
+  return dest;
 }
 
 // strcmp
 int strcmp(const char *s1, const char *s2)
 {
-    while (*s1 != '\0' && *s1 == *s2)
-    {
-        s1++;
-        s2++;
-    }
+  while (*s1 != '\0' && *s1 == *s2)
+  {
+    s1++;
+    s2++;
+  }
 
-    return (unsigned char)*s1 - (unsigned char)*s2;
+  return (unsigned char)*s1 - (unsigned char)*s2;
 }
 
 // strncmp
 int strncmp(const char *s1, const char *s2, size_t n)
 {
-    size_t i;
+  size_t i;
 
-    for (i = 0; i < n; i++)
+  for (i = 0; i < n; i++)
+  {
+    if (s1[i] != s2[i])
     {
-        if (s1[i] != s2[i])
-        {
-            return (unsigned char)s1[i] - (unsigned char)s2[i];
-        }
-        if (s1[i] == '\0')
-        {
-            return 0;
-        }
+      return (unsigned char)s1[i] - (unsigned char)s2[i];
     }
+    if (s1[i] == '\0')
+    {
+      return 0;
+    }
+  }
 
-    return 0;
+  return 0;
 }
 
 char *strcat(char *dest, const char *src)
 {
-    char *d = dest;
+  char *d = dest;
 
-    // Find end of dest
-    while (*d != '\0')
-    {
-        d++;
-    }
+  // Find end of dest
+  while (*d != '\0')
+  {
+    d++;
+  }
 
-    // Copy src to end
-    while (*src != '\0')
-    {
-        *d++ = *src++;
-    }
-    *d = '\0';
+  // Copy src to end
+  while (*src != '\0')
+  {
+    *d++ = *src++;
+  }
+  *d = '\0';
 
-    return dest;
+  return dest;
 }
 
 char *strncat(char *dest, const char *src, size_t n)
 {
-    char *d = dest;
-    size_t i;
+  char *d = dest;
+  size_t i;
 
-    // Find end of dest
-    while (*d != '\0')
-    {
-        d++;
-    }
+  // Find end of dest
+  while (*d != '\0')
+  {
+    d++;
+  }
 
-    // Copy at most n characters from src
-    for (i = 0; i < n && src[i] != '\0'; i++)
-    {
-        d[i] = src[i];
-    }
-    d[i] = '\0';
+  // Copy at most n characters from src
+  for (i = 0; i < n && src[i] != '\0'; i++)
+  {
+    d[i] = src[i];
+  }
+  d[i] = '\0';
 
-    return dest;
+  return dest;
 }
 
 char *strchr(const char *s, int c)
 {
-    char ch = (char)c;
+  char ch = (char)c;
 
-    while (*s != '\0')
+  while (*s != '\0')
+  {
+    if (*s == ch)
     {
-        if (*s == ch)
-        {
-            return (char *)s;
-        }
-        s++;
+      return (char *)s;
     }
+    s++;
+  }
 
-    // Also check for null terminator if searching for '\0'
-    if (ch == '\0')
-    {
-        return (char *)s;
-    }
+  // Also check for null terminator if searching for '\0'
+  if (ch == '\0')
+  {
+    return (char *)s;
+  }
 
-    return NULL;
+  return NULL;
 }
 
 char *strrchr(const char *s, int c)
 {
-    char ch = (char)c;
-    const char *last = NULL;
+  char ch = (char)c;
+  const char *last = NULL;
 
-    while (*s != '\0')
+  while (*s != '\0')
+  {
+    if (*s == ch)
     {
-        if (*s == ch)
-        {
-            last = s;
-        }
-        s++;
+      last = s;
     }
+    s++;
+  }
 
-    // Check for null terminator if searching for '\0'
-    if (ch == '\0')
-    {
-        return (char *)s;
-    }
+  // Check for null terminator if searching for '\0'
+  if (ch == '\0')
+  {
+    return (char *)s;
+  }
 
-    return (char *)last;
+  return (char *)last;
 }
 
 char *strstr(const char *haystack, const char *needle)
 {
-    const char *h;
-    const char *n;
+  const char *h;
+  const char *n;
 
-    if (*needle == '\0')
+  if (*needle == '\0')
+  {
+    return (char *)haystack;
+  }
+
+  while (*haystack != '\0')
+  {
+    h = haystack;
+    n = needle;
+
+    while (*h == *n && *n != '\0')
     {
-        return (char *)haystack;
+      h++;
+      n++;
     }
 
-    while (*haystack != '\0')
+    if (*n == '\0')
     {
-        h = haystack;
-        n = needle;
-
-        while (*h == *n && *n != '\0')
-        {
-            h++;
-            n++;
-        }
-
-        if (*n == '\0')
-        {
-            return (char *)haystack;
-        }
-
-        haystack++;
+      return (char *)haystack;
     }
 
-    return NULL;
+    haystack++;
+  }
+
+  return NULL;
 }

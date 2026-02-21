@@ -88,12 +88,14 @@ BRFS is designed around SPI Flash characteristics:
 Initialize the BRFS subsystem. Must be called before any other BRFS functions.
 
 ```c
-int brfs_init(unsigned int flash_id);
+int brfs_init(unsigned int flash_id, unsigned int *cache_addr, unsigned int cache_size);
 ```
 
 **Parameters:**
 
 - `flash_id` - SPI Flash device ID (0 or 1)
+- `cache_addr` - Pointer to RAM cache for BRFS
+- `cache_size` - Size of RAM cache in words
 
 **Returns:** `BRFS_OK` on success, error code on failure.
 

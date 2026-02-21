@@ -14,7 +14,8 @@ static void ch376_send_cmd(int spi_id, int cmd)
 
   // Wait for 2uS
   int start = get_micros();
-  while ((get_micros() - start) < 2);
+  while ((get_micros() - start) < 2)
+    ;
 }
 
 // End command (deselect)
@@ -148,7 +149,7 @@ int ch376_wait_interrupt(int spi_id, int timeout_ms)
     {
       return ch376_get_status(spi_id);
     }
-    
+
     now = get_micros();
     if ((now - start) >= (timeout_ms * 1000))
     {
@@ -156,7 +157,8 @@ int ch376_wait_interrupt(int spi_id, int timeout_ms)
     }
 
     // Small delay to avoid busy waiting too tightly
-    for (i = 0; i < 100; i++);
+    for (i = 0; i < 100; i++)
+      ;
   }
   return -1; // Should not reach here
 }
@@ -317,7 +319,7 @@ int ch376_issue_token(int spi_id, int endpoint, int pid)
   ch376_send_cmd(spi_id, CH376_CMD_ISSUE_TOKEN);
   spi_transfer(spi_id, transaction_attr);
   ch376_end_cmd(spi_id);
-  
+
   // Wait for transaction to complete
   status = ch376_wait_interrupt(spi_id, 500);
 
@@ -337,7 +339,7 @@ int ch376_issue_token_x(int spi_id, int sync_flags, int endpoint, int pid)
   spi_transfer(spi_id, sync_flags);
   spi_transfer(spi_id, transaction_attr);
   ch376_end_cmd(spi_id);
-  
+
   // Wait for transaction to complete
   status = ch376_wait_interrupt(spi_id, 500);
 
@@ -617,7 +619,7 @@ static int ch376_control_transfer_in(int spi_id, char *setup, int setup_len,
   int status;
   int total_len = 0;
   int chunk_len;
-  int toggle = 1; // Start with DATA1 after SETUP
+  int toggle = 1;                                 // Start with DATA1 after SETUP
   int requested_len = (setup[7] << 8) | setup[6]; // wLength
 
   // Setup stage: send SETUP packet with DATA0
@@ -675,20 +677,19 @@ int ch376_get_config_descriptor(int spi_id, char *buffer, int max_len)
   int len;
 
   // Build GET_DESCRIPTOR request for Config Descriptor
-  setup[0] = 0x80; // bmRequestType: Device to Host, Standard, Device
-  setup[1] = 0x06; // bRequest: GET_DESCRIPTOR
-  setup[2] = 0x00; // wValue low: descriptor index
-  setup[3] = 0x02; // wValue high: descriptor type (CONFIGURATION)
-  setup[4] = 0x00; // wIndex low
-  setup[5] = 0x00; // wIndex high
+  setup[0] = 0x80;           // bmRequestType: Device to Host, Standard, Device
+  setup[1] = 0x06;           // bRequest: GET_DESCRIPTOR
+  setup[2] = 0x00;           // wValue low: descriptor index
+  setup[3] = 0x02;           // wValue high: descriptor type (CONFIGURATION)
+  setup[4] = 0x00;           // wIndex low
+  setup[5] = 0x00;           // wIndex high
   setup[6] = max_len & 0xFF; // wLength low
-  setup[7] = 0x00; // wLength high
+  setup[7] = 0x00;           // wLength high
 
   len = ch376_control_transfer_in(spi_id, setup, 8, buffer, max_len);
 
   return (len > 0) ? len : 0;
 }
-
 
 // ch376 read keyboard
 int ch376_read_keyboard(int spi_id, usb_device_info_t *info, hid_keyboard_report_t *report)
@@ -751,20 +752,20 @@ int ch376_read_keyboard(int spi_id, usb_device_info_t *info, hid_keyboard_report
 
 // HID keycode to ASCII lookup table (US keyboard layout)
 static char hid_keycode_table[] = {
-    0, 0, 0, 0, // 0x00-0x03: Reserved
-    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', // 0x04-0x0B
-    'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', // 0x0C-0x13
-    'q', 'r', 's', 't', 'u', 'v', 'w', 'x', // 0x14-0x1B
-    'y', 'z', // 0x1C-0x1D
+    0, 0, 0, 0,                                       // 0x00-0x03: Reserved
+    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h',           // 0x04-0x0B
+    'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p',           // 0x0C-0x13
+    'q', 'r', 's', 't', 'u', 'v', 'w', 'x',           // 0x14-0x1B
+    'y', 'z',                                         // 0x1C-0x1D
     '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', // 0x1E-0x27
-    '\n', 27, '\b', '\t', // 0x28-0x2B: Enter, Escape, Backspace, Tab
-    ' ', '-', '=', '[', ']', '\\', // 0x2C-0x31
-    '#', ';', '\'', '`', ',', '.', '/', // 0x32-0x38
-    0, // 0x39: Caps Lock
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 0x3A-0x45: F1-F12
-    0, 0, 0, 0, 0, 0, 0, 0, 0, // 0x46-0x4E: Various
-    0, 0, 0, 0, // 0x4F-0x52: Arrows
-    0 // 0x53: Num Lock
+    '\n', 27, '\b', '\t',                             // 0x28-0x2B: Enter, Escape, Backspace, Tab
+    ' ', '-', '=', '[', ']', '\\',                    // 0x2C-0x31
+    '#', ';', '\'', '`', ',', '.', '/',               // 0x32-0x38
+    0,                                                // 0x39: Caps Lock
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,               // 0x3A-0x45: F1-F12
+    0, 0, 0, 0, 0, 0, 0, 0, 0,                        // 0x46-0x4E: Various
+    0, 0, 0, 0,                                       // 0x4F-0x52: Arrows
+    0                                                 // 0x53: Num Lock
 };
 
 // Shifted characters

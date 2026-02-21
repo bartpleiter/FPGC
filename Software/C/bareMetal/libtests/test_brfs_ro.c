@@ -83,7 +83,7 @@ void list_directory(const char* path)
 
 int main()
 {
-    int result = brfs_init(SPI_FLASH_1);
+    int result = brfs_init(SPI_FLASH_1, (unsigned int *)0xC00000, 0x400000);
     result = brfs_mount();
     
     if (result == BRFS_OK)

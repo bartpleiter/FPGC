@@ -9,19 +9,19 @@
 typedef int fixed_t;
 
 // Fixed-point format constants
-#define FRACBITS    16
-#define FRACUNIT    65536 // 1 << 16
-#define FRACMASK    65535 // FRACUNIT - 1, i.e. 0xFFFF
+#define FRACBITS 16
+#define FRACUNIT 65536 // 1 << 16
+#define FRACMASK 65535 // FRACUNIT - 1, i.e. 0xFFFF
 
 // Useful constants in fixed-point
-#define FIXED_ZERO      0
-#define FIXED_ONE       65536 // FRACUNIT = 1.0
-#define FIXED_HALF      32768 // FRACUNIT >> 1 = 0.5
-#define FIXED_QUARTER   16384 // FRACUNIT >> 2 = 0.25
-#define FIXED_PI        205887 // PI (~3.14159)
-#define FIXED_2PI       411775 // 2*PI
-#define FIXED_PI_2      102944 // PI/2
-#define FIXED_E         178145 // e (~2.71828)
+#define FIXED_ZERO 0
+#define FIXED_ONE 65536     // FRACUNIT = 1.0
+#define FIXED_HALF 32768    // FRACUNIT >> 1 = 0.5
+#define FIXED_QUARTER 16384 // FRACUNIT >> 2 = 0.25
+#define FIXED_PI 205887     // PI (~3.14159)
+#define FIXED_2PI 411775    // 2*PI
+#define FIXED_PI_2 102944   // PI/2
+#define FIXED_E 178145      // e (~2.71828)
 
 // Conversion functions
 

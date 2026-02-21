@@ -4,89 +4,89 @@
 
 #include "libs/common/ctype.h"
 
-// isdigit
+// Return non-zero when c is a decimal digit.
 int isdigit(int c)
 {
-    return (c >= '0' && c <= '9');
+  return (c >= '0' && c <= '9');
 }
 
-// isalpha
+// Return non-zero when c is an ASCII alphabetic character.
 int isalpha(int c)
 {
-    return ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'));
+  return ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'));
 }
 
-// isalnum
+// Return non-zero when c is alphanumeric.
 int isalnum(int c)
 {
-    return isdigit(c) || isalpha(c);
+  return isdigit(c) || isalpha(c);
 }
 
-// isspace
+// Return non-zero when c is an ASCII whitespace character.
 int isspace(int c)
 {
-    return (c == ' ' || c == '\t' || c == '\n' || 
-            c == '\r' || c == '\f' || c == '\v');
+  return (c == ' ' || c == '\t' || c == '\n' ||
+          c == '\r' || c == '\f' || c == '\v');
 }
 
-// isupper
+// Return non-zero when c is an uppercase ASCII letter.
 int isupper(int c)
 {
-    return (c >= 'A' && c <= 'Z');
+  return (c >= 'A' && c <= 'Z');
 }
 
-// islower
+// Return non-zero when c is a lowercase ASCII letter.
 int islower(int c)
 {
-    return (c >= 'a' && c <= 'z');
+  return (c >= 'a' && c <= 'z');
 }
 
-// isxdigit
+// Return non-zero when c is a hexadecimal digit.
 int isxdigit(int c)
 {
-    return isdigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+  return isdigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 }
 
-// isprint
+// Return non-zero when c is a printable ASCII character.
 int isprint(int c)
 {
-    return (c >= 0x20 && c <= 0x7E);
+  return (c >= 0x20 && c <= 0x7E);
 }
 
-// iscntrl
+// Return non-zero when c is an ASCII control character.
 int iscntrl(int c)
 {
-    return (c >= 0x00 && c <= 0x1F) || c == 0x7F;
+  return (c >= 0x00 && c <= 0x1F) || c == 0x7F;
 }
 
-// ispunct
+// Return non-zero when c is printable punctuation.
 int ispunct(int c)
 {
-    return isprint(c) && !isalnum(c) && !isspace(c);
+  return isprint(c) && !isalnum(c) && !isspace(c);
 }
 
-// isgraph
+// Return non-zero when c is printable and not a space.
 int isgraph(int c)
 {
-    return isprint(c) && c != ' ';
+  return isprint(c) && c != ' ';
 }
 
-// toupper
+// Convert lowercase ASCII to uppercase; leave other values unchanged.
 int toupper(int c)
 {
-    if (islower(c))
-    {
-        return c - ('a' - 'A');
-    }
-    return c;
+  if (islower(c))
+  {
+    return c - ('a' - 'A');
+  }
+  return c;
 }
 
-// tolower
+// Convert uppercase ASCII to lowercase; leave other values unchanged.
 int tolower(int c)
 {
-    if (isupper(c))
-    {
-        return c + ('a' - 'A');
-    }
-    return c;
+  if (isupper(c))
+  {
+    return c + ('a' - 'A');
+  }
+  return c;
 }

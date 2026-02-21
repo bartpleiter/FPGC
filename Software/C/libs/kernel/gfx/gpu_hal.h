@@ -7,14 +7,14 @@
 // For writing entire frames to the pixel plane, consider not using this library and accessing VRAM directly.
 
 // GPU VRAM memory addresses
-#define GPU_PATTERN_TABLE_ADDR      0x7900000 // 256 patterns × 4 words each
-#define GPU_PALETTE_TABLE_ADDR      0x7900400 // 32 palettes × 1 word each
-#define GPU_BG_WINDOW_TILE_ADDR     0x7A00000 // Background plane tile table
-#define GPU_BG_WINDOW_COLOR_ADDR    0x7A00800 // Background plane color table
-#define GPU_WINDOW_TILE_ADDR        0x7A01000 // Window plane tile table
-#define GPU_WINDOW_COLOR_ADDR       0x7A01800 // Window plane color table
-#define GPU_PARAMETERS_ADDR         0x7A02000 // GPU parameters
-#define GPU_PIXEL_DATA_ADDR         0x7B00000 // Pixel plane data
+#define GPU_PATTERN_TABLE_ADDR 0x7900000   // 256 patterns × 4 words each
+#define GPU_PALETTE_TABLE_ADDR 0x7900400   // 32 palettes × 1 word each
+#define GPU_BG_WINDOW_TILE_ADDR 0x7A00000  // Background plane tile table
+#define GPU_BG_WINDOW_COLOR_ADDR 0x7A00800 // Background plane color table
+#define GPU_WINDOW_TILE_ADDR 0x7A01000     // Window plane tile table
+#define GPU_WINDOW_COLOR_ADDR 0x7A01800    // Window plane color table
+#define GPU_PARAMETERS_ADDR 0x7A02000      // GPU parameters
+#define GPU_PIXEL_DATA_ADDR 0x7B00000      // Pixel plane data
 
 void gpu_clear_tables();
 void gpu_clear_bg();

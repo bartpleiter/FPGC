@@ -25,9 +25,9 @@
 // }
 
 // Timer identifiers
-#define TIMER_0     0
-#define TIMER_1     1
-#define TIMER_2     2
+#define TIMER_0 0
+#define TIMER_1 1
+#define TIMER_2 2
 
 // Number of available timers
 #define TIMER_COUNT 3

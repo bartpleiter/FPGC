@@ -134,7 +134,7 @@ int main()
     
     /* === Test 1: Initialize BRFS === */
     uart_puts("1. Initializing BRFS...\n");
-    result = brfs_init(SPI_FLASH_1);
+    result = brfs_init(SPI_FLASH_1, (unsigned int *)0xC00000, 0x400000);
     print_result("   brfs_init", result);
     if (result != BRFS_OK)
     {

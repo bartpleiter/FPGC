@@ -3,11 +3,11 @@
 
 // System-level definitions and utilities
 
-#define INTID_UART          1
-#define INTID_TIMER0        2
-#define INTID_TIMER1        3
-#define INTID_TIMER2        4
-#define INTID_FRAME_DRAWN   5
+#define INTID_UART 1
+#define INTID_TIMER0 2
+#define INTID_TIMER1 3
+#define INTID_TIMER2 4
+#define INTID_FRAME_DRAWN 5
 
 int get_int_id();
 
