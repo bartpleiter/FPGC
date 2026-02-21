@@ -23,7 +23,7 @@ typedef int fixed_t;
 #define FIXED_PI_2 102944   // PI/2
 #define FIXED_E 178145      // e (~2.71828)
 
-// Conversion functions
+// ---- Conversion functions ----
 
 // Convert integer to fixed-point.
 fixed_t int2fixed(int x);
@@ -40,7 +40,7 @@ fixed_t fixed_frac(fixed_t x);
 // Uses Newton-Raphson iteration.
 fixed_t fixed_sqrt(fixed_t x);
 
-// Trigonometric functions
+// ---- Trigonometric functions ----
 
 // Calculate sine of angle.
 // Uses lookup table for speed.
@@ -58,7 +58,7 @@ fixed_t fixed_tan(int angle);
 // Uses lookup table approximation.
 int fixed_atan2(fixed_t y, fixed_t x);
 
-// Utility functions
+// ---- Utility functions ----
 
 // Absolute value of fixed-point number.
 fixed_t fixed_abs(fixed_t x);

@@ -4,19 +4,19 @@
 
 #include "libs/kernel/gfx/gpu_fb.h"
 
-// fb clear
+// Clear the framebuffer pixel plane.
 void fb_clear()
 {
   gpu_clear_pixel();
 }
 
-// fb set pixel
+// Set one framebuffer pixel.
 void fb_set_pixel(unsigned int x, unsigned int y, unsigned int color)
 {
   gpu_write_pixel_data(x, y, color);
 }
 
-// fb draw line
+// Draw a line using Bresenham stepping.
 void fb_draw_line(int x0, int y0, int x1, int y1, unsigned int color)
 {
   int dx = x1 > x0 ? x1 - x0 : x0 - x1;
@@ -47,7 +47,7 @@ void fb_draw_line(int x0, int y0, int x1, int y1, unsigned int color)
   }
 }
 
-// fb draw rect
+// Draw rectangle outline.
 void fb_draw_rect(int x, int y, int w, int h, unsigned int color)
 {
   // Draw rectangle outline using four lines
@@ -64,7 +64,7 @@ void fb_draw_rect(int x, int y, int w, int h, unsigned int color)
   fb_draw_line(x + w - 1, y, x + w - 1, y + h - 1, color);
 }
 
-// fb fill rect
+// Fill rectangle area.
 void fb_fill_rect(unsigned int x, unsigned int y, unsigned int w, unsigned int h, unsigned int color)
 {
   // Draw filled rectangle by setting each pixel
@@ -78,7 +78,7 @@ void fb_fill_rect(unsigned int x, unsigned int y, unsigned int w, unsigned int h
   }
 }
 
-// fb draw circle
+// Draw circle outline with midpoint algorithm.
 void fb_draw_circle(int x, int y, int radius, unsigned int color)
 {
   // Midpoint Circle Algorithm
@@ -112,7 +112,7 @@ void fb_draw_circle(int x, int y, int radius, unsigned int color)
   }
 }
 
-// fb blit
+// Blit a width x height bitmap to framebuffer.
 void fb_blit(unsigned int x, unsigned int y, unsigned int width, unsigned int height, const unsigned int *data)
 {
   // Copy bitmap data to framebuffer

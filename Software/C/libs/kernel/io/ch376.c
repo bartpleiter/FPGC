@@ -35,7 +35,7 @@ int ch376_get_top_nint()
   return retval;
 }
 
-// ch376 get bottom nint
+// Read the bottom CH376 interrupt pin state.
 int ch376_get_bottom_nint()
 {
   int retval = 0;
@@ -46,7 +46,7 @@ int ch376_get_bottom_nint()
   return retval;
 }
 
-// ch376 read int
+// Return non-zero when CH376 interrupt is asserted.
 int ch376_read_int(int spi_id)
 {
   // INT# is active low, so we invert the logic
@@ -72,7 +72,7 @@ int ch376_get_version(int spi_id)
   return version & 0x3F;
 }
 
-// ch376 check exist
+// Verify CH376 presence using CHECK_EXIST command.
 int ch376_check_exist(int spi_id)
 {
   int test_val = 0x57;
@@ -90,7 +90,7 @@ int ch376_check_exist(int spi_id)
   return (result == (test_val ^ 0xFF)) ? 1 : 0;
 }
 
-// ch376 reset
+// Reset the CH376 controller and wait for completion.
 void ch376_reset(int spi_id)
 {
   ch376_send_cmd(spi_id, CH376_CMD_RESET_ALL);
@@ -99,7 +99,7 @@ void ch376_reset(int spi_id)
   delay(100);
 }
 
-// ch376 set usb mode
+// Set CH376 USB mode and return status byte.
 int ch376_set_usb_mode(int spi_id, int mode)
 {
   int status;
@@ -116,7 +116,7 @@ int ch376_set_usb_mode(int spi_id, int mode)
   return status;
 }
 
-// ch376 set usb speed
+// Configure CH376 host speed (full/low speed).
 void ch376_set_usb_speed(int spi_id, int speed)
 {
   ch376_send_cmd(spi_id, CH376_CMD_SET_USB_SPEED);
@@ -124,7 +124,7 @@ void ch376_set_usb_speed(int spi_id, int speed)
   ch376_end_cmd(spi_id);
 }
 
-// ch376 get status
+// Read CH376 status register.
 int ch376_get_status(int spi_id)
 {
   int status;
@@ -136,7 +136,7 @@ int ch376_get_status(int spi_id)
   return status;
 }
 
-// ch376 wait interrupt
+// Wait for CH376 interrupt status or timeout.
 int ch376_wait_interrupt(int spi_id, int timeout_ms)
 {
   int now = 0;
@@ -163,7 +163,7 @@ int ch376_wait_interrupt(int spi_id, int timeout_ms)
   return -1; // Should not reach here
 }
 
-// ch376 test connect
+// Query CH376 USB connect state.
 int ch376_test_connect(int spi_id)
 {
   int status;
@@ -187,7 +187,7 @@ int ch376_test_connect(int spi_id)
   return CH376_CONN_UNKNOWN;
 }
 
-// ch376 set retry
+// Configure CH376 retry behavior for host transactions.
 void ch376_set_retry(int spi_id, int retry)
 {
   ch376_send_cmd(spi_id, CH376_CMD_SET_RETRY);
@@ -196,7 +196,7 @@ void ch376_set_retry(int spi_id, int retry)
   ch376_end_cmd(spi_id);
 }
 
-// ch376 read data
+// Read payload bytes from CH376 USB FIFO.
 int ch376_read_data(int spi_id, char *buffer, int max_len)
 {
   int len;
@@ -219,7 +219,7 @@ int ch376_read_data(int spi_id, char *buffer, int max_len)
   return len;
 }
 
-// ch376 write data
+// Write payload bytes to CH376 USB FIFO.
 void ch376_write_data(int spi_id, char *buffer, int len)
 {
   int i;
@@ -257,7 +257,7 @@ int ch376_host_init(int spi_id)
   return 1;
 }
 
-// ch376 detect device
+// Detect an attached USB device and report speed.
 int ch376_detect_device(int spi_id, int *is_low_speed)
 {
   int rate;
@@ -282,7 +282,7 @@ int ch376_detect_device(int spi_id, int *is_low_speed)
   return 1;
 }
 
-// ch376 set rx toggle
+// Set CH376 RX data-toggle state.
 void ch376_set_rx_toggle(int spi_id, int toggle)
 {
   int mode;
@@ -299,7 +299,7 @@ void ch376_set_rx_toggle(int spi_id, int toggle)
   ch376_end_cmd(spi_id);
 }
 
-// ch376 set tx toggle
+// Set CH376 TX data-toggle state.
 void ch376_set_tx_toggle(int spi_id, int toggle)
 {
   int mode = 0x80 | (toggle ? 0x40 : 0x00);
@@ -308,7 +308,7 @@ void ch376_set_tx_toggle(int spi_id, int toggle)
   ch376_end_cmd(spi_id);
 }
 
-// ch376 issue token
+// Issue a USB token and return interrupt status.
 int ch376_issue_token(int spi_id, int endpoint, int pid)
 {
   int transaction_attr;
@@ -346,7 +346,7 @@ int ch376_issue_token_x(int spi_id, int sync_flags, int endpoint, int pid)
   return status;
 }
 
-// ch376 get device descriptor
+// Read and parse the USB device descriptor.
 int ch376_get_device_descriptor(int spi_id, usb_device_descriptor_t *desc)
 {
   int status;
@@ -388,7 +388,7 @@ int ch376_get_device_descriptor(int spi_id, usb_device_descriptor_t *desc)
   return 1;
 }
 
-// ch376 set device address
+// Assign a USB address to the attached device.
 int ch376_set_device_address(int spi_id, int address)
 {
   int status;
@@ -411,7 +411,7 @@ int ch376_set_device_address(int spi_id, int address)
   return 1;
 }
 
-// ch376 set device config
+// Select the active USB configuration.
 int ch376_set_device_config(int spi_id, int config)
 {
   int status;
@@ -506,7 +506,7 @@ static int parse_config_descriptor(char *buffer, int len, usb_device_info_t *inf
   return (info->interface_class == USB_CLASS_HID) ? 1 : 0;
 }
 
-// ch376 enumerate device
+// Enumerate an attached USB device into info.
 int ch376_enumerate_device(int spi_id, usb_device_info_t *info)
 {
   int is_low_speed = 0;
@@ -595,7 +595,7 @@ int ch376_enumerate_device(int spi_id, usb_device_info_t *info)
   return 1;
 }
 
-// ch376 is keyboard
+// Return non-zero when info describes a boot keyboard.
 int ch376_is_keyboard(usb_device_info_t *info)
 {
   return (info->interface_class == USB_CLASS_HID &&
@@ -603,7 +603,7 @@ int ch376_is_keyboard(usb_device_info_t *info)
           info->interface_protocol == USB_HID_PROTOCOL_KEYBOARD);
 }
 
-// ch376 is mouse
+// Return non-zero when info describes a boot mouse.
 int ch376_is_mouse(usb_device_info_t *info)
 {
   return (info->interface_class == USB_CLASS_HID &&
@@ -691,7 +691,7 @@ int ch376_get_config_descriptor(int spi_id, char *buffer, int max_len)
   return (len > 0) ? len : 0;
 }
 
-// ch376 read keyboard
+// Poll one keyboard report from interrupt endpoint.
 int ch376_read_keyboard(int spi_id, usb_device_info_t *info, hid_keyboard_report_t *report)
 {
   int endpoint;
@@ -785,7 +785,7 @@ static char hid_keycode_shift_table[] = {
     0, 0, 0, 0,
     0};
 
-// ch376 keycode to ascii
+// Convert HID keycode/modifier pair to ASCII.
 char ch376_keycode_to_ascii(int keycode, int modifier)
 {
   int shifted;

@@ -4,8 +4,6 @@
 // ENC28J60 Ethernet Controller Library
 // Provides low-level Ethernet frame send/receive for the Microchip ENC28J60.
 // Communicates via SPI.
-// Mostly generated code to prevent having to having to spend a lot of time writing a library
-// for a chip that is already widely supported by existing libraries.
 
 // SPI ID to use
 #define ENC28J60_SPI_ID SPI_ID_ETH

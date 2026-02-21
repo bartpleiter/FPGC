@@ -4,20 +4,19 @@
 
 #include "libs/common/stdlib.h"
 
-// Conversion functions
+// ---- Conversion Functions ----
 
+// Convert decimal string to signed integer.
 int atoi(const char *nptr)
 {
   int result = 0;
   int sign = 1;
 
-  // Skip whitespace
   while (*nptr == ' ' || *nptr == '\t' || *nptr == '\n')
   {
     nptr++;
   }
 
-  // Handle sign
   if (*nptr == '-')
   {
     sign = -1;
@@ -28,7 +27,6 @@ int atoi(const char *nptr)
     nptr++;
   }
 
-  // Convert digits
   while (*nptr >= '0' && *nptr <= '9')
   {
     result = result * 10 + (*nptr - '0');
@@ -38,6 +36,7 @@ int atoi(const char *nptr)
   return sign * result;
 }
 
+// Convert unsigned integer to string in the selected base.
 int *utoa(unsigned int value, int *buf, int base, int uppercase)
 {
   static const char digits_lower[] = "0123456789abcdef";
@@ -47,7 +46,6 @@ int *utoa(unsigned int value, int *buf, int base, int uppercase)
   int *first = buf;
   int tmp;
 
-  // Generate digits in reverse order
   do
   {
     *p++ = digits[value % base];
@@ -56,7 +54,6 @@ int *utoa(unsigned int value, int *buf, int base, int uppercase)
 
   *p = '\0';
 
-  // Reverse the string
   p--;
   while (first < p)
   {
@@ -68,6 +65,7 @@ int *utoa(unsigned int value, int *buf, int base, int uppercase)
   return buf;
 }
 
+// Convert signed integer to string in the selected base.
 int *itoa(int value, int *buf, int base)
 {
   int *p = buf;
@@ -83,38 +81,39 @@ int *itoa(int value, int *buf, int base)
   return buf;
 }
 
-// Utility functions
+// ---- Utility Functions ----
 
+// Return absolute value of j.
 int abs(int j)
 {
   return (j < 0) ? -j : j;
 }
 
-// labs
+// Return absolute value of long j.
 long labs(long j)
 {
   return (j < 0) ? -j : j;
 }
 
-// Random number generator (Linear Congruential Generator)
+// Random number generator state (linear congruential generator).
 static unsigned int stdlib_rand_seed = 1;
 
-// rand
+// Return the next pseudo-random integer.
 int rand()
 {
-  // LCG parameters (same as glibc)
   stdlib_rand_seed = stdlib_rand_seed * 1103515245 + 12345;
   return (int)((stdlib_rand_seed >> 16) & RAND_MAX);
 }
 
-// srand
+// Seed the pseudo-random number generator.
 void srand(unsigned int seed)
 {
   stdlib_rand_seed = seed;
 }
 
-// Quicksort implementation
+// ---- Sorting/Search Helpers ----
 
+// Swap two elements of size words.
 static void swap_words(unsigned int *a, unsigned int *b, size_t size)
 {
   size_t i;
@@ -128,6 +127,7 @@ static void swap_words(unsigned int *a, unsigned int *b, size_t size)
   }
 }
 
+// Quicksort the inclusive [lo, hi] range.
 static void quicksort_internal(unsigned int *base, size_t lo, size_t hi,
                                size_t size, int (*compar)(const void *, const void *))
 {
@@ -139,7 +139,6 @@ static void quicksort_internal(unsigned int *base, size_t lo, size_t hi,
     return;
   }
 
-  // Choose last element as pivot
   pivot = base + hi * size;
   i = lo;
 
@@ -154,7 +153,6 @@ static void quicksort_internal(unsigned int *base, size_t lo, size_t hi,
 
   swap_words(base + i * size, pivot, size);
 
-  // Recursively sort partitions
   if (i > 0)
   {
     quicksort_internal(base, lo, i - 1, size, compar);
@@ -162,6 +160,7 @@ static void quicksort_internal(unsigned int *base, size_t lo, size_t hi,
   quicksort_internal(base, i + 1, hi, size, compar);
 }
 
+// Sort nmemb elements with the provided comparator.
 void qsort(void *base, size_t nmemb, size_t size,
            int (*compar)(const void *, const void *))
 {
@@ -173,6 +172,7 @@ void qsort(void *base, size_t nmemb, size_t size,
   quicksort_internal((unsigned int *)base, 0, nmemb - 1, size, compar);
 }
 
+// Binary-search nmemb sorted elements for key.
 void *bsearch(const void *key, const void *base, size_t nmemb, size_t size,
               int (*compar)(const void *, const void *))
 {
@@ -204,8 +204,9 @@ void *bsearch(const void *key, const void *base, size_t nmemb, size_t size,
   return NULL;
 }
 
-// Utility functions
+// ---- Integer Helpers ----
 
+// Return the smaller of a and b.
 int int_min(int a, int b)
 {
   if (a < b)
@@ -215,7 +216,7 @@ int int_min(int a, int b)
   return b;
 }
 
-// int max
+// Return the larger of a and b.
 int int_max(int a, int b)
 {
   if (a > b)
@@ -225,7 +226,7 @@ int int_max(int a, int b)
   return b;
 }
 
-// int clamp
+// Clamp x to the inclusive [lo, hi] range.
 int int_clamp(int x, int lo, int hi)
 {
   if (x < lo)

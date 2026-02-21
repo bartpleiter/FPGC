@@ -24,7 +24,7 @@ static int enc28j60_read_op(int op, int address)
   return result & 0xFF;
 }
 
-// enc28j60 write op
+// Send a write operation to ENC28J60 register space.
 static void enc28j60_write_op(int op, int address, int data)
 {
   spi_select(ENC28J60_SPI_ID);
@@ -46,14 +46,14 @@ static void enc28j60_set_bank(int address)
   }
 }
 
-// enc28j60 read reg
+// Read one ENC28J60 register with bank selection.
 static int enc28j60_read_reg(int address)
 {
   enc28j60_set_bank(address);
   return enc28j60_read_op(ENC_OP_RCR, address);
 }
 
-// enc28j60 read reg16
+// Read a 16-bit ENC28J60 register pair.
 static int enc28j60_read_reg16(int address)
 {
   int low;
@@ -63,14 +63,14 @@ static int enc28j60_read_reg16(int address)
   return low | (high << 8);
 }
 
-// enc28j60 write reg
+// Write one ENC28J60 register with bank selection.
 static void enc28j60_write_reg(int address, int data)
 {
   enc28j60_set_bank(address);
   enc28j60_write_op(ENC_OP_WCR, address, data);
 }
 
-// enc28j60 write reg16
+// Write a 16-bit ENC28J60 register pair.
 static void enc28j60_write_reg16(int address, int data)
 {
   enc28j60_write_reg(address, data & 0xFF);
@@ -91,7 +91,7 @@ static int enc28j60_read_phy(int address)
   return result;
 }
 
-// enc28j60 write phy
+// Write a PHY register through MII interface.
 static void enc28j60_write_phy(int address, int data)
 {
   enc28j60_write_reg(MIREGADR, address);
@@ -116,7 +116,7 @@ static void enc28j60_read_buffer(char *buf, int len)
   spi_deselect(ENC28J60_SPI_ID);
 }
 
-// enc28j60 write buffer
+// Write bytes into ENC28J60 buffer memory.
 static void enc28j60_write_buffer(char *buf, int len)
 {
   int i;
@@ -232,7 +232,7 @@ int enc28j60_init(int *mac)
   return rev;
 }
 
-// enc28j60 link up
+// Return non-zero when PHY link is up.
 int enc28j60_link_up()
 {
   int phstat2;
@@ -240,7 +240,7 @@ int enc28j60_link_up()
   return (phstat2 & PHSTAT2_LSTAT) ? 1 : 0;
 }
 
-// enc28j60 get revision
+// Read silicon revision identifier.
 int enc28j60_get_revision()
 {
   int rev;
@@ -252,13 +252,13 @@ int enc28j60_get_revision()
   return rev;
 }
 
-// enc28j60 packet count
+// Return number of pending RX packets.
 int enc28j60_packet_count()
 {
   return enc28j60_read_reg(EPKTCNT);
 }
 
-// enc28j60 packet send
+// Transmit one Ethernet frame.
 int enc28j60_packet_send(char *buf, int len)
 {
   int count;
@@ -317,7 +317,7 @@ int enc28j60_packet_send(char *buf, int len)
   return 1;
 }
 
-// enc28j60 packet receive
+// Receive one Ethernet frame into buf.
 int enc28j60_packet_receive(char *buf, int max_len)
 {
   int pkt_count;
@@ -372,7 +372,7 @@ int enc28j60_packet_receive(char *buf, int max_len)
   return pkt_len;
 }
 
-// enc28j60 enable broadcast
+// Enable broadcast frame reception in hardware filter.
 void enc28j60_enable_broadcast()
 {
   int val;
@@ -380,7 +380,7 @@ void enc28j60_enable_broadcast()
   enc28j60_write_reg(ERXFCON, val | ERXFCON_BCEN);
 }
 
-// enc28j60 disable broadcast
+// Disable broadcast frame reception in hardware filter.
 void enc28j60_disable_broadcast()
 {
   int val;

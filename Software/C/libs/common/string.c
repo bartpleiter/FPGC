@@ -4,8 +4,9 @@
 
 #include "libs/common/string.h"
 
-// Memory functions
+// ---- Memory Functions ----
 
+// Copy n words from src to dest.
 void *memcpy(void *dest, const void *src, size_t n)
 {
   unsigned int *d = (unsigned int *)dest;
@@ -20,6 +21,7 @@ void *memcpy(void *dest, const void *src, size_t n)
   return dest;
 }
 
+// Fill n words at s with value c.
 void *memset(void *s, int c, size_t n)
 {
   unsigned int *p = (unsigned int *)s;
@@ -33,6 +35,7 @@ void *memset(void *s, int c, size_t n)
   return s;
 }
 
+// Copy n words from src to dest, handling overlap.
 void *memmove(void *dest, const void *src, size_t n)
 {
   unsigned int *d = (unsigned int *)dest;
@@ -41,7 +44,6 @@ void *memmove(void *dest, const void *src, size_t n)
 
   if (d < s)
   {
-    // Copy forward
     for (i = 0; i < n; i++)
     {
       d[i] = s[i];
@@ -49,18 +51,15 @@ void *memmove(void *dest, const void *src, size_t n)
   }
   else if (d > s)
   {
-    // Copy backward to handle overlap
     for (i = n; i > 0; i--)
     {
       d[i - 1] = s[i - 1];
     }
   }
-  // If d == s, no copy needed
-
   return dest;
 }
 
-// memcmp
+// Compare n words from s1 and s2.
 int memcmp(const void *s1, const void *s2, size_t n)
 {
   const unsigned int *p1 = (const unsigned int *)s1;
@@ -82,8 +81,9 @@ int memcmp(const void *s1, const void *s2, size_t n)
   return 0;
 }
 
-// String functions
+// ---- String Functions ----
 
+// Return the length of string s.
 size_t strlen(const char *s)
 {
   size_t len = 0;
@@ -96,6 +96,7 @@ size_t strlen(const char *s)
   return len;
 }
 
+// Copy src into dest, including the null terminator.
 char *strcpy(char *dest, const char *src)
 {
   char *d = dest;
@@ -109,6 +110,7 @@ char *strcpy(char *dest, const char *src)
   return dest;
 }
 
+// Copy up to n characters from src into dest.
 char *strncpy(char *dest, const char *src, size_t n)
 {
   size_t i;
@@ -118,7 +120,6 @@ char *strncpy(char *dest, const char *src, size_t n)
     dest[i] = src[i];
   }
 
-  // Pad with nulls if src is shorter than n
   for (; i < n; i++)
   {
     dest[i] = '\0';
@@ -127,7 +128,7 @@ char *strncpy(char *dest, const char *src, size_t n)
   return dest;
 }
 
-// strcmp
+// Compare strings s1 and s2 lexicographically.
 int strcmp(const char *s1, const char *s2)
 {
   while (*s1 != '\0' && *s1 == *s2)
@@ -139,7 +140,7 @@ int strcmp(const char *s1, const char *s2)
   return (unsigned char)*s1 - (unsigned char)*s2;
 }
 
-// strncmp
+// Compare up to n characters of s1 and s2.
 int strncmp(const char *s1, const char *s2, size_t n)
 {
   size_t i;
@@ -159,17 +160,16 @@ int strncmp(const char *s1, const char *s2, size_t n)
   return 0;
 }
 
+// Append src to the end of dest.
 char *strcat(char *dest, const char *src)
 {
   char *d = dest;
 
-  // Find end of dest
   while (*d != '\0')
   {
     d++;
   }
 
-  // Copy src to end
   while (*src != '\0')
   {
     *d++ = *src++;
@@ -179,18 +179,17 @@ char *strcat(char *dest, const char *src)
   return dest;
 }
 
+// Append up to n characters from src to dest.
 char *strncat(char *dest, const char *src, size_t n)
 {
   char *d = dest;
   size_t i;
 
-  // Find end of dest
   while (*d != '\0')
   {
     d++;
   }
 
-  // Copy at most n characters from src
   for (i = 0; i < n && src[i] != '\0'; i++)
   {
     d[i] = src[i];
@@ -200,6 +199,7 @@ char *strncat(char *dest, const char *src, size_t n)
   return dest;
 }
 
+// Return pointer to first occurrence of c in s.
 char *strchr(const char *s, int c)
 {
   char ch = (char)c;
@@ -213,7 +213,6 @@ char *strchr(const char *s, int c)
     s++;
   }
 
-  // Also check for null terminator if searching for '\0'
   if (ch == '\0')
   {
     return (char *)s;
@@ -222,6 +221,7 @@ char *strchr(const char *s, int c)
   return NULL;
 }
 
+// Return pointer to last occurrence of c in s.
 char *strrchr(const char *s, int c)
 {
   char ch = (char)c;
@@ -236,7 +236,6 @@ char *strrchr(const char *s, int c)
     s++;
   }
 
-  // Check for null terminator if searching for '\0'
   if (ch == '\0')
   {
     return (char *)s;
@@ -245,6 +244,7 @@ char *strrchr(const char *s, int c)
   return (char *)last;
 }
 
+// Return pointer to first occurrence of needle in haystack.
 char *strstr(const char *haystack, const char *needle)
 {
   const char *h;

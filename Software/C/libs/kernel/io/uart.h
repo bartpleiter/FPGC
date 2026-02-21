@@ -5,17 +5,6 @@
 // Provides functions for transmitting and receiving data over UART.
 // TX: Direct output (no buffering)
 // RX: Ring buffer with interrupt-driven reception
-// Usage in interrupt handler:
-// void interrupt() {
-// int id = get_int_id();
-// if (id == INTID_UART) {
-// uart_isr_handler();
-// }
-// }
-// Arduino-like API:
-// uart_init();              // Initialize (call once)
-// while (!uart_available()) {}  // Wait for data
-// char c = uart_read();     // Read one byte
 
 // RX buffer size - must be power of 2 for efficient modulo
 #define UART_RX_BUFFER_SIZE 64
@@ -42,9 +31,7 @@ void uart_puthex(unsigned int value, int prefix);
 void uart_write(char *buf, unsigned int len);
 
 // ---- Receive Functions (ring buffer, non-blocking) ----
-// UART ISR handler. MUST be called from interrupt handler
-// when INTID_UART is received.
-// Reads the received byte from hardware and stores it in
+// UART ISR handler, reads the received byte from hardware and stores it in
 // the ring buffer.
 void uart_isr_handler();
 

@@ -4,7 +4,7 @@
 
 #include "libs/kernel/gfx/gpu_hal.h"
 
-// gpu clear tables
+// Clear pattern and palette tables.
 void gpu_clear_tables()
 {
   // Clear pattern and palette tables
@@ -21,7 +21,7 @@ void gpu_clear_tables()
   }
 }
 
-// gpu clear bg
+// Clear background tile, color, and scroll parameter tables.
 void gpu_clear_bg()
 {
   // Clear background tile/color tables
@@ -44,7 +44,7 @@ void gpu_clear_bg()
   }
 }
 
-// gpu clear window
+// Clear window tile and color tables.
 void gpu_clear_window()
 {
   // Clear window tile/color tables
@@ -61,7 +61,7 @@ void gpu_clear_window()
   }
 }
 
-// gpu clear pixel
+// Clear pixel plane data.
 void gpu_clear_pixel()
 {
   // Clear pixel plane
@@ -73,7 +73,7 @@ void gpu_clear_pixel()
   }
 }
 
-// gpu clear vram
+// Clear all GPU VRAM regions used by HAL.
 void gpu_clear_vram()
 {
   gpu_clear_tables();
@@ -82,7 +82,7 @@ void gpu_clear_vram()
   gpu_clear_pixel();
 }
 
-// gpu load pattern table
+// Load 1024-word pattern table into VRAM.
 void gpu_load_pattern_table(const unsigned int *pattern_table)
 {
   int i;
@@ -95,7 +95,7 @@ void gpu_load_pattern_table(const unsigned int *pattern_table)
   }
 }
 
-// gpu load palette table
+// Load 32-word palette table into VRAM.
 void gpu_load_palette_table(const unsigned int *palette_table)
 {
   int i;
@@ -144,7 +144,7 @@ void gpu_set_bg_palette(unsigned int palette_index)
   }
 }
 
-// gpu write window tile
+// Write one tile and palette entry in the window plane.
 void gpu_write_window_tile(unsigned int x, unsigned int y, unsigned int tile_index, unsigned int palette_index)
 {
   // The window plane is 40x25 tiles, we wrap around if out of bounds to prevent out-of-bounds writes
@@ -166,7 +166,7 @@ void gpu_write_window_tile(unsigned int x, unsigned int y, unsigned int tile_ind
   window_color_table[index] = palette_index;
 }
 
-// gpu write bg tile
+// Write one tile and palette entry in the background plane.
 void gpu_write_bg_tile(unsigned int x, unsigned int y, unsigned int tile_index, unsigned int palette_index)
 {
   // Background plane is 64x25 tiles, we wrap around if out of bounds to prevent out-of-bounds writes
@@ -188,7 +188,7 @@ void gpu_write_bg_tile(unsigned int x, unsigned int y, unsigned int tile_index, 
   bg_color_table[index] = palette_index;
 }
 
-// gpu write pixel data
+// Write one pixel value in the pixel plane.
 void gpu_write_pixel_data(unsigned int x, unsigned int y, unsigned int color)
 {
   // Pixel plane is 320x240 pixels, we wrap around if out of bounds to prevent out-of-bounds writes

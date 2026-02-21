@@ -5,7 +5,7 @@
 
 #include "libs/common/stddef.h"
 
-// Conversion functions
+// ---- Conversion Functions ----
 
 // Convert string to integer.
 int atoi(const char *nptr);
@@ -16,7 +16,7 @@ int *utoa(unsigned int value, int *buf, int base, int uppercase);
 // Convert signed integer to string.
 int *itoa(int value, int *buf, int base);
 
-// Utility functions
+// ---- Utility Functions ----
 
 // Return absolute value of integer.
 int abs(int j);
@@ -33,7 +33,7 @@ int int_max(int a, int b);
 // Clamp value between min and max.
 int int_clamp(int x, int lo, int hi);
 
-// Random number generator
+// ---- Random Number Generator ----
 
 // Maximum value returned by rand().
 #define RAND_MAX 32767
@@ -44,7 +44,7 @@ int rand();
 // Seed the random number generator.
 void srand(unsigned int seed);
 
-// Sorting and searching
+// ---- Sorting/Search Helpers ----
 
 // Sort an array using quicksort algorithm.
 void qsort(void *base, size_t nmemb, size_t size,

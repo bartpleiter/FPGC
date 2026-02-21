@@ -9,7 +9,7 @@
 struct brfs_state brfs;
 static brfs_progress_callback_t brfs_progress_callback = NULL;
 
-// brfs report progress
+// Invoke the optional progress callback.
 static void brfs_report_progress(const char *phase, unsigned int current, unsigned int total)
 {
   if (brfs_progress_callback != NULL)
@@ -39,6 +39,7 @@ static void brfs_create_dir_entry(struct brfs_dir_entry *entry, const char *file
 // Filenames are stored with 4 characters packed per word.
 // chars[0] uses bits 31-24, chars[1] uses bits 23-16, etc.
 
+// Pack a filename string into four 32-bit words.
 void brfs_compress_string(unsigned int *dest, const char *src)
 {
   unsigned int word;
@@ -89,7 +90,7 @@ void brfs_compress_string(unsigned int *dest, const char *src)
   }
 }
 
-// brfs decompress string
+// Unpack a packed filename string into a null-terminated buffer.
 void brfs_decompress_string(char *dest, const unsigned int *src, unsigned int src_words)
 {
   unsigned int word_idx;
@@ -205,13 +206,13 @@ static unsigned int *brfs_get_superblock()
   return brfs.cache;
 }
 
-// brfs get fat
+// Return pointer to the FAT region in cache.
 static unsigned int *brfs_get_fat()
 {
   return brfs.cache + BRFS_SUPERBLOCK_SIZE;
 }
 
-// brfs get data block
+// Return pointer to data block block_idx in cache.
 static unsigned int *brfs_get_data_block(unsigned int block_idx)
 {
   struct brfs_superblock *sb;
@@ -242,7 +243,7 @@ static int brfs_find_free_block()
   return BRFS_ERR_NO_SPACE;
 }
 
-// brfs find free dir entry
+// Find a free directory entry in a directory block.
 static int brfs_find_free_dir_entry(unsigned int *dir_block)
 {
   struct brfs_superblock *sb;
@@ -265,13 +266,13 @@ static int brfs_find_free_dir_entry(unsigned int *dir_block)
   return BRFS_ERR_NO_ENTRY;
 }
 
-// brfs mark block dirty
+// Mark a cache block dirty for later sync.
 static void brfs_mark_block_dirty(unsigned int block_idx)
 {
   brfs.dirty_blocks[block_idx >> 5] |= (1u << (block_idx & 31));
 }
 
-// brfs is block dirty
+// Return non-zero when a cache block is dirty.
 static int brfs_is_block_dirty(unsigned int block_idx)
 {
   return (brfs.dirty_blocks[block_idx >> 5] >> (block_idx & 31)) & 1;
@@ -501,7 +502,7 @@ int brfs_init(unsigned int flash_id, unsigned int *cache_addr, unsigned int cach
   return BRFS_OK;
 }
 
-// brfs set progress callback
+// Register a callback for long-running BRFS operations.
 void brfs_set_progress_callback(brfs_progress_callback_t callback)
 {
   brfs_progress_callback = callback;
@@ -749,7 +750,7 @@ int brfs_mount()
   return BRFS_OK;
 }
 
-// brfs unmount
+// Unmount BRFS and clear in-memory state.
 int brfs_unmount()
 {
   int result;
@@ -805,7 +806,7 @@ static void brfs_write_fat_sector(unsigned int sector_idx)
   }
 }
 
-// brfs write data sector
+// Write one data sector from cache to flash.
 static void brfs_write_data_sector(unsigned int sector_idx)
 {
   struct brfs_superblock *sb;
@@ -832,7 +833,7 @@ static void brfs_write_data_sector(unsigned int sector_idx)
   }
 }
 
-// brfs sync
+// Flush all dirty cache blocks to flash.
 int brfs_sync()
 {
   struct brfs_superblock *sb;
@@ -1166,7 +1167,7 @@ int brfs_open(const char *path)
   return fd;
 }
 
-// brfs close
+// Close an open file descriptor.
 int brfs_close(int fd)
 {
   if (!brfs.initialized)
@@ -1435,7 +1436,7 @@ int brfs_seek(int fd, unsigned int offset)
   return (int)offset;
 }
 
-// brfs tell
+// Return current offset of an open file descriptor.
 int brfs_tell(int fd)
 {
   struct brfs_file *file;
@@ -1460,7 +1461,7 @@ int brfs_tell(int fd)
   return (int)file->cursor;
 }
 
-// brfs file size
+// Return file size for an open file descriptor.
 int brfs_file_size(int fd)
 {
   struct brfs_file *file;
@@ -1694,7 +1695,7 @@ int brfs_stat(const char *path, struct brfs_dir_entry *entry)
   return BRFS_OK;
 }
 
-// brfs exists
+// Return non-zero when path exists.
 int brfs_exists(const char *path)
 {
   struct brfs_dir_entry entry;
@@ -1702,7 +1703,7 @@ int brfs_exists(const char *path)
   return (brfs_stat(path, &entry) == BRFS_OK) ? 1 : 0;
 }
 
-// brfs is dir
+// Return non-zero when path resolves to a directory.
 int brfs_is_dir(const char *path)
 {
   struct brfs_dir_entry entry;
@@ -1760,7 +1761,7 @@ int brfs_statfs(unsigned int *total_blocks, unsigned int *free_blocks,
   return BRFS_OK;
 }
 
-// brfs get label
+// Read volume label into label_buffer.
 int brfs_get_label(char *label_buffer, unsigned int buffer_size)
 {
   struct brfs_superblock *sb;

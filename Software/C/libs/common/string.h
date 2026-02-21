@@ -6,7 +6,7 @@
 
 #include "libs/common/stddef.h"
 
-// Memory functions
+// ---- Memory Functions ----
 
 // Copy n words from src to dest.
 // Memory regions must not overlap.
@@ -21,7 +21,7 @@ void *memmove(void *dest, const void *src, size_t n);
 // Compare n words of memory.
 int memcmp(const void *s1, const void *s2, size_t n);
 
-// String functions
+// ---- String Functions ----
 
 // Calculate the length of a null-terminated string.
 size_t strlen(const char *s);
