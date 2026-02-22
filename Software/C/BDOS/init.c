@@ -6,16 +6,16 @@
 
 void bdos_init_gpu()
 {
-  unsigned int* pattern_table;
-  unsigned int* palette_table;
+  unsigned int *pattern_table;
+  unsigned int *palette_table;
 
   gpu_clear_vram();
 
   // Load default ASCII table and palette
-  pattern_table = (unsigned int*)&DATA_ASCII_DEFAULT;
+  pattern_table = (unsigned int *)&DATA_ASCII_DEFAULT;
   gpu_load_pattern_table(pattern_table + 3); // +3 to skip function prologue
 
-  palette_table = (unsigned int*)&DATA_PALETTE_DEFAULT;
+  palette_table = (unsigned int *)&DATA_PALETTE_DEFAULT;
   gpu_load_palette_table(palette_table + 3); // +3 to skip function prologue
 }
 
@@ -42,17 +42,39 @@ void bdos_init_ethernet()
   int bdos_eth_mac[6];
   int rev;
   int i;
-  
+  int spi_flash_id_buffer[8];
+
   term_puts("Initializing ENC28J60 Ethernet\n");
 
-  // MAC address: 02:B4:B4:00:00:01
-  // TODO: Make configurable from flash for FPGC cluster
+  // MAC address: 02:B4:B4:00:00:XX, where XX is defined by a hardcoded mapping on the unique ID of SPI Flash 0
   bdos_eth_mac[0] = 0x02;
   bdos_eth_mac[1] = 0xB4;
   bdos_eth_mac[2] = 0xB4;
   bdos_eth_mac[3] = 0x00;
   bdos_eth_mac[4] = 0x00;
-  bdos_eth_mac[5] = 0x01;
+
+  spi_flash_read_unique_id(SPI_FLASH_0, spi_flash_id_buffer);
+  // Use the 7th byte of the the SPI Flash 0 unique ID as there are no collisions between the currently made 5 FPGC devices
+  switch (spi_flash_id_buffer[6])
+  {
+  case 0x58:
+    bdos_eth_mac[5] = 0x01;
+    break;
+  case 0x4b:
+    bdos_eth_mac[5] = 0x02;
+    break;
+  case 0x40:
+    bdos_eth_mac[5] = 0x03;
+    break;
+  case 0x2a:
+    bdos_eth_mac[5] = 0x04;
+    break;
+  case 0x46:
+    bdos_eth_mac[5] = 0x05;
+    break;
+  default:
+    bdos_panic("Unknown SPI Flash unique ID, cannot determine MAC address");
+  }
 
   rev = enc28j60_init(bdos_eth_mac);
   if (rev == 0)

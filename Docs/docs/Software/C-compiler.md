@@ -6,68 +6,44 @@ B32CC is a C compiler for the B32P3 architecture, derived from [SmallerC](https:
 
 B32CC supports most of the C language common between C89 and C99. Its features can be described as follows:
 
-- **Single-pass compilation** - Fast compilation without intermediate files
-- **B32P3 assembly output** - Generates readable assembly for the target architecture
-- **Inline assembly** - Direct assembly code embedding with `asm()` 
-- **Optimized for word-addressable architecture** - All data is 32-bit word aligned since B32CC does not support byte-addressable memory
-- **Self-hosting capable** - Can compile itself and run on the target architecture (using BDOS)
+- Single-pass compilation
+- B32P3 assembly output
+- Inline assembly support
+- Optimized for FPGC's word-addressable architecture
+- Self-hosting capable
 
 ## Limitations
 
 - As the goal of this compiler setup is to keep complexity low, there is currently no support for a linker, even though the original SmallerC had one. All code will be compiled into a single assembly file
 - No support for floating point types or operations
 - No support for 64-bit integers (`long long`)
-- Limited optimizations due to single-pass design, resulting assembly contains many (slow) read/write operations to/from memory due to stack usage
+- Limited optimizations due to single-pass design, resulting assembly contains many (slow) read/write operations to/from memory due to stack usage. So performance critical functions should be implemented using inline assembly.
 
 ## Quick Start
 
 ### Command Line Usage
 
 ```bash
-# Compile C source to assembly
 b32cc input.c output.asm
 
-# Using make (example for bare-metal programs)
-make compile-c-baremetal file=hello_world
+# Using make (normal workflow)
+make compile-c-baremetal file=input
 ```
 
-### Example Program
+### Program Structure
 
-The program should define a `main()` function as the entry point and an `interrupt()` function for handling interrupts:
+The program should define a `main()` function as the entry point and an `interrupt()` function (unless `-user-bdos` is used) for handling interrupts:
 
 ```c
 int main() {
-    int sum = 0;
-    for (int i = 1; i <= 10; i++) {
-        sum += i;
-    }
-    return sum;  // Returns 55
+    // Main entry point
+    return 37;  // Return value is sent over UART
 }
 
 void interrupt() {
-    // Interrupt handler (required)
+    // Interrupt handler, can be empty if not used
 }
 ```
-
-### Building the Compiler
-
-```bash
-# Build B32CC from source
-make b32cc
-
-# The compiler binary will be at:
-# BuildTools/B32CC/output/b32cc
-```
-
-## Compilation Process
-
-The typical workflow for compiling C programs involves multiple steps:
-
-1. **C Compilation**: `b32cc` compiles `.c` files to `.asm` assembly
-2. **Assembly**: ASMPY assembles `.asm` to `.list` (for simulation) from which a `.bin` binary is generated
-3. **Deployment**: Binary is loaded to FPGC via UART (or a different method)
-
-See the `Makefile` for detailed commands and options.
 
 ## Architecture & Memory Model
 
@@ -76,7 +52,7 @@ See the `Makefile` for detailed commands and options.
 The B32P3 architecture uses **word-addressable memory**, where each address refers to a 32-bit word, not a byte. This has important implications:
 
 - All data types occupy full 32-bit words in memory
-- `char` is stored as a 32-bit word and therefore could contain the same value as an `int` (I think, as I did not test if there is truncation)
+- `char` is stored as a 32-bit word and therefore could contain the same value as an `int` (assuming I correctly removed truncation from B32CC). This means that using for example `short` makes no sense and can better be written as `int` to avoid confusion.
 - `int` and pointers are native 32-bit words
 - Pointer arithmetic is in terms of words, not bytes
 - Arrays and structs are word-aligned
@@ -111,7 +87,7 @@ B32CC follows a specific calling convention for function calls:
 **Before call (caller):**
 
 1. First 4 arguments passed in `r4-r7` (a0-a3)
-2. Additional arguments pushed to stack (right-to-left)
+2. Additional arguments pushed to (hardware) stack (right-to-left)
 3. Call instruction saves return address in `r15` (ra)
 
 **Prologue (callee):**
@@ -139,37 +115,26 @@ B32CC follows a specific calling convention for function calls:
 ```
 Higher addresses
 +------------------+
-| Argument N       |  (if more than 4 arguments)
-| ...              |
-| Argument 5       |
+| Return address   |
 +------------------+
-| Return address   |  <- saved by prologue (offset +1 from fp)
+| Saved FP         |
 +------------------+
-| Saved FP         |  <- current fp points here (offset 0)
-+------------------+
-| Local var 1      |  (offset -1 from fp)
-| Local var 2      |  (offset -2 from fp)
+| Local var 1      |
+| Local var 2      |
 | ...              |
 | Local var N      |
 +------------------+  <- sp
 Lower addresses
 ```
 
-## Supported C Features
+## Supported and unsupported C Features
 
-### Data Types & Declarations
+!!! note
+    This list is mostly focused on uncommon feature that are supported, or common features that are not supported, as you can assume that most of the common features of C89/C99 are supported unless otherwise noted.
 
 **Supported:**
 
-- Integer types: `char`, `unsigned char`, `short`, `unsigned short`, `int`, `unsigned int`
-- Pointers and pointer arithmetic
-- Arrays (single and multi-dimensional)
-- Structs and unions
-- Typedef declarations
-- Global and local variables
-- Static variables
-- Enum declarations
-- Type qualifiers: `const`, `volatile`, `signed`, `unsigned`
+- Fixed-point intrinsics for hardware acceleration: `__multfp(a, b)` and `__divfp(a, b)`
 
 **Not Supported:**
 
@@ -178,83 +143,16 @@ Lower addresses
 - Bit fields in structs
 - Variable-length arrays (VLAs)
 - Complex numbers (`_Complex`)
-
-### Operators
-
-**Supported:**
-
-- Arithmetic: `+`, `-`, `*`, `/`, `%`
-- Bitwise: `&`, `|`, `^`, `~`, `<<`, `>>`
-- Logical: `&&`, `||`, `!`
-- Comparison: `==`, `!=`, `<`, `<=`, `>`, `>=`
-- Assignment: `=`, `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, `>>=`
-- Increment/decrement: `++`, `--` (both prefix and postfix)
-- Pointer: `*`, `&`, `->`
-- Ternary conditional: `? :`
-- Comma operator: `,`
-- Member access: `.`, `->`
-- Array subscript: `[]`
-- Function call: `()`
-- Cast: `(type)`
-- `sizeof`
-
-### Control Flow
-
-**Supported:**
-
-- `if`, `else if`, `else`
-- `while` loops
-- `do-while` loops  
-- `for` loops
-- `switch` / `case` / `default`
-- `break` and `continue`
-- `goto` and labels
-- `return`
-
-### Functions
-
-**Supported:**
-
-- Function declarations and definitions
-- Function calls with arguments
-- Return values
-- Recursion
-- Forward declarations
-- Function pointers
-- Inline assembly via `asm()`
-
-**Not Supported:**
-
 - Function-like macros with complex logic (preprocessor limitations)
 - Variable-length argument lists without proper declarations
-
-### Preprocessor
-
-**Supported:**
-
-- `#include` (system and local headers)
-- `#define` (simple macros and constants)
-- `#ifdef`, `#ifndef`, `#else`, `#endif`
-- `#undef`
-- File inclusion paths
-
-**Not Supported:**
-
 - `#pragma` directives
 - Complex macro expansion
 - Stringification (`#`) and token pasting (`##`)
 - `#error`, `#warning`
 
-### Other Features
-
-**Supported:**
-
-- String literals
-- Comments (`/* */` and `//`)
-
 ## Inline Assembly
 
-B32CC supports inline assembly using the `asm()` syntax:
+B32CC supports inline assembly using the `asm()` syntax, without the need for `\n` for newlines, and allows `;` for comments. For example:
 
 ```c
 int main() {
@@ -270,30 +168,9 @@ void interrupt() {}
 ```
 
 !!! Warning
-    There is no safety for the inline assembly, so you should almost always push and pop any registers you use.
+    There is no safety for the inline assembly, so you should push and pop registers if they might be used.
 
-**Notes for inline assembly:**
-
-- Use `asm("instruction1" "instruction2" ...)` syntax, newlines are automatically added between string literals
-- Use `;` for comments within assembly code
-- Instructions are inserted directly into the assembly output, you have to take care of the generated function prologue/epilogue around it from the C function it is in
-
-## Special Requirements
-
-### Interrupt Handler
-
-Every C program compiled with B32CC **must** define an `interrupt()` function:
-
-```c
-void interrupt() {
-    // Handle interrupts here
-    // Or leave empty if interrupts are not used
-}
-```
-
-This function is called when hardware interrupts occur. It can be empty if your program doesn't use interrupts.
-
-### Entry Point Wrapper
+## Entry Point Wrapper
 
 B32CC generates a wrapper that:
 
@@ -304,6 +181,7 @@ B32CC generates a wrapper that:
 5. Halts execution
 
 The wrapper also contains a jump to the `interrupt()` function for handling interrupts and is automatically included in the generated assembly.
+The wrapper changes depending on the command line option used.
 
 ## Testing
 
@@ -320,30 +198,5 @@ make test-b32cc-single file=04_control_flow/if_statements.c
 make debug-b32cc file=04_control_flow/if_statements.c
 ```
 
-### Test Categories
-
-The test suite is organized into categories:
-
-- `01_return` - Return values
-- `02_variables` - Variable declarations and assignments
-- `03_functions` - Function calls and arguments
-- `04_control_flow` - If/else, loops, switches
-- `05_arithmetic` - Arithmetic operations
-- `06_comparison` - Comparison operators
-- `07_logical_bitwise` - Logical and bitwise operations
-- `08_pointers` - Pointer operations
-- `09_arrays` - Array indexing and operations
-- `10_globals` - Global variables
-- `11_structs` - Structure definitions and usage
-- `12_recursion` - Recursive functions
-- `13_unary` - Unary operators
-- `14_compound_assignment` - Compound assignment operators
-- `15_strings` - String literals and manipulation
-- `16_casts` - Type casting
-- `17_ternary` - Ternary conditional operator
-- `18_literals` - Various literal types
-- `19_forward_declaration` - Forward function declarations
-- `20_precedence` - Operator precedence
-- `21_edge_cases` - Edge cases and corner cases
-- `22_asm` - Inline assembly
-- `23_found_bugs` - Regression tests for fixed bugs
+!!! note
+    The test suite captures a lot of things, but is not exhaustive, meaning there are likely still bugs in the compiler.
