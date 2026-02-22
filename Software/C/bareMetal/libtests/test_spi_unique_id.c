@@ -14,7 +14,6 @@ int main()
   int id_buffer_1[8];
   int id_buffer_2[8];
 
-  int id_buffer_1[8];
   spi_flash_read_unique_id(SPI_FLASH_0, id_buffer_1);
   spi_flash_read_unique_id(SPI_FLASH_1, id_buffer_2);
 
