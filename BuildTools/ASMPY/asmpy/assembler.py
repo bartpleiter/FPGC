@@ -35,10 +35,12 @@ class Assembler:
         offset_address: Number = Number(0),
         program_type: ProgramType = ProgramType.BARE_METAL,
         independent: bool = False,
+        syscall: bool = False,
     ) -> None:
         self.preprocessed_input_lines = preprocessed_input_lines
         self.output_file_path = output_file_path
         self.independent = independent
+        self.syscall = syscall
         self.offset_address = Number(0) if independent else offset_address
         self.program_type = program_type
 
@@ -383,6 +385,16 @@ class Assembler:
             ),
             SourceLine(line=".dw 0", source_line_number=0, source_file_name="header"),
         ]
+
+        # Add syscall vector as 4th header word if requested
+        if self.syscall:
+            header_source_lines.append(
+                SourceLine(
+                    line="jump Syscall",
+                    source_line_number=0,
+                    source_file_name="header",
+                )
+            )
 
         # Parse the header lines into assembly lines
         header_assembly_lines = []

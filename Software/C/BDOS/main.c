@@ -9,6 +9,7 @@
 #include "BDOS/hid.c"
 #include "BDOS/fs.c"
 #include "BDOS/eth.c"
+#include "BDOS/syscall.c"
 #include "BDOS/shell_cmds.c"
 #include "BDOS/shell.c"
 

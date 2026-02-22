@@ -40,7 +40,8 @@
 #define MEM_KERNEL_END           0x100000
 
 // Kernel stacks (at top of kernel region)
-#define MEM_KERNEL_STACK_TOP     0x0FBFFF   // Main stack
+#define MEM_KERNEL_STACK_TOP     0x0F7FFF   // Main stack
+#define MEM_KERNEL_SYSCALL_STACK_TOP 0x0FBFFF // Syscall stack
 #define MEM_KERNEL_INT_STACK_TOP 0x0FFFFF   // Interrupt stack
 
 // ---- Kernel Heap ----

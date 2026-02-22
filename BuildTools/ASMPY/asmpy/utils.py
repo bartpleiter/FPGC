@@ -42,6 +42,12 @@ def parse_args() -> argparse.Namespace:
         help="Generate position independent output: ignore --offset, use relative jumps, and rewrite addr2reg as PC-relative code",
     )
     parser.add_argument(
+        "-s",
+        "--syscall",
+        action="store_true",
+        help="Add a syscall vector (jump Syscall) as a 4th header word at address 3. Requires --header.",
+    )
+    parser.add_argument(
         "--help",
         action="help",
         help="Show this help message and exit",

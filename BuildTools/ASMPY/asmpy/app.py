@@ -44,6 +44,7 @@ def main():
         args.output,
         offset_address=offset_address,
         independent=args.independent,
+        syscall=args.syscall,
     )
     try:
         assembler.assemble(add_header=args.header)

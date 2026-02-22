@@ -18,9 +18,10 @@ BDOS organizes the FPGC's 16 MiW (64 MiB) SDRAM into four regions:
 
 ### Kernel Region (0x000000)
 
-Contains the BDOS binary (code + data). Two stacks grow downward from the top:
+Contains the BDOS binary (code + data). Three stacks grow downward from the top:
 
-- **Main stack**: top at `0x0FBFFF`
+- **Main stack**: top at `0x0F7FFF`
+- **Syscall stack**: top at `0x0FBFFF`
 - **Interrupt stack**: top at `0x0FFFFF`
 
 ### User Program Region (0x800000)
@@ -78,6 +79,54 @@ The `run` command loads a binary from BRFS into a user program slot and transfer
       - `r15` (return address) = BDOS return trampoline
 5. **Jump**: Execution transfers to offset 0 of the slot, which contains the ASMPY header `jump Main`
 6. **Return**: When the program's `main()` returns (via `r15`), BDOS restores its own registers and prints the exit code
+
+## Syscalls
+
+User programs communicate with BDOS through a software syscall mechanism, as there is no dedicated trap or software interrupt instruction (I could not figure out how to make that work, as I do not want to run syscall code within an interrupt, blocking other interrupts from happening). Therefore, syscalls are implemented as regular jumps to a fixed kernel entry point.
+
+### Mechanism
+
+The ASMPY assembler header places a `jump Syscall` instruction at absolute address 3 (as part of the header, enabled with the `-s` flag). User programs invoke a syscall by jumping to this address with arguments in registers. The flow is:
+
+1. User calls `syscall(num, a1, a2, a3)`, B32CC places arguments in `r4` to `r7`
+2. The inline assembly saves `r15`, loads address 3 into a temp register, sets the return address via `savpc`/`add`, and jumps
+3. Address 3 contains `jump Syscall`, redirecting into the kernel's assembly trampoline
+4. The trampoline saves all registers (except `r1`) to the hardware stack, switches to the kernel syscall stack, and calls the C dispatcher
+5. The C dispatcher handles the request, returns a result in `r1`
+6. The trampoline restores registers and returns to the user program
+
+### Available Syscalls
+
+!!! note
+    This list will likely grow over time as I am extending BDOS. See `bdos.h` for the currently implemented list of syscalls.
+
+| Number | Name | Arguments | Returns | Description |
+|--------|------|-----------|---------|-------------|
+| 0 | `PRINT_CHAR` | `a1` = character | 0 | Print a character to the terminal |
+| 1 | `PRINT_STR` | `a1` = string pointer | 0 | Print a null-terminated string |
+| 2 | `READ_KEY` | — | key code | Read a key from the keyboard buffer |
+| 3 | `KEY_AVAILABLE` | — | 0 or 1 | Check if a key is available |
+| 4 | `FS_OPEN` | `a1` = path pointer | file descriptor | Open a file |
+| 5 | `FS_CLOSE` | `a1` = fd | 0 on success | Close a file |
+| 6 | `FS_READ` | `a1` = fd, `a2` = buffer, `a3` = count | bytes read | Read from a file |
+| 7 | `FS_WRITE` | `a1` = fd, `a2` = buffer, `a3` = count | bytes written | Write to a file |
+
+### User-Side Library
+
+User programs include the user syscall library via the user library orchestrator:
+
+```c
+#define USER_SYSCALL
+#include "libs/user/user.h"
+
+int main()
+{
+  sys_print_str("Hello from userBDOS!\n");
+  return 0;
+}
+```
+
+The convenience wrappers (`sys_print_char`, `sys_print_str`, etc.) call the low-level `syscall()` function, which contains the inline assembly that performs the jump to address 3.
 
 ## Interrupt Handling
 

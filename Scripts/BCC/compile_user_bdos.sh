@@ -1,11 +1,19 @@
 #!/bin/bash
-# Script to compile BDOS into a binary to run on the FPGC
-# Uses B32CC to compile C to assembly, then ASMPY to assemble to binary
+# Script to compile a userBDOS C program for execution under BDOS.
+# Uses B32CC with -user-bdos flag, then ASMPY with -h -i (position-independent header).
+# The resulting binary can be loaded by the BDOS 'run' command.
 
+# Check for required argument
+if [ $# -ne 1 ]; then
+    echo "Usage: $0 <c_filename_in_userBDOS_dir_without_extension>"
+    echo "Example: $0 syscall_test"
+    exit 1
+fi
 
-C_FILENAME="main"
-C_SOURCE="Software/C/BDOS/${C_FILENAME}.c"
-ASM_OUTPUT="Software/ASM/Output/bdos.asm"
+C_FILENAME="$1"
+C_FILENAME_WITHOUT_DIR="${C_FILENAME##*/}"
+C_SOURCE="Software/C/userBDOS/${C_FILENAME}.c"
+ASM_OUTPUT="Software/ASM/Output/${C_FILENAME_WITHOUT_DIR}.asm"
 LIST_OUTPUT="Software/ASM/Output/code.list"
 BIN_OUTPUT="Software/ASM/Output/code.bin"
 
@@ -33,7 +41,7 @@ mkdir -p Software/ASM/Output
 echo "Compiling C to assembly..."
 # Change to Software/C directory so includes work correctly
 cd Software/C
-if ../../"$B32CC" "BDOS/${C_FILENAME}.c" "../../${ASM_OUTPUT}" "-bdos"
+if ../../"$B32CC" "userBDOS/${C_FILENAME}.c" "../../${ASM_OUTPUT}" "-user-bdos"
 then
     echo "C compilation successful"
 else
@@ -45,8 +53,10 @@ fi
 cd ../..
 
 # Step 2: Assemble to binary using ASMPY
+# -h: add header (jump Main, nop for interrupt, filesize)
+# -i: position-independent code (user programs are loaded at runtime addresses)
 echo "Assembling to binary..."
-if asmpy "$ASM_OUTPUT" "$LIST_OUTPUT" -h -s
+if asmpy "$ASM_OUTPUT" "$LIST_OUTPUT" -h -i
 then
     echo "Assembly successful"
 else

@@ -28,6 +28,16 @@
 
 // ---- Global variables and defines ----
 
+// Syscall numbers
+#define SYSCALL_PRINT_CHAR     0
+#define SYSCALL_PRINT_STR      1
+#define SYSCALL_READ_KEY       2
+#define SYSCALL_KEY_AVAILABLE  3
+#define SYSCALL_FS_OPEN        4
+#define SYSCALL_FS_CLOSE       5
+#define SYSCALL_FS_READ        6
+#define SYSCALL_FS_WRITE       7
+
 // USB keyboard variables
 // Global as there is currently no way to pass context to the polling timer callback
 int bdos_usb_keyboard_spi_id = CH376_SPI_BOTTOM;
@@ -184,5 +194,7 @@ void bdos_shell_on_startup();
 
 void bdos_fnp_poll();
 void bdos_fnp_init();
+
+int bdos_syscall_dispatch(int num, int a1, int a2, int a3);
 
 #endif // BDOS_H
