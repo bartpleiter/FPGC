@@ -23,7 +23,7 @@ module Stack (
 
 reg [7:0]   ptr = 8'd0;    // Stack pointer (0-255)
 (* ramstyle = "logic" *) reg [31:0]  stack [255:0];  // Stack memory
-    
+
 reg [31:0]  q_reg = 32'd0;
 assign q = q_reg; // Registered output
 assign ptr_out = ptr;

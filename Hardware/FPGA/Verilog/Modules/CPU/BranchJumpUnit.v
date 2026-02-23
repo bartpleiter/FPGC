@@ -21,7 +21,7 @@ module BranchJumpUnit (
 );
 
 // Branch opcodes
-localparam 
+localparam
     BRANCH_OP_BEQ   = 3'b000, // A == B
     BRANCH_OP_BGT   = 3'b001, // A >  B
     BRANCH_OP_BGE   = 3'b010, // A >= B
@@ -33,7 +33,7 @@ localparam
 
 // Branch pass detection
 reg branch_passed;
-always @(*) 
+always @(*)
 begin
     case (branch_op)
         BRANCH_OP_BEQ:
@@ -68,7 +68,7 @@ begin
 end
 
 // Jump address calculation
-always @(*) 
+always @(*)
 begin
     if (jumpc)
     begin
@@ -89,7 +89,7 @@ begin
             jump_addr = data_b + const16;
         end
     end
-    
+
     else if (branch)
     begin
         jump_addr = pc + const16;

@@ -18,7 +18,7 @@ module MultiCycleALU (
 );
 
 // Opcodes
-localparam 
+localparam
     OP_MULTS  = 4'b0000, // Multiply signed
     OP_MULTU  = 4'b0001, // Multiply unsigned
     OP_MULTFP = 4'b0010, // Multiply fixed point signed
@@ -145,7 +145,7 @@ begin
         mults_start <= 1'b0;
         idiv_start <= 1'b0;
         fpdiv_start <= 1'b0;
-        
+
         case (state)
             STATE_IDLE:
             begin
@@ -175,7 +175,7 @@ begin
                         state <= STATE_WAIT_MULTFP;
                     end
 
-                    if (opcode == OP_DIVS || opcode == OP_DIVU || 
+                    if (opcode == OP_DIVS || opcode == OP_DIVU ||
                         opcode == OP_MODS || opcode == OP_MODU)
                     begin
                         idiv_a <= a;

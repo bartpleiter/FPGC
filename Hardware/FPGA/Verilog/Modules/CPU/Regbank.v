@@ -66,7 +66,7 @@ begin
         // Stage 1: Register the addresses
         addr_a_reg <= addr_a;
         addr_b_reg <= addr_b;
-        
+
         // Stage 2: Register the data outputs
         data_a <= next_data_a;
         data_b <= next_data_b;

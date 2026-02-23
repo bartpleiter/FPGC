@@ -10,7 +10,7 @@ module ALU (
 );
 
 // Opcodes
-localparam 
+localparam
     OP_OR       = 4'b0000, // OR
     OP_AND      = 4'b0001, // AND
     OP_XOR      = 4'b0010, // XOR

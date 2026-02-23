@@ -32,7 +32,7 @@ integer i;
 
 // First always block: Synchronization chain
 // This MUST be separate to ensure proper synchronizer implementation
-always @(posedge clk) 
+always @(posedge clk)
 begin
     if (reset)
     begin
@@ -48,7 +48,7 @@ end
 
 // Second always block: Edge detection and interrupt handling
 // Now operating on fully synchronized signals
-always @(posedge clk) 
+always @(posedge clk)
 begin
     if (reset)
     begin
@@ -61,14 +61,14 @@ begin
     begin
         // Edge detection on SYNCHRONIZED signals
         int_prev <= int_sync2;
-        
+
         // Detect rising edges
         for (i = 0; i < NUM_INTERRUPTS; i = i + 1)
         begin
             if (int_sync2[i] && !int_prev[i])
                 int_triggered[i] <= 1'b1;
         end
-        
+
         // Handle interrupt requests with priority encoding
         if (!int_disabled && !int_cpu)
         begin
@@ -122,7 +122,7 @@ begin
                 int_id <= 8'd8;
             end
         end
-        
+
         // Clear int_cpu when interrupts are disabled
         if (int_disabled)
         begin

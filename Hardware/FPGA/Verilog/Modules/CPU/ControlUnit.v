@@ -25,7 +25,7 @@ module ControlUnit (
 );
 
 // Instruction Opcodes
-localparam 
+localparam
     OP_HALT     = 4'b1111,
     OP_READ     = 4'b1110,
     OP_WRITE    = 4'b1101,
@@ -165,7 +165,7 @@ begin
             end
             dreg_we = 1'b1;
         end
-        
+
 
     endcase
 end

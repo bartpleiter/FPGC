@@ -81,7 +81,7 @@ module B32P3 #(
     output wire         l1d_cache_controller_we,
     output wire         l1d_cache_controller_start,
     input  wire         l1d_cache_controller_done,
-    input  wire [31:0]  l1d_cache_controller_result, 
+    input  wire [31:0]  l1d_cache_controller_result,
 
     output wire         l1_clear_cache,
     input wire          l1_clear_cache_done,
@@ -111,12 +111,12 @@ wire int_cpu;           // Interrupt request from controller
 wire [7:0] int_id;      // Interrupt ID value from controller
 
 InterruptController interrupt_controller (
-    .clk        (clk),
-    .reset      (reset),
-    .interrupts (interrupts),
-    .int_disabled(int_disabled),
-    .int_cpu     (int_cpu),
-    .int_id      (int_id)
+    .clk          (clk),
+    .reset        (reset),
+    .interrupts   (interrupts),
+    .int_disabled (int_disabled),
+    .int_cpu      (int_cpu),
+    .int_id       (int_id)
 );
 
 // Interrupt is valid only when:
@@ -138,14 +138,12 @@ wire [31:0] pc_backup;
 wire reti_valid = id_ex_valid && id_ex_reti && !pc_redirect;
 
 // ---- PIPELINE CONTROL SIGNALS ----
-wire        stall_if;               // Stall IF stage
-wire        stall_id;               // Stall ID stage  
 wire        flush_if_id;            // Flush IF/ID register
 wire        flush_id_ex;            // Flush ID/EX register
 wire        flush_ex_mem;           // Flush EX/MEM register
 
 // Pipeline stall sources (driven by cache, ALU, MU, and cache-clear subsystems)
-wire cache_stall_if;    // L1I cache miss stall 
+wire cache_stall_if;    // L1I cache miss stall
 wire cache_stall_mem;   // L1D cache miss stall
 wire multicycle_stall;  // Multi-cycle ALU stall
 wire mu_stall;          // Memory unit stall
@@ -158,9 +156,6 @@ wire        backend_pipeline_stall;
 wire [1:0]  forward_a;
 wire [1:0]  forward_b;
 wire        cache_line_hazard;
-
-assign stall_if = pipeline_stall;
-assign stall_id = pipeline_stall;
 
 // PC redirect signals
 wire        pc_redirect;
@@ -223,7 +218,6 @@ InstructionFetch #(
 
 // ---- ID/EX PIPELINE REGISTER ----
 reg [31:0] id_ex_pc = 32'd0;
-reg [31:0] id_ex_instr = 32'd0;
 reg        id_ex_valid = 1'b0;
 
 // NOTE: Register file data (areg_data, breg_data) comes directly from regbank
@@ -233,13 +227,11 @@ reg        id_ex_valid = 1'b0;
 reg [3:0]  id_ex_dreg = 4'd0;
 reg [3:0]  id_ex_areg = 4'd0;
 reg [3:0]  id_ex_breg = 4'd0;
-reg [3:0]  id_ex_instr_op = 4'd0;
 reg [3:0]  id_ex_alu_op = 4'd0;
 reg [2:0]  id_ex_branch_op = 3'd0;
 reg [31:0] id_ex_const_alu = 32'd0;
 reg [26:0] id_ex_const27 = 27'd0;
 reg [31:0] id_ex_const16 = 32'd0;
-reg        id_ex_he = 1'b0;
 reg        id_ex_oe = 1'b0;
 reg        id_ex_sig = 1'b0;
 
@@ -262,7 +254,6 @@ reg        id_ex_arithm = 1'b0;
 
 // ---- EX/MEM PIPELINE REGISTER ----
 reg [31:0] ex_mem_pc = 32'd0;
-reg [31:0] ex_mem_instr = 32'd0;
 reg        ex_mem_valid = 1'b0;
 
 // ALU result
@@ -271,7 +262,6 @@ reg [31:0] ex_mem_breg_data = 32'd0; // For store operations
 
 // Decoded fields
 reg [3:0]  ex_mem_dreg = 4'd0;
-reg [3:0]  ex_mem_instr_op = 4'd0;
 
 // Memory address
 reg [31:0] ex_mem_mem_addr = 32'd0;
@@ -283,10 +273,7 @@ reg        ex_mem_mem_write = 1'b0;
 reg        ex_mem_push = 1'b0;
 reg        ex_mem_pop = 1'b0;
 reg        ex_mem_halt = 1'b0;
-reg        ex_mem_get_int_id = 1'b0;
-reg        ex_mem_get_pc = 1'b0;
 reg        ex_mem_clear_cache = 1'b0;
-reg        ex_mem_arithm = 1'b0;
 
 // Branch/jump control signals for MEM-stage branch resolution
 reg        ex_mem_is_branch = 1'b0;
@@ -300,8 +287,6 @@ reg [26:0] ex_mem_const27 = 27'd0;
 reg [31:0] ex_mem_areg_data = 32'd0;
 
 // ---- MEM/WB PIPELINE REGISTER ----
-reg [31:0] mem_wb_pc = 32'd0;
-reg [31:0] mem_wb_instr = 32'd0;
 reg        mem_wb_valid = 1'b0;
 
 // Results
@@ -311,7 +296,6 @@ reg [31:0] mem_wb_stack_data = 32'd0;
 
 // Decoded fields
 reg [3:0]  mem_wb_dreg = 4'd0;
-reg [3:0]  mem_wb_instr_op = 4'd0;
 
 // Control signals
 reg        mem_wb_dreg_we = 1'b0;
@@ -326,31 +310,27 @@ wire [2:0]  id_branch_op;
 wire [31:0] id_const_alu;
 wire [31:0] id_const_aluu;
 wire [31:0] id_const16;
-wire [15:0] id_const16u;
 wire [26:0] id_const27;
 wire [3:0]  id_areg;
 wire [3:0]  id_breg;
 wire [3:0]  id_dreg;
-wire        id_he;
 wire        id_oe;
 wire        id_sig;
 
 InstructionDecoder instr_decoder (
-    .instr      (if_id_instr),
+    .instr       (if_id_instr),
     .instr_op    (id_instr_op),
     .alu_op      (id_alu_op),
     .branch_op   (id_branch_op),
     .const_alu   (id_const_alu),
     .const_aluu  (id_const_aluu),
-    .const16    (id_const16),
-    .const16u   (id_const16u),
-    .const27    (id_const27),
-    .areg       (id_areg),
-    .breg       (id_breg),
-    .dreg       (id_dreg),
-    .he         (id_he),
-    .oe         (id_oe),
-    .sig        (id_sig)
+    .const16     (id_const16),
+    .const27     (id_const27),
+    .areg        (id_areg),
+    .breg        (id_breg),
+    .dreg        (id_dreg),
+    .oe          (id_oe),
+    .sig         (id_sig)
 );
 
 // ---- CONTROL UNIT ----
@@ -372,8 +352,8 @@ wire id_get_pc;
 wire id_clear_cache;
 
 ControlUnit control_unit (
-    .instr_op        (id_instr_op),
-    .alu_op          (id_alu_op),
+    .instr_op       (id_instr_op),
+    .alu_op         (id_alu_op),
     .alu_use_const  (id_alu_use_const),
     .alu_use_constu (id_alu_use_constu),
     .push           (id_push),
@@ -387,9 +367,9 @@ ControlUnit control_unit (
     .branch         (id_branch),
     .halt           (id_halt),
     .reti           (id_reti),
-    .get_int_id       (id_get_int_id),
-    .get_pc          (id_get_pc),
-    .clear_cache     (id_clear_cache)
+    .get_int_id     (id_get_int_id),
+    .get_pc         (id_get_pc),
+    .clear_cache    (id_clear_cache)
 );
 
 // ---- REGISTER FILE ----
@@ -415,15 +395,15 @@ wire        wb_dreg_we;
 Regbank regbank (
     .clk        (clk),
     .reset      (reset),
-    
+
     // Read ports - addresses from IF stage, data available in EX stage
     .addr_a     (if_areg),
     .addr_b     (if_breg),
     .clear      (flush_if_id),
-    .hold       (stall_if),
+    .hold       (pipeline_stall),
     .data_a     (ex_areg_data),  // Output arrives in EX stage
     .data_b     (ex_breg_data),  // Output arrives in EX stage
-    
+
     // Write port (WB stage)
     .addr_d     (wb_dreg),
     .data_d     (wb_data),
@@ -510,7 +490,7 @@ begin
             begin
                 malu_request_finished <= 1'b0;
                 malu_result_reg <= 32'd0;
-                
+
                 // Start when we have a valid arithm instruction that hasn't been processed
                 if (id_ex_valid && id_ex_arithm && !malu_request_finished)
                 begin
@@ -521,7 +501,7 @@ begin
                     malu_state <= MALU_STARTED;
                 end
             end
-            
+
             MALU_STARTED:
             begin
                 // Clear start signal after one cycle
@@ -531,7 +511,7 @@ begin
                 malu_opcode_reg <= 4'd0;
                 malu_state <= MALU_DONE;
             end
-            
+
             MALU_DONE:
             begin
                 // Wait for multi-cycle ALU to complete
@@ -552,20 +532,20 @@ wire        jump_valid;
 wire [31:0] jump_addr;
 
 BranchJumpUnit branch_jump_unit (
-    .branch_op           (ex_mem_branch_op),
-    .data_a             (ex_mem_areg_data),
-    .data_b             (ex_mem_breg_data),
-    .const16            (ex_mem_const16),
-    .const27            (ex_mem_const27),
-    .pc                 (ex_mem_pc),
-    .halt               (ex_mem_halt),
-    .branch             (ex_mem_is_branch),
-    .jumpc              (ex_mem_is_jump),
-    .jumpr              (ex_mem_is_jumpr),
-    .oe                 (ex_mem_oe),
-    .sig                (ex_mem_sig),
-    .jump_addr          (jump_addr),
-    .jump_valid         (jump_valid)
+    .branch_op  (ex_mem_branch_op),
+    .data_a     (ex_mem_areg_data),
+    .data_b     (ex_mem_breg_data),
+    .const16    (ex_mem_const16),
+    .const27    (ex_mem_const27),
+    .pc         (ex_mem_pc),
+    .halt       (ex_mem_halt),
+    .branch     (ex_mem_is_branch),
+    .jumpc      (ex_mem_is_jump),
+    .jumpr      (ex_mem_is_jumpr),
+    .oe         (ex_mem_oe),
+    .sig        (ex_mem_sig),
+    .jump_addr  (jump_addr),
+    .jump_valid (jump_valid)
 );
 
 // PC redirect logic
@@ -586,17 +566,17 @@ wire [7:0]  stack_ptr_in;
 wire        stack_ptr_we;
 
 Stack stack (
-    .clk    (clk),
-    .reset  (reset),
-    .d      (ex_mem_breg_data),
-    .q      (stack_q),
-    .push   (stack_push),
-    .pop    (stack_pop),
-    .clear  (1'b0),
-    .hold   (backend_pipeline_stall),
-    .ptr_out(stack_ptr_out),
-    .ptr_in (stack_ptr_in),
-    .ptr_we (stack_ptr_we)
+    .clk     (clk),
+    .reset   (reset),
+    .d       (ex_mem_breg_data),
+    .q       (stack_q),
+    .push    (stack_push),
+    .pop     (stack_pop),
+    .clear   (1'b0),
+    .hold    (backend_pipeline_stall),
+    .ptr_out (stack_ptr_out),
+    .ptr_in  (stack_ptr_in),
+    .ptr_we  (stack_ptr_we)
 );
 
 // CPU-internal I/O: stack pointer write via store instruction
@@ -658,18 +638,15 @@ begin
     if (reset || flush_id_ex)
     begin
         id_ex_pc <= 32'd0;
-        id_ex_instr <= 32'd0;
         id_ex_valid <= 1'b0;
         id_ex_dreg <= 4'd0;
         id_ex_areg <= 4'd0;
         id_ex_breg <= 4'd0;
-        id_ex_instr_op <= 4'd0;
         id_ex_alu_op <= 4'd0;
         id_ex_branch_op <= 3'd0;
         id_ex_const_alu <= 32'd0;
         id_ex_const27 <= 27'd0;
         id_ex_const16 <= 32'd0;
-        id_ex_he <= 1'b0;
         id_ex_oe <= 1'b0;
         id_ex_sig <= 1'b0;
         id_ex_alu_use_const <= 1'b0;
@@ -690,20 +667,17 @@ begin
     end else if (!pipeline_stall)
     begin
         id_ex_pc <= if_id_pc;
-        id_ex_instr <= if_id_instr;
         id_ex_valid <= if_id_valid;
         // NOTE: Register data comes from regbank with 1-cycle latency
         // No need to pipeline it here
         id_ex_dreg <= id_dreg;
         id_ex_areg <= id_areg;
         id_ex_breg <= id_breg;
-        id_ex_instr_op <= id_instr_op;
         id_ex_alu_op <= id_alu_op;
         id_ex_branch_op <= id_branch_op;
         id_ex_const_alu <= id_alu_use_constu ? id_const_aluu : id_const_alu;
         id_ex_const27 <= id_const27;
         id_ex_const16 <= id_const16;
-        id_ex_he <= id_he;
         id_ex_oe <= id_oe;
         id_ex_sig <= id_sig;
         id_ex_alu_use_const <= id_alu_use_const;
@@ -829,8 +803,8 @@ MemoryStage #(
 // which hasn't been updated yet on the same clock edge)
 wire [31:0] ex_result = id_ex_get_pc    ? id_ex_pc :
                         id_ex_get_int_id ? {24'd0, int_id} :
-                        (id_ex_arithm && malu_done) ? malu_result : 
-                        id_ex_arithm   ? malu_result_reg : 
+                        (id_ex_arithm && malu_done) ? malu_result :
+                        id_ex_arithm   ? malu_result_reg :
                         ex_alu_result;
 
 always @(posedge clk)
@@ -839,12 +813,10 @@ begin
     begin
         // Reset or flush on branch/jump taken in MEM stage
         ex_mem_pc <= 32'd0;
-        ex_mem_instr <= 32'd0;
         ex_mem_valid <= 1'b0;
         ex_mem_alu_result <= 32'd0;
         ex_mem_breg_data <= 32'd0;
         ex_mem_dreg <= 4'd0;
-        ex_mem_instr_op <= 4'd0;
         ex_mem_mem_addr <= 32'd0;
         ex_mem_dreg_we <= 1'b0;
         ex_mem_mem_read <= 1'b0;
@@ -852,10 +824,7 @@ begin
         ex_mem_push <= 1'b0;
         ex_mem_pop <= 1'b0;
         ex_mem_halt <= 1'b0;
-        ex_mem_get_int_id <= 1'b0;
-        ex_mem_get_pc <= 1'b0;
         ex_mem_clear_cache <= 1'b0;
-        ex_mem_arithm <= 1'b0;
         // Branch control signals
         ex_mem_is_branch <= 1'b0;
         ex_mem_is_jump <= 1'b0;
@@ -869,12 +838,10 @@ begin
     end else if (!ex_pipeline_stall)
     begin
         ex_mem_pc <= id_ex_pc;
-        ex_mem_instr <= id_ex_instr;
         ex_mem_valid <= id_ex_valid;
-        ex_mem_alu_result <= ex_result;  // Use selected result
+        ex_mem_alu_result <= ex_result;
         ex_mem_breg_data <= ex_breg_forwarded;
         ex_mem_dreg <= id_ex_dreg;
-        ex_mem_instr_op <= id_ex_instr_op;
         ex_mem_mem_addr <= ex_mem_addr_calc;
         ex_mem_dreg_we <= id_ex_dreg_we;
         ex_mem_mem_read <= id_ex_mem_read;
@@ -882,10 +849,7 @@ begin
         ex_mem_push <= id_ex_push;
         ex_mem_pop <= id_ex_pop;
         ex_mem_halt <= id_ex_halt;
-        ex_mem_get_int_id <= id_ex_get_int_id;
-        ex_mem_get_pc <= id_ex_get_pc;
         ex_mem_clear_cache <= id_ex_clear_cache;
-        ex_mem_arithm <= id_ex_arithm;
         // Branch control signals for MEM-stage resolution
         ex_mem_is_branch <= id_ex_is_branch;
         ex_mem_is_jump <= id_ex_is_jump;
@@ -895,7 +859,7 @@ begin
         ex_mem_oe <= id_ex_oe;
         ex_mem_const16 <= id_ex_const16;
         ex_mem_const27 <= id_ex_const27;
-        ex_mem_areg_data <= ex_alu_a;  // Forwarded A value
+        ex_mem_areg_data <= ex_alu_a;
     end else if (cache_line_hazard && !backend_pipeline_stall)
     begin
         // Cache line hazard: MEM should advance, insert bubble into MEM stage
@@ -921,28 +885,22 @@ always @(posedge clk)
 begin
     if (reset)
     begin
-        mem_wb_pc <= 32'd0;
-        mem_wb_instr <= 32'd0;
         mem_wb_valid <= 1'b0;
         mem_wb_alu_result <= 32'd0;
         mem_wb_mem_data <= 32'd0;
         mem_wb_stack_data <= 32'd0;
         mem_wb_dreg <= 4'd0;
-        mem_wb_instr_op <= 4'd0;
         mem_wb_dreg_we <= 1'b0;
         mem_wb_mem_read <= 1'b0;
         mem_wb_pop <= 1'b0;
         mem_wb_halt <= 1'b0;
     end else if (!backend_pipeline_stall)
     begin
-        mem_wb_pc <= ex_mem_pc;
-        mem_wb_instr <= ex_mem_instr;
         mem_wb_valid <= ex_mem_valid;
         mem_wb_alu_result <= ex_mem_alu_result;
         mem_wb_mem_data <= mem_read_data;
         mem_wb_stack_data <= stack_q;
         mem_wb_dreg <= ex_mem_dreg;
-        mem_wb_instr_op <= ex_mem_instr_op;
         mem_wb_dreg_we <= ex_mem_dreg_we;
         mem_wb_mem_read <= ex_mem_mem_read;
         mem_wb_pop <= ex_mem_pop;
@@ -956,8 +914,8 @@ end
 // For pop: stack_q arrives in WB cycle
 // For memory read: use mem_wb_mem_data (captured in MEM stage)
 // Otherwise: use ALU result
-assign wb_data = mem_wb_pop ? stack_q : 
-                 mem_wb_mem_read ? mem_wb_mem_data : 
+assign wb_data = mem_wb_pop ? stack_q :
+                 mem_wb_mem_read ? mem_wb_mem_data :
                  mem_wb_alu_result;
 
 assign wb_dreg = mem_wb_dreg;
