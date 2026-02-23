@@ -115,19 +115,8 @@ UARTrx uart_rx_controller (
     .data   (uart_rx_q)
 );
 
-`ifndef CYCLONEIV
-    // On Cyclone IV, UART reset detection is done in the top module using DTR line
-    // Reset detection
-    UARTresetDetector uart_reset_detector (
-    .clk            (clk),
-    .reset          (reset),
-    .rx_valid       (uart_irq),
-    .rx_data        (uart_rx_q),
-    .magic_detected (uart_reset)
-    );
-`else
-    assign uart_reset = 1'b0;
-`endif
+// UART reset is not used — reset is handled via DTR in the top module
+assign uart_reset = 1'b0;
 
 // OS timer 1
 reg OST1_trigger = 1'b0;

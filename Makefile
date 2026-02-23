@@ -19,7 +19,7 @@ B32CC_OUTPUT = $(B32CC_DIR)/output/b32cc
 .PHONY: lint format format-check mypy ruff-lint ruff-format ruff-format-check
 .PHONY: asmpy-install asmpy-uninstall test-asmpy asmpy-clean
 .PHONY: docs-serve docs-deploy
-.PHONY: sim-cpu sim-gpu sim-sdram sim-bootloader
+.PHONY: sim-cpu sim-sdram sim-bootloader
 .PHONY: test-cpu test-cpu-single debug-cpu quartus-timing
 .PHONY: compile-asm compile-bootloader compile-c-baremetal compile-bdos
 .PHONY: run-uart run-asm-uart run-c-baremetal-uart run-bdos
@@ -164,10 +164,6 @@ SIMULATION_OUTPUT_DIR = Hardware/FPGA/Verilog/Simulation/Output
 sim-cpu:
 	@mkdir -p $(SIMULATION_OUTPUT_DIR)
 	./Scripts/Simulation/simulate_cpu.sh --add-ram --add-flash
-
-sim-gpu:
-	@mkdir -p $(SIMULATION_OUTPUT_DIR)
-	./Scripts/Simulation/simulate_gpu.sh
 
 sim-sdram:
 	@mkdir -p $(SIMULATION_OUTPUT_DIR)
@@ -359,7 +355,6 @@ help:
 	@echo ""
 	@echo "--- Simulation ---"
 	@echo "  sim-cpu             - Run CPU simulation"
-	@echo "  sim-gpu             - Run GPU simulation"
 	@echo "  sim-sdram           - Run SDRAM controller simulation"
 	@echo "  sim-bootloader      - Compile and simulate bootloader"
 	@echo ""

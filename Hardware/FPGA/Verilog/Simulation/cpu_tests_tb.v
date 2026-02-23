@@ -34,23 +34,17 @@
 `include "Hardware/FPGA/Verilog/Modules/IO/SimpleSPI.v"
 `include "Hardware/FPGA/Verilog/Modules/IO/MicrosCounter.v"
 `include "Hardware/FPGA/Verilog/Modules/IO/OStimer.v"
-`include "Hardware/FPGA/Verilog/Modules/IO/UARTresetDetector.v"
 
-`include "Hardware/FPGA/Verilog/Modules/GPU/FSX.v"
-`include "Hardware/FPGA/Verilog/Modules/GPU/BGWrenderer.v"
-`include "Hardware/FPGA/Verilog/Modules/GPU/PixelEngine.v"
-`include "Hardware/FPGA/Verilog/Modules/GPU/TimingGenerator.v"
-`include "Hardware/FPGA/Verilog/Modules/GPU/HDMI/RGB8toRGB24.v"
+
 
 module cpu_tb ();
 
 reg clk = 1'b0;
 reg reset = 1'b0;
-wire uart_reset; // Reset signal from UARTresetDetector
+wire uart_reset; // Always 1'b0, reset is handled via DTR in synthesis
 
 // Inaccurate but good enough for simulation
 wire clkPixel = clk;
-wire clkTMDShalf = clk;
 
 // SDRAM clock phase shift configuration (in degrees)
 parameter SDRAM_CLK_PHASE = 270;
@@ -183,6 +177,7 @@ wire [31:0] vram32_cpu_q;
 // GPU will not write to VRAM
 assign vram32_gpu_we = 1'b0;
 assign vram32_gpu_d  = 32'd0;
+assign vram32_gpu_addr = 11'd0;
 
 VRAM #(
     .WIDTH(32),
@@ -220,6 +215,7 @@ wire [7:0]  vram8_cpu_q;
 // GPU will not write to VRAM
 assign vram8_gpu_we = 1'b0;
 assign vram8_gpu_d  = 8'd0;
+assign vram8_gpu_addr = 14'd0;
 
 VRAM #(
     .WIDTH(8),
@@ -258,6 +254,7 @@ wire [7:0]  vramPX_cpu_q;
 // GPU will not write to VRAM
 assign vramPX_gpu_we = 1'b0;
 assign vramPX_gpu_d  = 8'd0;
+assign vramPX_gpu_addr = 17'd0;
 
 VRAM #(
     .WIDTH(8),
@@ -412,41 +409,8 @@ CacheController cache_controller (
     .sdc_q(sdc_q)
 );
 
-//-----------------------FSX-------------------------
-wire frameDrawn;
-FSX fsx (
-    // Clocks and reset
-    .clkPixel(clkPixel),
-    .clkTMDShalf(clkTMDShalf),
-
-    // HDMI
-    .TMDS_clk_p(HDMI_CLK_P),
-    .TMDS_clk_n(HDMI_CLK_N),
-    .TMDS_d0_p (HDMI_D0_P),
-    .TMDS_d0_n (HDMI_D0_N),
-    .TMDS_d1_p (HDMI_D1_P),
-    .TMDS_d1_n (HDMI_D1_N),
-    .TMDS_d2_p (HDMI_D2_P),
-    .TMDS_d2_n (HDMI_D2_N),
-
-    // VRAM32
-    .vram32_addr(vram32_gpu_addr),
-    .vram32_q   (vram32_gpu_q),
-
-    // VRAM8
-    .vram8_addr(vram8_gpu_addr),
-    .vram8_q   (vram8_gpu_q),
-
-    // VRAMPX
-    .vramPX_addr(vramPX_gpu_addr),
-    .vramPX_q   (vramPX_gpu_q),
-    
-    // Parameters
-    .halfRes(1'b0),
-
-    // Interrupt signal
-    .frameDrawn(frameDrawn)
-);
+//-----------------------GPU (not simulated)-------------------------
+wire frameDrawn = 1'b0;
 
 //-----------------------SPI Flash (simulation models)-------------------------
 // SPI0 Flash 1

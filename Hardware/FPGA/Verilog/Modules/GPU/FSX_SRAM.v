@@ -1,8 +1,6 @@
 /*
  * FSX_SRAM
  * Frame Synthesizer using external SRAM for pixel framebuffer
- * 
- * Currently called V2 to keep supporting the non-SRAM version on the Cyclone10 for now.
  */
 module FSX_SRAM (
     // Clocks
