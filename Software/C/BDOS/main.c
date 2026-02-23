@@ -10,6 +10,10 @@
 #include "BDOS/fs.c"
 #include "BDOS/eth.c"
 #include "BDOS/syscall.c"
+#include "BDOS/slot.c"
+#include "BDOS/shell_path.c"
+#include "BDOS/shell_util.c"
+#include "BDOS/shell_format.c"
 #include "BDOS/shell_cmds.c"
 #include "BDOS/shell.c"
 
