@@ -34,24 +34,23 @@ module SDRAMcontroller (
     inout       [31:0]  SDRAM_DQ
 );
 
-//==============Refresh Settings=================
+// ---- Refresh settings ----
 //   100MHz -> 100.000.000 cycles per sec
 //   100.000.000*0,064 -> 6.400.000 cycles per 64ms
 //   6.400.000 / 8192 auto refreshes -> refresh after ~782 cycles
 localparam cycles_per_refresh = 782;
-// Note: after adjusting make sure that cycles_per_refresh fits in the refresh_counter width
 reg [9:0] refresh_counter = 10'd0;
 
-//==============Init Settings=================
+// ---- Init settings ----
 `ifndef __ICARUS__
 localparam sdram_startup_cycles = 20000;  // 200us @ 100MHz -> 20.000 cycles
 `else
 localparam sdram_startup_cycles = 10;  // Lowered for simulation
 `endif
 
-reg [15:0] wait_counter = 16'd0;     // Cycle counter for various states
+reg [15:0] wait_counter = 16'd0;
 
-//==============Mode Register=================
+// ---- Mode register ----
 // Mode register value
 // {3'b reserved, 1'b write mode, 1'b reserved, 1'b test mode,
 //  3'b CAS latency, 1'b addressing mode, 3'b burst length}
@@ -61,7 +60,7 @@ reg [15:0] wait_counter = 16'd0;     // Cycle counter for various states
 // We need: CAS latency 2, sequential, burst length 8, write mode 0
 localparam MODE_REG = {3'b0, 1'b0, 1'b0, 1'b0, 3'b010, 1'b0, 3'b011};
 
-//==============Ports=================
+// ---- DQ port ----
 // DQ Port
 // Write
 reg [31:0] SDRAM_DATA = 32'd0;
@@ -76,7 +75,7 @@ reg [3:0] SDRAM_CMD = CMD_NOP;
 assign {SDRAM_CSn, SDRAM_RASn, SDRAM_CASn, SDRAM_WEn} = SDRAM_CMD;
 assign SDRAM_CKE = 1'b1; // No reason to disable clock enable
 
-//==============SDRAM Commands=================
+// ---- SDRAM commands ----
 localparam
     CMD_UNSELECTED          = 4'b1000,
     CMD_NOP                 = 4'b0111,
@@ -87,33 +86,24 @@ localparam
     CMD_AUTO_REFRESH        = 4'b0001,
     CMD_MODE_REGISTER_SET   = 4'b0000;
 
-//==============State Machine=================
+// ---- State encoding ----
 localparam
-    STATE_INIT_WAIT = 8'd0,
-    STATE_INIT_SETUP = 8'd1,
-    STATE_IDLE = 8'd2,
-    STATE_IDLE_IN_60NS = 8'd3,
-    STATE_OPEN_IN_20NS = 8'd4,
-    STATE_WRITE_BURST = 8'd5,
-    STATE_READ_BURST = 8'd6;
+    STATE_INIT_WAIT     = 3'd0,
+    STATE_INIT_SETUP    = 3'd1,
+    STATE_IDLE          = 3'd2,
+    STATE_IDLE_IN_60NS  = 3'd3,
+    STATE_OPEN_IN_20NS  = 3'd4,
+    STATE_WRITE_BURST   = 3'd5,
+    STATE_READ_BURST    = 3'd6;
 
-reg [7:0] state = STATE_INIT_WAIT;
+reg [2:0] state = STATE_INIT_WAIT;
 
-//==============Request Storage=================
+// ---- Request storage ----
 reg cpu_start_prev = 1'b0;
 reg cpu_new_request = 1'b0;
 reg [20:0] cpu_addr_stored = 21'd0;
 reg [255:0] cpu_data_stored = 256'd0;
 reg cpu_we_stored = 1'b0;
-
-
-
-// wire [12:0] addr_row;
-// wire [8:0]  addr_col;
-// wire [1:0]  addr_bank;
-// assign addr_col  = {cpu_addr[5:0], 3'd0}; // Make sure we start at the beginning of a burst
-// assign addr_row  = cpu_addr[18:6];
-// assign addr_bank = cpu_addr[20:19];
 
 always @(posedge clk)
 begin

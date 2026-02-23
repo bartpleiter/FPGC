@@ -4,16 +4,12 @@
  * Optimized for simplicity, not speed, as high speed memory should be directly connected to CPU
  */
 module MemoryUnit (
-    //========================
-    // System interface
-    //========================
+    // ---- System interface ----
     input  wire         clk, // Assumed to be 100MHz
     input  wire         reset,
     output wire         uart_reset,
 
-    //========================
-    // CPU interface (50 MHz domain)
-    //========================
+    // ---- CPU interface (50 MHz domain) ----
     input  wire         start,
     input  wire [31:0]  addr, // Address in CPU words
     input  wire [31:0]  data,
@@ -21,9 +17,7 @@ module MemoryUnit (
     output reg  [31:0]  q = 32'd0,
     output reg          done = 1'b0,
 
-    //========================
-    // I/O signals
-    //========================
+    // ---- I/O signals ----
     // UART
     input wire          uart_rx,
     output wire         uart_tx,
@@ -87,9 +81,7 @@ module MemoryUnit (
     // TODO: GPIO
 );
 
-//========================
-// IO Devices
-//========================
+// ---- IO devices ----
 // UART TX
 reg uart_tx_start = 1'b0;
 wire uart_tx_done;
@@ -289,9 +281,7 @@ MicrosCounter microsCounter(
 .micros     (micros)
 );
 
-//========================
-// Memory Unit Logic
-//========================
+// ---- Address map ----
 // Address mappings (from memory map)
 localparam ADDR_UART_TX         = 32'h7000000; // UART tx
 localparam ADDR_UART_RX         = 32'h7000001; // UART rx
@@ -324,38 +314,38 @@ localparam ADDR_LED_USER        = 32'h700001B; // User LED control
 
 localparam ADDR_OOB             = 32'h700001C; // All addresses >= this are out of bounds and return a constant
 
-// State machine states
-localparam STATE_IDLE                   = 8'd0;
-localparam STATE_RETURN_ZERO            = 8'd1;
-localparam STATE_WAIT_UART_TX           = 8'd2;
-localparam STATE_WAIT_UART_RX           = 8'd3;
-localparam STATE_WAIT_SPI0_DATA         = 8'd4;
-localparam STATE_WAIT_SPI0_CS           = 8'd5;
-localparam STATE_WAIT_SPI1_DATA         = 8'd6;
-localparam STATE_WAIT_SPI1_CS           = 8'd7;
-localparam STATE_WAIT_SPI2_DATA         = 8'd8;
-localparam STATE_WAIT_SPI2_CS           = 8'd9;
-localparam STATE_WAIT_SPI2_NINT         = 8'd10;
-localparam STATE_WAIT_SPI3_DATA         = 8'd11;
-localparam STATE_WAIT_SPI3_CS           = 8'd12;
-localparam STATE_WAIT_SPI3_NINT         = 8'd13;
-localparam STATE_WAIT_SPI4_DATA         = 8'd14;
-localparam STATE_WAIT_SPI4_CS           = 8'd15;
-localparam STATE_WAIT_SPI4_NINT         = 8'd16;
-localparam STATE_WAIT_SPI5_DATA         = 8'd17;
-localparam STATE_WAIT_SPI5_CS           = 8'd18;
-localparam STATE_WAIT_BOOT_MODE         = 8'd19;
-localparam STATE_WAIT_MICROS            = 8'd20;
+// ---- State encoding ----
+localparam STATE_IDLE                   = 5'd0;
+localparam STATE_RETURN_ZERO            = 5'd1;
+localparam STATE_WAIT_UART_TX           = 5'd2;
+localparam STATE_WAIT_UART_RX           = 5'd3;
+localparam STATE_WAIT_SPI0_DATA         = 5'd4;
+localparam STATE_WAIT_SPI0_CS           = 5'd5;
+localparam STATE_WAIT_SPI1_DATA         = 5'd6;
+localparam STATE_WAIT_SPI1_CS           = 5'd7;
+localparam STATE_WAIT_SPI2_DATA         = 5'd8;
+localparam STATE_WAIT_SPI2_CS           = 5'd9;
+localparam STATE_WAIT_SPI2_NINT         = 5'd10;
+localparam STATE_WAIT_SPI3_DATA         = 5'd11;
+localparam STATE_WAIT_SPI3_CS           = 5'd12;
+localparam STATE_WAIT_SPI3_NINT         = 5'd13;
+localparam STATE_WAIT_SPI4_DATA         = 5'd14;
+localparam STATE_WAIT_SPI4_CS           = 5'd15;
+localparam STATE_WAIT_SPI4_NINT         = 5'd16;
+localparam STATE_WAIT_SPI5_DATA         = 5'd17;
+localparam STATE_WAIT_SPI5_CS           = 5'd18;
+localparam STATE_WAIT_BOOT_MODE         = 5'd19;
+localparam STATE_WAIT_MICROS            = 5'd20;
 
 
-reg [7:0] state = 8'd0;
+reg [4:0] state = 5'd0;
 reg wait_done = 1'b0;
 
 always @(posedge clk) begin
     if (reset)
     begin
         state <= STATE_IDLE;
-        q = 32'd0;
+        q <= 32'd0;
         done <= 1'b0;
         wait_done <= 1'b0;
 
@@ -434,64 +424,55 @@ always @(posedge clk) begin
             begin
                 if (start)
                 begin
-                    // UART TX
+                    // ---- UART ----
                     if (addr == ADDR_UART_TX)
                     begin
                         uart_tx_data <= data[7:0];
                         uart_tx_start <= 1'b1;
                         state <= STATE_WAIT_UART_TX;
                     end
-
-                    // UART RX
-                    if (addr == ADDR_UART_RX)
+                    else if (addr == ADDR_UART_RX)
                     begin
                         state <= STATE_WAIT_UART_RX;
                     end
 
-                    // Timer1
-                    if (addr == ADDR_TIMER1_VALUE)
+                    // ---- Timers ----
+                    else if (addr == ADDR_TIMER1_VALUE)
                     begin
                         OST1_value <= data;
                         OST1_set <= 1'b1;
                         state <= STATE_RETURN_ZERO;
                     end
-
-                    if (addr == ADDR_TIMER1_START)
+                    else if (addr == ADDR_TIMER1_START)
                     begin
                         OST1_trigger <= 1'b1;
                         state <= STATE_RETURN_ZERO;
                     end
-
-                    // Timer2
-                    if (addr == ADDR_TIMER2_VALUE)
+                    else if (addr == ADDR_TIMER2_VALUE)
                     begin
                         OST2_value <= data;
                         OST2_set <= 1'b1;
                         state <= STATE_RETURN_ZERO;
                     end
-
-                    if (addr == ADDR_TIMER2_START)
+                    else if (addr == ADDR_TIMER2_START)
                     begin
                         OST2_trigger <= 1'b1;
                         state <= STATE_RETURN_ZERO;
                     end
-
-                    // Timer3
-                    if (addr == ADDR_TIMER3_VALUE)
+                    else if (addr == ADDR_TIMER3_VALUE)
                     begin
                         OST3_value <= data;
                         OST3_set <= 1'b1;
                         state <= STATE_RETURN_ZERO;
                     end
-
-                    if (addr == ADDR_TIMER3_START)
+                    else if (addr == ADDR_TIMER3_START)
                     begin
                         OST3_trigger <= 1'b1;
                         state <= STATE_RETURN_ZERO;
                     end
 
-                    // SPI0
-                    if (addr == ADDR_SPI0_DATA)
+                    // ---- SPI0 (Flash 1) ----
+                    else if (addr == ADDR_SPI0_DATA)
                     begin
                         if (we)
                         begin
@@ -502,8 +483,7 @@ always @(posedge clk) begin
                         end
                         state <= STATE_WAIT_SPI0_DATA;
                     end
-
-                    if (addr == ADDR_SPI0_CS)
+                    else if (addr == ADDR_SPI0_CS)
                     begin
                         if (we)
                         begin
@@ -512,8 +492,8 @@ always @(posedge clk) begin
                         state <= STATE_WAIT_SPI0_CS;
                     end
 
-                    // SPI1
-                    if (addr == ADDR_SPI1_DATA)
+                    // ---- SPI1 (Flash 2) ----
+                    else if (addr == ADDR_SPI1_DATA)
                     begin
                         if (we)
                         begin
@@ -524,8 +504,7 @@ always @(posedge clk) begin
                         end
                         state <= STATE_WAIT_SPI1_DATA;
                     end
-
-                    if (addr == ADDR_SPI1_CS)
+                    else if (addr == ADDR_SPI1_CS)
                     begin
                         if (we)
                         begin
@@ -534,8 +513,8 @@ always @(posedge clk) begin
                         state <= STATE_WAIT_SPI1_CS;
                     end
 
-                    // SPI2
-                    if (addr == ADDR_SPI2_DATA)
+                    // ---- SPI2 (USB Host 1) ----
+                    else if (addr == ADDR_SPI2_DATA)
                     begin
                         if (we)
                         begin
@@ -546,8 +525,7 @@ always @(posedge clk) begin
                         end
                         state <= STATE_WAIT_SPI2_DATA;
                     end
-
-                    if (addr == ADDR_SPI2_CS)
+                    else if (addr == ADDR_SPI2_CS)
                     begin
                         if (we)
                         begin
@@ -555,14 +533,13 @@ always @(posedge clk) begin
                         end
                         state <= STATE_WAIT_SPI2_CS;
                     end
-
-                    if (addr == ADDR_SPI2_NINT)
+                    else if (addr == ADDR_SPI2_NINT)
                     begin
                         state <= STATE_WAIT_SPI2_NINT;
                     end
 
-                    // SPI3
-                    if (addr == ADDR_SPI3_DATA)
+                    // ---- SPI3 (USB Host 2) ----
+                    else if (addr == ADDR_SPI3_DATA)
                     begin
                         if (we)
                         begin
@@ -573,8 +550,7 @@ always @(posedge clk) begin
                         end
                         state <= STATE_WAIT_SPI3_DATA;
                     end
-
-                    if (addr == ADDR_SPI3_CS)
+                    else if (addr == ADDR_SPI3_CS)
                     begin
                         if (we)
                         begin
@@ -582,14 +558,13 @@ always @(posedge clk) begin
                         end
                         state <= STATE_WAIT_SPI3_CS;
                     end
-
-                    if (addr == ADDR_SPI3_NINT)
+                    else if (addr == ADDR_SPI3_NINT)
                     begin
                         state <= STATE_WAIT_SPI3_NINT;
                     end
 
-                    // SPI4
-                    if (addr == ADDR_SPI4_DATA)
+                    // ---- SPI4 (Ethernet) ----
+                    else if (addr == ADDR_SPI4_DATA)
                     begin
                         if (we)
                         begin
@@ -600,8 +575,7 @@ always @(posedge clk) begin
                         end
                         state <= STATE_WAIT_SPI4_DATA;
                     end
-
-                    if (addr == ADDR_SPI4_CS)
+                    else if (addr == ADDR_SPI4_CS)
                     begin
                         if (we)
                         begin
@@ -609,14 +583,13 @@ always @(posedge clk) begin
                         end
                         state <= STATE_WAIT_SPI4_CS;
                     end
-
-                    if (addr == ADDR_SPI4_NINT)
+                    else if (addr == ADDR_SPI4_NINT)
                     begin
                         state <= STATE_WAIT_SPI4_NINT;
                     end
 
-                    // SPI5
-                    if (addr == ADDR_SPI5_DATA)
+                    // ---- SPI5 (SD Card) ----
+                    else if (addr == ADDR_SPI5_DATA)
                     begin
                         if (we)
                         begin
@@ -627,8 +600,7 @@ always @(posedge clk) begin
                         end
                         state <= STATE_WAIT_SPI5_DATA;
                     end
-
-                    if (addr == ADDR_SPI5_CS)
+                    else if (addr == ADDR_SPI5_CS)
                     begin
                         if (we)
                         begin
@@ -637,33 +609,28 @@ always @(posedge clk) begin
                         state <= STATE_WAIT_SPI5_CS;
                     end
 
-                    // GPIO
-                    if (addr == ADDR_GPIO_MODE)
+                    // ---- GPIO ----
+                    else if (addr == ADDR_GPIO_MODE)
+                    begin
+                        // TODO: Implement
+                        state <= STATE_RETURN_ZERO;
+                    end
+                    else if (addr == ADDR_GPIO_STATE)
                     begin
                         // TODO: Implement
                         state <= STATE_RETURN_ZERO;
                     end
 
-                    if (addr == ADDR_GPIO_STATE)
-                    begin
-                        // TODO: Implement
-                        state <= STATE_RETURN_ZERO;
-                    end
-
-                    // Boot mode
-                    if (addr == ADDR_BOOT_MODE)
+                    // ---- Misc ----
+                    else if (addr == ADDR_BOOT_MODE)
                     begin
                         state <= STATE_WAIT_BOOT_MODE;
                     end
-
-                    // Micros
-                    if (addr == ADDR_MICROS)
+                    else if (addr == ADDR_MICROS)
                     begin
                         state <= STATE_WAIT_MICROS;
                     end
-
-                    // User LED
-                    if (addr == ADDR_LED_USER)
+                    else if (addr == ADDR_LED_USER)
                     begin
                         if (we)
                         begin
@@ -671,10 +638,9 @@ always @(posedge clk) begin
                         end
                         state <= STATE_RETURN_ZERO;
                     end
-
-                    if (addr >= ADDR_OOB)
+                    else
                     begin
-                        // Out of range
+                        // Out of range or unhandled address
                         state <= STATE_RETURN_ZERO;
                     end
                 end
