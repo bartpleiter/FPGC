@@ -98,9 +98,13 @@ module B32P3 #(
     input wire [NUM_INTERRUPTS-1:0] interrupts
 );
 
+// CPU-internal I/O register addresses
+localparam CPU_IO_PC_BACKUP    = 32'h7C00000;  // Read/write interrupt return PC
+localparam CPU_IO_HW_STACK_PTR = 32'h7C00001;  // Read/write hardware stack pointer
+
 // ---- INTERRUPT CONTROLLER ----
 // Interrupt enable/disable flag (disabled during interrupt handling)
-reg int_disabled = 1'b0;
+wire int_disabled;
 
 // Interrupt controller signals
 wire int_cpu;           // Interrupt request from controller
@@ -125,7 +129,7 @@ wire interrupt_valid = int_cpu && !int_disabled &&
                        (ex_mem_valid && jump_valid);
 
 // PC backup for return from interrupt
-reg [31:0] pc_backup = 32'd0;
+wire [31:0] pc_backup;
 
 // RETI signal from EX stage (return from interrupt)
 // IMPORTANT: RETI should NOT execute if pc_redirect is active, because the branch
@@ -162,102 +166,60 @@ assign stall_id = pipeline_stall;
 wire        pc_redirect;
 wire [31:0] pc_redirect_target;
 
-// ---- PROGRAM COUNTER ----
-reg [31:0] pc = ROM_ADDRESS;
+// ---- INSTRUCTION FETCH (IF) STAGE ----
+wire [31:0] if_id_pc;
+wire [31:0] if_id_instr;
+wire        if_id_valid;
+wire [31:0] if_instr;
 
-// Delayed PC to match instruction fetch latency
-// ROM and cache have 1-cycle latency, so we need to track the PC
-// that corresponds to the instruction data arriving this cycle
-reg [31:0] pc_delayed = ROM_ADDRESS;
-
-// Track when we've just redirected and need to discard the next ROM output
-// When pc_redirect happens, the ROM was already fetching the old PC's instruction,
-// so we need to wait one more cycle before the correct instruction arrives
-reg redirect_pending = 1'b0;
-
-always @(posedge clk)
-begin
-    if (reset)
-    begin
-        pc <= ROM_ADDRESS;
-        pc_delayed <= ROM_ADDRESS;
-        redirect_pending <= 1'b0;
-        int_disabled <= 1'b0;
-        pc_backup <= 32'd0;
-    end else if (interrupt_valid && !pipeline_stall)
-    begin
-        // Interrupt: save PC and jump to interrupt handler
-        // Interrupt should only be taken when not stalled
-        int_disabled <= 1'b1;
-        pc_backup <= ex_mem_pc;  // Save PC of instruction in MEM stage
-        $display("Interrupt taken, jumping to address %h, saving PC %h", INTERRUPT_JUMP_ADDR, ex_mem_pc);
-        pc <= INTERRUPT_JUMP_ADDR;
-        redirect_pending <= 1'b1;
-    end else if (reti_valid && !pipeline_stall)
-    begin
-        // Return from interrupt: restore PC and re-enable interrupts
-        // RETI should only complete when not stalled
-        int_disabled <= 1'b0;
-        pc <= pc_backup;
-        redirect_pending <= 1'b1;
-        $display("%0t RETI executed, restoring PC to %h, id_ex_pc=%h, pc_redirect=%b", $time, pc_backup, id_ex_pc, pc_redirect);
-    end else if (pc_redirect)
-    begin
-        // Jump/branch redirect, this takes priority over stalls
-        // When a jump executes, we MUST redirect the PC even if there's a cache stall
-        // The cache stall was for a different (now stale) instruction
-        pc <= pc_redirect_target;
-        // Don't set pc_delayed yet, the memory is still outputting the old instruction
-        redirect_pending <= 1'b1;
-    end else if (!pipeline_stall)
-    begin
-        if (redirect_pending)
-        begin
-            // First cycle after redirect: update pc_delayed, check if we can proceed
-            // The cache was queried with pc (the new target) in the previous cycle,
-            // so on this cycle the cache output corresponds to pc, not pc_delayed.
-            // Use l1i_hit_redirect which checks using pc instead of pc_delayed.
-            pc_delayed <= pc;
-            
-            if (pc >= ROM_ADDRESS || l1i_hit_redirect)
-            begin
-                // ROM access or cache hit: proceed normally
-                pc <= pc + 32'd1;
-                redirect_pending <= 1'b0;
-            end else
-            begin
-                // SDRAM access with cache miss: stay at current PC, wait for cache
-                // Keep redirect_pending HIGH to continue flushing the pipeline
-                redirect_pending <= 1'b1;
-            end
-        end else if (cache_stall_if)
-        begin
-            // Cache miss during normal operation, hold PC and wait
-            // pc_delayed is already correct, just wait for cache fill
-            // Don't advance pc, don't update pc_delayed
-        end else
-        begin
-            pc_delayed <= pc;  // Save current PC before incrementing
-            pc <= pc + 32'd1;
-        end
-    end
-    // On stall: hold current PC
-
-    // CPU-internal I/O: write pc_backup via store instruction
-    // This is separate from the PC management if-else chain above.
-    // Safe because this only executes during interrupt handler (int_disabled=1),
-    // so it never conflicts with the interrupt branch that also writes pc_backup.
-    if (ex_mem_valid && ex_mem_mem_write &&
-        (ex_mem_mem_addr == CPU_IO_PC_BACKUP) && !backend_pipeline_stall)
-        begin
-        pc_backup <= ex_mem_breg_data;
-    end
-end
-
-// ---- IF/ID PIPELINE REGISTER ----
-reg [31:0] if_id_pc = 32'd0;
-reg [31:0] if_id_instr = 32'd0;
-reg        if_id_valid = 1'b0;
+InstructionFetch #(
+    .ROM_ADDRESS         (ROM_ADDRESS),
+    .INTERRUPT_JUMP_ADDR (INTERRUPT_JUMP_ADDR),
+    .CPU_IO_PC_BACKUP    (CPU_IO_PC_BACKUP)
+) instr_fetch (
+    .clk                        (clk),
+    .reset                      (reset),
+    // Pipeline control
+    .pipeline_stall             (pipeline_stall),
+    .flush_if_id                (flush_if_id),
+    .backend_pipeline_stall     (backend_pipeline_stall),
+    // PC redirect
+    .pc_redirect                (pc_redirect),
+    .pc_redirect_target         (pc_redirect_target),
+    // Interrupt/RETI
+    .interrupt_valid            (interrupt_valid),
+    .reti_valid                 (reti_valid),
+    .ex_mem_pc                  (ex_mem_pc),
+    // CPU I/O: pc_backup write
+    .ex_mem_valid               (ex_mem_valid),
+    .ex_mem_mem_write           (ex_mem_mem_write),
+    .ex_mem_mem_addr            (ex_mem_mem_addr),
+    .ex_mem_breg_data           (ex_mem_breg_data),
+    // ROM interface
+    .rom_fe_q                   (rom_fe_q),
+    .rom_fe_addr                (rom_fe_addr),
+    .rom_fe_oe                  (rom_fe_oe),
+    .rom_fe_hold                (rom_fe_hold),
+    // L1I cache pipeline port
+    .l1i_pipe_q                 (l1i_pipe_q),
+    .l1i_pipe_addr              (l1i_pipe_addr),
+    // L1I cache controller
+    .l1i_cache_controller_done  (l1i_cache_controller_done),
+    .l1i_cache_controller_result(l1i_cache_controller_result),
+    .l1i_cache_controller_addr  (l1i_cache_controller_addr),
+    .l1i_cache_controller_start (l1i_cache_controller_start),
+    .l1i_cache_controller_flush (l1i_cache_controller_flush),
+    // Outputs
+    .int_disabled               (int_disabled),
+    .pc_backup                  (pc_backup),
+    .cache_stall_if             (cache_stall_if),
+    .if_id_pc                   (if_id_pc),
+    .if_id_instr                (if_id_instr),
+    .if_id_valid                (if_id_valid),
+    .if_instr                   (if_instr),
+    // Debug
+    .id_ex_pc                   (id_ex_pc)
+);
 
 // ---- ID/EX PIPELINE REGISTER ----
 reg [31:0] id_ex_pc = 32'd0;
@@ -517,6 +479,7 @@ wire        malu_done;
 // Stall pipeline while multi-cycle ALU is in progress
 assign multicycle_stall = id_ex_valid && id_ex_arithm && !malu_request_finished;
 
+
 MultiCycleALU multi_cycle_alu (
     .clk        (clk),
     .reset      (reset),
@@ -689,83 +652,6 @@ PipelineController pipeline_controller (
     .cache_line_hazard      (cache_line_hazard)
 );
 
-// ---- INSTRUCTION FETCH (IF) STAGE ----
-
-// ROM access
-wire if_use_rom = (pc >= ROM_ADDRESS);
-wire [9:0] if_rom_addr = pc - ROM_ADDRESS;
-
-assign rom_fe_addr = if_rom_addr;
-assign rom_fe_oe = if_use_rom && !pipeline_stall;
-assign rom_fe_hold = pipeline_stall;
-
-// L1I cache access
-wire if_use_cache = !if_use_rom;
-
-// Use pc_delayed when stalled to keep reading the same cache line
-// This ensures the cache output matches the address we're checking
-assign l1i_pipe_addr = pipeline_stall ? pc_delayed[9:3] : pc[9:3];
-
-// L1I cache hit detection
-// Use pc_delayed for tag/offset because the cache output corresponds to the previous cycle's address
-wire [13:0] l1i_tag = pc_delayed[23:10];
-wire [2:0]  l1i_offset = pc_delayed[2:0];
-wire l1i_cache_valid = l1i_pipe_q[0];
-wire [13:0] l1i_cache_tag = l1i_pipe_q[14:1];
-wire if_use_cache_delayed = (pc_delayed < ROM_ADDRESS);
-wire l1i_hit = if_use_cache_delayed && l1i_cache_valid && (l1i_tag == l1i_cache_tag);
-wire [31:0] l1i_cache_data = l1i_pipe_q[32 * l1i_offset + 15 +: 32];
-
-// L1I cache hit detection for redirect target (uses pc instead of pc_delayed)
-// During redirect_pending, the cache was read with pc[9:3] in the previous cycle,
-// so the cache output corresponds to pc, not pc_delayed. We need to check using pc.
-wire [13:0] l1i_tag_redirect = pc[23:10];
-wire [2:0]  l1i_offset_redirect = pc[2:0];
-wire if_use_cache_redirect = (pc < ROM_ADDRESS);
-wire l1i_hit_redirect = if_use_cache_redirect && l1i_cache_valid && (l1i_tag_redirect == l1i_cache_tag);
-
-// L1I cache miss handling
-// Use if_use_cache_delayed to check if the PREVIOUS instruction (pc_delayed) needs the cache
-// We stall when we're trying to execute from SDRAM and the cache doesn't have the data.
-assign cache_stall_if = if_use_cache_delayed && !l1i_hit;
-
-// Cache controller interface for instruction fetch misses
-// Use pc_delayed since that's the address we're trying to fetch
-assign l1i_cache_controller_addr = pc_delayed;
-assign l1i_cache_controller_start = cache_stall_if && !l1i_cache_controller_done;
-assign l1i_cache_controller_flush = 1'b0; // Not used in this implementation
-
-// Instruction selection
-// On cache HIT, always use cache data (even if cache controller says done for a different address)
-// On cache MISS with controller done, use controller result (freshly fetched data)
-// This prevents stale controller results from being used after a branch to a cached location
-wire [31:0] if_instr = if_use_rom ? rom_fe_q : 
-                       (l1i_hit ? l1i_cache_data : 
-                        (l1i_cache_controller_done ? l1i_cache_controller_result : l1i_cache_data));
-
-// ---- IF/ID STAGE REGISTER UPDATE ----
-always @(posedge clk)
-begin
-    if (reset)
-    begin
-        if_id_pc <= 32'd0;
-        if_id_instr <= 32'd0;
-        if_id_valid <= 1'b0;
-    end else if (flush_if_id || redirect_pending)
-    begin
-        // Flush on control hazard OR when we're waiting for the redirect to complete
-        // When redirect_pending is set, the ROM output is stale (from the old PC)
-        if_id_valid <= 1'b0;
-        if_id_instr <= 32'd0;
-    end else if (!pipeline_stall)
-    begin
-        // Normal operation: capture instruction from IF stage
-        if_id_pc <= pc_delayed;  // Use delayed PC to match instruction data
-        if_id_instr <= if_instr;
-        if_id_valid <= 1'b1;
-    end
-end
-
 // ---- ID/EX STAGE REGISTER UPDATE ----
 always @(posedge clk)
 begin
@@ -915,8 +801,6 @@ wire mem_sel_vram8  = ex_mem_mem_addr >= 32'h7A00000 && ex_mem_mem_addr < 32'h7B
 wire mem_sel_vrampx = ex_mem_mem_addr >= 32'h7B00000 && ex_mem_mem_addr < 32'h7C00000;
 
 // CPU-internal I/O registers
-localparam CPU_IO_PC_BACKUP    = 32'h7C00000;  // Read/write interrupt return PC
-localparam CPU_IO_HW_STACK_PTR = 32'h7C00001;  // Read/write hardware stack pointer
 wire mem_sel_cpu_io = (ex_mem_mem_addr == CPU_IO_PC_BACKUP) ||
                       (ex_mem_mem_addr == CPU_IO_HW_STACK_PTR);
 wire [31:0] cpu_io_read_data = (ex_mem_mem_addr == CPU_IO_PC_BACKUP) ? pc_backup :
