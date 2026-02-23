@@ -4,146 +4,147 @@
  */
 module RGB2HDMI (
     // Clocks
-    input wire          clkTMDShalf,
-    input wire          clkRGB,
+    input wire          clk_tmds_half,
+    input wire          clk_rgb,
 
     // RGB
-    input wire  [7:0]   rRGB,
-    input wire  [7:0]   gRGB,
-    input wire  [7:0]   bRGB,
+    input wire  [7:0]   r_rgb,
+    input wire  [7:0]   g_rgb,
+    input wire  [7:0]   b_rgb,
     input wire          blk,
     input wire          hs,
     input wire          vs,
 
     // HDMI
-    output wire         TMDS_clk_p,
-    output wire         TMDS_clk_n,
-    output wire         TMDS_d0_p,
-    output wire         TMDS_d0_n,
-    output wire         TMDS_d1_p,
-    output wire         TMDS_d1_n,
-    output wire         TMDS_d2_p,
-    output wire         TMDS_d2_n
+    output wire         tmds_clk_p,
+    output wire         tmds_clk_n,
+    output wire         tmds_d0_p,
+    output wire         tmds_d0_n,
+    output wire         tmds_d1_p,
+    output wire         tmds_d1_n,
+    output wire         tmds_d2_p,
+    output wire         tmds_d2_n
 );
 
-wire [9:0] encodedRed;
-wire [9:0] encodedGreen;
-wire [9:0] encodedBlue;
+// ---- TMDS encoding ----
+wire [9:0] encoded_red;
+wire [9:0] encoded_green;
+wire [9:0] encoded_blue;
 
-TMDSenc TMDSr (
-    .clk (clkRGB),
-    .data(rRGB),
-    .c   (2'd0),
-    .blk (blk),
-    .q   (encodedRed)
+TMDSenc tmds_r (
+    .clk  (clk_rgb),
+    .data (r_rgb),
+    .c    (2'd0),
+    .blk  (blk),
+    .q    (encoded_red)
 );
 
-TMDSenc TMDSg (
-    .clk (clkRGB),
-    .data(gRGB),
-    .c   (2'd0),
-    .blk (blk),
-    .q   (encodedGreen)
+TMDSenc tmds_g (
+    .clk  (clk_rgb),
+    .data (g_rgb),
+    .c    (2'd0),
+    .blk  (blk),
+    .q    (encoded_green)
 );
 
-TMDSenc TMDSb (
-    .clk (clkRGB),
-    .data(bRGB),
-    .c   ({vs, hs}),
-    .blk (blk),
-    .q   (encodedBlue)
+TMDSenc tmds_b (
+    .clk  (clk_rgb),
+    .data (b_rgb),
+    .c    ({vs, hs}),
+    .blk  (blk),
+    .q    (encoded_blue)
 );
 
-// Serializer using DDR output primitives
-reg [9:0] latchedRed    = 10'd0;
-reg [9:0] latchedGreen  = 10'd0;
-reg [9:0] latchedBlue   = 10'd0;
+// ---- DDR serializer ----
+reg [9:0] latched_red    = 10'd0;
+reg [9:0] latched_green  = 10'd0;
+reg [9:0] latched_blue   = 10'd0;
 
-reg [9:0] shiftRed      = 10'd0;
-reg [9:0] shiftGreen    = 10'd0;
-reg [9:0] shiftBlue     = 10'd0;
+reg [9:0] shift_red      = 10'd0;
+reg [9:0] shift_green    = 10'd0;
+reg [9:0] shift_blue     = 10'd0;
 
-reg [9:0] shiftClk      = 10'b0000011111;
+reg [9:0] shift_clk      = 10'b0000011111;
 
-always @(posedge clkRGB)
+always @(posedge clk_rgb)
 begin
-    latchedRed   <= encodedRed;
-    latchedGreen <= encodedGreen;
-    latchedBlue  <= encodedBlue;
+    latched_red   <= encoded_red;
+    latched_green <= encoded_green;
+    latched_blue  <= encoded_blue;
 end
 
-always @(posedge clkTMDShalf)
+always @(posedge clk_tmds_half)
 begin
-    if (shiftClk == 10'b0000011111)
+    if (shift_clk == 10'b0000011111)
     begin
-        shiftRed   <= latchedRed;
-        shiftGreen <= latchedGreen;
-        shiftBlue  <= latchedBlue;
+        shift_red   <= latched_red;
+        shift_green <= latched_green;
+        shift_blue  <= latched_blue;
     end
     else
     begin
-        shiftRed   <= {2'b00, shiftRed[9:2]};
-        shiftGreen <= {2'b00, shiftGreen[9:2]};
-        shiftBlue  <= {2'b00, shiftBlue[9:2]};
+        shift_red   <= {2'b00, shift_red[9:2]};
+        shift_green <= {2'b00, shift_green[9:2]};
+        shift_blue  <= {2'b00, shift_blue[9:2]};
     end
-        shiftClk <= {shiftClk[1:0], shiftClk[9:2]};
+        shift_clk <= {shift_clk[1:0], shift_clk[9:2]};
 end
 
-// DDR each signal to double clock rate
-ddr ddrR(
-    .outclock(clkTMDShalf),
-    .datain_h(shiftRed[0]),
-    .datain_l(shiftRed[1]),
-    .dataout (TMDS_d2_p)
+// ---- DDR output ----
+ddr ddr_r (
+    .outclock (clk_tmds_half),
+    .datain_h (shift_red[0]),
+    .datain_l (shift_red[1]),
+    .dataout  (tmds_d2_p)
 );
 
-ddr ddrG(
-    .outclock(clkTMDShalf),
-    .datain_h(shiftGreen[0]),
-    .datain_l(shiftGreen[1]),
-    .dataout (TMDS_d1_p)
+ddr ddr_g (
+    .outclock (clk_tmds_half),
+    .datain_h (shift_green[0]),
+    .datain_l (shift_green[1]),
+    .dataout  (tmds_d1_p)
 );
 
-ddr ddrB(
-    .outclock(clkTMDShalf),
-    .datain_h(shiftBlue[0]),
-    .datain_l(shiftBlue[1]),
-    .dataout (TMDS_d0_p)
+ddr ddr_b (
+    .outclock (clk_tmds_half),
+    .datain_h (shift_blue[0]),
+    .datain_l (shift_blue[1]),
+    .dataout  (tmds_d0_p)
 );
 
-ddr ddrCLK(
-    .outclock(clkTMDShalf),
-    .datain_h(shiftClk[0]),
-    .datain_l(shiftClk[1]),
-    .dataout (TMDS_clk_p)
+ddr ddr_clk (
+    .outclock (clk_tmds_half),
+    .datain_h (shift_clk[0]),
+    .datain_l (shift_clk[1]),
+    .dataout  (tmds_clk_p)
 );
 
-ddr ddrRn(
-    .outclock(clkTMDShalf),
-    .datain_h(!shiftRed[0]),
-    .datain_l(!shiftRed[1]),
-    .dataout (TMDS_d2_n)
+ddr ddr_r_n (
+    .outclock (clk_tmds_half),
+    .datain_h (!shift_red[0]),
+    .datain_l (!shift_red[1]),
+    .dataout  (tmds_d2_n)
 );
 
-ddr ddrGn(
-    .outclock(clkTMDShalf),
-    .datain_h(!shiftGreen[0]),
-    .datain_l(!shiftGreen[1]),
-    .dataout (TMDS_d1_n)
+ddr ddr_g_n (
+    .outclock (clk_tmds_half),
+    .datain_h (!shift_green[0]),
+    .datain_l (!shift_green[1]),
+    .dataout  (tmds_d1_n)
 );
 
-ddr ddrBn(
-    .outclock(clkTMDShalf),
-    .datain_h(!shiftBlue[0]),
-    .datain_l(!shiftBlue[1]),
-    .dataout (TMDS_d0_n)
+ddr ddr_b_n (
+    .outclock (clk_tmds_half),
+    .datain_h (!shift_blue[0]),
+    .datain_l (!shift_blue[1]),
+    .dataout  (tmds_d0_n)
 );
 
-ddr ddrCLKn(
-    .outclock(clkTMDShalf),
-    .datain_h(!shiftClk[0]),
-    .datain_l(!shiftClk[1]),
-    .dataout (TMDS_clk_n)
+ddr ddr_clk_n (
+    .outclock (clk_tmds_half),
+    .datain_h (!shift_clk[0]),
+    .datain_l (!shift_clk[1]),
+    .dataout  (tmds_clk_n)
 );
 
 endmodule

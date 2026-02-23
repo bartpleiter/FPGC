@@ -599,18 +599,18 @@ CacheController cache_controller (
 wire frameDrawn;
 FSX_SRAM fsx (
     // Clocks
-    .clkPixel(clkGPU),
-    .clkTMDShalf(clkTMDShalf),
+    .clk_pixel(clkGPU),
+    .clk_tmds_half(clkTMDShalf),
 
     // HDMI
-    .TMDS_clk_p(HDMI_CLK_P),
-    .TMDS_clk_n(HDMI_CLK_N),
-    .TMDS_d0_p (HDMI_D0_P),
-    .TMDS_d0_n (HDMI_D0_N),
-    .TMDS_d1_p (HDMI_D1_P),
-    .TMDS_d1_n (HDMI_D1_N),
-    .TMDS_d2_p (HDMI_D2_P),
-    .TMDS_d2_n (HDMI_D2_N),
+    .tmds_clk_p(HDMI_CLK_P),
+    .tmds_clk_n(HDMI_CLK_N),
+    .tmds_d0_p (HDMI_D0_P),
+    .tmds_d0_n (HDMI_D0_N),
+    .tmds_d1_p (HDMI_D1_P),
+    .tmds_d1_n (HDMI_D1_N),
+    .tmds_d2_p (HDMI_D2_P),
+    .tmds_d2_n (HDMI_D2_N),
 
     // VRAM32
     .vram32_addr(vram32_gpu_addr),
@@ -632,10 +632,10 @@ FSX_SRAM fsx (
     .blank_out(fsx_blank),
     
     // Parameters
-    .halfRes(half_res),
+    .half_res(half_res),
 
     // Interrupt signal
-    .frameDrawn(frameDrawn)
+    .frame_drawn(frameDrawn)
 );
 
 /******************************************************************************

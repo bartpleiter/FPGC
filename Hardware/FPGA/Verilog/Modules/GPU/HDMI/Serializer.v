@@ -4,18 +4,18 @@
  */
 module Serializer (
     // Clocks
-    input wire          clkTMDShalf,
-    input wire          clkRGB,
+    input wire          clk_tmds_half,
+    input wire          clk_rgb,
 
     // TMDS
-    input wire  [9:0]   TMDS_data,
-    output wire         TMDS_out_p,
-    output wire         TMDS_out_n
+    input wire  [9:0]   tmds_data,
+    output wire         tmds_out_p,
+    output wire         tmds_out_n
 );
 
-// Reset is needed for the OSERDESE2
+// ---- Reset ----
 reg internal_reset = 1'b1;
-always @(posedge clkRGB)
+always @(posedge clk_rgb)
 begin
     internal_reset <= 1'b0;
 end
@@ -42,16 +42,16 @@ OSERDESE2 #(
     .SHIFTOUT1(),
     .SHIFTOUT2(),
     .TBYTEOUT(),
-    .CLK(clkTMDShalf),          // 5x Pixel clock
-    .CLKDIV(clkRGB),            // Pixel clock
-    .D1(TMDS_data[0]),
-    .D2(TMDS_data[1]),
-    .D3(TMDS_data[2]),
-    .D4(TMDS_data[3]),
-    .D5(TMDS_data[4]),
-    .D6(TMDS_data[5]),
-    .D7(TMDS_data[6]),
-    .D8(TMDS_data[7]),
+    .CLK(clk_tmds_half),          // 5x Pixel clock
+    .CLKDIV(clk_rgb),            // Pixel clock
+    .D1(tmds_data[0]),
+    .D2(tmds_data[1]),
+    .D3(tmds_data[2]),
+    .D4(tmds_data[3]),
+    .D5(tmds_data[4]),
+    .D6(tmds_data[5]),
+    .D7(tmds_data[6]),
+    .D8(tmds_data[7]),
     .TCE(1'b0),
     .TBYTEIN(1'b0),
     .OCE(1'b1),                 // Output clock enable
@@ -80,12 +80,12 @@ OSERDESE2 #(
     .SHIFTOUT1(cascade_di),
     .SHIFTOUT2(cascade_ti),
     .TBYTEOUT(),
-    .CLK(clkTMDShalf),          // 5x Pixel clock
-    .CLKDIV(clkRGB),            // Pixel clock
+    .CLK(clk_tmds_half),          // 5x Pixel clock
+    .CLKDIV(clk_rgb),            // Pixel clock
     .D1(1'b0),
     .D2(1'b0),
-    .D3(TMDS_data[8]),
-    .D4(TMDS_data[9]),
+    .D3(tmds_data[8]),
+    .D4(tmds_data[9]),
     .D5(1'b0),
     .D6(1'b0),
     .D7(1'b0),
@@ -100,11 +100,11 @@ OSERDESE2 #(
     .T4(1'b0)
 );
 
-// Differential output
+// ---- Differential output ----
 OBUFDS obufds_data (
-    .I(tmds_out),
-    .O(TMDS_out_p),
-    .OB(TMDS_out_n)
+    .I  (tmds_out),
+    .O  (tmds_out_p),
+    .OB (tmds_out_n)
 );
 
 endmodule

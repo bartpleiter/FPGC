@@ -4,7 +4,7 @@
  */
 module BGWrenderer (
     // Clock
-    input wire          clkPixel,
+    input wire          clk_pixel,
 
     // Video timings
     input wire          vs,
@@ -28,7 +28,7 @@ module BGWrenderer (
 localparam VSTART = 86;  // Line to start rendering
 localparam HSTART = 128; // About two tiles before blanking ends
 
-// Actions based on hTilePixelCounter value
+// Actions based on h_tile_pixel_counter value
 localparam
     fetch_bg_tile       = 0,
     fetch_pattern_bg    = 1,
@@ -40,30 +40,30 @@ localparam
     fetch_wind_color    = 6,
     fetch_palette_wind  = 7;
 
-// Rendering offsets
-reg [5:0] XtileOffset = 6'd0;
-reg [2:0] XfineOffset = 3'd0;
+// ---- Rendering offsets ----
+reg [5:0] x_tile_offset = 6'd0;
+reg [2:0] x_fine_offset = 3'd0;
 
-// Tile and pixel counters
-reg [5:0] hTileCounter = 6'd0;                                  // 40 hTiles (unused, but useful for simulation)
-reg [3:0] hTileDoublePixelCounter = 4'd0;                       // 16 pixels per tile
-wire [2:0] hTilePixelCounter = hTileDoublePixelCounter[3:1];    // 8 pixels per tile
+// ---- Tile and pixel counters ----
+reg [5:0] h_tile_counter = 6'd0;                                  // 40 hTiles (unused, but useful for simulation)
+reg [3:0] h_tile_double_pixel_counter = 4'd0;                     // 16 pixels per tile
+wire [2:0] h_tile_pixel_counter = h_tile_double_pixel_counter[3:1]; // 8 pixels per tile
 
-reg [4:0] vTileCounter = 5'd0;                                  // 25 vTiles
-reg [3:0] vTileDoubleLineCounter = 4'd0;                        // 16 pixels per tile
-wire [2:0] vTileLineCounter = vTileDoubleLineCounter[3:1];      // 8 pixels per tile
+reg [4:0] v_tile_counter = 5'd0;                                  // 25 vTiles
+reg [3:0] v_tile_double_line_counter = 4'd0;                      // 16 pixels per tile
+wire [2:0] v_tile_line_counter = v_tile_double_line_counter[3:1];  // 8 pixels per tile
 
 reg [10:0] bg_tile = 11'd0;
 reg [10:0] window_tile = 11'd0;
 reg [10:0] bg_tile_line = 11'd0;                                // Does not include the horizontal position
 reg [10:0] window_tile_line = 11'd0;                            // Does not include the horizontal position
 
-wire [10:0] bg_tile_next = (h_count < HSTART && vTileCounter == 5'd0) ? XtileOffset:
-                                                                        bg_tile + XtileOffset;
-wire [10:0] window_tile_next = (h_count < HSTART && vTileCounter == 5'd0) ? 11'd0 : window_tile;
+wire [10:0] bg_tile_next = (h_count < HSTART && v_tile_counter == 5'd0) ? x_tile_offset:
+                                                                        bg_tile + x_tile_offset;
+wire [10:0] window_tile_next = (h_count < HSTART && v_tile_counter == 5'd0) ? 11'd0 : window_tile;
 
-// Updating tile and pixel counters
-always @(posedge clkPixel)
+// ---- Updating tile and pixel counters ----
+always @(posedge clk_pixel)
 begin
     if (vs)
     begin
@@ -77,19 +77,19 @@ begin
     // Horizontal counters
     if (h_count < HSTART || v_count < VSTART-1 || v_count >= VSTART-1 + 400)
     begin
-        hTileCounter            <= 6'd0;
-        hTileDoublePixelCounter <= 4'd0;
-        bg_tile                 <= bg_tile_line;
-        window_tile             <= window_tile_line;
+        h_tile_counter              <= 6'd0;
+        h_tile_double_pixel_counter <= 4'd0;
+        bg_tile                     <= bg_tile_line;
+        window_tile                 <= window_tile_line;
     end
     else
     begin
-        hTileDoublePixelCounter <= hTileDoublePixelCounter + 1'b1;
-        if (hTileDoublePixelCounter == 4'd15)
+        h_tile_double_pixel_counter <= h_tile_double_pixel_counter + 1'b1;
+        if (h_tile_double_pixel_counter == 4'd15)
         begin
-            hTileCounter <= hTileCounter + 1'b1;
-            bg_tile      <= bg_tile + 1'b1;
-            window_tile  <= window_tile + 1'b1;
+            h_tile_counter <= h_tile_counter + 1'b1;
+            bg_tile        <= bg_tile + 1'b1;
+            window_tile    <= window_tile + 1'b1;
         end
     end
 
@@ -98,17 +98,17 @@ begin
     begin
         if (v_count < VSTART || v_count >= VSTART + 400)
         begin
-            vTileCounter           <= 5'd0;
-            vTileDoubleLineCounter <= 4'd0;
-            bg_tile                <= 11'd0;
-            window_tile            <= 11'd0;
+            v_tile_counter             <= 5'd0;
+            v_tile_double_line_counter <= 4'd0;
+            bg_tile                    <= 11'd0;
+            window_tile                <= 11'd0;
         end
         else
         begin
-            vTileDoubleLineCounter <= vTileDoubleLineCounter + 1'b1;
-            if (vTileDoubleLineCounter == 4'd15)
+            v_tile_double_line_counter <= v_tile_double_line_counter + 1'b1;
+            if (v_tile_double_line_counter == 4'd15)
             begin
-                vTileCounter     <= vTileCounter + 1'b1;
+                v_tile_counter   <= v_tile_counter + 1'b1;
                 bg_tile_line     <= bg_tile_line + 7'd64;     // + Number of tiles per line in bg plane
                 window_tile_line <= window_tile_line + 6'd40; // + Number of tiles per line in window plane
             end
@@ -116,7 +116,7 @@ begin
     end
 end
 
-// Data for next tile
+// ---- Data for next tile ----
 reg [7:0]  tile_index           = 8'd0;
 reg [7:0]  color_index          = 8'd0;
 reg [15:0] pattern_bg_tile      = 16'd0;
@@ -124,30 +124,30 @@ reg [15:0] pattern_window_tile  = 16'd0;
 reg [31:0] palette_bg_tile      = 32'd0;
 // Reg [31:0] palette_window_tile  = 32'd0; // Should not be needed
 
-// Data for current tile, should be updated at start of each tile
+// ---- Data for current tile, should be updated at start of each tile ----
 reg [15:0] current_pattern_bg_tile      = 16'd0;
 reg [15:0] current_pattern_window_tile  = 16'd0;
 reg [31:0] current_palette_bg_tile      = 32'd0;
 reg [31:0] current_palette_window_tile  = 32'd0;
 
-// Reading from VRAM
-always @(posedge clkPixel)
+// ---- Reading from VRAM ----
+always @(posedge clk_pixel)
 begin
     // Parameters
     if (h_count == 12'd1)
-        XtileOffset <= vram8_q;
+        x_tile_offset <= vram8_q;
     if (h_count == 12'd2)
-        XfineOffset <= vram8_q;
+        x_fine_offset <= vram8_q;
 
-    if (hTileDoublePixelCounter[0])
+    if (h_tile_double_pixel_counter[0])
     begin
-        case (hTilePixelCounter)
+        case (h_tile_pixel_counter)
             fetch_bg_tile:
                 tile_index <= vram8_q;
 
             fetch_pattern_bg:
             begin
-                if (vTileLineCounter[0])
+                if (v_tile_line_counter[0])
                     pattern_bg_tile <= vram32_q[15:0];
                 else
                     pattern_bg_tile <= vram32_q[31:16];
@@ -164,7 +164,7 @@ begin
 
             fetch_pattern_wind:
             begin
-                if (vTileLineCounter[0])
+                if (v_tile_line_counter[0])
                     pattern_window_tile <= vram32_q[15:0];
                 else
                     pattern_window_tile <= vram32_q[31:16];
@@ -178,7 +178,7 @@ begin
         endcase
     end
 
-    if (hTileDoublePixelCounter == 4'd15)
+    if (h_tile_double_pixel_counter == 4'd15)
     begin
         current_pattern_bg_tile     <= pattern_bg_tile;
         current_pattern_window_tile <= pattern_window_tile;
@@ -190,70 +190,70 @@ end
 
 assign vram8_addr = (h_count == 12'd0) ? 14'd8192: // Tile scroll offset
                     (h_count == 12'd1) ? 14'd8193: // Fine scroll offset
-                    (hTilePixelCounter == fetch_bg_tile)    ? bg_tile_next:
-                    (hTilePixelCounter == fetch_bg_color)   ? 14'd2048  + bg_tile_next:
-                    (hTilePixelCounter == fetch_wind_tile)  ? 14'd4096  + window_tile_next:
-                    (hTilePixelCounter == fetch_wind_color) ? 14'd6144  + window_tile_next:
+                    (h_tile_pixel_counter == fetch_bg_tile)    ? bg_tile_next:
+                    (h_tile_pixel_counter == fetch_bg_color)   ? 14'd2048  + bg_tile_next:
+                    (h_tile_pixel_counter == fetch_wind_tile)  ? 14'd4096  + window_tile_next:
+                    (h_tile_pixel_counter == fetch_wind_color) ? 14'd6144  + window_tile_next:
                     14'd0;
 
-assign vram32_addr = (hTilePixelCounter == fetch_pattern_bg) ? (tile_index << 2) + (vTileLineCounter >> 1): // *4 Because 4 addresses per tile
-                     (hTilePixelCounter == fetch_palette_bg) ? 11'd1024 + color_index:
-                     (hTilePixelCounter == fetch_pattern_wind) ? (tile_index << 2) + (vTileLineCounter >> 1): // *4 Because 4 addresses per tile
-                     (hTilePixelCounter == fetch_palette_wind) ? 11'd1024 + color_index:
+assign vram32_addr = (h_tile_pixel_counter == fetch_pattern_bg) ? (tile_index << 2) + (v_tile_line_counter >> 1): // *4 Because 4 addresses per tile
+                     (h_tile_pixel_counter == fetch_palette_bg) ? 11'd1024 + color_index:
+                     (h_tile_pixel_counter == fetch_pattern_wind) ? (tile_index << 2) + (v_tile_line_counter >> 1): // *4 Because 4 addresses per tile
+                     (h_tile_pixel_counter == fetch_palette_wind) ? 11'd1024 + color_index:
                      11'd0;
 
 
-// Pattern data for current pixel
+// ---- Pattern data for current pixel ----
 reg [1:0] current_pixel_pattern_bg;
 reg [1:0] current_pixel_pattern_window;
 
 always @(*)
 begin
-    case (hTilePixelCounter)
+    case (h_tile_pixel_counter)
         3'd0:
         begin
-            current_pixel_pattern_bg <= current_pattern_bg_tile[15:14];
-            current_pixel_pattern_window <= current_pattern_window_tile[15:14];
+            current_pixel_pattern_bg = current_pattern_bg_tile[15:14];
+            current_pixel_pattern_window = current_pattern_window_tile[15:14];
         end
         3'd1:
         begin
-            current_pixel_pattern_bg <= current_pattern_bg_tile[13:12];
-            current_pixel_pattern_window <= current_pattern_window_tile[13:12];
+            current_pixel_pattern_bg = current_pattern_bg_tile[13:12];
+            current_pixel_pattern_window = current_pattern_window_tile[13:12];
         end
         3'd2:
         begin
-            current_pixel_pattern_bg <= current_pattern_bg_tile[11:10];
-            current_pixel_pattern_window <= current_pattern_window_tile[11:10];
+            current_pixel_pattern_bg = current_pattern_bg_tile[11:10];
+            current_pixel_pattern_window = current_pattern_window_tile[11:10];
         end
         3'd3:
         begin
-            current_pixel_pattern_bg <= current_pattern_bg_tile[9:8];
-            current_pixel_pattern_window <= current_pattern_window_tile[9:8];
+            current_pixel_pattern_bg = current_pattern_bg_tile[9:8];
+            current_pixel_pattern_window = current_pattern_window_tile[9:8];
         end
         3'd4:
         begin
-            current_pixel_pattern_bg <= current_pattern_bg_tile[7:6];
-            current_pixel_pattern_window <= current_pattern_window_tile[7:6];
+            current_pixel_pattern_bg = current_pattern_bg_tile[7:6];
+            current_pixel_pattern_window = current_pattern_window_tile[7:6];
         end
         3'd5:
         begin
-            current_pixel_pattern_bg <= current_pattern_bg_tile[5:4];
-            current_pixel_pattern_window <= current_pattern_window_tile[5:4];
+            current_pixel_pattern_bg = current_pattern_bg_tile[5:4];
+            current_pixel_pattern_window = current_pattern_window_tile[5:4];
         end
         3'd6:
         begin
-            current_pixel_pattern_bg <= current_pattern_bg_tile[3:2];
-            current_pixel_pattern_window <= current_pattern_window_tile[3:2];
+            current_pixel_pattern_bg = current_pattern_bg_tile[3:2];
+            current_pixel_pattern_window = current_pattern_window_tile[3:2];
         end
         3'd7:
         begin
-            current_pixel_pattern_bg <= current_pattern_bg_tile[1:0];
-            current_pixel_pattern_window <= current_pattern_window_tile[1:0];
+            current_pixel_pattern_bg = current_pattern_bg_tile[1:0];
+            current_pixel_pattern_window = current_pattern_window_tile[1:0];
         end
     endcase
 end
 
-// Apply palette to current pixel pattern
+// ---- Apply palette to current pixel pattern ----
 reg [2:0] bg_r;
 reg [2:0] bg_g;
 reg [1:0] bg_b;
@@ -267,71 +267,71 @@ begin
     case (current_pixel_pattern_bg)
         2'b00:
         begin
-            bg_r <= current_palette_bg_tile[31:29];
-            bg_g <= current_palette_bg_tile[28:26];
-            bg_b <= current_palette_bg_tile[25:24];
+            bg_r = current_palette_bg_tile[31:29];
+            bg_g = current_palette_bg_tile[28:26];
+            bg_b = current_palette_bg_tile[25:24];
         end
 
         2'b01:
         begin
-            bg_r <= current_palette_bg_tile[23:21];
-            bg_g <= current_palette_bg_tile[20:18];
-            bg_b <= current_palette_bg_tile[17:16];
+            bg_r = current_palette_bg_tile[23:21];
+            bg_g = current_palette_bg_tile[20:18];
+            bg_b = current_palette_bg_tile[17:16];
         end
 
         2'b10:
         begin
-            bg_r <= current_palette_bg_tile[15:13];
-            bg_g <= current_palette_bg_tile[12:10];
-            bg_b <= current_palette_bg_tile[9:8];
+            bg_r = current_palette_bg_tile[15:13];
+            bg_g = current_palette_bg_tile[12:10];
+            bg_b = current_palette_bg_tile[9:8];
         end
 
         2'b11:
         begin
-            bg_r <= current_palette_bg_tile[7:5];
-            bg_g <= current_palette_bg_tile[4:2];
-            bg_b <= current_palette_bg_tile[1:0];
+            bg_r = current_palette_bg_tile[7:5];
+            bg_g = current_palette_bg_tile[4:2];
+            bg_b = current_palette_bg_tile[1:0];
         end
     endcase
 
     case (current_pixel_pattern_window)
         2'b00:
         begin
-            window_r <= current_palette_window_tile[31:29];
-            window_g <= current_palette_window_tile[28:26];
-            window_b <= current_palette_window_tile[25:24];
+            window_r = current_palette_window_tile[31:29];
+            window_g = current_palette_window_tile[28:26];
+            window_b = current_palette_window_tile[25:24];
         end
 
         2'b01:
         begin
-            window_r <= current_palette_window_tile[23:21];
-            window_g <= current_palette_window_tile[20:18];
-            window_b <= current_palette_window_tile[17:16];
+            window_r = current_palette_window_tile[23:21];
+            window_g = current_palette_window_tile[20:18];
+            window_b = current_palette_window_tile[17:16];
         end
 
         2'b10:
         begin
-            window_r <= current_palette_window_tile[15:13];
-            window_g <= current_palette_window_tile[12:10];
-            window_b <= current_palette_window_tile[9:8];
+            window_r = current_palette_window_tile[15:13];
+            window_g = current_palette_window_tile[12:10];
+            window_b = current_palette_window_tile[9:8];
         end
 
         2'b11:
         begin
-            window_r <= current_palette_window_tile[7:5];
-            window_g <= current_palette_window_tile[4:2];
-            window_b <= current_palette_window_tile[1:0];
+            window_r = current_palette_window_tile[7:5];
+            window_g = current_palette_window_tile[4:2];
+            window_b = current_palette_window_tile[1:0];
         end
     endcase
 end
 
-// Background pixel buffers for 8 pixels, so fine scrolling can be applied
+// ---- Background pixel buffers for fine scrolling ----
 reg [23:0] buf_bg_r = 24'd0;
 reg [23:0] buf_bg_g = 24'd0;
 reg [15:0] buf_bg_b = 16'd0;
 
 
-always @(posedge clkPixel)
+always @(posedge clk_pixel)
 begin
     // Do only once per two cycles, since we are using a double horizontal resolution
     if (h_count[0])
@@ -348,62 +348,62 @@ reg [1:0] bg_b_sel;
 
 always @(*)
 begin
-    case (XfineOffset)
+    case (x_fine_offset)
         3'd0:
         begin
-            bg_r_sel <= buf_bg_r[23:21];
-            bg_g_sel <= buf_bg_g[23:21];
-            bg_b_sel <= buf_bg_b[15:14];
+            bg_r_sel = buf_bg_r[23:21];
+            bg_g_sel = buf_bg_g[23:21];
+            bg_b_sel = buf_bg_b[15:14];
         end
         3'd1:
         begin
-            bg_r_sel <= buf_bg_r[20:18];
-            bg_g_sel <= buf_bg_g[20:18];
-            bg_b_sel <= buf_bg_b[13:12];
+            bg_r_sel = buf_bg_r[20:18];
+            bg_g_sel = buf_bg_g[20:18];
+            bg_b_sel = buf_bg_b[13:12];
         end
         3'd2:
         begin
-            bg_r_sel <= buf_bg_r[17:15];
-            bg_g_sel <= buf_bg_g[17:15];
-            bg_b_sel <= buf_bg_b[11:10];
+            bg_r_sel = buf_bg_r[17:15];
+            bg_g_sel = buf_bg_g[17:15];
+            bg_b_sel = buf_bg_b[11:10];
         end
         3'd3:
         begin
-            bg_r_sel <= buf_bg_r[14:12];
-            bg_g_sel <= buf_bg_g[14:12];
-            bg_b_sel <= buf_bg_b[9:8];
+            bg_r_sel = buf_bg_r[14:12];
+            bg_g_sel = buf_bg_g[14:12];
+            bg_b_sel = buf_bg_b[9:8];
         end
         3'd4:
         begin
-            bg_r_sel <= buf_bg_r[11:9];
-            bg_g_sel <= buf_bg_g[11:9];
-            bg_b_sel <= buf_bg_b[7:6];
+            bg_r_sel = buf_bg_r[11:9];
+            bg_g_sel = buf_bg_g[11:9];
+            bg_b_sel = buf_bg_b[7:6];
         end
         3'd5:
         begin
-            bg_r_sel <= buf_bg_r[8:6];
-            bg_g_sel <= buf_bg_g[8:6];
-            bg_b_sel <= buf_bg_b[5:4];
+            bg_r_sel = buf_bg_r[8:6];
+            bg_g_sel = buf_bg_g[8:6];
+            bg_b_sel = buf_bg_b[5:4];
         end
         3'd6:
         begin
-            bg_r_sel <= buf_bg_r[5:3];
-            bg_g_sel <= buf_bg_g[5:3];
-            bg_b_sel <= buf_bg_b[3:2];
+            bg_r_sel = buf_bg_r[5:3];
+            bg_g_sel = buf_bg_g[5:3];
+            bg_b_sel = buf_bg_b[3:2];
         end
         3'd7:
         begin
-            bg_r_sel <= buf_bg_r[2:0];
-            bg_g_sel <= buf_bg_g[2:0];
-            bg_b_sel <= buf_bg_b[1:0];
+            bg_r_sel = buf_bg_r[2:0];
+            bg_g_sel = buf_bg_g[2:0];
+            bg_b_sel = buf_bg_b[1:0];
         end
     endcase
 end
 
-// Give priority to the window layer by checking for a black palette for 0b00 pixels
-wire bgPriority = current_pixel_pattern_window == 2'b00 && current_palette_window_tile[31:24] == 8'd0;
-assign r = (bgPriority) ? bg_r_sel : window_r;
-assign g = (bgPriority) ? bg_g_sel : window_g;
-assign b = (bgPriority) ? bg_b_sel : window_b;
+// ---- Output priority ----
+wire bg_priority = current_pixel_pattern_window == 2'b00 && current_palette_window_tile[31:24] == 8'd0;
+assign r = (bg_priority) ? bg_r_sel : window_r;
+assign g = (bg_priority) ? bg_g_sel : window_g;
+assign b = (bg_priority) ? bg_b_sel : window_b;
 
 endmodule

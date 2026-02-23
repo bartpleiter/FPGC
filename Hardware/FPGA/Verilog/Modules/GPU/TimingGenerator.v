@@ -16,7 +16,7 @@ module TimingGenerator #(
     parameter V_POL           = 0,   // Vertical sync polarity
     parameter INTERRUPT_TICKS = 32   // Number of cycles to keep interrupt signal high
 ) (
-    input wire          clkPixel,
+    input wire          clk_pixel,
 
     output reg  [11:0]  h_count = 12'd0, // Frame position in lines including blanking
     output reg  [11:0]  v_count = 12'd0, // Frame position in lines including blanking
@@ -24,24 +24,26 @@ module TimingGenerator #(
     output wire         hsync,
     output wire         vsync,
     output wire         blank,
-    output wire         frameDrawn
+    output wire         frame_drawn
 );
 
                                      // Horizontal: sync, active, and pixels
-localparam HS_STA = H_FP - 1;        // Sync start (first pixel is 0) 15
-localparam HS_END = HS_STA + H_SYNC; // Sync end 111
-localparam HA_STA = HS_END + H_BP;   // Active start 149
-localparam HA_END = HA_STA + H_RES;  // Active end 789
-localparam LINE   = HA_END;          // Line pixels
+localparam
+    HS_STA = H_FP - 1,        // Sync start (first pixel is 0) 15
+    HS_END = HS_STA + H_SYNC,  // Sync end 111
+    HA_STA = HS_END + H_BP,    // Active start 149
+    HA_END = HA_STA + H_RES,   // Active end 789
+    LINE   = HA_END;           // Line pixels
 
                                      // Vertical: sync, active, and pixels
-localparam VS_STA = V_FP - 1;        // Sync start (first line is 0) 9
-localparam VS_END = VS_STA + V_SYNC; // Sync end 11
-localparam VA_STA = VS_END + V_BP;   // Active start 44
-localparam VA_END = VA_STA + V_RES;  // Active end 524
-localparam FRAME  = VA_END;          // Frame lines
+localparam
+    VS_STA = V_FP - 1,        // Sync start (first line is 0) 9
+    VS_END = VS_STA + V_SYNC,  // Sync end 11
+    VA_STA = VS_END + V_BP,    // Active start 44
+    VA_END = VA_STA + V_RES,   // Active end 524
+    FRAME  = VA_END;           // Frame lines
 
-always @(posedge clkPixel)
+always @(posedge clk_pixel)
 begin
     // If end of line
     if (h_count == LINE)
@@ -58,7 +60,7 @@ assign vsync = (v_count > VS_STA && v_count <= VS_END) ^ V_POL;
 
 assign blank = ~(h_count > HA_STA && h_count <= HA_END && v_count > VA_STA && v_count <= VA_END);
 
-// Interrupt signal for CPU, high for INTERRUPT_TICKS ticks when last frame is drawn
-assign frameDrawn = (v_count == 0 && h_count < INTERRUPT_TICKS);
+// ---- Interrupt signal ----
+assign frame_drawn = (v_count == 0 && h_count < INTERRUPT_TICKS);
 
 endmodule
