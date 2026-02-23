@@ -8,6 +8,7 @@
 `include "Hardware/FPGA/Verilog/Modules/CPU/Regbank.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/InstructionDecoder.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/InstructionFetch.v"
+`include "Hardware/FPGA/Verilog/Modules/CPU/MemoryStage.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/ALU.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/MultiCycleALU.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/MultiCycleAluOps/Multu.v"

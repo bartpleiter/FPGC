@@ -83,14 +83,14 @@ module B32P3 #(
     input  wire         l1d_cache_controller_done,
     input  wire [31:0]  l1d_cache_controller_result, 
 
-    output reg          l1_clear_cache = 1'b0,
+    output wire         l1_clear_cache,
     input wire          l1_clear_cache_done,
 
     // ---- Memory Unit ----
-    output reg          mu_start = 1'b0,
-    output reg [31:0]   mu_addr = 32'd0,
-    output reg [31:0]   mu_data = 32'd0,
-    output reg          mu_we = 1'b0,
+    output wire         mu_start,
+    output wire [31:0]  mu_addr,
+    output wire [31:0]  mu_data,
+    output wire         mu_we,
     input  wire [31:0]  mu_q,
     input  wire         mu_done,
 
@@ -743,323 +743,83 @@ begin
     end
 end
 
-// ---- MEMORY STAGE (MEM) ----
+// ---- MEMORY STAGE ----
+wire [31:0] ex_mem_addr_calc;
+wire        mem_sel_sdram;
+wire [31:0] mem_read_data;
 
-// Memory address calculation (done in EX, used in MEM)
-// Use a registered address to handle forwarding correctly when stalled
-// The issue: when EX is stalled, the forwarding source can move past WB,
-// causing ex_alu_a to get a stale value. We need to capture the correct
-// address when it's first calculated with valid forwarding.
-wire [31:0] ex_mem_addr_calc_comb = ex_alu_a + id_ex_const16;
-reg [31:0] ex_mem_addr_calc_reg = 32'd0;
-
-// Track if the current EX instruction has a captured address
-// Reset when a new instruction enters EX, set when we have valid forwarding
-reg ex_addr_captured = 1'b0;
-
-always @(posedge clk)
-begin
-    if (reset)
-    begin
-        ex_mem_addr_calc_reg <= 32'd0;
-        ex_addr_captured <= 1'b0;
-    end else if (!ex_pipeline_stall)
-    begin
-        // Instruction leaving EX stage, reset capture for next instruction
-        ex_addr_captured <= 1'b0;
-    end else if (!ex_addr_captured && id_ex_valid && (id_ex_mem_read || id_ex_mem_write))
-    begin
-        // First cycle with this instruction stalled in EX, capture the address
-        // At this point forwarding should be valid
-        ex_mem_addr_calc_reg <= ex_mem_addr_calc_comb;
-        ex_addr_captured <= 1'b1;
-    end
-end
-
-// Use the captured address if available, otherwise use combinational
-wire [31:0] ex_mem_addr_calc = ex_addr_captured ? ex_mem_addr_calc_reg : ex_mem_addr_calc_comb;
-
-// EX-stage address decoding for BRAM address setup (data available next cycle in MEM)
-// VRAM and ROM addresses must be set in EX stage because BRAM has 1-cycle read latency
-wire ex_sel_rom    = ex_mem_addr_calc >= 32'h7800000 && ex_mem_addr_calc < 32'h7900000;
-wire ex_sel_vram32 = ex_mem_addr_calc >= 32'h7900000 && ex_mem_addr_calc < 32'h7A00000;
-wire ex_sel_vram8  = ex_mem_addr_calc >= 32'h7A00000 && ex_mem_addr_calc < 32'h7B00000;
-wire ex_sel_vrampx = ex_mem_addr_calc >= 32'h7B00000 && ex_mem_addr_calc < 32'h7C00000;
-
-// EX-stage local address calculations for BRAM (ROM and VRAM)
-wire [31:0] ex_local_addr_rom    = ex_mem_addr_calc - 32'h7800000;
-wire [31:0] ex_local_addr_vram32 = ex_mem_addr_calc - 32'h7900000;
-wire [31:0] ex_local_addr_vram8  = ex_mem_addr_calc - 32'h7A00000;
-wire [31:0] ex_local_addr_vrampx = ex_mem_addr_calc - 32'h7B00000;
-
-// Address decoding (MEM stage - for data selection and write control)
-wire mem_sel_sdram  = ex_mem_mem_addr >= 32'h0000000 && ex_mem_mem_addr < 32'h7000000;
-wire mem_sel_io     = ex_mem_mem_addr >= 32'h7000000 && ex_mem_mem_addr < 32'h7800000;
-wire mem_sel_rom    = ex_mem_mem_addr >= 32'h7800000 && ex_mem_mem_addr < 32'h7900000;
-wire mem_sel_vram32 = ex_mem_mem_addr >= 32'h7900000 && ex_mem_mem_addr < 32'h7A00000;
-wire mem_sel_vram8  = ex_mem_mem_addr >= 32'h7A00000 && ex_mem_mem_addr < 32'h7B00000;
-wire mem_sel_vrampx = ex_mem_mem_addr >= 32'h7B00000 && ex_mem_mem_addr < 32'h7C00000;
-
-// CPU-internal I/O registers
-wire mem_sel_cpu_io = (ex_mem_mem_addr == CPU_IO_PC_BACKUP) ||
-                      (ex_mem_mem_addr == CPU_IO_HW_STACK_PTR);
-wire [31:0] cpu_io_read_data = (ex_mem_mem_addr == CPU_IO_PC_BACKUP) ? pc_backup :
-                               {24'd0, stack_ptr_out};
-
-// Local address calculation (MEM stage - for ROM and I/O, not VRAM)
-wire [31:0] mem_local_addr = mem_sel_rom    ? ex_mem_mem_addr - 32'h7800000 :
-                             mem_sel_vram32 ? ex_mem_mem_addr - 32'h7900000 :
-                             mem_sel_vram8  ? ex_mem_mem_addr - 32'h7A00000 :
-                             mem_sel_vrampx ? ex_mem_mem_addr - 32'h7B00000 :
-                             ex_mem_mem_addr; // SDRAM and I/O use full address
-
-// ROM data port
-// Address from EX stage for reads (BRAM latency)
-assign rom_mem_addr = ex_local_addr_rom[9:0];
-wire [31:0] rom_mem_data = rom_mem_q;
-
-// VRAM32 interface - address from EX stage for reads (BRAM latency), MEM stage for writes
-// When writing, we need the address to match the write_enable timing (MEM stage)
-// When reading, we need address in EX so data is ready in MEM
-assign vram32_addr = (ex_mem_valid && ex_mem_mem_write && mem_sel_vram32) ? 
-                     mem_local_addr[10:0] : ex_local_addr_vram32[10:0];
-assign vram32_d = ex_mem_breg_data;
-assign vram32_we = ex_mem_valid && ex_mem_mem_write && mem_sel_vram32 && !backend_pipeline_stall;
-
-// VRAM8 interface - address from EX stage for reads, MEM stage for writes
-assign vram8_addr = (ex_mem_valid && ex_mem_mem_write && mem_sel_vram8) ?
-                    mem_local_addr[13:0] : ex_local_addr_vram8[13:0];
-assign vram8_d = ex_mem_breg_data[7:0];
-assign vram8_we = ex_mem_valid && ex_mem_mem_write && mem_sel_vram8 && !backend_pipeline_stall;
-
-// VRAMPX interface - address from EX stage for reads, MEM stage for writes
-assign vramPX_addr = (ex_mem_valid && ex_mem_mem_write && mem_sel_vrampx) ?
-                     mem_local_addr[16:0] : ex_local_addr_vrampx[16:0];
-assign vramPX_d = ex_mem_breg_data[7:0];
-assign vramPX_we = ex_mem_valid && ex_mem_mem_write && mem_sel_vrampx && !backend_pipeline_stall;
-
-// L1D cache interface
-assign l1d_pipe_addr = ex_mem_mem_addr[9:3];
-
-// L1D cache hit detection
-wire [13:0] l1d_tag = ex_mem_mem_addr[23:10];
-wire [2:0]  l1d_offset = ex_mem_mem_addr[2:0];
-wire l1d_cache_valid = l1d_pipe_q[0];
-wire [13:0] l1d_cache_tag = l1d_pipe_q[14:1];
-wire l1d_hit = mem_sel_sdram && l1d_cache_valid && (l1d_tag == l1d_cache_tag);
-wire [31:0] l1d_cache_data = l1d_pipe_q[32 * l1d_offset + 15 +: 32];
-
-// L1D cache read delay tracking
-// Since the cache DPRAM has 1-cycle read latency, when an instruction first
-// enters MEM stage, we need to wait 1 cycle for l1d_pipe_q to be valid
-// Track if we've waited for the cache read for the current instruction
-reg l1d_cache_read_done = 1'b0;
-
-// Detect when a NEW instruction enters MEM (based on PC change)
-reg [31:0] l1d_prev_pc = 32'hFFFFFFFF;
-wire l1d_is_sdram_op = ex_mem_valid && (ex_mem_mem_read || ex_mem_mem_write) && mem_sel_sdram;
-wire l1d_new_instr = (ex_mem_pc != l1d_prev_pc);
-
-// Need to wait for cache read on first cycle of new SDRAM operation
-// Use l1d_cache_read_done to track if we've completed the wait
-wire l1d_need_cache_wait = l1d_is_sdram_op && !l1d_cache_read_done;
-
-always @(posedge clk)
-begin
-    if (reset)
-    begin
-        l1d_cache_read_done <= 1'b0;
-        l1d_prev_pc <= 32'hFFFFFFFF;
-    end else
-    begin
-        // When a NEW instruction enters MEM, reset the cache_read_done flag
-        if (l1d_new_instr)
-        begin
-            l1d_prev_pc <= ex_mem_pc;
-            l1d_cache_read_done <= 1'b0;
-        end
-        // After waiting one cycle, mark cache read as done
-        else if (l1d_need_cache_wait)
-        begin
-            l1d_cache_read_done <= 1'b1;
-        end
-        // When no longer an SDRAM op (or invalid), reset for next instruction
-        else if (!l1d_is_sdram_op)
-        begin
-            l1d_cache_read_done <= 1'b0;
-        end
-    end
-end
-
-// ---- L1D CACHE CONTROLLER STATE MACHINE ----
-// Manages cache miss handling to ensure proper request/done handshaking
-localparam L1D_STATE_IDLE    = 2'b00;
-localparam L1D_STATE_STARTED = 2'b01;
-localparam L1D_STATE_WAIT    = 2'b10;
-
-reg [1:0] l1d_state = L1D_STATE_IDLE;
-reg       l1d_request_finished = 1'b0;
-reg       l1d_start_reg = 1'b0;
-reg [31:0] l1d_result_reg = 32'd0;
-
-// Cache read wait signal, stall while waiting for cache DPRAM to read
-wire l1d_cache_read_wait = l1d_need_cache_wait;
-
-// Cache miss/write detection (only triggers new request if not already finished)
-// Wait for cache read delay to complete
-wire l1d_miss = ex_mem_valid && ex_mem_mem_read && mem_sel_sdram && !l1d_hit && !l1d_request_finished && !l1d_cache_read_wait;
-wire l1d_write = ex_mem_valid && ex_mem_mem_write && mem_sel_sdram && !l1d_request_finished && !l1d_cache_read_wait;
-
-// Cache stall: waiting for cache read, or operation to complete
-assign cache_stall_mem = l1d_cache_read_wait || l1d_miss || l1d_write;
-
-// State machine for cache controller requests
-always @(posedge clk)
-begin
-    if (reset)
-    begin
-        l1d_state <= L1D_STATE_IDLE;
-        l1d_start_reg <= 1'b0;
-        l1d_request_finished <= 1'b0;
-        l1d_result_reg <= 32'd0;
-    end else
-    begin
-        case (l1d_state)
-            L1D_STATE_IDLE:
-            begin
-                l1d_start_reg <= 1'b0;
-                l1d_request_finished <= 1'b0;
-                l1d_result_reg <= 32'd0;
-                
-                // Start new request on cache miss or SDRAM write (after cache read wait clears)
-                if (!l1d_cache_read_wait &&
-                    ((ex_mem_valid && ex_mem_mem_read && mem_sel_sdram && !l1d_hit && !l1d_request_finished) ||
-                     (ex_mem_valid && ex_mem_mem_write && mem_sel_sdram && !l1d_request_finished)))
-                     begin
-                    l1d_start_reg <= 1'b1;
-                    l1d_state <= L1D_STATE_STARTED;
-                end
-            end
-            
-            L1D_STATE_STARTED:
-            begin
-                // Clear start signal after one cycle
-                l1d_start_reg <= 1'b0;
-                l1d_state <= L1D_STATE_WAIT;
-            end
-            
-            L1D_STATE_WAIT:
-            begin
-                // Wait for cache controller to complete
-                if (l1d_cache_controller_done)
-                begin
-                    l1d_result_reg <= l1d_cache_controller_result;
-                    l1d_request_finished <= 1'b1;
-                    l1d_state <= L1D_STATE_IDLE;
-                end
-            end
-        endcase
-    end
-end
-
-// L1D cache controller interface
-assign l1d_cache_controller_addr = ex_mem_mem_addr;
-assign l1d_cache_controller_data = ex_mem_breg_data;
-assign l1d_cache_controller_we = ex_mem_mem_write && mem_sel_sdram;
-assign l1d_cache_controller_start = l1d_start_reg;
-
-// Memory Unit interface (I/O)
-// Use a state machine to ensure we only start the MU once per operation
-// and wait for completion before allowing a new operation
-reg mu_io_started = 1'b0;  // Track if we've already started this I/O operation
-
-always @(posedge clk)
-begin
-    if (reset)
-    begin
-        mu_start <= 1'b0;
-        mu_addr <= 32'd0;
-        mu_data <= 32'd0;
-        mu_we <= 1'b0;
-        mu_io_started <= 1'b0;
-    end else if (mu_done)
-    begin
-        // MU operation completed, clear the started flag
-        mu_start <= 1'b0;
-        mu_io_started <= 1'b0;
-    end else if (ex_mem_valid && mem_sel_io && (ex_mem_mem_read || ex_mem_mem_write) && !mu_io_started)
-    begin
-        // New I/O operation, start it
-        mu_start <= 1'b1;
-        mu_addr <= ex_mem_mem_addr;
-        mu_data <= ex_mem_breg_data;
-        mu_we <= ex_mem_mem_write;
-        mu_io_started <= 1'b1;
-    end else
-    begin
-        mu_start <= 1'b0;
-    end
-end
-
-assign mu_stall = ex_mem_valid && mem_sel_io && (ex_mem_mem_read || ex_mem_mem_write) && !mu_done;
-
-// Cache clear
-// Use a state machine similar to L1D to track completion per-instruction
-// This prevents re-triggering after the cache clear completes
-reg clear_cache_in_progress = 1'b0;
-reg clear_cache_finished = 1'b0;  // Track if current ccache instruction is done
-
-always @(posedge clk)
-begin
-    if (reset)
-    begin
-        l1_clear_cache <= 1'b0;
-        clear_cache_in_progress <= 1'b0;
-        clear_cache_finished <= 1'b0;
-    end else if (!ex_mem_valid || !ex_mem_clear_cache)
-    begin
-        // No ccache instruction in MEM stage, reset state
-        l1_clear_cache <= 1'b0;
-        clear_cache_in_progress <= 1'b0;
-        clear_cache_finished <= 1'b0;
-    end else if (clear_cache_finished)
-    begin
-        // Already completed for this instruction, just hold
-        l1_clear_cache <= 1'b0;
-    end else if (l1_clear_cache_done)
-    begin
-        // Cache clear just completed
-        l1_clear_cache <= 1'b0;
-        clear_cache_in_progress <= 1'b0;
-        clear_cache_finished <= 1'b1;  // Mark this instruction as done
-        $display("%0t Clear Cache completed", $time);
-    end else if (!clear_cache_in_progress)
-    begin
-        // Start cache clear
-        l1_clear_cache <= 1'b1;
-        clear_cache_in_progress <= 1'b1;
-        $display("%0t Clear Cache triggered", $time);
-    end else
-    begin
-        // In progress, clear start signal
-        l1_clear_cache <= 1'b0;
-    end
-end
-
-// Stall only when ccache is in progress and not yet finished
-assign cc_stall = ex_mem_valid && ex_mem_clear_cache && !clear_cache_finished;
-
-// Memory read data multiplexer
-// For SDRAM: use l1d_result_reg if we had a cache miss (request_finished),
-// otherwise use direct cache data for hits
-wire [31:0] mem_read_data = mem_sel_cpu_io ? cpu_io_read_data :
-                            mem_sel_rom    ? rom_mem_data :
-                            mem_sel_vram32 ? vram32_q :
-                            mem_sel_vram8  ? {24'd0, vram8_q} :
-                            mem_sel_vrampx ? {24'd0, vramPX_q} :
-                            mem_sel_io     ? mu_q :
-                            mem_sel_sdram  ? (l1d_request_finished ? l1d_result_reg : l1d_cache_data) :
-                            32'hDEADBEEF;
+MemoryStage #(
+    .CPU_IO_PC_BACKUP    (CPU_IO_PC_BACKUP),
+    .CPU_IO_HW_STACK_PTR (CPU_IO_HW_STACK_PTR)
+) mem_stage (
+    .clk                        (clk),
+    .reset                      (reset),
+    // EX stage inputs for address calculation
+    .ex_alu_a                   (ex_alu_a),
+    .id_ex_const16              (id_ex_const16),
+    .id_ex_valid                (id_ex_valid),
+    .id_ex_mem_read             (id_ex_mem_read),
+    .id_ex_mem_write            (id_ex_mem_write),
+    .ex_pipeline_stall          (ex_pipeline_stall),
+    // Pipeline control
+    .backend_pipeline_stall     (backend_pipeline_stall),
+    // EX/MEM register inputs
+    .ex_mem_valid               (ex_mem_valid),
+    .ex_mem_mem_read            (ex_mem_mem_read),
+    .ex_mem_mem_write           (ex_mem_mem_write),
+    .ex_mem_mem_addr            (ex_mem_mem_addr),
+    .ex_mem_breg_data           (ex_mem_breg_data),
+    .ex_mem_pc                  (ex_mem_pc),
+    .ex_mem_clear_cache         (ex_mem_clear_cache),
+    // CPU-internal I/O read sources
+    .pc_backup                  (pc_backup),
+    .stack_ptr_out              (stack_ptr_out),
+    // ROM data port
+    .rom_mem_q                  (rom_mem_q),
+    .rom_mem_addr               (rom_mem_addr),
+    // VRAM32
+    .vram32_q                   (vram32_q),
+    .vram32_addr                (vram32_addr),
+    .vram32_d                   (vram32_d),
+    .vram32_we                  (vram32_we),
+    // VRAM8
+    .vram8_q                    (vram8_q),
+    .vram8_addr                 (vram8_addr),
+    .vram8_d                    (vram8_d),
+    .vram8_we                   (vram8_we),
+    // VRAMPX
+    .vramPX_q                   (vramPX_q),
+    .vramPX_addr                (vramPX_addr),
+    .vramPX_d                   (vramPX_d),
+    .vramPX_we                  (vramPX_we),
+    // L1D cache pipeline port
+    .l1d_pipe_q                 (l1d_pipe_q),
+    .l1d_pipe_addr              (l1d_pipe_addr),
+    // L1D cache controller
+    .l1d_cache_controller_done  (l1d_cache_controller_done),
+    .l1d_cache_controller_result(l1d_cache_controller_result),
+    .l1d_cache_controller_addr  (l1d_cache_controller_addr),
+    .l1d_cache_controller_data  (l1d_cache_controller_data),
+    .l1d_cache_controller_we    (l1d_cache_controller_we),
+    .l1d_cache_controller_start (l1d_cache_controller_start),
+    // Memory Unit (I/O)
+    .mu_done                    (mu_done),
+    .mu_q                       (mu_q),
+    .mu_start                   (mu_start),
+    .mu_addr                    (mu_addr),
+    .mu_data                    (mu_data),
+    .mu_we                      (mu_we),
+    // Cache clear
+    .l1_clear_cache_done        (l1_clear_cache_done),
+    .l1_clear_cache             (l1_clear_cache),
+    // Outputs
+    .ex_mem_addr_calc           (ex_mem_addr_calc),
+    .mem_sel_sdram              (mem_sel_sdram),
+    .cache_stall_mem            (cache_stall_mem),
+    .mu_stall                   (mu_stall),
+    .cc_stall                   (cc_stall),
+    .mem_read_data              (mem_read_data)
+);
 
 // ---- EX/MEM STAGE REGISTER UPDATE ----
 
