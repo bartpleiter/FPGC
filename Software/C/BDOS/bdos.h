@@ -159,11 +159,25 @@ extern int bdos_fs_ready;
 extern int bdos_fs_boot_needs_format;
 extern int bdos_fs_last_mount_error;
 
+// ---- Program slot management ----
+// Currently single-slot (always slot 0). Designed for future multi-slot scheduling.
+
+#define BDOS_SLOT_NONE -1
+
 // ---- Function declarations ----
 
 void bdos_panic(char* msg);
 
 void bdos_init();
+
+// Program slot allocator (stub: always returns slot 0)
+int bdos_slot_alloc();
+void bdos_slot_free(int slot);
+unsigned int bdos_slot_entry_addr(int slot);
+unsigned int bdos_slot_stack_addr(int slot);
+
+// Load and execute a program binary from a resolved BRFS path
+int bdos_exec_program(char* resolved_path);
 
 void bdos_poll_usb_keyboard(int timer_id);
 

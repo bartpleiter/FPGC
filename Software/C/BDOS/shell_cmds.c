@@ -21,14 +21,45 @@ unsigned int bdos_shell_format_words = 0;
 char bdos_shell_format_label[BDOS_SHELL_FORMAT_LABEL_MAX + 1];
 int bdos_shell_format_full = 0;
 
-// ---- Program runner globals ----
-// These are used by the inline assembly in bdos_shell_cmd_run to
-// save/restore BDOS state across user program execution.
-unsigned int bdos_run_entry = 0;    // Entry address (start of slot)
-unsigned int bdos_run_stack = 0;    // Stack top for user program
-unsigned int bdos_run_saved_sp = 0; // Saved BDOS stack pointer (r13)
-unsigned int bdos_run_saved_bp = 0; // Saved BDOS base pointer (r14)
-int bdos_run_retval = 0;           // Return value from user program
+// ---- Program slot management ----
+// Stub allocator: always uses slot 0. Replace with real allocator when
+// multi-program scheduling is implemented.
+
+int bdos_slot_in_use = 0;
+
+int bdos_slot_alloc()
+{
+  if (bdos_slot_in_use)
+  {
+    return BDOS_SLOT_NONE;
+  }
+  bdos_slot_in_use = 1;
+  return 0;
+}
+
+void bdos_slot_free(int slot)
+{
+  (void)slot;
+  bdos_slot_in_use = 0;
+}
+
+unsigned int bdos_slot_entry_addr(int slot)
+{
+  return MEM_PROGRAM_START + ((unsigned int)slot * MEM_SLOT_SIZE);
+}
+
+unsigned int bdos_slot_stack_addr(int slot)
+{
+  return bdos_slot_entry_addr(slot) + MEM_SLOT_SIZE - 1;
+}
+
+// ---- Program execution globals ----
+// Used by the inline assembly trampoline in bdos_exec_program.
+unsigned int bdos_run_entry = 0;
+unsigned int bdos_run_stack = 0;
+unsigned int bdos_run_saved_sp = 0;
+unsigned int bdos_run_saved_bp = 0;
+int bdos_run_retval = 0;
 
 // ---- Utility helpers ----
 
@@ -627,16 +658,15 @@ int bdos_shell_cmd_help(int argc, char** argv)
   term_puts("BDOS shell help\n");
   term_puts("--------------\n");
   term_puts("General\n");
-  term_puts("  help  clear  echo\n");
-  term_puts("  uptime\n");
-  term_puts("Programs\n");
-  term_puts("  run <program>\n");
+  term_puts("  help  clear  echo  uptime\n");
   term_puts("Filesystem\n");
   term_puts("  pwd  cd  ls  df\n");
   term_puts("  mkdir  mkfile  rm\n");
   term_puts("  cat  write\n");
   term_puts("Maintenance\n");
   term_puts("  format  sync\n");
+  term_puts("Programs\n");
+  term_puts("  path, or filename from /bin\n");
   return 0;
 }
 
@@ -1232,14 +1262,41 @@ int bdos_shell_cmd_df(int argc, char** argv)
   return 0;
 }
 
-// Load a binary from BRFS into the first user program slot and execute it.
-// If the path has no directory component, tries /bin/<name> as fallback.
-// The program runs to completion; BDOS regains control when main() returns.
-int bdos_shell_cmd_run(int argc, char** argv)
+// Resolve a program name to a BRFS path.
+// If name contains '/' or '.', resolves as a path (relative to cwd or absolute).
+// Otherwise, tries /bin/<name>.
+// Returns BRFS_OK on success with resolved path in out_path, or error code.
+int bdos_shell_resolve_program(char* name, char* out_path)
 {
-  char resolved[BDOS_SHELL_PATH_MAX];
   char bin_path[BDOS_SHELL_PATH_MAX];
   int result;
+
+  // If it looks like a path (contains / or .), resolve directly
+  if (strchr(name, '/') != 0 || name[0] == '.')
+  {
+    return bdos_shell_resolve_path(name, out_path);
+  }
+
+  // Bare name: try /bin/<name>
+  strcpy(bin_path, "/bin/");
+  strcat(bin_path, name);
+  result = bdos_shell_resolve_path(bin_path, out_path);
+  if (result == BRFS_OK && brfs_exists(out_path))
+  {
+    return BRFS_OK;
+  }
+
+  // Fallback: try resolving relative to cwd
+  result = bdos_shell_resolve_path(name, out_path);
+  return result;
+}
+
+// Load and execute a program binary from a resolved BRFS path.
+// Allocates a program slot, loads the binary, runs it to completion,
+// then frees the slot. Returns the program's exit code, or -1 on error.
+int bdos_exec_program(char* resolved_path)
+{
+  int slot;
   int fd;
   int file_size;
   int words_remaining;
@@ -1247,64 +1304,19 @@ int bdos_shell_cmd_run(int argc, char** argv)
   int words_read;
   unsigned int *dest;
 
-  if (!bdos_shell_require_fs_ready())
+  slot = bdos_slot_alloc();
+  if (slot == BDOS_SLOT_NONE)
   {
-    return 0;
+    term_puts("error: no free program slot\n");
+    return -1;
   }
 
-  if (argc < 2)
-  {
-    term_puts("usage: run <program>\n");
-    term_puts("  Loads and runs a binary from the filesystem.\n");
-    term_puts("  If no path separator, looks in /bin/ directory.\n");
-    return 0;
-  }
-
-  // Try to resolve the path as given
-  result = bdos_shell_resolve_path(argv[1], resolved);
-  if (result != BRFS_OK)
-  {
-    // If the name has no slash, try /bin/<name>
-    if (strchr(argv[1], '/') == 0)
-    {
-      strcpy(bin_path, "/bin/");
-      strcat(bin_path, argv[1]);
-
-      result = bdos_shell_resolve_path(bin_path, resolved);
-      if (result != BRFS_OK)
-      {
-        bdos_shell_print_fs_error("resolve path", result);
-        return 0;
-      }
-    }
-    else
-    {
-      bdos_shell_print_fs_error("resolve path", result);
-      return 0;
-    }
-  }
-
-  // Open the binary file
-  fd = brfs_open(resolved);
+  fd = brfs_open(resolved_path);
   if (fd < 0)
   {
-    // If direct open failed and name has no slash, try /bin/
-    if (strchr(argv[1], '/') == 0)
-    {
-      strcpy(bin_path, "/bin/");
-      strcat(bin_path, argv[1]);
-      result = bdos_shell_resolve_path(bin_path, resolved);
-      if (result == BRFS_OK)
-      {
-        fd = brfs_open(resolved);
-      }
-    }
-
-    if (fd < 0)
-    {
-      bdos_shell_print_fs_error("open", fd);
-      return 0;
-    }
+    bdos_shell_print_fs_error("open", fd);
+    bdos_slot_free(slot);
+    return -1;
   }
 
   file_size = brfs_file_size(fd);
@@ -1312,29 +1324,21 @@ int bdos_shell_cmd_run(int argc, char** argv)
   {
     term_puts("error: empty or invalid binary\n");
     brfs_close(fd);
-    return 0;
+    bdos_slot_free(slot);
+    return -1;
   }
 
-  // Check if the binary fits in one slot (512 KiW)
   if ((unsigned int)file_size > MEM_SLOT_SIZE)
   {
-    term_puts("error: binary too large for one slot (");
-    term_putint(file_size);
-    term_puts(" words, max ");
+    term_puts("error: binary too large for slot (max ");
     term_putint((int)MEM_SLOT_SIZE);
-    term_puts(")\n");
+    term_puts(" words)\n");
     brfs_close(fd);
-    return 0;
+    bdos_slot_free(slot);
+    return -1;
   }
 
-  // Load binary into slot 0 (MEM_PROGRAM_START)
-  term_puts("Loading ");
-  term_puts(resolved);
-  term_puts(" (");
-  term_putint(file_size);
-  term_puts(" words)...\n");
-
-  dest = (unsigned int *)MEM_PROGRAM_START;
+  dest = (unsigned int *)bdos_slot_entry_addr(slot);
   words_remaining = file_size;
 
   while (words_remaining > 0)
@@ -1350,7 +1354,8 @@ int bdos_shell_cmd_run(int argc, char** argv)
     {
       bdos_shell_print_fs_error("read", words_read);
       brfs_close(fd);
-      return 0;
+      bdos_slot_free(slot);
+      return -1;
     }
 
     if (words_read == 0)
@@ -1368,13 +1373,10 @@ int bdos_shell_cmd_run(int argc, char** argv)
   asm("ccache");
 
   // Set up globals for the inline assembly trampoline
-  bdos_run_entry = MEM_PROGRAM_START;
-  bdos_run_stack = MEM_PROGRAM_START + MEM_SLOT_SIZE - 1;
-
-  term_puts("Running...\n");
+  bdos_run_entry = bdos_slot_entry_addr(slot);
+  bdos_run_stack = bdos_slot_stack_addr(slot);
 
   // Execute the user program via inline assembly.
-  //
   // We save all BDOS registers to the stack (except r13/r14 which go
   // to globals, since the user program gets its own stack).
   // The program's entry point at slot offset 0 is the ASMPY header
@@ -1429,11 +1431,13 @@ int bdos_shell_cmd_run(int argc, char** argv)
   // Flush cache again after user program execution
   asm("ccache");
 
+  bdos_slot_free(slot);
+
   term_puts("Program exited with code ");
   term_putint(bdos_run_retval);
   term_putchar('\n');
 
-  return 0;
+  return bdos_run_retval;
 }
 
 int bdos_shell_cmd_format(int argc, char** argv)
@@ -1455,6 +1459,8 @@ void bdos_shell_execute_line(char* line)
 {
   int argc;
   char* argv[BDOS_SHELL_ARGV_MAX];
+  char prog_path[BDOS_SHELL_PATH_MAX];
+  int resolve_result;
 
   if (bdos_shell_parse_line(line, &argc, argv) != 0)
   {
@@ -1539,12 +1545,6 @@ void bdos_shell_execute_line(char* line)
     return;
   }
 
-  if (strcmp(argv[0], "run") == 0)
-  {
-    bdos_shell_cmd_run(argc, argv);
-    return;
-  }
-
   if (strcmp(argv[0], "format") == 0)
   {
     bdos_shell_cmd_format(argc, argv);
@@ -1563,7 +1563,17 @@ void bdos_shell_execute_line(char* line)
     return;
   }
 
-  term_puts("error: unknown command: ");
+  // Not a built-in command: try to find and execute a program
+  if (bdos_fs_ready)
+  {
+    resolve_result = bdos_shell_resolve_program(argv[0], prog_path);
+    if (resolve_result == BRFS_OK && brfs_exists(prog_path) && !brfs_is_dir(prog_path))
+    {
+      bdos_exec_program(prog_path);
+      return;
+    }
+  }
+
   term_puts(argv[0]);
-  term_puts("\nType 'help' to list commands.\n");
+  term_puts(": command not found\n");
 }
