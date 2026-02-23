@@ -3,8 +3,8 @@
  * Simple control unit that sets flags based on the instruction opcode and optional ALU opcode
  */
 module ControlUnit (
-    input wire  [3:0]   instrOP,
-    input wire  [3:0]   aluOP,
+    input wire  [3:0]   instr_op,
+    input wire  [3:0]   alu_op,
 
     output reg          alu_use_const,
     output reg          alu_use_constu,
@@ -19,9 +19,9 @@ module ControlUnit (
     output reg          branch,
     output reg          halt,
     output reg          reti,
-    output reg          getIntID,
-    output reg          getPC,
-    output reg          clearCache
+    output reg          get_int_id,
+    output reg          get_pc,
+    output reg          clear_cache
 );
 
 // Instruction Opcodes
@@ -57,15 +57,15 @@ begin
     arithm          = 1'b0;
     jumpc           = 1'b0;
     jumpr           = 1'b0;
-    getIntID        = 1'b0;
-    getPC           = 1'b0;
+    get_int_id        = 1'b0;
+    get_pc           = 1'b0;
     branch          = 1'b0;
     halt            = 1'b0;
     reti            = 1'b0;
-    clearCache      = 1'b0;
+    clear_cache      = 1'b0;
 
     // Set values based on opcode
-    case (instrOP)
+    case (instr_op)
         OP_HALT:
         begin
             halt = 1'b1;
@@ -85,7 +85,7 @@ begin
         // Write interrupt ID to dreg
         OP_INTID:
         begin
-            getIntID = 1'b1;
+            get_int_id = 1'b1;
             dreg_we = 1'b1;
         end
 
@@ -120,7 +120,7 @@ begin
         // Write PC to dreg
         OP_SAVPC:
         begin
-            getPC = 1'b1;
+            get_pc = 1'b1;
             dreg_we = 1'b1;
         end
 
@@ -131,7 +131,7 @@ begin
 
         OP_CCACHE:
         begin
-            clearCache = 1'b1;
+            clear_cache = 1'b1;
         end
 
         OP_ARITH:
@@ -142,7 +142,7 @@ begin
         OP_ARITHC:
         begin
             alu_use_const = 1'b1;
-            if (aluOP[3:1] == 3'b110)
+            if (alu_op[3:1] == 3'b110)
             begin
                 alu_use_constu = 1'b1;
             end
@@ -159,7 +159,7 @@ begin
         begin
             arithm = 1'b1;
             alu_use_const = 1'b1;
-            if (aluOP[3:1] == 3'b110)
+            if (alu_op[3:1] == 3'b110)
             begin
                 alu_use_constu = 1'b1;
             end

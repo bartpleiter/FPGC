@@ -110,9 +110,9 @@ InterruptController interrupt_controller (
     .clk        (clk),
     .reset      (reset),
     .interrupts (interrupts),
-    .intDisabled(int_disabled),
-    .intCPU     (int_cpu),
-    .intID      (int_id)
+    .int_disabled(int_disabled),
+    .int_cpu     (int_cpu),
+    .int_id      (int_id)
 );
 
 // Interrupt is valid only when:
@@ -134,36 +134,26 @@ reg [31:0] pc_backup = 32'd0;
 wire reti_valid = id_ex_valid && id_ex_reti && !pc_redirect;
 
 // ---- PIPELINE CONTROL SIGNALS ----
-wire stall_if;          // Stall IF stage
-wire stall_id;          // Stall ID stage  
-wire flush_if_id;       // Flush IF/ID register
-wire flush_id_ex;       // Flush ID/EX register
-wire flush_ex_mem;      // Flush EX/MEM register
+wire        stall_if;               // Stall IF stage
+wire        stall_id;               // Stall ID stage  
+wire        flush_if_id;            // Flush IF/ID register
+wire        flush_id_ex;            // Flush ID/EX register
+wire        flush_ex_mem;           // Flush EX/MEM register
 
-// Pipeline stall sources
-wire hazard_stall;      // Load-use hazard stall
+// Pipeline stall sources (driven by cache, ALU, MU, and cache-clear subsystems)
 wire cache_stall_if;    // L1I cache miss stall 
 wire cache_stall_mem;   // L1D cache miss stall
 wire multicycle_stall;  // Multi-cycle ALU stall
 wire mu_stall;          // Memory unit stall
 wire cc_stall;          // Cache clear stall
 
-// Combined stall signal - stalls entire pipeline
-wire backend_stall = cache_stall_if || cache_stall_mem || multicycle_stall || mu_stall || cc_stall;
-
-// Cache line hazard also needs to stall EX
-wire cache_line_hazard;
-
-// Pipeline stall for front-end (IF, ID) - includes all hazard stalls
-wire pipeline_stall = hazard_stall || backend_stall;
-
-// Pipeline stall for EX stage - includes cache_line_hazard and backend_stall
-// Load/pop hazards don't stall EX because EX instruction needs to wait in ID for the result
-wire ex_pipeline_stall = backend_stall || cache_line_hazard;
-
-// Pipeline stall for MEM and WB stages - only backend_stall
-// cache_line_hazard should NOT stall MEM/WB - we need MEM to complete so the hazard clears
-wire backend_pipeline_stall = backend_stall;
+// Pipeline control outputs
+wire        pipeline_stall;
+wire        ex_pipeline_stall;
+wire        backend_pipeline_stall;
+wire [1:0]  forward_a;
+wire [1:0]  forward_b;
+wire        cache_line_hazard;
 
 assign stall_if = pipeline_stall;
 assign stall_id = pipeline_stall;
@@ -171,23 +161,6 @@ assign stall_id = pipeline_stall;
 // PC redirect signals
 wire        pc_redirect;
 wire [31:0] pc_redirect_target;
-
-// Flush on control hazard (branch/jump taken in MEM stage)
-// Since branch resolution is in MEM stage, we need to flush 3 stages:
-// IF/ID, ID/EX, and EX/MEM (the 2 instructions after the branch in the pipeline)
-// Also flush on interrupt_valid and reti_valid
-// RETI is detected in ID/EX stage, so when it fires:
-//   - IF/ID contains the instruction after RETI (needs to be flushed)
-//   - ID/EX contains the RETI itself (will redirect PC)
-//   - EX/MEM contains the instruction BEFORE RETI (should NOT be flushed - it must complete!)
-// Flushes for interrupt_valid and reti_valid should only happen when they 
-// actually execute (when not stalled). Otherwise, we'd flush the instruction but not
-// execute the redirect, losing the instruction entirely.
-wire reti_executes = reti_valid && !pipeline_stall;
-wire interrupt_executes = interrupt_valid && !pipeline_stall;
-assign flush_if_id = pc_redirect || interrupt_executes || reti_executes;
-assign flush_id_ex = pc_redirect || interrupt_executes || reti_executes;
-assign flush_ex_mem = pc_redirect || interrupt_executes;
 
 // ---- PROGRAM COUNTER ----
 reg [31:0] pc = ROM_ADDRESS;
@@ -320,9 +293,9 @@ reg        id_ex_push = 1'b0;
 reg        id_ex_pop = 1'b0;
 reg        id_ex_halt = 1'b0;
 reg        id_ex_reti = 1'b0;
-reg        id_ex_getIntID = 1'b0;
-reg        id_ex_getPC = 1'b0;
-reg        id_ex_clearCache = 1'b0;
+reg        id_ex_get_int_id = 1'b0;
+reg        id_ex_get_pc = 1'b0;
+reg        id_ex_clear_cache = 1'b0;
 reg        id_ex_arithm = 1'b0;
 
 // ---- EX/MEM PIPELINE REGISTER ----
@@ -348,9 +321,9 @@ reg        ex_mem_mem_write = 1'b0;
 reg        ex_mem_push = 1'b0;
 reg        ex_mem_pop = 1'b0;
 reg        ex_mem_halt = 1'b0;
-reg        ex_mem_getIntID = 1'b0;
-reg        ex_mem_getPC = 1'b0;
-reg        ex_mem_clearCache = 1'b0;
+reg        ex_mem_get_int_id = 1'b0;
+reg        ex_mem_get_pc = 1'b0;
+reg        ex_mem_clear_cache = 1'b0;
 reg        ex_mem_arithm = 1'b0;
 
 // Branch/jump control signals for MEM-stage branch resolution
@@ -402,11 +375,11 @@ wire        id_sig;
 
 InstructionDecoder instr_decoder (
     .instr      (if_id_instr),
-    .instrOP    (id_instr_op),
-    .aluOP      (id_alu_op),
-    .branchOP   (id_branch_op),
-    .constAlu   (id_const_alu),
-    .constAluu  (id_const_aluu),
+    .instr_op    (id_instr_op),
+    .alu_op      (id_alu_op),
+    .branch_op   (id_branch_op),
+    .const_alu   (id_const_alu),
+    .const_aluu  (id_const_aluu),
     .const16    (id_const16),
     .const16u   (id_const16u),
     .const27    (id_const27),
@@ -432,13 +405,13 @@ wire id_jumpr;
 wire id_branch;
 wire id_halt;
 wire id_reti;
-wire id_getIntID;
-wire id_getPC;
-wire id_clearCache;
+wire id_get_int_id;
+wire id_get_pc;
+wire id_clear_cache;
 
 ControlUnit control_unit (
-    .instrOP        (id_instr_op),
-    .aluOP          (id_alu_op),
+    .instr_op        (id_instr_op),
+    .alu_op          (id_alu_op),
     .alu_use_const  (id_alu_use_const),
     .alu_use_constu (id_alu_use_constu),
     .push           (id_push),
@@ -452,9 +425,9 @@ ControlUnit control_unit (
     .branch         (id_branch),
     .halt           (id_halt),
     .reti           (id_reti),
-    .getIntID       (id_getIntID),
-    .getPC          (id_getPC),
-    .clearCache     (id_clearCache)
+    .get_int_id       (id_get_int_id),
+    .get_pc          (id_get_pc),
+    .clear_cache     (id_clear_cache)
 );
 
 // ---- REGISTER FILE ----
@@ -502,13 +475,11 @@ wire [31:0] ex_alu_result;
 
 // Forwarding mux for ALU input A
 // Data comes directly from regbank (1-cycle latency handled by regbank)
-wire [1:0] forward_a;
 assign ex_alu_a = (forward_a == 2'b01) ? ex_mem_alu_result :
                   (forward_a == 2'b10) ? wb_data :
                   ex_areg_data;  // Use regbank output directly
 
 // Forwarding mux for ALU input B (before const selection)
-wire [1:0] forward_b;
 wire [31:0] ex_breg_forwarded;
 assign ex_breg_forwarded = (forward_b == 2'b01) ? ex_mem_alu_result :
                            (forward_b == 2'b10) ? wb_data :
@@ -618,7 +589,7 @@ wire        jump_valid;
 wire [31:0] jump_addr;
 
 BranchJumpUnit branch_jump_unit (
-    .branchOP           (ex_mem_branch_op),
+    .branch_op           (ex_mem_branch_op),
     .data_a             (ex_mem_areg_data),
     .data_b             (ex_mem_breg_data),
     .const16            (ex_mem_const16),
@@ -670,53 +641,53 @@ assign stack_ptr_we = ex_mem_valid && ex_mem_mem_write &&
                       (ex_mem_mem_addr == CPU_IO_HW_STACK_PTR) && !backend_pipeline_stall;
 assign stack_ptr_in = ex_mem_breg_data[7:0];
 
-// ---- FORWARDING UNIT ----
-// Forward from EX/MEM (most recent) or MEM/WB (older)
-// forward_a/b: 00=no forward, 01=from EX/MEM, 10=from MEM/WB
-// IMPORTANT: Don't forward from EX/MEM for reads or pops as their data isn't ready yet!
-// Read/pop data is only available in MEM/WB stage (handled by load_use_hazard stall)
-wire ex_mem_can_forward = ex_mem_dreg_we && ex_mem_dreg != 4'd0 && !ex_mem_mem_read && !ex_mem_pop;
-
-assign forward_a = (ex_mem_can_forward && ex_mem_dreg == id_ex_areg) ? 2'b01 :
-                   (mem_wb_dreg_we && mem_wb_dreg != 4'd0 && mem_wb_dreg == id_ex_areg) ? 2'b10 :
-                   2'b00;
-
-assign forward_b = (ex_mem_can_forward && ex_mem_dreg == id_ex_breg) ? 2'b01 :
-                   (mem_wb_dreg_we && mem_wb_dreg != 4'd0 && mem_wb_dreg == id_ex_breg) ? 2'b10 :
-                   2'b00;
-
-// ---- HAZARD DETECTION UNIT ----
-// Load-use hazard: instruction in EX needs data from read in MEM
-// POP-use hazard: instruction in EX needs data from pop in MEM (pop result not available until WB)
-// We need to stall when ID/EX has a memory read or pop and the next instruction uses that register
-wire load_use_hazard = id_ex_valid && id_ex_mem_read &&
-                       ((id_ex_dreg == id_areg && id_areg != 4'd0) ||
-                        (id_ex_dreg == id_breg && id_breg != 4'd0)) &&
-                       if_id_valid;
-
-wire pop_use_hazard = id_ex_valid && id_ex_pop &&
-                      ((id_ex_dreg == id_areg && id_areg != 4'd0) ||
-                       (id_ex_dreg == id_breg && id_breg != 4'd0)) &&
-                      if_id_valid;
-
-// Cache line hazard: back-to-back SDRAM accesses to different cache lines
-// The cache has 1-cycle read latency, so we need to stall when:
-// - MEM stage has an SDRAM access (read or write)
-// - EX stage also has an SDRAM access (read or write)
-// - The cache lines are different
-// This ensures the cache output is valid for the MEM stage instruction
-
-// Full address calculation for EX stage to determine if SDRAM access
-wire [31:0] ex_full_addr = ex_alu_a + id_ex_const16;
-wire ex_sel_sdram = ex_full_addr >= 32'h0000000 && ex_full_addr < 32'h7000000;
-wire [6:0] ex_cache_line = ex_full_addr[9:3];
-wire [6:0] mem_cache_line = ex_mem_mem_addr[9:3];
-
-wire ex_needs_sdram = id_ex_valid && (id_ex_mem_read || id_ex_mem_write) && ex_sel_sdram;
-wire mem_has_sdram = ex_mem_valid && (ex_mem_mem_read || ex_mem_mem_write) && mem_sel_sdram;
-assign cache_line_hazard = ex_needs_sdram && mem_has_sdram && (ex_cache_line != mem_cache_line);
-
-assign hazard_stall = load_use_hazard || pop_use_hazard || cache_line_hazard;
+// ---- PIPELINE CONTROLLER ----
+PipelineController pipeline_controller (
+    // Forwarding inputs
+    .ex_mem_dreg_we     (ex_mem_dreg_we),
+    .ex_mem_dreg        (ex_mem_dreg),
+    .ex_mem_mem_read    (ex_mem_mem_read),
+    .ex_mem_pop         (ex_mem_pop),
+    .id_ex_areg         (id_ex_areg),
+    .id_ex_breg         (id_ex_breg),
+    .mem_wb_dreg_we     (mem_wb_dreg_we),
+    .mem_wb_dreg        (mem_wb_dreg),
+    // Hazard detection inputs
+    .id_ex_valid        (id_ex_valid),
+    .id_ex_mem_read     (id_ex_mem_read),
+    .id_ex_dreg         (id_ex_dreg),
+    .id_ex_pop          (id_ex_pop),
+    .id_areg            (id_areg),
+    .id_breg            (id_breg),
+    .if_id_valid        (if_id_valid),
+    .id_ex_mem_write    (id_ex_mem_write),
+    .id_ex_const16      (id_ex_const16),
+    .ex_mem_valid       (ex_mem_valid),
+    .ex_mem_mem_write   (ex_mem_mem_write),
+    .mem_sel_sdram      (mem_sel_sdram),
+    .ex_mem_mem_addr    (ex_mem_mem_addr),
+    .ex_alu_a           (ex_alu_a),
+    // Stall source inputs
+    .cache_stall_if     (cache_stall_if),
+    .cache_stall_mem    (cache_stall_mem),
+    .multicycle_stall   (multicycle_stall),
+    .mu_stall           (mu_stall),
+    .cc_stall           (cc_stall),
+    // Flush source inputs
+    .pc_redirect        (pc_redirect),
+    .reti_valid         (reti_valid),
+    .interrupt_valid    (interrupt_valid),
+    // Outputs
+    .forward_a              (forward_a),
+    .forward_b              (forward_b),
+    .pipeline_stall         (pipeline_stall),
+    .ex_pipeline_stall      (ex_pipeline_stall),
+    .backend_pipeline_stall (backend_pipeline_stall),
+    .flush_if_id            (flush_if_id),
+    .flush_id_ex            (flush_id_ex),
+    .flush_ex_mem           (flush_ex_mem),
+    .cache_line_hazard      (cache_line_hazard)
+);
 
 // ---- INSTRUCTION FETCH (IF) STAGE ----
 
@@ -826,9 +797,9 @@ begin
         id_ex_pop <= 1'b0;
         id_ex_halt <= 1'b0;
         id_ex_reti <= 1'b0;
-        id_ex_getIntID <= 1'b0;
-        id_ex_getPC <= 1'b0;
-        id_ex_clearCache <= 1'b0;
+        id_ex_get_int_id <= 1'b0;
+        id_ex_get_pc <= 1'b0;
+        id_ex_clear_cache <= 1'b0;
         id_ex_arithm <= 1'b0;
     end else if (!pipeline_stall)
     begin
@@ -860,9 +831,9 @@ begin
         id_ex_pop <= id_pop && if_id_valid;
         id_ex_halt <= id_halt && if_id_valid;
         id_ex_reti <= id_reti && if_id_valid;
-        id_ex_getIntID <= id_getIntID && if_id_valid;
-        id_ex_getPC <= id_getPC && if_id_valid;
-        id_ex_clearCache <= id_clearCache && if_id_valid;
+        id_ex_get_int_id <= id_get_int_id && if_id_valid;
+        id_ex_get_pc <= id_get_pc && if_id_valid;
+        id_ex_clear_cache <= id_clear_cache && if_id_valid;
         id_ex_arithm <= id_arithm && if_id_valid;
     end else if (!ex_pipeline_stall)
     begin
@@ -879,9 +850,9 @@ begin
         id_ex_pop <= 1'b0;
         id_ex_halt <= 1'b0;
         id_ex_reti <= 1'b0;
-        id_ex_getIntID <= 1'b0;
-        id_ex_getPC <= 1'b0;
-        id_ex_clearCache <= 1'b0;
+        id_ex_get_int_id <= 1'b0;
+        id_ex_get_pc <= 1'b0;
+        id_ex_clear_cache <= 1'b0;
         id_ex_arithm <= 1'b0;
     end
 end
@@ -1161,7 +1132,7 @@ begin
         l1_clear_cache <= 1'b0;
         clear_cache_in_progress <= 1'b0;
         clear_cache_finished <= 1'b0;
-    end else if (!ex_mem_valid || !ex_mem_clearCache)
+    end else if (!ex_mem_valid || !ex_mem_clear_cache)
     begin
         // No ccache instruction in MEM stage, reset state
         l1_clear_cache <= 1'b0;
@@ -1192,7 +1163,7 @@ begin
 end
 
 // Stall only when ccache is in progress and not yet finished
-assign cc_stall = ex_mem_valid && ex_mem_clearCache && !clear_cache_finished;
+assign cc_stall = ex_mem_valid && ex_mem_clear_cache && !clear_cache_finished;
 
 // Memory read data multiplexer
 // For SDRAM: use l1d_result_reg if we had a cache miss (request_finished),
@@ -1212,8 +1183,8 @@ wire [31:0] mem_read_data = mem_sel_cpu_io ? cpu_io_read_data :
 // SAVPC uses PC, INTID uses interrupt ID, otherwise ALU result
 // For multi-cycle ALU: use malu_result directly when done (not the registered value,
 // which hasn't been updated yet on the same clock edge)
-wire [31:0] ex_result = id_ex_getPC    ? id_ex_pc :
-                        id_ex_getIntID ? {24'd0, int_id} :
+wire [31:0] ex_result = id_ex_get_pc    ? id_ex_pc :
+                        id_ex_get_int_id ? {24'd0, int_id} :
                         (id_ex_arithm && malu_done) ? malu_result : 
                         id_ex_arithm   ? malu_result_reg : 
                         ex_alu_result;
@@ -1237,9 +1208,9 @@ begin
         ex_mem_push <= 1'b0;
         ex_mem_pop <= 1'b0;
         ex_mem_halt <= 1'b0;
-        ex_mem_getIntID <= 1'b0;
-        ex_mem_getPC <= 1'b0;
-        ex_mem_clearCache <= 1'b0;
+        ex_mem_get_int_id <= 1'b0;
+        ex_mem_get_pc <= 1'b0;
+        ex_mem_clear_cache <= 1'b0;
         ex_mem_arithm <= 1'b0;
         // Branch control signals
         ex_mem_is_branch <= 1'b0;
@@ -1267,9 +1238,9 @@ begin
         ex_mem_push <= id_ex_push;
         ex_mem_pop <= id_ex_pop;
         ex_mem_halt <= id_ex_halt;
-        ex_mem_getIntID <= id_ex_getIntID;
-        ex_mem_getPC <= id_ex_getPC;
-        ex_mem_clearCache <= id_ex_clearCache;
+        ex_mem_get_int_id <= id_ex_get_int_id;
+        ex_mem_get_pc <= id_ex_get_pc;
+        ex_mem_clear_cache <= id_ex_clear_cache;
         ex_mem_arithm <= id_ex_arithm;
         // Branch control signals for MEM-stage resolution
         ex_mem_is_branch <= id_ex_is_branch;
@@ -1281,7 +1252,7 @@ begin
         ex_mem_const16 <= id_ex_const16;
         ex_mem_const27 <= id_ex_const27;
         ex_mem_areg_data <= ex_alu_a;  // Forwarded A value
-    end else if (cache_line_hazard && !backend_stall)
+    end else if (cache_line_hazard && !backend_pipeline_stall)
     begin
         // Cache line hazard: MEM should advance, insert bubble into MEM stage
         // The instruction in EX (second SDRAM access) stays in ID/EX (pipeline_stall holds it)

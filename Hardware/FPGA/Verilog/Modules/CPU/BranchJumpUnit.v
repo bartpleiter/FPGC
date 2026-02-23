@@ -3,7 +3,7 @@
  * Handles branch and jump address calculations
  */
 module BranchJumpUnit (
-    input wire  [2:0]   branchOP,
+    input wire  [2:0]   branch_op,
     input wire  [31:0]  data_a,
     input wire  [31:0]  data_b,
     input wire  [31:0]  const16,
@@ -35,7 +35,7 @@ localparam
 reg branch_passed;
 always @(*) 
 begin
-    case (branchOP)
+    case (branch_op)
         BRANCH_OP_BEQ:
         begin
             branch_passed = (data_a == data_b);
