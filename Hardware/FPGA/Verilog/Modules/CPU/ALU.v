@@ -29,7 +29,7 @@ localparam
     // OP_XXX      = 4'b1111; // Reserved
 
 
-always @ (*) 
+always @(*)
 begin
     case (opcode)
         OP_OR:      y = a | b;

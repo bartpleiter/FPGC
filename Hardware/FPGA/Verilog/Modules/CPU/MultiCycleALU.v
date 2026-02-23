@@ -42,8 +42,7 @@ reg [2:0] state = STATE_IDLE;
 // Track whether we want quotient or remainder for integer division
 reg idiv_want_remainder = 1'b0;
 
-// Multicycle operations submodules
-// ================================
+// ---- Multicycle operations submodules ----
 
 // Unsigned Multiplier
 reg [31:0] multu_a = 32'd0;
@@ -113,7 +112,7 @@ FPDivider fpdiv (
     .done(fpdiv_done)
 );
 
-always @ (posedge clk)
+always @(posedge clk)
 begin
     if (reset)
     begin

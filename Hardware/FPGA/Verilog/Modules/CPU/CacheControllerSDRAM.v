@@ -15,15 +15,11 @@
  * NOTE: The SDRAM controller uses 256 bit (21-bit) addressing for 64MB
  */
 module CacheController (
-    //========================
-    // System interface
-    //========================
+    // ---- System interface ----
     input  wire         clk100,
     input  wire         reset,
 
-    //========================
-    // CPU pipeline interface
-    //========================
+    // ---- CPU pipeline interface ----
     // FE2 stage
     input  wire         cpu_FE2_start,
     input  wire [31:0]  cpu_FE2_addr,       // Address in CPU words for instruction fetch
@@ -43,11 +39,9 @@ module CacheController (
     input  wire         cpu_clear_cache,
     output reg          cpu_clear_cache_done = 1'b0,
 
-    //========================
-    // L1 cache DPRAM interface
+    // ---- L1 cache DPRAM interface ----
     // Cache line format: {256bit_data, 14bit_tag, 1bit_valid} = 271 bits
     // Tag is 14 bits for 64MB address space (24-bit word address - 7-bit index - 3-bit offset)
-    //========================
     // L1i cache
     output reg  [270:0] l1i_ctrl_d          = 271'b0,
     output reg  [6:0]   l1i_ctrl_addr       = 7'b0,
@@ -60,9 +54,7 @@ module CacheController (
     output reg          l1d_ctrl_we         = 1'b0,
     input  wire [270:0] l1d_ctrl_q,
 
-    //========================
-    // SDRAM controller interface
-    //========================
+    // ---- SDRAM controller interface ----
     output reg  [20:0]  sdc_addr            = 21'd0,
     output reg  [255:0] sdc_data            = 256'd0,
     output reg          sdc_we              = 1'b0,
@@ -147,9 +139,7 @@ reg cpu_clear_cache_new_request = 1'b0;
 // Cache clearing control registers
 reg [6:0] clear_cache_index = 7'd0; // Index for iterating through cache lines (0-127)
 
-//========================
-// L1I Prefetching Optimization
-//========================
+// ---- L1I Prefetching Optimization ----
 // Simple next-line prefetcher: after servicing an L1I miss, queue a prefetch
 // of the next sequential cache line. The prefetch executes during true idle time.
 // This doesn't reduce latency of the current miss, but prevents future sequential misses.
@@ -157,9 +147,7 @@ reg         l1i_prefetch_pending = 1'b0;     // Flag indicating a prefetch is wa
 reg [23:0]  l1i_prefetch_addr = 24'd0;       // 24-bit word address of the cache line to prefetch (64MB)
 // Note: we only need 24 bits for the address (64MB = 2^24 words)
 // The prefetch address is the next sequential cache line (addr + 8 words)
-//========================
-// Dirty Bit Array Optimization
-//========================
+// ---- Dirty Bit Array Optimization ----
 // Separate 128-bit register array to track dirty status of L1D cache lines
 // This allows immediate (combinational) dirty check without waiting for DPRAM read
 // Each bit corresponds to one cache line (index 0-127)
@@ -173,7 +161,7 @@ reg ignore_fe2_result = 1'b0; // If a flush is received while processing a FE2 r
 
 reg get_address_after_ignore = 1'b0; // We need to delay storing the requested address if current request should be ignored
 
-always @ (posedge clk100)
+always @(posedge clk100)
 begin
     if (reset)
     begin
@@ -368,9 +356,7 @@ begin
                 end
             end
 
-            // ------------------------
-            // L1 Instruction Cache Read States
-            // ------------------------
+            // ---- L1 Instruction Cache Read States ----
 
             STATE_L1I_WAIT_READ_DATA: begin
                 // Disassert request
@@ -429,10 +415,8 @@ begin
             end
 
 
-            // ------------------------
-            // L1I Prefetch States
+            // ---- L1I Prefetch States ----
             // Simple next-line prefetcher that runs during true idle time.
-            // ------------------------
 
             STATE_L1I_PREFETCH_CHECK: begin
                 // Wait one cycle for DPRAM read, then check if line is already in cache
@@ -500,9 +484,7 @@ begin
                 state <= STATE_IDLE;
             end
 
-            // ------------------------
-            // L1 Data Cache Read States
-            // ------------------------
+            // ---- L1 Data Cache Read States ----
 
             STATE_L1D_READ_WAIT_CACHE_READ: begin
                 // Wait one cycle for DPRAM read to complete
@@ -612,11 +594,9 @@ begin
 
             end
 
-            // ------------------------
-            // L1D Read Fast Path States (Dirty Bit Array Optimization)
+            // ---- L1D Read Fast Path States (Dirty Bit Array Optimization) ----
             // These states handle L1D read misses when we know the line is clean
             // Saves 2 cycles by skipping the DPRAM read for dirty check
-            // ------------------------
 
             STATE_L1D_READ_FAST_WAIT_DATA: begin
                 // Disassert sdc signals (was asserted in IDLE)
@@ -662,9 +642,7 @@ begin
                 state <= STATE_IDLE;
             end
 
-            // ------------------------
-            // L1 Data Cache Write States
-            // ------------------------
+            // ---- L1 Data Cache Write States ----
 
             STATE_L1D_WRITE_WAIT_CACHE_READ: begin
                 // Wait one cycle for DPRAM read to complete
@@ -862,9 +840,7 @@ begin
                 state <= STATE_IDLE;
             end
 
-            // ------------------------
-            // Cache Clear States
-            // ------------------------
+            // ---- Cache Clear States ----
 
             STATE_CLEARCACHE_REQUESTED: begin
                 // Start clearing process by initializing the index and starting with L1i cache

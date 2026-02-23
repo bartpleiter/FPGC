@@ -30,15 +30,11 @@ module B32P3 #(
     parameter INTERRUPT_JUMP_ADDR = 32'd1,
     parameter NUM_INTERRUPTS = 8
 ) (
-    //========================
-    // System interface
-    //========================
+    // ---- System interface ----
     input  wire         clk,
     input  wire         reset,
 
-    //========================
-    // ROM (dual port)
-    //========================
+    // ---- ROM (dual port) ----
     output wire [9:0]   rom_fe_addr,
     output wire         rom_fe_oe,
     input  wire [31:0]  rom_fe_q,
@@ -47,45 +43,33 @@ module B32P3 #(
     output wire [9:0]   rom_mem_addr,
     input  wire [31:0]  rom_mem_q,
 
-    //========================
-    // VRAM32
-    //========================
+    // ---- VRAM32 ----
     output wire [10:0]  vram32_addr,
     output wire [31:0]  vram32_d,
     output wire         vram32_we,
     input  wire [31:0]  vram32_q,
 
-    //========================
-    // VRAM8
-    //========================
+    // ---- VRAM8 ----
     output wire [13:0]  vram8_addr,
     output wire [7:0]   vram8_d,
     output wire         vram8_we,
     input  wire [7:0]   vram8_q,
 
-    //========================
-    // VRAMPX
-    //========================
+    // ---- VRAMPX ----
     output wire [16:0]  vramPX_addr,
     output wire [7:0]   vramPX_d,
     output wire         vramPX_we,
     input  wire [7:0]   vramPX_q,
 
-    //========================
-    // L1i cache (CPU pipeline port)
-    //========================
+    // ---- L1i cache (CPU pipeline port) ----
     output wire [6:0]   l1i_pipe_addr,
     input  wire [270:0] l1i_pipe_q,
 
-    //========================
-    // L1d cache (CPU pipeline port)
-    //========================
+    // ---- L1d cache (CPU pipeline port) ----
     output wire [6:0]   l1d_pipe_addr,
     input  wire [270:0] l1d_pipe_q,
 
-    //========================
-    // Cache controller
-    //========================
+    // ---- Cache controller ----
     output wire [31:0]  l1i_cache_controller_addr,
     output wire         l1i_cache_controller_start,
     output wire         l1i_cache_controller_flush,
@@ -102,9 +86,7 @@ module B32P3 #(
     output reg          l1_clear_cache = 1'b0,
     input wire          l1_clear_cache_done,
 
-    //========================
-    // Memory Unit
-    //========================
+    // ---- Memory Unit ----
     output reg          mu_start = 1'b0,
     output reg [31:0]   mu_addr = 32'd0,
     output reg [31:0]   mu_data = 32'd0,
@@ -112,15 +94,11 @@ module B32P3 #(
     input  wire [31:0]  mu_q,
     input  wire         mu_done,
 
-    //========================
-    // Interrupts
-    //========================
+    // ---- Interrupts ----
     input wire [NUM_INTERRUPTS-1:0] interrupts
 );
 
-// =============================================================================
-// INTERRUPT CONTROLLER
-// =============================================================================
+// ---- INTERRUPT CONTROLLER ----
 // Interrupt enable/disable flag (disabled during interrupt handling)
 reg int_disabled = 1'b0;
 
@@ -155,9 +133,7 @@ reg [31:0] pc_backup = 32'd0;
 // skips a RETI would still execute the RETI due to pipeline timing.
 wire reti_valid = id_ex_valid && id_ex_reti && !pc_redirect;
 
-// =============================================================================
-// PIPELINE CONTROL SIGNALS
-// =============================================================================
+// ---- PIPELINE CONTROL SIGNALS ----
 wire stall_if;          // Stall IF stage
 wire stall_id;          // Stall ID stage  
 wire flush_if_id;       // Flush IF/ID register
@@ -213,9 +189,7 @@ assign flush_if_id = pc_redirect || interrupt_executes || reti_executes;
 assign flush_id_ex = pc_redirect || interrupt_executes || reti_executes;
 assign flush_ex_mem = pc_redirect || interrupt_executes;
 
-// =============================================================================
-// PROGRAM COUNTER
-// =============================================================================
+// ---- PROGRAM COUNTER ----
 reg [31:0] pc = ROM_ADDRESS;
 
 // Delayed PC to match instruction fetch latency
@@ -228,14 +202,17 @@ reg [31:0] pc_delayed = ROM_ADDRESS;
 // so we need to wait one more cycle before the correct instruction arrives
 reg redirect_pending = 1'b0;
 
-always @(posedge clk) begin
-    if (reset) begin
+always @(posedge clk)
+begin
+    if (reset)
+    begin
         pc <= ROM_ADDRESS;
         pc_delayed <= ROM_ADDRESS;
         redirect_pending <= 1'b0;
         int_disabled <= 1'b0;
         pc_backup <= 32'd0;
-    end else if (interrupt_valid && !pipeline_stall) begin
+    end else if (interrupt_valid && !pipeline_stall)
+    begin
         // Interrupt: save PC and jump to interrupt handler
         // Interrupt should only be taken when not stalled
         int_disabled <= 1'b1;
@@ -243,42 +220,50 @@ always @(posedge clk) begin
         $display("Interrupt taken, jumping to address %h, saving PC %h", INTERRUPT_JUMP_ADDR, ex_mem_pc);
         pc <= INTERRUPT_JUMP_ADDR;
         redirect_pending <= 1'b1;
-    end else if (reti_valid && !pipeline_stall) begin
+    end else if (reti_valid && !pipeline_stall)
+    begin
         // Return from interrupt: restore PC and re-enable interrupts
         // RETI should only complete when not stalled
         int_disabled <= 1'b0;
         pc <= pc_backup;
         redirect_pending <= 1'b1;
         $display("%0t RETI executed, restoring PC to %h, id_ex_pc=%h, pc_redirect=%b", $time, pc_backup, id_ex_pc, pc_redirect);
-    end else if (pc_redirect) begin
+    end else if (pc_redirect)
+    begin
         // Jump/branch redirect, this takes priority over stalls
         // When a jump executes, we MUST redirect the PC even if there's a cache stall
         // The cache stall was for a different (now stale) instruction
         pc <= pc_redirect_target;
         // Don't set pc_delayed yet, the memory is still outputting the old instruction
         redirect_pending <= 1'b1;
-    end else if (!pipeline_stall) begin
-        if (redirect_pending) begin
+    end else if (!pipeline_stall)
+    begin
+        if (redirect_pending)
+        begin
             // First cycle after redirect: update pc_delayed, check if we can proceed
             // The cache was queried with pc (the new target) in the previous cycle,
             // so on this cycle the cache output corresponds to pc, not pc_delayed.
             // Use l1i_hit_redirect which checks using pc instead of pc_delayed.
             pc_delayed <= pc;
             
-            if (pc >= ROM_ADDRESS || l1i_hit_redirect) begin
+            if (pc >= ROM_ADDRESS || l1i_hit_redirect)
+            begin
                 // ROM access or cache hit: proceed normally
                 pc <= pc + 32'd1;
                 redirect_pending <= 1'b0;
-            end else begin
+            end else
+            begin
                 // SDRAM access with cache miss: stay at current PC, wait for cache
                 // Keep redirect_pending HIGH to continue flushing the pipeline
                 redirect_pending <= 1'b1;
             end
-        end else if (cache_stall_if) begin
+        end else if (cache_stall_if)
+        begin
             // Cache miss during normal operation, hold PC and wait
             // pc_delayed is already correct, just wait for cache fill
             // Don't advance pc, don't update pc_delayed
-        end else begin
+        end else
+        begin
             pc_delayed <= pc;  // Save current PC before incrementing
             pc <= pc + 32'd1;
         end
@@ -290,21 +275,18 @@ always @(posedge clk) begin
     // Safe because this only executes during interrupt handler (int_disabled=1),
     // so it never conflicts with the interrupt branch that also writes pc_backup.
     if (ex_mem_valid && ex_mem_mem_write &&
-        (ex_mem_mem_addr == CPU_IO_PC_BACKUP) && !backend_pipeline_stall) begin
+        (ex_mem_mem_addr == CPU_IO_PC_BACKUP) && !backend_pipeline_stall)
+        begin
         pc_backup <= ex_mem_breg_data;
     end
 end
 
-// =============================================================================
-// IF/ID PIPELINE REGISTER
-// =============================================================================
+// ---- IF/ID PIPELINE REGISTER ----
 reg [31:0] if_id_pc = 32'd0;
 reg [31:0] if_id_instr = 32'd0;
 reg        if_id_valid = 1'b0;
 
-// =============================================================================
-// ID/EX PIPELINE REGISTER  
-// =============================================================================
+// ---- ID/EX PIPELINE REGISTER ----
 reg [31:0] id_ex_pc = 32'd0;
 reg [31:0] id_ex_instr = 32'd0;
 reg        id_ex_valid = 1'b0;
@@ -343,9 +325,7 @@ reg        id_ex_getPC = 1'b0;
 reg        id_ex_clearCache = 1'b0;
 reg        id_ex_arithm = 1'b0;
 
-// =============================================================================
-// EX/MEM PIPELINE REGISTER
-// =============================================================================
+// ---- EX/MEM PIPELINE REGISTER ----
 reg [31:0] ex_mem_pc = 32'd0;
 reg [31:0] ex_mem_instr = 32'd0;
 reg        ex_mem_valid = 1'b0;
@@ -384,9 +364,7 @@ reg [31:0] ex_mem_const16 = 32'd0;
 reg [26:0] ex_mem_const27 = 27'd0;
 reg [31:0] ex_mem_areg_data = 32'd0;
 
-// =============================================================================
-// MEM/WB PIPELINE REGISTER
-// =============================================================================
+// ---- MEM/WB PIPELINE REGISTER ----
 reg [31:0] mem_wb_pc = 32'd0;
 reg [31:0] mem_wb_instr = 32'd0;
 reg        mem_wb_valid = 1'b0;
@@ -406,9 +384,7 @@ reg        mem_wb_mem_read = 1'b0;
 reg        mem_wb_pop = 1'b0;
 reg        mem_wb_halt = 1'b0;
 
-// =============================================================================
-// INSTRUCTION DECODER
-// =============================================================================
+// ---- INSTRUCTION DECODER ----
 wire [3:0]  id_instr_op;
 wire [3:0]  id_alu_op;
 wire [2:0]  id_branch_op;
@@ -442,9 +418,7 @@ InstructionDecoder instr_decoder (
     .sig        (id_sig)
 );
 
-// =============================================================================
-// CONTROL UNIT
-// =============================================================================
+// ---- CONTROL UNIT ----
 wire id_alu_use_const;
 wire id_alu_use_constu;
 wire id_push;
@@ -483,9 +457,7 @@ ControlUnit control_unit (
     .clearCache     (id_clearCache)
 );
 
-// =============================================================================
-// REGISTER FILE
-// =============================================================================
+// ---- REGISTER FILE ----
 // The regbank is fully registered:
 // - Cycle 1 (IF): Addresses are captured from if_instr
 // - Cycle 2 (ID): Data is read from register array and registered
@@ -523,9 +495,7 @@ Regbank regbank (
     .we         (wb_dreg_we)
 );
 
-// =============================================================================
-// ALU
-// =============================================================================
+// ---- ALU ----
 wire [31:0] ex_alu_a;
 wire [31:0] ex_alu_b;
 wire [31:0] ex_alu_result;
@@ -554,9 +524,7 @@ ALU alu (
     .y      (ex_alu_result)
 );
 
-// =============================================================================
-// MULTI-CYCLE ALU (Division, Multiplication) - STATE MACHINE
-// =============================================================================
+// ---- MULTI-CYCLE ALU (Division, Multiplication) - STATE MACHINE ----
 // State machine to control multi-cycle ALU operations
 // Ensures start signal is pulsed only once per operation
 localparam MALU_IDLE    = 2'b00;
@@ -590,8 +558,10 @@ MultiCycleALU multi_cycle_alu (
 );
 
 // Multi-cycle ALU state machine
-always @(posedge clk) begin
-    if (reset) begin
+always @(posedge clk)
+begin
+    if (reset)
+    begin
         malu_state <= MALU_IDLE;
         malu_start_reg <= 1'b0;
         malu_a_reg <= 32'd0;
@@ -599,14 +569,17 @@ always @(posedge clk) begin
         malu_opcode_reg <= 4'd0;
         malu_request_finished <= 1'b0;
         malu_result_reg <= 32'd0;
-    end else begin
+    end else
+    begin
         case (malu_state)
-            MALU_IDLE: begin
+            MALU_IDLE:
+            begin
                 malu_request_finished <= 1'b0;
                 malu_result_reg <= 32'd0;
                 
                 // Start when we have a valid arithm instruction that hasn't been processed
-                if (id_ex_valid && id_ex_arithm && !malu_request_finished) begin
+                if (id_ex_valid && id_ex_arithm && !malu_request_finished)
+                begin
                     malu_start_reg <= 1'b1;
                     malu_a_reg <= ex_alu_a;
                     malu_b_reg <= ex_alu_b;
@@ -615,7 +588,8 @@ always @(posedge clk) begin
                 end
             end
             
-            MALU_STARTED: begin
+            MALU_STARTED:
+            begin
                 // Clear start signal after one cycle
                 malu_start_reg <= 1'b0;
                 malu_a_reg <= 32'd0;
@@ -624,9 +598,11 @@ always @(posedge clk) begin
                 malu_state <= MALU_DONE;
             end
             
-            MALU_DONE: begin
+            MALU_DONE:
+            begin
                 // Wait for multi-cycle ALU to complete
-                if (malu_done) begin
+                if (malu_done)
+                begin
                     malu_result_reg <= malu_result;
                     malu_request_finished <= 1'b1;
                     malu_state <= MALU_IDLE;
@@ -636,9 +612,7 @@ always @(posedge clk) begin
     end
 end
 
-// =============================================================================
-// BRANCH/JUMP UNIT (MEM Stage)
-// =============================================================================
+// ---- BRANCH/JUMP UNIT (MEM Stage) ----
 // Branch resolution is done in MEM stage to improve timings
 wire        jump_valid;
 wire [31:0] jump_addr;
@@ -664,9 +638,7 @@ BranchJumpUnit branch_jump_unit (
 assign pc_redirect = ex_mem_valid && jump_valid;
 assign pc_redirect_target = jump_addr;
 
-// =============================================================================
-// STACK
-// =============================================================================
+// ---- STACK ----
 wire [31:0] stack_q;
 wire        stack_push;
 wire        stack_pop;
@@ -698,9 +670,7 @@ assign stack_ptr_we = ex_mem_valid && ex_mem_mem_write &&
                       (ex_mem_mem_addr == CPU_IO_HW_STACK_PTR) && !backend_pipeline_stall;
 assign stack_ptr_in = ex_mem_breg_data[7:0];
 
-// =============================================================================
-// FORWARDING UNIT
-// =============================================================================
+// ---- FORWARDING UNIT ----
 // Forward from EX/MEM (most recent) or MEM/WB (older)
 // forward_a/b: 00=no forward, 01=from EX/MEM, 10=from MEM/WB
 // IMPORTANT: Don't forward from EX/MEM for reads or pops as their data isn't ready yet!
@@ -715,9 +685,7 @@ assign forward_b = (ex_mem_can_forward && ex_mem_dreg == id_ex_breg) ? 2'b01 :
                    (mem_wb_dreg_we && mem_wb_dreg != 4'd0 && mem_wb_dreg == id_ex_breg) ? 2'b10 :
                    2'b00;
 
-// =============================================================================
-// HAZARD DETECTION UNIT
-// =============================================================================
+// ---- HAZARD DETECTION UNIT ----
 // Load-use hazard: instruction in EX needs data from read in MEM
 // POP-use hazard: instruction in EX needs data from pop in MEM (pop result not available until WB)
 // We need to stall when ID/EX has a memory read or pop and the next instruction uses that register
@@ -750,9 +718,7 @@ assign cache_line_hazard = ex_needs_sdram && mem_has_sdram && (ex_cache_line != 
 
 assign hazard_stall = load_use_hazard || pop_use_hazard || cache_line_hazard;
 
-// =============================================================================
-// INSTRUCTION FETCH (IF) STAGE
-// =============================================================================
+// ---- INSTRUCTION FETCH (IF) STAGE ----
 
 // ROM access
 wire if_use_rom = (pc >= ROM_ADDRESS);
@@ -806,20 +772,22 @@ wire [31:0] if_instr = if_use_rom ? rom_fe_q :
                        (l1i_hit ? l1i_cache_data : 
                         (l1i_cache_controller_done ? l1i_cache_controller_result : l1i_cache_data));
 
-// =============================================================================
-// IF/ID STAGE REGISTER UPDATE
-// =============================================================================
-always @(posedge clk) begin
-    if (reset) begin
+// ---- IF/ID STAGE REGISTER UPDATE ----
+always @(posedge clk)
+begin
+    if (reset)
+    begin
         if_id_pc <= 32'd0;
         if_id_instr <= 32'd0;
         if_id_valid <= 1'b0;
-    end else if (flush_if_id || redirect_pending) begin
+    end else if (flush_if_id || redirect_pending)
+    begin
         // Flush on control hazard OR when we're waiting for the redirect to complete
         // When redirect_pending is set, the ROM output is stale (from the old PC)
         if_id_valid <= 1'b0;
         if_id_instr <= 32'd0;
-    end else if (!pipeline_stall) begin
+    end else if (!pipeline_stall)
+    begin
         // Normal operation: capture instruction from IF stage
         if_id_pc <= pc_delayed;  // Use delayed PC to match instruction data
         if_id_instr <= if_instr;
@@ -827,11 +795,11 @@ always @(posedge clk) begin
     end
 end
 
-// =============================================================================
-// ID/EX STAGE REGISTER UPDATE
-// =============================================================================
-always @(posedge clk) begin
-    if (reset || flush_id_ex) begin
+// ---- ID/EX STAGE REGISTER UPDATE ----
+always @(posedge clk)
+begin
+    if (reset || flush_id_ex)
+    begin
         id_ex_pc <= 32'd0;
         id_ex_instr <= 32'd0;
         id_ex_valid <= 1'b0;
@@ -862,7 +830,8 @@ always @(posedge clk) begin
         id_ex_getPC <= 1'b0;
         id_ex_clearCache <= 1'b0;
         id_ex_arithm <= 1'b0;
-    end else if (!pipeline_stall) begin
+    end else if (!pipeline_stall)
+    begin
         id_ex_pc <= if_id_pc;
         id_ex_instr <= if_id_instr;
         id_ex_valid <= if_id_valid;
@@ -895,7 +864,8 @@ always @(posedge clk) begin
         id_ex_getPC <= id_getPC && if_id_valid;
         id_ex_clearCache <= id_clearCache && if_id_valid;
         id_ex_arithm <= id_arithm && if_id_valid;
-    end else if (!ex_pipeline_stall) begin
+    end else if (!ex_pipeline_stall)
+    begin
         // EX consumed the instruction but we're stalled (load-use or pop-use hazard)
         // Insert a bubble in ID/EX so the instruction doesn't execute twice
         id_ex_valid <= 1'b0;
@@ -916,9 +886,7 @@ always @(posedge clk) begin
     end
 end
 
-// =============================================================================
-// MEMORY STAGE (MEM)
-// =============================================================================
+// ---- MEMORY STAGE (MEM) ----
 
 // Memory address calculation (done in EX, used in MEM)
 // Use a registered address to handle forwarding correctly when stalled
@@ -932,14 +900,18 @@ reg [31:0] ex_mem_addr_calc_reg = 32'd0;
 // Reset when a new instruction enters EX, set when we have valid forwarding
 reg ex_addr_captured = 1'b0;
 
-always @(posedge clk) begin
-    if (reset) begin
+always @(posedge clk)
+begin
+    if (reset)
+    begin
         ex_mem_addr_calc_reg <= 32'd0;
         ex_addr_captured <= 1'b0;
-    end else if (!ex_pipeline_stall) begin
+    end else if (!ex_pipeline_stall)
+    begin
         // Instruction leaving EX stage, reset capture for next instruction
         ex_addr_captured <= 1'b0;
-    end else if (!ex_addr_captured && id_ex_valid && (id_ex_mem_read || id_ex_mem_write)) begin
+    end else if (!ex_addr_captured && id_ex_valid && (id_ex_mem_read || id_ex_mem_write))
+    begin
         // First cycle with this instruction stalled in EX, capture the address
         // At this point forwarding should be valid
         ex_mem_addr_calc_reg <= ex_mem_addr_calc_comb;
@@ -1037,30 +1009,34 @@ wire l1d_new_instr = (ex_mem_pc != l1d_prev_pc);
 // Use l1d_cache_read_done to track if we've completed the wait
 wire l1d_need_cache_wait = l1d_is_sdram_op && !l1d_cache_read_done;
 
-always @(posedge clk) begin
-    if (reset) begin
+always @(posedge clk)
+begin
+    if (reset)
+    begin
         l1d_cache_read_done <= 1'b0;
         l1d_prev_pc <= 32'hFFFFFFFF;
-    end else begin
+    end else
+    begin
         // When a NEW instruction enters MEM, reset the cache_read_done flag
-        if (l1d_new_instr) begin
+        if (l1d_new_instr)
+        begin
             l1d_prev_pc <= ex_mem_pc;
             l1d_cache_read_done <= 1'b0;
         end
         // After waiting one cycle, mark cache read as done
-        else if (l1d_need_cache_wait) begin
+        else if (l1d_need_cache_wait)
+        begin
             l1d_cache_read_done <= 1'b1;
         end
         // When no longer an SDRAM op (or invalid), reset for next instruction
-        else if (!l1d_is_sdram_op) begin
+        else if (!l1d_is_sdram_op)
+        begin
             l1d_cache_read_done <= 1'b0;
         end
     end
 end
 
-// =============================================================================
-// L1D CACHE CONTROLLER STATE MACHINE
-// =============================================================================
+// ---- L1D CACHE CONTROLLER STATE MACHINE ----
 // Manages cache miss handling to ensure proper request/done handshaking
 localparam L1D_STATE_IDLE    = 2'b00;
 localparam L1D_STATE_STARTED = 2'b01;
@@ -1083,15 +1059,19 @@ wire l1d_write = ex_mem_valid && ex_mem_mem_write && mem_sel_sdram && !l1d_reque
 assign cache_stall_mem = l1d_cache_read_wait || l1d_miss || l1d_write;
 
 // State machine for cache controller requests
-always @(posedge clk) begin
-    if (reset) begin
+always @(posedge clk)
+begin
+    if (reset)
+    begin
         l1d_state <= L1D_STATE_IDLE;
         l1d_start_reg <= 1'b0;
         l1d_request_finished <= 1'b0;
         l1d_result_reg <= 32'd0;
-    end else begin
+    end else
+    begin
         case (l1d_state)
-            L1D_STATE_IDLE: begin
+            L1D_STATE_IDLE:
+            begin
                 l1d_start_reg <= 1'b0;
                 l1d_request_finished <= 1'b0;
                 l1d_result_reg <= 32'd0;
@@ -1099,21 +1079,25 @@ always @(posedge clk) begin
                 // Start new request on cache miss or SDRAM write (after cache read wait clears)
                 if (!l1d_cache_read_wait &&
                     ((ex_mem_valid && ex_mem_mem_read && mem_sel_sdram && !l1d_hit && !l1d_request_finished) ||
-                     (ex_mem_valid && ex_mem_mem_write && mem_sel_sdram && !l1d_request_finished))) begin
+                     (ex_mem_valid && ex_mem_mem_write && mem_sel_sdram && !l1d_request_finished)))
+                     begin
                     l1d_start_reg <= 1'b1;
                     l1d_state <= L1D_STATE_STARTED;
                 end
             end
             
-            L1D_STATE_STARTED: begin
+            L1D_STATE_STARTED:
+            begin
                 // Clear start signal after one cycle
                 l1d_start_reg <= 1'b0;
                 l1d_state <= L1D_STATE_WAIT;
             end
             
-            L1D_STATE_WAIT: begin
+            L1D_STATE_WAIT:
+            begin
                 // Wait for cache controller to complete
-                if (l1d_cache_controller_done) begin
+                if (l1d_cache_controller_done)
+                begin
                     l1d_result_reg <= l1d_cache_controller_result;
                     l1d_request_finished <= 1'b1;
                     l1d_state <= L1D_STATE_IDLE;
@@ -1134,25 +1118,30 @@ assign l1d_cache_controller_start = l1d_start_reg;
 // and wait for completion before allowing a new operation
 reg mu_io_started = 1'b0;  // Track if we've already started this I/O operation
 
-always @(posedge clk) begin
-    if (reset) begin
+always @(posedge clk)
+begin
+    if (reset)
+    begin
         mu_start <= 1'b0;
         mu_addr <= 32'd0;
         mu_data <= 32'd0;
         mu_we <= 1'b0;
         mu_io_started <= 1'b0;
-    end else if (mu_done) begin
+    end else if (mu_done)
+    begin
         // MU operation completed, clear the started flag
         mu_start <= 1'b0;
         mu_io_started <= 1'b0;
-    end else if (ex_mem_valid && mem_sel_io && (ex_mem_mem_read || ex_mem_mem_write) && !mu_io_started) begin
+    end else if (ex_mem_valid && mem_sel_io && (ex_mem_mem_read || ex_mem_mem_write) && !mu_io_started)
+    begin
         // New I/O operation, start it
         mu_start <= 1'b1;
         mu_addr <= ex_mem_mem_addr;
         mu_data <= ex_mem_breg_data;
         mu_we <= ex_mem_mem_write;
         mu_io_started <= 1'b1;
-    end else begin
+    end else
+    begin
         mu_start <= 1'b0;
     end
 end
@@ -1165,31 +1154,38 @@ assign mu_stall = ex_mem_valid && mem_sel_io && (ex_mem_mem_read || ex_mem_mem_w
 reg clear_cache_in_progress = 1'b0;
 reg clear_cache_finished = 1'b0;  // Track if current ccache instruction is done
 
-always @(posedge clk) begin
-    if (reset) begin
+always @(posedge clk)
+begin
+    if (reset)
+    begin
         l1_clear_cache <= 1'b0;
         clear_cache_in_progress <= 1'b0;
         clear_cache_finished <= 1'b0;
-    end else if (!ex_mem_valid || !ex_mem_clearCache) begin
+    end else if (!ex_mem_valid || !ex_mem_clearCache)
+    begin
         // No ccache instruction in MEM stage, reset state
         l1_clear_cache <= 1'b0;
         clear_cache_in_progress <= 1'b0;
         clear_cache_finished <= 1'b0;
-    end else if (clear_cache_finished) begin
+    end else if (clear_cache_finished)
+    begin
         // Already completed for this instruction, just hold
         l1_clear_cache <= 1'b0;
-    end else if (l1_clear_cache_done) begin
+    end else if (l1_clear_cache_done)
+    begin
         // Cache clear just completed
         l1_clear_cache <= 1'b0;
         clear_cache_in_progress <= 1'b0;
         clear_cache_finished <= 1'b1;  // Mark this instruction as done
         $display("%0t Clear Cache completed", $time);
-    end else if (!clear_cache_in_progress) begin
+    end else if (!clear_cache_in_progress)
+    begin
         // Start cache clear
         l1_clear_cache <= 1'b1;
         clear_cache_in_progress <= 1'b1;
         $display("%0t Clear Cache triggered", $time);
-    end else begin
+    end else
+    begin
         // In progress, clear start signal
         l1_clear_cache <= 1'b0;
     end
@@ -1210,9 +1206,7 @@ wire [31:0] mem_read_data = mem_sel_cpu_io ? cpu_io_read_data :
                             mem_sel_sdram  ? (l1d_request_finished ? l1d_result_reg : l1d_cache_data) :
                             32'hDEADBEEF;
 
-// =============================================================================
-// EX/MEM STAGE REGISTER UPDATE
-// =============================================================================
+// ---- EX/MEM STAGE REGISTER UPDATE ----
 
 // Result selection for EX stage (before going to MEM)
 // SAVPC uses PC, INTID uses interrupt ID, otherwise ALU result
@@ -1224,8 +1218,10 @@ wire [31:0] ex_result = id_ex_getPC    ? id_ex_pc :
                         id_ex_arithm   ? malu_result_reg : 
                         ex_alu_result;
 
-always @(posedge clk) begin
-    if (reset || flush_ex_mem) begin
+always @(posedge clk)
+begin
+    if (reset || flush_ex_mem)
+    begin
         // Reset or flush on branch/jump taken in MEM stage
         ex_mem_pc <= 32'd0;
         ex_mem_instr <= 32'd0;
@@ -1255,7 +1251,8 @@ always @(posedge clk) begin
         ex_mem_const16 <= 32'd0;
         ex_mem_const27 <= 27'd0;
         ex_mem_areg_data <= 32'd0;
-    end else if (!ex_pipeline_stall) begin
+    end else if (!ex_pipeline_stall)
+    begin
         ex_mem_pc <= id_ex_pc;
         ex_mem_instr <= id_ex_instr;
         ex_mem_valid <= id_ex_valid;
@@ -1284,7 +1281,8 @@ always @(posedge clk) begin
         ex_mem_const16 <= id_ex_const16;
         ex_mem_const27 <= id_ex_const27;
         ex_mem_areg_data <= ex_alu_a;  // Forwarded A value
-    end else if (cache_line_hazard && !backend_stall) begin
+    end else if (cache_line_hazard && !backend_stall)
+    begin
         // Cache line hazard: MEM should advance, insert bubble into MEM stage
         // The instruction in EX (second SDRAM access) stays in ID/EX (pipeline_stall holds it)
         // We need to let the first instruction complete in MEM and go to WB
@@ -1302,12 +1300,12 @@ always @(posedge clk) begin
     end
 end
 
-// =============================================================================
-// MEM/WB STAGE REGISTER UPDATE
-// =============================================================================
+// ---- MEM/WB STAGE REGISTER UPDATE ----
 
-always @(posedge clk) begin
-    if (reset) begin
+always @(posedge clk)
+begin
+    if (reset)
+    begin
         mem_wb_pc <= 32'd0;
         mem_wb_instr <= 32'd0;
         mem_wb_valid <= 1'b0;
@@ -1320,7 +1318,8 @@ always @(posedge clk) begin
         mem_wb_mem_read <= 1'b0;
         mem_wb_pop <= 1'b0;
         mem_wb_halt <= 1'b0;
-    end else if (!backend_pipeline_stall) begin
+    end else if (!backend_pipeline_stall)
+    begin
         mem_wb_pc <= ex_mem_pc;
         mem_wb_instr <= ex_mem_instr;
         mem_wb_valid <= ex_mem_valid;
@@ -1336,9 +1335,7 @@ always @(posedge clk) begin
     end
 end
 
-// =============================================================================
-// WRITEBACK STAGE (WB)
-// =============================================================================
+// ---- WRITEBACK STAGE (WB) ----
 
 // Result selection - compute in WB stage based on instruction type
 // For pop: stack_q arrives in WB cycle

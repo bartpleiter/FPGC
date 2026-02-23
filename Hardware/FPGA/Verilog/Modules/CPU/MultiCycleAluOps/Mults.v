@@ -18,7 +18,7 @@ reg signed [31:0] areg = 32'd0;
 reg signed [31:0] breg = 32'd0;
 reg done_next_cycle = 1'b0;
 
-always @ (posedge clk)
+always @(posedge clk)
 begin
     if (reset)
     begin

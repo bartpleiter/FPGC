@@ -8,15 +8,11 @@
 module IDivider #(
     parameter DATA_WIDTH = 32
 ) (
-    //========================
-    // System interface
-    //========================
+    // ---- System interface ----
     input  wire                     clk,
     input  wire                     reset,
 
-    //========================
-    // Control interface
-    //========================
+    // ---- Control interface ----
     input  wire [DATA_WIDTH-1:0]    a,          // Dividend
     input  wire [DATA_WIDTH-1:0]    b,          // Divisor
     input  wire                     is_signed,  // 1 for signed, 0 for unsigned
@@ -27,9 +23,7 @@ module IDivider #(
     output reg                      done = 1'b0      // Division complete
 );
 
-//========================
-// State Machine
-//========================
+// ---- State Machine ----
 localparam
     STATE_IDLE      = 2'd0,
     STATE_CALC      = 2'd1,
@@ -38,9 +32,7 @@ localparam
 
 reg [1:0] state = STATE_IDLE;
 
-//========================
-// Internal Registers
-//========================
+// ---- Internal Registers ----
 localparam COUNT_WIDTH = $clog2(DATA_WIDTH + 1);
 
 reg [COUNT_WIDTH-1:0] count = 0;                    // Iteration counter

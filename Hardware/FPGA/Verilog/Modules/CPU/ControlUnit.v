@@ -47,123 +47,123 @@ localparam
 always @(*)
 begin
     // Default values
-    alu_use_const   <= 1'b0;
-    alu_use_constu  <= 1'b0;
-    push            <= 1'b0;
-    pop             <= 1'b0;
-    dreg_we         <= 1'b0;
-    mem_write       <= 1'b0;
-    mem_read        <= 1'b0;
-    arithm          <= 1'b0;
-    jumpc           <= 1'b0;
-    jumpr           <= 1'b0;
-    getIntID        <= 1'b0;
-    getPC           <= 1'b0;
-    branch          <= 1'b0;
-    halt            <= 1'b0;
-    reti            <= 1'b0;
-    clearCache      <= 1'b0;
+    alu_use_const   = 1'b0;
+    alu_use_constu  = 1'b0;
+    push            = 1'b0;
+    pop             = 1'b0;
+    dreg_we         = 1'b0;
+    mem_write       = 1'b0;
+    mem_read        = 1'b0;
+    arithm          = 1'b0;
+    jumpc           = 1'b0;
+    jumpr           = 1'b0;
+    getIntID        = 1'b0;
+    getPC           = 1'b0;
+    branch          = 1'b0;
+    halt            = 1'b0;
+    reti            = 1'b0;
+    clearCache      = 1'b0;
 
     // Set values based on opcode
     case (instrOP)
         OP_HALT:
         begin
-            halt <= 1'b1;
+            halt = 1'b1;
         end
 
         OP_READ:
         begin
-            mem_read <= 1'b1;
-            dreg_we <= 1'b1;
+            mem_read = 1'b1;
+            dreg_we = 1'b1;
         end
 
         OP_WRITE:
         begin
-            mem_write <= 1'b1;
+            mem_write = 1'b1;
         end
 
         // Write interrupt ID to dreg
         OP_INTID:
         begin
-            getIntID <= 1'b1;
-            dreg_we <= 1'b1;
+            getIntID = 1'b1;
+            dreg_we = 1'b1;
         end
 
         // Push reg to stack
         OP_PUSH:
         begin
-            push <= 1'b1;
+            push = 1'b1;
         end
 
         // Pop stack to reg
         OP_POP:
         begin
-            dreg_we <= 1'b1;
-            pop <= 1'b1;
+            dreg_we = 1'b1;
+            pop = 1'b1;
         end
 
         OP_JUMP:
         begin
-            jumpc <= 1'b1;
+            jumpc = 1'b1;
         end
 
         OP_JUMPR:
         begin
-            jumpr <= 1'b1;
+            jumpr = 1'b1;
         end
 
         OP_BRANCH:
         begin
-            branch <= 1'b1;
+            branch = 1'b1;
         end
 
         // Write PC to dreg
         OP_SAVPC:
         begin
-            getPC <= 1'b1;
-            dreg_we <= 1'b1;
+            getPC = 1'b1;
+            dreg_we = 1'b1;
         end
 
         OP_RETI:
         begin
-            reti <= 1'b1;
+            reti = 1'b1;
         end
 
         OP_CCACHE:
         begin
-            clearCache <= 1'b1;
+            clearCache = 1'b1;
         end
 
         OP_ARITH:
         begin
-            dreg_we <= 1'b1;
+            dreg_we = 1'b1;
         end
 
         OP_ARITHC:
         begin
-            alu_use_const <= 1'b1;
+            alu_use_const = 1'b1;
             if (aluOP[3:1] == 3'b110)
             begin
-                alu_use_constu <= 1'b1;
+                alu_use_constu = 1'b1;
             end
-            dreg_we <= 1'b1;
+            dreg_we = 1'b1;
         end
 
         OP_ARITHM:
         begin
-            arithm <= 1'b1;
-            dreg_we <= 1'b1;
+            arithm = 1'b1;
+            dreg_we = 1'b1;
         end
 
         OP_ARITHMC:
         begin
-            arithm <= 1'b1;
-            alu_use_const <= 1'b1;
+            arithm = 1'b1;
+            alu_use_const = 1'b1;
             if (aluOP[3:1] == 3'b110)
             begin
-                alu_use_constu <= 1'b1;
+                alu_use_constu = 1'b1;
             end
-            dreg_we <= 1'b1;
+            dreg_we = 1'b1;
         end
         
 
