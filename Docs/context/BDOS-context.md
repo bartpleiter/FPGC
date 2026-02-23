@@ -112,13 +112,53 @@ Programs are launched by typing their name or path at the shell prompt (like Lin
 
 `bdos_exec_program(path)` handles loading: allocates a slot via `bdos_slot_alloc()`, reads the binary from BRFS into the slot's memory region, flushes icache, runs it via inline assembly trampoline, restores BDOS state on return, then frees the slot.
 
-**Slot allocator** (`bdos_slot_alloc`/`bdos_slot_free`): currently a stub that always uses slot 0. Designed so a real multi-slot scheduler can replace it later. Helper functions `bdos_slot_entry_addr(slot)` and `bdos_slot_stack_addr(slot)` compute addresses from slot index.
+## Multitasking
+
+BDOS supports preemptive multitasking with up to 8 user programs in separate memory slots. Programs can be suspended, resumed, and killed via hotkeys, with no program cooperation required.
+
+### CPU I/O Registers
+
+Two memory-mapped I/O registers (handled inside `B32P3.v`, not through MemoryUnit):
+
+| Register | Address | Description |
+|----------|---------|-------------|
+| `IO_PC_BACKUP` | `0x7C00000` | Interrupt return PC (read/write) |
+| `IO_HW_STACK_PTR` | `0x7C00001` | Hardware stack pointer 0–255 (read/write) |
+
+Hardware stack: 256 entries (increased from 128 for multitasking).
+
+### Slot State
+
+Per-slot parallel arrays: `bdos_slot_status[]` (EMPTY/RUNNING/SUSPENDED), `bdos_slot_name[]`, saved registers/HW stack. Only one slot can be RUNNING at a time. BDOS shell runs when `bdos_active_slot == BDOS_SLOT_NONE`.
+
+### Hotkeys (during program execution)
+
+- `F1`–`F8`: suspend currently running program and switch to slot (F1=slot 0, F2=slot 1, ...)
+- `F12`: suspend currently running program and return to BDOS
+- `Alt F4`: kill currently running program and return to BDOS
+
+### Suspend Flow
+
+1. Keyboard polling (in interrupt handler) detects F12 → sets `bdos_switch_target`
+2. `interrupt()` writes `IO_PC_BACKUP = bdos_save_and_switch`
+3. Normal `Return_Interrupt` pops registers, `reti` → enters `bdos_save_and_switch`
+4. Saves user registers to temp array, switches to BDOS stack
+5. Pops user HW stack entries (excluding trampoline), saves to slot state
+6. Marks slot SUSPENDED, returns to `bdos_loop()`
+
+### Resume Flow (`fg` command)
+
+1. `bdos_resume_program(slot)` pushes fresh trampoline entries to HW stack
+2. Pushes saved user HW stack entries (reverse order) and interrupt registers
+3. Sets `IO_PC_BACKUP = saved_pc`, jumps to `Return_Interrupt`
+4. `reti` resumes user program exactly where suspended
+5. When user program eventually exits normally, trampoline return restores BDOS state
 
 ## Shell
 
 ### Built-in Commands
 
-`help`, `clear`, `echo`, `uptime`, `pwd`, `cd`, `ls`, `df`, `mkdir`, `mkfile`, `rm`, `cat`, `write`, `format`, `sync`
+`help`, `clear`, `echo`, `uptime`, `pwd`, `cd`, `ls`, `df`, `mkdir`, `mkfile`, `rm`, `cat`, `write`, `format`, `sync`, `jobs`, `fg <slot>`, `kill <slot>`
 
 Any non-built-in command is treated as a program name and resolved/executed automatically.
 

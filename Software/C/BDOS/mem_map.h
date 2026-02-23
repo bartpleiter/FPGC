@@ -70,4 +70,8 @@
 
 #define MEM_IO_START            0x7000000
 
+// ---- CPU I/O Registers ----
+#define MEM_IO_PC_BACKUP        0x7C00000   // Read/write interrupt return PC
+#define MEM_IO_HW_STACK_PTR     0x7C00001   // Read/write hardware stack pointer
+
 #endif // MEM_MAP_H

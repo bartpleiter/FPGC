@@ -10,7 +10,7 @@ The B32P3 implements a classic 5-stage pipeline architecture designed for simpli
 - **Classic 5-stage pipeline** (IF, ID, EX, MEM, WB) for straightforward design
 - **Dual L1 caches** (instruction and data) with cache controller to greatly reduce stalls
 - **Simple hazard detection** with load-use stalls and data forwarding
-- **Hardware stack** with push/pop instructions for single cycle stack operations (only 128 entries, but allows for quick and easy register saving and restoring)
+- **Hardware stack** with push/pop instructions for single cycle stack operations (256 entries, allows for quick and easy register saving and restoring, with software-accessible stack pointer at a special memory-mapped I/O register)
 - **Multi-cycle ALU operations** for complex arithmetic (multiplication using registered hardware multiplier or DSP blocks, division) and extensions for Fixed Point operations
 - **32-bit address space** supporting up to 16GiB of addressable memory, with 27-bit jump constants for 512MiB jumpable instruction memory (in theory more by using JUMPR instructions)
 - **Hardware interrupt support** with context switching by saving/restoring the program counter (PC)
@@ -53,6 +53,7 @@ The B32P3 implements a 32-bit memory map with the following regions:
 | `0x7900000` | `0x790041F` | 1056 W | VRAM32 | 32-bit video memory |
 | `0x7A00000` | `0x7A02001` | 8194 W | VRAM8 | 8-bit video memory |
 | `0x7B00000` | `0x7B12BFF` | 76800 W | VRAMPX | Pixel buffer (320×240) |
+| `0x7C00000` | `0x7C00001` | 2 W | CPU I/O | CPU-internal registers (pc_backup, hw_stack_ptr) |
 
 ### Memory Types
 
@@ -62,6 +63,7 @@ The B32P3 implements a 32-bit memory map with the following regions:
 - **VRAM8**: 8-bit video memory for tile-based graphics.
 - **VRAMPX**: Bitmap video memory for pixel manipulation.
 - **I/O**: Memory-mapped peripherals accessed via the Memory Unit.
+- **CPU I/O**: CPU-internal registers handled directly inside B32P3.v, bypassing the Memory Unit.
 
 ## Hazard Handling
 

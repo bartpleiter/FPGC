@@ -339,13 +339,27 @@ void bdos_shell_start_line()
   bdos_shell_render_line();
 }
 
+// Clear shell input state and show a fresh prompt.
+// Used when returning to the shell after a program suspend/kill,
+// where bdos_shell_submit_input() cleanup was bypassed.
+void bdos_shell_reset_and_prompt()
+{
+  bdos_shell_input_len = 0;
+  bdos_shell_cursor_index = 0;
+  bdos_shell_input[0] = '\0';
+  bdos_shell_input_overflow = 0;
+  bdos_shell_history_nav_offset = -1;
+  bdos_shell_history_saved_input[0] = '\0';
+  bdos_shell_start_line();
+}
+
 // Print compact startup banner.
 void bdos_shell_print_welcome()
 {
   term_puts(" ___ ___   ___  ___ \n");
   term_puts("| _ )   \\ / _ \\/ __|\n");
   term_puts("| _ \\ |) | (_) \\__ \\\n");
-  term_puts("|___/___/ \\___/|___/v2.1-dev1\n\n");
+  term_puts("|___/___/ \\___/|___/v2.2-dev1\n\n");
 }
 
 // ---- Command submit lifecycle ----
@@ -472,6 +486,27 @@ void bdos_shell_handle_key_event(int key_event)
     bdos_shell_input_overflow = 0;
     bdos_shell_history_nav_offset = -1;
     bdos_shell_start_line();
+    return;
+  }
+
+  // F1-F8: resume suspended program in corresponding slot
+  if (key_event >= BDOS_KEY_F1 && key_event <= BDOS_KEY_F8)
+  {
+    int slot;
+    slot = key_event - BDOS_KEY_F1;
+    if (slot < MEM_SLOT_COUNT &&
+        bdos_slot_status[slot] == BDOS_SLOT_STATUS_SUSPENDED)
+    {
+      bdos_shell_clear_cursor();
+      term_puts("\n[");
+      term_putint(slot);
+      term_puts("] resuming: ");
+      term_puts(bdos_slot_name[slot]);
+      term_putchar('\n');
+      bdos_resume_program(slot);
+      // Program exited normally, show new prompt
+      bdos_shell_reset_and_prompt();
+    }
     return;
   }
 

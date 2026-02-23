@@ -160,55 +160,85 @@ extern int bdos_fs_boot_needs_format;
 extern int bdos_fs_last_mount_error;
 
 // ---- Program slot management ----
-// Currently single-slot (always slot 0). Designed for future multi-slot scheduling.
 
+// Slot status values
+#define BDOS_SLOT_STATUS_EMPTY     0
+#define BDOS_SLOT_STATUS_RUNNING   1
+#define BDOS_SLOT_STATUS_SUSPENDED 2
+
+// No active slot
 #define BDOS_SLOT_NONE -1
+
+// Maximum program name length
+#define BDOS_SLOT_NAME_MAX 32
+
+// Per-slot state arrays
+extern int bdos_slot_status[MEM_SLOT_COUNT];
+extern char bdos_slot_name[MEM_SLOT_COUNT][BDOS_SLOT_NAME_MAX];
+
+// Multitasking saved state
+extern unsigned int bdos_slot_saved_pc[MEM_SLOT_COUNT];
+extern unsigned int bdos_slot_saved_regs[MEM_SLOT_COUNT * 15];
+extern unsigned int bdos_slot_saved_hw_sp[MEM_SLOT_COUNT];
+extern unsigned int bdos_slot_saved_hw_stack[MEM_SLOT_COUNT * 256];
+
+// Currently active slot
+extern int bdos_active_slot;
+
+// Multitasking switch/kill request flags
+extern int bdos_switch_target;   // -1 = no request, 0-7 = switch to slot
+extern int bdos_kill_requested;  // 1 = kill running program
+
+// Temp register save area
+extern unsigned int bdos_suspend_temp_regs[15];
+
+// BDOS loop stack state
+extern unsigned int bdos_loop_saved_sp;
+extern unsigned int bdos_loop_saved_bp;
 
 // ---- Function declarations ----
 
+// Basic BDOS functions
 void bdos_panic(char* msg);
-
 void bdos_init();
 
-// Program slot allocator (stub: always returns slot 0)
+// Multitasking and program slot management
 int bdos_slot_alloc();
 void bdos_slot_free(int slot);
 unsigned int bdos_slot_entry_addr(int slot);
 unsigned int bdos_slot_stack_addr(int slot);
-
-// Load and execute a program binary from a resolved BRFS path
+void bdos_slot_init();
 int bdos_exec_program(char* resolved_path);
+void bdos_resume_program(int slot);
+void bdos_save_and_switch();
 
+// Input handling
 void bdos_poll_usb_keyboard(int timer_id);
-
 int bdos_keyboard_event_available();
-
 int bdos_keyboard_event_read();
-
 int bdos_keyboard_event_fifo_push(int key_event);
 
+// Filesystem functions
 void bdos_fs_boot_init();
-
 int bdos_fs_format_and_sync(unsigned int total_blocks, unsigned int words_per_block,
 							char* label, int full_format);
-
 int bdos_fs_sync_now();
-
 char* bdos_fs_error_string(int error_code);
 
+// Shell functions
 void bdos_shell_init();
-
 void bdos_shell_tick();
-
+void bdos_shell_start_line();
+void bdos_shell_reset_and_prompt();
 void bdos_shell_execute_line(char* line);
-
 int bdos_shell_handle_special_mode_line(char* line);
-
 void bdos_shell_on_startup();
 
+// Network FNP functions
 void bdos_fnp_poll();
 void bdos_fnp_init();
 
+// Syscall functions
 int bdos_syscall_dispatch(int num, int a1, int a2, int a3);
 
 #endif // BDOS_H

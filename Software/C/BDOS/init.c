@@ -118,5 +118,8 @@ void bdos_init()
   bdos_init_usb_keyboard();
   term_puts("CH376 USB host initialized\n");
 
+  bdos_slot_init();
+  term_puts("Program slot system initialized\n");
+
   set_user_led(0); // Turn off user LED after initialization
 }

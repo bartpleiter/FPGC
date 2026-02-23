@@ -31,6 +31,17 @@ void bdos_panic(char* msg)
 // Main BDOS control loop after initialization
 void bdos_loop()
 {
+  // Save stack state for clean recovery after program suspend.
+  // When a program is suspended, we restore these values to get a clean
+  // BDOS stack without accumulated stack frame leaks.
+  // Sadly this means we cannot move this inline assembly into a separate function.
+  asm(
+    "addr2reg Label_bdos_loop_saved_sp r1"
+    "write 0 r1 r13"
+    "addr2reg Label_bdos_loop_saved_bp r1"
+    "write 0 r1 r14"
+  );
+
   while (1)
   {
     bdos_usb_keyboard_main_loop();
@@ -76,5 +87,30 @@ void interrupt()
       break;
     default:
       break;
+  }
+
+  // Check for multitasking switch/kill requests
+  if (bdos_active_slot != BDOS_SLOT_NONE)
+  {
+    if (bdos_kill_requested)
+    {
+      // Kill: redirect to save_and_switch
+      bdos_slot_saved_pc[bdos_active_slot] = *(volatile unsigned int*)MEM_IO_PC_BACKUP;
+      asm(
+        "addr2reg Label_bdos_save_and_switch r1"
+        "load32 0x7C00000 r2"
+        "write 0 r2 r1"
+      );
+    }
+    else if (bdos_switch_target != BDOS_SLOT_NONE)
+    {
+      // Suspend: save user's PC, redirect to save_and_switch
+      bdos_slot_saved_pc[bdos_active_slot] = *(volatile unsigned int*)MEM_IO_PC_BACKUP;
+      asm(
+        "addr2reg Label_bdos_save_and_switch r1"
+        "load32 0x7C00000 r2"
+        "write 0 r2 r1"
+      );
+    }
   }
 }

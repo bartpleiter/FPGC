@@ -105,7 +105,25 @@ $7B00000    +------------------------+
             |       VRAMpixel        |
             |    (8bit -> 75 KiB)    | $7B12BFF
             +------------------------+
+
+CPU Internal I/O
+$7C00000    +------------------------+
+            |                        |
+            |    CPU Internal I/O    |
+            |                        |
+            | PC Backup          $00 |
+            | HW Stack Pointer   $01 | $7C00001
+            +------------------------+
 ```
+
+### CPU Internal I/O Registers
+
+These registers are handled inside the CPU core itself (B32P3.v), not through the Memory Unit. They provide direct access to CPU-internal state.
+
+| Address     | Name             | R/W | Description |
+|-------------|------------------|-----|-------------|
+| `0x7C00000` | PC Backup        | R/W | The saved program counter from the last interrupt. Read to capture the user's resume address; write to redirect execution on `reti`. |
+| `0x7C00001` | HW Stack Pointer | R/W | The 8-bit hardware stack pointer (0–255). Read to determine how many entries are on the stack; write to bulk-clear or restore the stack depth. |
 
 ## GPU memory map
 

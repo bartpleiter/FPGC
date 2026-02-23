@@ -213,7 +213,42 @@ void bdos_poll_usb_keyboard(int timer_id)
             key_event = bdos_translate_key_event(new_keycode, kb_report.modifier);
             if (key_event)
             {
-              bdos_keyboard_event_fifo_push(key_event);
+              // Check for multitasking hotkeys when a user program is running
+              if (bdos_active_slot != BDOS_SLOT_NONE)
+              {
+                // Alt+F4: kill running program
+                if (key_event == BDOS_KEY_F4 &&
+                    (kb_report.modifier & (USB_HID_MOD_LALT | USB_HID_MOD_RALT)))
+                {
+                  bdos_kill_requested = 1;
+                }
+                // F12: switch to shell
+                else if (key_event == BDOS_KEY_F12)
+                {
+                  bdos_switch_target = -2; // switch to shell
+                }
+                // F1-F8: switch directly to another suspended slot
+                else if (key_event >= BDOS_KEY_F1 && key_event <= BDOS_KEY_F8)
+                {
+                  int target_slot;
+                  target_slot = key_event - BDOS_KEY_F1;
+                  if (target_slot != bdos_active_slot &&
+                      target_slot < MEM_SLOT_COUNT &&
+                      bdos_slot_status[target_slot] == BDOS_SLOT_STATUS_SUSPENDED)
+                  {
+                    bdos_switch_target = target_slot;
+                  }
+                }
+                else
+                {
+                  // Other keys: pass through to user program FIFO
+                  bdos_keyboard_event_fifo_push(key_event);
+                }
+              }
+              else
+              {
+                bdos_keyboard_event_fifo_push(key_event);
+              }
             }
             bdos_start_repeat_state(new_keycode, kb_report.modifier, key_event, now);
           }

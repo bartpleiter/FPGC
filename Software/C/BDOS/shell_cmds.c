@@ -22,25 +22,70 @@ char bdos_shell_format_label[BDOS_SHELL_FORMAT_LABEL_MAX + 1];
 int bdos_shell_format_full = 0;
 
 // ---- Program slot management ----
-// Stub allocator: always uses slot 0. Replace with real allocator when
-// multi-program scheduling is implemented.
 
-int bdos_slot_in_use = 0;
+// Per-slot state arrays
+int bdos_slot_status[MEM_SLOT_COUNT];
+char bdos_slot_name[MEM_SLOT_COUNT][BDOS_SLOT_NAME_MAX];
+
+// Multitasking saved state
+unsigned int bdos_slot_saved_pc[MEM_SLOT_COUNT];
+unsigned int bdos_slot_saved_regs[MEM_SLOT_COUNT * 15];
+unsigned int bdos_slot_saved_hw_sp[MEM_SLOT_COUNT];
+unsigned int bdos_slot_saved_hw_stack[MEM_SLOT_COUNT * 256];
+
+// Currently active slot
+int bdos_active_slot = BDOS_SLOT_NONE;
+
+// Multitasking switch/kill request flags
+int bdos_switch_target = BDOS_SLOT_NONE;
+int bdos_kill_requested = 0;
+
+// Temp register save area
+unsigned int bdos_suspend_temp_regs[15];
+
+// BDOS loop stack state
+unsigned int bdos_loop_saved_sp = 0;
+unsigned int bdos_loop_saved_bp = 0;
+
+void bdos_slot_init()
+{
+  int i;
+  for (i = 0; i < MEM_SLOT_COUNT; i++)
+  {
+    bdos_slot_status[i] = BDOS_SLOT_STATUS_EMPTY;
+    bdos_slot_name[i][0] = 0;
+    bdos_slot_saved_pc[i] = 0;
+    bdos_slot_saved_hw_sp[i] = 0;
+  }
+  bdos_active_slot = BDOS_SLOT_NONE;
+}
 
 int bdos_slot_alloc()
 {
-  if (bdos_slot_in_use)
+  int i;
+  for (i = 0; i < MEM_SLOT_COUNT; i++)
   {
-    return BDOS_SLOT_NONE;
+    if (bdos_slot_status[i] == BDOS_SLOT_STATUS_EMPTY)
+    {
+      bdos_slot_status[i] = BDOS_SLOT_STATUS_RUNNING;
+      bdos_slot_name[i][0] = 0;
+      return i;
+    }
   }
-  bdos_slot_in_use = 1;
-  return 0;
+  return BDOS_SLOT_NONE;
 }
 
 void bdos_slot_free(int slot)
 {
-  (void)slot;
-  bdos_slot_in_use = 0;
+  if (slot >= 0 && slot < MEM_SLOT_COUNT)
+  {
+    bdos_slot_status[slot] = BDOS_SLOT_STATUS_EMPTY;
+    bdos_slot_name[slot][0] = 0;
+    if (bdos_active_slot == slot)
+    {
+      bdos_active_slot = BDOS_SLOT_NONE;
+    }
+  }
 }
 
 unsigned int bdos_slot_entry_addr(int slot)
@@ -60,6 +105,144 @@ unsigned int bdos_run_stack = 0;
 unsigned int bdos_run_saved_sp = 0;
 unsigned int bdos_run_saved_bp = 0;
 int bdos_run_retval = 0;
+
+// ---- Save-and-switch routine ----
+// Entered via reti redirect when a program is being suspended or killed.
+// At this point, Return_Interrupt has popped r1-r15 from HW stack,
+// so CPU registers hold the user program's state.
+// HW stack contains: [trampoline:13 entries] [user call chain]
+//
+// This function:
+// 1. Saves user registers to temp array
+// 2. Switches to BDOS stack
+// 3. Saves user HW stack entries (excluding trampoline)
+// 4. Handles kill or suspend
+// 5. Returns to BDOS main loop
+void bdos_save_and_switch()
+{
+  int slot;
+  int total_sp;
+  int user_sp;
+  int i;
+  int base;
+
+  // Step 1: Save all user registers and switch to BDOS stack.
+  // IMPORTANT: The C compiler generates a function prologue before this asm block
+  // that modifies r13 (sub r13 N r13) and r14 (via save/set). We must undo these
+  // to get the user's REAL register values before saving.
+  asm(
+    "read 0 r14 r14"
+    "add r13 7 r13"
+    "push r1"
+    "addr2reg Label_bdos_suspend_temp_regs r1"
+    "write 1 r1 r2"
+    "write 2 r1 r3"
+    "write 3 r1 r4"
+    "write 4 r1 r5"
+    "write 5 r1 r6"
+    "write 6 r1 r7"
+    "write 7 r1 r8"
+    "write 8 r1 r9"
+    "write 9 r1 r10"
+    "write 10 r1 r11"
+    "write 11 r1 r12"
+    "write 12 r1 r13"
+    "write 13 r1 r14"
+    "write 14 r1 r15"
+    "pop r2"
+    "write 0 r1 r2"
+    "addr2reg Label_bdos_loop_saved_sp r1"
+    "read 0 r1 r13"
+    "addr2reg Label_bdos_loop_saved_bp r1"
+    "read 0 r1 r14"
+  );
+
+  // Now running with BDOS stack. User registers are in bdos_suspend_temp_regs.
+  slot = bdos_active_slot;
+
+  if (bdos_kill_requested)
+  {
+    // Kill: discard everything, just clear the HW stack
+    asm(
+      "load32 0x7C00001 r1"
+      "write 0 r1 r0"
+    );
+    bdos_slot_free(slot);
+    bdos_active_slot = BDOS_SLOT_NONE;
+    bdos_kill_requested = 0;
+    bdos_switch_target = BDOS_SLOT_NONE;
+
+    asm("ccache");
+    term_puts("\nProgram killed\n");
+    bdos_shell_reset_and_prompt();
+    bdos_loop();
+    return;
+  }
+
+  // Suspend: save user HW stack entries
+  // Read current HW stack pointer
+  total_sp = *(volatile unsigned int*)MEM_IO_HW_STACK_PTR;
+  user_sp = total_sp - 13; // subtract trampoline entries
+  if (user_sp < 0)
+  {
+    user_sp = 0;
+  }
+  bdos_slot_saved_hw_sp[slot] = user_sp;
+
+  // Copy user registers from temp to slot state
+  base = slot * 15;
+  for (i = 0; i < 15; i++)
+  {
+    bdos_slot_saved_regs[base + i] = bdos_suspend_temp_regs[i];
+  }
+
+  // Pop user HW stack entries (saving them, popping from top)
+  // After this, only the 13 trampoline entries remain
+  base = slot * 256;
+  for (i = 0; i < user_sp; i++)
+  {
+    asm(
+      "pop r1"
+      "addr2reg Label_bdos_suspend_temp_regs r2"
+      "write 0 r2 r1"
+    );
+    bdos_slot_saved_hw_stack[base + i] = bdos_suspend_temp_regs[0];
+  }
+
+  // Discard trampoline entries by resetting HW stack pointer
+  asm(
+    "load32 0x7C00001 r1"
+    "write 0 r1 r0"
+  );
+
+  bdos_slot_status[slot] = BDOS_SLOT_STATUS_SUSPENDED;
+  bdos_active_slot = BDOS_SLOT_NONE;
+
+  asm("ccache");
+
+  if (bdos_switch_target >= 0 && bdos_switch_target < MEM_SLOT_COUNT &&
+      bdos_slot_status[bdos_switch_target] == BDOS_SLOT_STATUS_SUSPENDED)
+  {
+    // Direct slot-to-slot switch: resume target slot immediately
+    int target;
+    target = bdos_switch_target;
+    bdos_switch_target = BDOS_SLOT_NONE;
+    bdos_resume_program(target);
+    // Program exited normally, fall through to shell
+  }
+
+  bdos_switch_target = BDOS_SLOT_NONE;
+
+  term_puts("\n[");
+  term_putint(slot);
+  term_puts("] suspended: ");
+  term_puts(bdos_slot_name[slot]);
+  term_putchar('\n');
+
+  // Redraw shell prompt and return to BDOS main loop
+  bdos_shell_reset_and_prompt();
+  bdos_loop();
+}
 
 // ---- Utility helpers ----
 
@@ -667,6 +850,9 @@ int bdos_shell_cmd_help(int argc, char** argv)
   term_puts("  format  sync\n");
   term_puts("Programs\n");
   term_puts("  path, or filename from /bin\n");
+  term_puts("  jobs  fg <slot>  kill <slot>\n");
+  term_puts("Hotkeys (during program)\n");
+  term_puts("  F1=shell  Alt+F4=kill\n");
   return 0;
 }
 
@@ -1303,8 +1489,27 @@ int bdos_exec_program(char* resolved_path)
   int chunk_len;
   int words_read;
   unsigned int *dest;
+  char* basename;
 
   slot = bdos_slot_alloc();
+  if (slot == BDOS_SLOT_NONE)
+  {
+    term_puts("error: no free program slot\n");
+    return -1;
+  }
+
+  // Extract basename for display in jobs list
+  basename = strrchr(resolved_path, '/');
+  if (basename)
+  {
+    basename = basename + 1;
+  }
+  else
+  {
+    basename = resolved_path;
+  }
+  strncpy(bdos_slot_name[slot], basename, BDOS_SLOT_NAME_MAX - 1);
+  bdos_slot_name[slot][BDOS_SLOT_NAME_MAX - 1] = 0;
   if (slot == BDOS_SLOT_NONE)
   {
     term_puts("error: no free program slot\n");
@@ -1375,6 +1580,7 @@ int bdos_exec_program(char* resolved_path)
   // Set up globals for the inline assembly trampoline
   bdos_run_entry = bdos_slot_entry_addr(slot);
   bdos_run_stack = bdos_slot_stack_addr(slot);
+  bdos_active_slot = slot;
 
   // Execute the user program via inline assembly.
   // We save all BDOS registers to the stack (except r13/r14 which go
@@ -1431,6 +1637,7 @@ int bdos_exec_program(char* resolved_path)
   // Flush cache again after user program execution
   asm("ccache");
 
+  bdos_active_slot = BDOS_SLOT_NONE;
   bdos_slot_free(slot);
 
   term_puts("Program exited with code ");
@@ -1438,6 +1645,273 @@ int bdos_exec_program(char* resolved_path)
   term_putchar('\n');
 
   return bdos_run_retval;
+}
+
+// Resume a suspended program in the given slot.
+// Pushes fresh trampoline entries, saved user HW stack, and saved interrupt
+// registers, then jumps to Return_Interrupt which restores user registers
+// and reti to the saved PC. When the user program eventually exits normally,
+// the trampoline return (Label_bdos_run_return) brings execution back to
+// the cleanup code after the asm block below.
+void bdos_resume_program(int slot)
+{
+  int base_regs;
+  int base_hw;
+  int user_sp;
+  int i;
+
+  bdos_active_slot = slot;
+  bdos_slot_status[slot] = BDOS_SLOT_STATUS_RUNNING;
+  bdos_switch_target = BDOS_SLOT_NONE;
+
+  // Load saved state into globals for the push loops
+  bdos_run_entry = bdos_slot_saved_pc[slot];
+  user_sp = bdos_slot_saved_hw_sp[slot];
+
+  // Copy saved registers into temp array for assembly access
+  base_regs = slot * 15;
+  for (i = 0; i < 15; i++)
+  {
+    bdos_suspend_temp_regs[i] = bdos_slot_saved_regs[base_regs + i];
+  }
+
+  // Inline assembly: save BDOS state, push saved context, resume user
+  asm(
+    "; Save BDOS registers to HW stack"
+    "push r1"
+    "push r2"
+    "push r3"
+    "push r4"
+    "push r5"
+    "push r6"
+    "push r7"
+    "push r8"
+    "push r9"
+    "push r10"
+    "push r11"
+    "push r12"
+    "push r15"
+    "addr2reg Label_bdos_run_saved_sp r11"
+    "write 0 r11 r13"
+    "addr2reg Label_bdos_run_saved_bp r11"
+    "write 0 r11 r14"
+
+    "; Push saved user HW stack entries (reverse order to restore original stack)"
+    "; user_sp entries saved in pop order: top-first at index 0"
+    "; Push from index user_sp-1 down to 0 to restore bottom-first"
+    "addr2reg Label_bdos_slot_saved_hw_sp r1"
+    "addr2reg Label_bdos_active_slot r2"
+    "read 0 r2 r2"
+    "add r1 r2 r1"
+    "read 0 r1 r3"
+
+    "addr2reg Label_bdos_slot_saved_hw_stack r1"
+    "shiftl r2 8 r4"
+    "add r1 r4 r1"
+
+    "; r1 = base addr, r3 = user_sp (count), r4 = index (starts at user_sp-1)"
+    "sub r3 1 r4"
+    "bdos_resume_push_user_loop:"
+    "beq r3 r0 7"
+    "add r1 r4 r5"
+    "read 0 r5 r5"
+    "push r5"
+    "sub r4 1 r4"
+    "sub r3 1 r3"
+    "jump bdos_resume_push_user_loop"
+    "bdos_resume_push_user_done:"
+
+    "; Push saved interrupt registers (user r1-r15)"
+    "; temp_regs[0] = r1, temp_regs[1] = r2, ..., temp_regs[14] = r15"
+    "; Must push in Int: order: r1, r2, ..., r15"
+    "; So Return_Interrupt can pop correctly: r15, r14, ..., r1"
+    "addr2reg Label_bdos_suspend_temp_regs r1"
+    "read 0 r1 r2"
+    "push r2"
+    "read 1 r1 r2"
+    "push r2"
+    "read 2 r1 r2"
+    "push r2"
+    "read 3 r1 r2"
+    "push r2"
+    "read 4 r1 r2"
+    "push r2"
+    "read 5 r1 r2"
+    "push r2"
+    "read 6 r1 r2"
+    "push r2"
+    "read 7 r1 r2"
+    "push r2"
+    "read 8 r1 r2"
+    "push r2"
+    "read 9 r1 r2"
+    "push r2"
+    "read 10 r1 r2"
+    "push r2"
+    "read 11 r1 r2"
+    "push r2"
+    "read 12 r1 r2"
+    "push r2"
+    "read 13 r1 r2"
+    "push r2"
+    "read 14 r1 r2"
+    "push r2"
+
+    "; Set IO_PC_BACKUP to saved user PC"
+    "addr2reg Label_bdos_run_entry r1"
+    "read 0 r1 r1"
+    "load32 0x7C00000 r2"
+    "write 0 r2 r1"
+
+    "; Jump to Return_Interrupt: pops r15..r1, reti -> user program"
+    "jump Return_Interrupt"
+  );
+
+  // This point is reached when the user program exits normally.
+  // The trampoline return (Label_bdos_run_return) restores r13/r14
+  // from bdos_run_saved_sp/bp and pops the 13 trampoline entries
+  // we pushed above, then returns here via r15.
+
+  asm("ccache");
+
+  bdos_active_slot = BDOS_SLOT_NONE;
+  bdos_slot_free(slot);
+
+  term_puts("Program exited with code ");
+  term_putint(bdos_run_retval);
+  term_putchar('\n');
+}
+
+int bdos_shell_cmd_jobs(int argc, char** argv)
+{
+  int i;
+  int any;
+
+  (void)argv;
+
+  if (argc != 1)
+  {
+    term_puts("usage: jobs\n");
+    return 0;
+  }
+
+  any = 0;
+  for (i = 0; i < MEM_SLOT_COUNT; i++)
+  {
+    if (bdos_slot_status[i] != BDOS_SLOT_STATUS_EMPTY)
+    {
+      term_puts("[");
+      term_putint(i);
+      term_puts("] ");
+
+      if (bdos_slot_status[i] == BDOS_SLOT_STATUS_RUNNING)
+      {
+        term_puts("running   ");
+      }
+      else if (bdos_slot_status[i] == BDOS_SLOT_STATUS_SUSPENDED)
+      {
+        term_puts("suspended ");
+      }
+
+      if (bdos_slot_name[i][0])
+      {
+        term_puts(bdos_slot_name[i]);
+      }
+      else
+      {
+        term_puts("(unnamed)");
+      }
+      term_putchar('\n');
+      any = 1;
+    }
+  }
+
+  if (!any)
+  {
+    term_puts("no active programs\n");
+  }
+
+  return 0;
+}
+
+int bdos_shell_cmd_kill(int argc, char** argv)
+{
+  int slot;
+
+  if (argc != 2)
+  {
+    term_puts("usage: kill <slot>\n");
+    return 0;
+  }
+
+  slot = atoi(argv[1]);
+  if (slot < 0 || slot >= MEM_SLOT_COUNT)
+  {
+    term_puts("error: invalid slot number (0-");
+    term_putint(MEM_SLOT_COUNT - 1);
+    term_puts(")\n");
+    return 0;
+  }
+
+  if (bdos_slot_status[slot] == BDOS_SLOT_STATUS_EMPTY)
+  {
+    term_puts("error: slot ");
+    term_putint(slot);
+    term_puts(" is empty\n");
+    return 0;
+  }
+
+  if (bdos_slot_status[slot] == BDOS_SLOT_STATUS_RUNNING)
+  {
+    term_puts("error: cannot kill running program from shell\n");
+    return 0;
+  }
+
+  term_puts("Killed [");
+  term_putint(slot);
+  term_puts("] ");
+  term_puts(bdos_slot_name[slot]);
+  term_putchar('\n');
+
+  bdos_slot_free(slot);
+  return 0;
+}
+
+int bdos_shell_cmd_fg(int argc, char** argv)
+{
+  int slot;
+
+  if (argc != 2)
+  {
+    term_puts("usage: fg <slot>\n");
+    return 0;
+  }
+
+  slot = atoi(argv[1]);
+  if (slot < 0 || slot >= MEM_SLOT_COUNT)
+  {
+    term_puts("error: invalid slot number (0-");
+    term_putint(MEM_SLOT_COUNT - 1);
+    term_puts(")\n");
+    return 0;
+  }
+
+  if (bdos_slot_status[slot] != BDOS_SLOT_STATUS_SUSPENDED)
+  {
+    term_puts("error: slot ");
+    term_putint(slot);
+    term_puts(" is not suspended\n");
+    return 0;
+  }
+
+  term_puts("[");
+  term_putint(slot);
+  term_puts("] resuming: ");
+  term_puts(bdos_slot_name[slot]);
+  term_putchar('\n');
+
+  bdos_resume_program(slot);
+  return 0;
 }
 
 int bdos_shell_cmd_format(int argc, char** argv)
@@ -1560,6 +2034,24 @@ void bdos_shell_execute_line(char* line)
   if (strcmp(argv[0], "df") == 0)
   {
     bdos_shell_cmd_df(argc, argv);
+    return;
+  }
+
+  if (strcmp(argv[0], "jobs") == 0)
+  {
+    bdos_shell_cmd_jobs(argc, argv);
+    return;
+  }
+
+  if (strcmp(argv[0], "kill") == 0)
+  {
+    bdos_shell_cmd_kill(argc, argv);
+    return;
+  }
+
+  if (strcmp(argv[0], "fg") == 0)
+  {
+    bdos_shell_cmd_fg(argc, argv);
     return;
   }
 

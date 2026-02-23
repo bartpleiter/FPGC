@@ -284,6 +284,15 @@ always @(posedge clk) begin
         end
     end
     // On stall: hold current PC
+
+    // CPU-internal I/O: write pc_backup via store instruction
+    // This is separate from the PC management if-else chain above.
+    // Safe because this only executes during interrupt handler (int_disabled=1),
+    // so it never conflicts with the interrupt branch that also writes pc_backup.
+    if (ex_mem_valid && ex_mem_mem_write &&
+        (ex_mem_mem_addr == CPU_IO_PC_BACKUP) && !backend_pipeline_stall) begin
+        pc_backup <= ex_mem_breg_data;
+    end
 end
 
 // =============================================================================
@@ -665,6 +674,11 @@ wire        stack_pop;
 assign stack_push = ex_mem_valid && ex_mem_push && !backend_pipeline_stall;
 assign stack_pop = ex_mem_valid && ex_mem_pop && !backend_pipeline_stall;
 
+// Stack pointer access
+wire [7:0]  stack_ptr_out;
+wire [7:0]  stack_ptr_in;
+wire        stack_ptr_we;
+
 Stack stack (
     .clk    (clk),
     .reset  (reset),
@@ -673,8 +687,16 @@ Stack stack (
     .push   (stack_push),
     .pop    (stack_pop),
     .clear  (1'b0),
-    .hold   (backend_pipeline_stall)
+    .hold   (backend_pipeline_stall),
+    .ptr_out(stack_ptr_out),
+    .ptr_in (stack_ptr_in),
+    .ptr_we (stack_ptr_we)
 );
+
+// CPU-internal I/O: stack pointer write via store instruction
+assign stack_ptr_we = ex_mem_valid && ex_mem_mem_write &&
+                      (ex_mem_mem_addr == CPU_IO_HW_STACK_PTR) && !backend_pipeline_stall;
+assign stack_ptr_in = ex_mem_breg_data[7:0];
 
 // =============================================================================
 // FORWARDING UNIT
@@ -949,6 +971,14 @@ wire mem_sel_vram32 = ex_mem_mem_addr >= 32'h7900000 && ex_mem_mem_addr < 32'h7A
 wire mem_sel_vram8  = ex_mem_mem_addr >= 32'h7A00000 && ex_mem_mem_addr < 32'h7B00000;
 wire mem_sel_vrampx = ex_mem_mem_addr >= 32'h7B00000 && ex_mem_mem_addr < 32'h7C00000;
 
+// CPU-internal I/O registers
+localparam CPU_IO_PC_BACKUP    = 32'h7C00000;  // Read/write interrupt return PC
+localparam CPU_IO_HW_STACK_PTR = 32'h7C00001;  // Read/write hardware stack pointer
+wire mem_sel_cpu_io = (ex_mem_mem_addr == CPU_IO_PC_BACKUP) ||
+                      (ex_mem_mem_addr == CPU_IO_HW_STACK_PTR);
+wire [31:0] cpu_io_read_data = (ex_mem_mem_addr == CPU_IO_PC_BACKUP) ? pc_backup :
+                               {24'd0, stack_ptr_out};
+
 // Local address calculation (MEM stage - for ROM and I/O, not VRAM)
 wire [31:0] mem_local_addr = mem_sel_rom    ? ex_mem_mem_addr - 32'h7800000 :
                              mem_sel_vram32 ? ex_mem_mem_addr - 32'h7900000 :
@@ -1171,7 +1201,8 @@ assign cc_stall = ex_mem_valid && ex_mem_clearCache && !clear_cache_finished;
 // Memory read data multiplexer
 // For SDRAM: use l1d_result_reg if we had a cache miss (request_finished),
 // otherwise use direct cache data for hits
-wire [31:0] mem_read_data = mem_sel_rom    ? rom_mem_data :
+wire [31:0] mem_read_data = mem_sel_cpu_io ? cpu_io_read_data :
+                            mem_sel_rom    ? rom_mem_data :
                             mem_sel_vram32 ? vram32_q :
                             mem_sel_vram8  ? {24'd0, vram8_q} :
                             mem_sel_vrampx ? {24'd0, vramPX_q} :
