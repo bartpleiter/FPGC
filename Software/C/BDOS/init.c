@@ -98,8 +98,6 @@ void bdos_init()
 {
   set_user_led(1); // Set user LED during initialization to indicate progress
 
-  spi_deselect(SPI_FLASH_0); // Temp fix as the bootloader currently fogets to deselect the SPI Flash 0 after copying the program to RAM
-
   bdos_init_gpu();
 
   term_init();
