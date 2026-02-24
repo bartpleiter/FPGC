@@ -27,6 +27,9 @@ module VRAMPXSram (
     input  wire         blank,         // Active during blanking
     input  wire         vsync,         // For debug/monitoring
     
+    // CPU backpressure
+    output wire         cpu_fifo_full, // High when write FIFO is full (stall CPU)
+
     // External SRAM interface
     output wire [18:0]  SRAM_A,
     inout  wire [7:0]   SRAM_DQ,
@@ -69,21 +72,23 @@ wire [24:0] cpu_fifo_data_out;
 wire [16:0] cpu_fifo_addr = cpu_fifo_data_out[24:8];
 wire [7:0]  cpu_fifo_data = cpu_fifo_data_out[7:0];
 wire        cpu_fifo_empty;
-wire        cpu_fifo_full;
+wire        cpu_fifo_full_int;
 wire        cpu_fifo_rd_en;
+
+assign cpu_fifo_full = cpu_fifo_full_int;
 
 SyncFIFO #(
     .DATA_WIDTH(25),    // 17-bit address + 8-bit data
-    .ADDR_WIDTH(9),     // 512 entries
-    .DEPTH(512)
+    .ADDR_WIDTH(10),    // 1024 entries
+    .DEPTH(1024)
 ) cpu_write_fifo (
     .clk(clk100),
     .reset(reset),
 
     // Write side (100MHz)
     .wr_data({cpu_addr, cpu_data}),
-    .wr_en(cpu_we && !cpu_fifo_full),
-    .wr_full(cpu_fifo_full),
+    .wr_en(cpu_we && !cpu_fifo_full_int),
+    .wr_full(cpu_fifo_full_int),
     
     // Read side (100MHz)
     .rd_data(cpu_fifo_data_out),

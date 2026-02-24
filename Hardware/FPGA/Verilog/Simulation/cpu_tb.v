@@ -637,6 +637,7 @@ B32P3 cpu (
     .vramPX_d(vramPX_cpu_d),
     .vramPX_we(vramPX_cpu_we),
     .vramPX_q(vramPX_cpu_q),
+    .vramPX_fifo_full(1'b0),
 
     // L1i cache (cpu pipeline port)
     .l1i_pipe_addr(l1i_pipe_addr),

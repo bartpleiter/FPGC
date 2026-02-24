@@ -387,6 +387,7 @@ wire [16:0] vramPX_cpu_addr;
 wire [7:0]  vramPX_cpu_d;
 wire        vramPX_cpu_we;
 wire [7:0]  vramPX_cpu_q;  // Not used in this design (write-only from CPU)
+wire        vramPX_fifo_full; // FIFO backpressure to CPU
 
 // GPU pixel interface - direct SRAM read
 wire [16:0] gpu_pixel_addr;
@@ -419,6 +420,9 @@ VRAMPXSram vrampx_sram (
     .blank(fsx_blank),
     .vsync(fsx_vsync),
     
+    // CPU backpressure
+    .cpu_fifo_full(vramPX_fifo_full),
+
     // External SRAM
     .SRAM_A(SRAM_A),
     .SRAM_DQ(SRAM_DQ),
@@ -768,6 +772,7 @@ B32P3 cpu (
     .vramPX_d(vramPX_cpu_d),
     .vramPX_we(vramPX_cpu_we),
     .vramPX_q(vramPX_cpu_q),
+    .vramPX_fifo_full(vramPX_fifo_full),
     
     // L1i cache (cpu pipeline port)
     .l1i_pipe_addr(l1i_pipe_addr),

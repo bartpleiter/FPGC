@@ -66,6 +66,7 @@ module MemoryStage #(
     output wire [16:0]  vramPX_addr,
     output wire [7:0]   vramPX_d,
     output wire         vramPX_we,
+    input  wire         vramPX_fifo_full,
 
     // ---- L1D cache pipeline port ----
     input  wire [270:0] l1d_pipe_q,
@@ -97,6 +98,7 @@ module MemoryStage #(
     output wire         cache_stall_mem,
     output wire         mu_stall,
     output wire         cc_stall,
+    output wire         vrampx_stall,
     output wire [31:0]  mem_read_data
 );
 
@@ -190,6 +192,10 @@ assign vramPX_addr = (ex_mem_valid && ex_mem_mem_write && mem_sel_vrampx) ?
                      mem_local_addr[16:0] : ex_local_addr_vrampx[16:0];
 assign vramPX_d  = ex_mem_breg_data[7:0];
 assign vramPX_we = ex_mem_valid && ex_mem_mem_write && mem_sel_vrampx && !backend_pipeline_stall;
+
+// ---- VRAMPX FIFO BACKPRESSURE ----
+// Stall the pipeline when MEM stage wants to write to VRAMPX but FIFO is full
+assign vrampx_stall = ex_mem_valid && ex_mem_mem_write && mem_sel_vrampx && vramPX_fifo_full;
 
 // ---- L1D CACHE INTERFACE ----
 assign l1d_pipe_addr = ex_mem_mem_addr[9:3];

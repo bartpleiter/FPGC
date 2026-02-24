@@ -36,6 +36,7 @@ module PipelineController (
     input wire        multicycle_stall,
     input wire        mu_stall,
     input wire        cc_stall,
+    input wire        vrampx_stall,
 
     // ---- Flush source inputs ----
     input wire        pc_redirect,
@@ -101,7 +102,7 @@ wire hazard_stall = load_use_hazard || pop_use_hazard || cache_line_hazard;
 
 // ---- Stall computation ----
 // Combined backend stall - stalls entire pipeline
-wire backend_stall = cache_stall_if || cache_stall_mem || multicycle_stall || mu_stall || cc_stall;
+wire backend_stall = cache_stall_if || cache_stall_mem || multicycle_stall || mu_stall || cc_stall || vrampx_stall;
 
 // Front-end stall (IF, ID) - includes hazard stalls
 assign pipeline_stall = hazard_stall || backend_stall;

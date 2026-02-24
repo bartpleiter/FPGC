@@ -60,6 +60,7 @@ module B32P3 #(
     output wire [7:0]   vramPX_d,
     output wire         vramPX_we,
     input  wire [7:0]   vramPX_q,
+    input  wire         vramPX_fifo_full,
 
     // ---- L1i cache (CPU pipeline port) ----
     output wire [6:0]   l1i_pipe_addr,
@@ -148,6 +149,7 @@ wire cache_stall_mem;   // L1D cache miss stall
 wire multicycle_stall;  // Multi-cycle ALU stall
 wire mu_stall;          // Memory unit stall
 wire cc_stall;          // Cache clear stall
+wire vrampx_stall;      // VRAMPX FIFO full stall
 
 // Pipeline control outputs
 wire        pipeline_stall;
@@ -616,6 +618,7 @@ PipelineController pipeline_controller (
     .multicycle_stall   (multicycle_stall),
     .mu_stall           (mu_stall),
     .cc_stall           (cc_stall),
+    .vrampx_stall       (vrampx_stall),
     // Flush source inputs
     .pc_redirect        (pc_redirect),
     .reti_valid         (reti_valid),
@@ -766,6 +769,7 @@ MemoryStage #(
     .vramPX_addr                (vramPX_addr),
     .vramPX_d                   (vramPX_d),
     .vramPX_we                  (vramPX_we),
+    .vramPX_fifo_full           (vramPX_fifo_full),
     // L1D cache pipeline port
     .l1d_pipe_q                 (l1d_pipe_q),
     .l1d_pipe_addr              (l1d_pipe_addr),
@@ -792,6 +796,7 @@ MemoryStage #(
     .cache_stall_mem            (cache_stall_mem),
     .mu_stall                   (mu_stall),
     .cc_stall                   (cc_stall),
+    .vrampx_stall               (vrampx_stall),
     .mem_read_data              (mem_read_data)
 );
 
