@@ -115,13 +115,13 @@ reg OST1_trigger = 1'b0;
 reg OST1_set = 1'b0;
 reg [31:0] OST1_value = 32'd0;
 
-OStimer OST1(
-.clk        (clk),
-.reset      (reset),
-.timerValue (OST1_value),
-.setValue   (OST1_set),
-.trigger    (OST1_trigger),
-.interrupt  (OST1_int)
+OStimer OST1 (
+    .clk         (clk),
+    .reset       (reset),
+    .timer_value (OST1_value),
+    .set_value   (OST1_set),
+    .trigger     (OST1_trigger),
+    .interrupt   (OST1_int)
 );
 
 // OS timer 2
@@ -129,13 +129,13 @@ reg OST2_trigger = 1'b0;
 reg OST2_set = 1'b0;
 reg [31:0] OST2_value = 32'd0;
 
-OStimer OST2(
-.clk        (clk),
-.reset      (reset),
-.timerValue (OST2_value),
-.setValue   (OST2_set),
-.trigger    (OST2_trigger),
-.interrupt  (OST2_int)
+OStimer OST2 (
+    .clk         (clk),
+    .reset       (reset),
+    .timer_value (OST2_value),
+    .set_value   (OST2_set),
+    .trigger     (OST2_trigger),
+    .interrupt   (OST2_int)
 );
 
 // OS timer 3
@@ -143,13 +143,13 @@ reg OST3_trigger = 1'b0;
 reg OST3_set = 1'b0;
 reg [31:0] OST3_value = 32'd0;
 
-OStimer OST3(
-.clk        (clk),
-.reset      (reset),
-.timerValue (OST3_value),
-.setValue   (OST3_set),
-.trigger    (OST3_trigger),
-.interrupt  (OST3_int)
+OStimer OST3 (
+    .clk         (clk),
+    .reset       (reset),
+    .timer_value (OST3_value),
+    .set_value   (OST3_set),
+    .trigger     (OST3_trigger),
+    .interrupt   (OST3_int)
 );
 
 // SPI0 (Flash 1) 25 MHz
@@ -275,67 +275,67 @@ SimpleSPI #(
 // Micros counter
 wire [31:0] micros;
 
-MicrosCounter microsCounter(
-.clk        (clk),
-.reset      (reset),
-.micros     (micros)
+MicrosCounter micros_counter (
+    .clk    (clk),
+    .reset  (reset),
+    .micros (micros)
 );
 
 // ---- Address map ----
-// Address mappings (from memory map)
-localparam ADDR_UART_TX         = 32'h7000000; // UART tx
-localparam ADDR_UART_RX         = 32'h7000001; // UART rx
-localparam ADDR_TIMER1_VALUE    = 32'h7000002; // Timer 1 value
-localparam ADDR_TIMER1_START    = 32'h7000003; // Timer 1 start
-localparam ADDR_TIMER2_VALUE    = 32'h7000004; // Timer 2 value
-localparam ADDR_TIMER2_START    = 32'h7000005; // Timer 2 start
-localparam ADDR_TIMER3_VALUE    = 32'h7000006; // Timer 3 value
-localparam ADDR_TIMER3_START    = 32'h7000007; // Timer 3 start
-localparam ADDR_SPI0_DATA       = 32'h7000008; // SPI0 data (Flash1)
-localparam ADDR_SPI0_CS         = 32'h7000009; // SPI0 CS
-localparam ADDR_SPI1_DATA       = 32'h700000A; // SPI1 data (Flash2)
-localparam ADDR_SPI1_CS         = 32'h700000B; // SPI1 CS
-localparam ADDR_SPI2_DATA       = 32'h700000C; // SPI2 data (USB H1)
-localparam ADDR_SPI2_CS         = 32'h700000D; // SPI2 CS
-localparam ADDR_SPI2_NINT       = 32'h700000E; // SPI2 NINT
-localparam ADDR_SPI3_DATA       = 32'h700000F; // SPI3 data (USB H2)
-localparam ADDR_SPI3_CS         = 32'h7000010; // SPI3 CS
-localparam ADDR_SPI3_NINT       = 32'h7000011; // SPI3 NINT
-localparam ADDR_SPI4_DATA       = 32'h7000012; // SPI4 data (Ethernet)
-localparam ADDR_SPI4_CS         = 32'h7000013; // SPI4 CS
-localparam ADDR_SPI4_NINT       = 32'h7000014; // SPI4 NINT
-localparam ADDR_SPI5_DATA       = 32'h7000015; // SPI5 data (SD)
-localparam ADDR_SPI5_CS         = 32'h7000016; // SPI5 CS
-localparam ADDR_GPIO_MODE       = 32'h7000017; // GPIO mode
-localparam ADDR_GPIO_STATE      = 32'h7000018; // GPIO state
-localparam ADDR_BOOT_MODE       = 32'h7000019; // Boot mode
-localparam ADDR_MICROS          = 32'h700001A; // Micros
-localparam ADDR_LED_USER        = 32'h700001B; // User LED control
-
-localparam ADDR_OOB             = 32'h700001C; // All addresses >= this are out of bounds and return a constant
+localparam
+    ADDR_UART_TX         = 32'h7000000, // UART tx
+    ADDR_UART_RX         = 32'h7000001, // UART rx
+    ADDR_TIMER1_VALUE    = 32'h7000002, // Timer 1 value
+    ADDR_TIMER1_START    = 32'h7000003, // Timer 1 start
+    ADDR_TIMER2_VALUE    = 32'h7000004, // Timer 2 value
+    ADDR_TIMER2_START    = 32'h7000005, // Timer 2 start
+    ADDR_TIMER3_VALUE    = 32'h7000006, // Timer 3 value
+    ADDR_TIMER3_START    = 32'h7000007, // Timer 3 start
+    ADDR_SPI0_DATA       = 32'h7000008, // SPI0 data (Flash1)
+    ADDR_SPI0_CS         = 32'h7000009, // SPI0 CS
+    ADDR_SPI1_DATA       = 32'h700000A, // SPI1 data (Flash2)
+    ADDR_SPI1_CS         = 32'h700000B, // SPI1 CS
+    ADDR_SPI2_DATA       = 32'h700000C, // SPI2 data (USB H1)
+    ADDR_SPI2_CS         = 32'h700000D, // SPI2 CS
+    ADDR_SPI2_NINT       = 32'h700000E, // SPI2 NINT
+    ADDR_SPI3_DATA       = 32'h700000F, // SPI3 data (USB H2)
+    ADDR_SPI3_CS         = 32'h7000010, // SPI3 CS
+    ADDR_SPI3_NINT       = 32'h7000011, // SPI3 NINT
+    ADDR_SPI4_DATA       = 32'h7000012, // SPI4 data (Ethernet)
+    ADDR_SPI4_CS         = 32'h7000013, // SPI4 CS
+    ADDR_SPI4_NINT       = 32'h7000014, // SPI4 NINT
+    ADDR_SPI5_DATA       = 32'h7000015, // SPI5 data (SD)
+    ADDR_SPI5_CS         = 32'h7000016, // SPI5 CS
+    ADDR_GPIO_MODE       = 32'h7000017, // GPIO mode
+    ADDR_GPIO_STATE      = 32'h7000018, // GPIO state
+    ADDR_BOOT_MODE       = 32'h7000019, // Boot mode
+    ADDR_MICROS          = 32'h700001A, // Micros
+    ADDR_LED_USER        = 32'h700001B, // User LED control
+    ADDR_OOB             = 32'h700001C; // All addresses >= this are out of bounds
 
 // ---- State encoding ----
-localparam STATE_IDLE                   = 5'd0;
-localparam STATE_RETURN_ZERO            = 5'd1;
-localparam STATE_WAIT_UART_TX           = 5'd2;
-localparam STATE_WAIT_UART_RX           = 5'd3;
-localparam STATE_WAIT_SPI0_DATA         = 5'd4;
-localparam STATE_WAIT_SPI0_CS           = 5'd5;
-localparam STATE_WAIT_SPI1_DATA         = 5'd6;
-localparam STATE_WAIT_SPI1_CS           = 5'd7;
-localparam STATE_WAIT_SPI2_DATA         = 5'd8;
-localparam STATE_WAIT_SPI2_CS           = 5'd9;
-localparam STATE_WAIT_SPI2_NINT         = 5'd10;
-localparam STATE_WAIT_SPI3_DATA         = 5'd11;
-localparam STATE_WAIT_SPI3_CS           = 5'd12;
-localparam STATE_WAIT_SPI3_NINT         = 5'd13;
-localparam STATE_WAIT_SPI4_DATA         = 5'd14;
-localparam STATE_WAIT_SPI4_CS           = 5'd15;
-localparam STATE_WAIT_SPI4_NINT         = 5'd16;
-localparam STATE_WAIT_SPI5_DATA         = 5'd17;
-localparam STATE_WAIT_SPI5_CS           = 5'd18;
-localparam STATE_WAIT_BOOT_MODE         = 5'd19;
-localparam STATE_WAIT_MICROS            = 5'd20;
+localparam
+    STATE_IDLE                   = 5'd0,
+    STATE_RETURN_ZERO            = 5'd1,
+    STATE_WAIT_UART_TX           = 5'd2,
+    STATE_WAIT_UART_RX           = 5'd3,
+    STATE_WAIT_SPI0_DATA         = 5'd4,
+    STATE_WAIT_SPI0_CS           = 5'd5,
+    STATE_WAIT_SPI1_DATA         = 5'd6,
+    STATE_WAIT_SPI1_CS           = 5'd7,
+    STATE_WAIT_SPI2_DATA         = 5'd8,
+    STATE_WAIT_SPI2_CS           = 5'd9,
+    STATE_WAIT_SPI2_NINT         = 5'd10,
+    STATE_WAIT_SPI3_DATA         = 5'd11,
+    STATE_WAIT_SPI3_CS           = 5'd12,
+    STATE_WAIT_SPI3_NINT         = 5'd13,
+    STATE_WAIT_SPI4_DATA         = 5'd14,
+    STATE_WAIT_SPI4_CS           = 5'd15,
+    STATE_WAIT_SPI4_NINT         = 5'd16,
+    STATE_WAIT_SPI5_DATA         = 5'd17,
+    STATE_WAIT_SPI5_CS           = 5'd18,
+    STATE_WAIT_BOOT_MODE         = 5'd19,
+    STATE_WAIT_MICROS            = 5'd20;
 
 
 reg [4:0] state = 5'd0;

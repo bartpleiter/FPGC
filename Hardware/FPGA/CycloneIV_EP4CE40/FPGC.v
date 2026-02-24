@@ -402,7 +402,7 @@ wire        fsx_blank;
 VRAMPXSram vrampx_sram (
     // Clocks and reset
     .clk100(clk100),
-    .clkPixel(clkGPU),
+    .clk_pixel(clkGPU),
     .reset(reset),
     
     // CPU interface (100MHz)

@@ -66,10 +66,11 @@ assign gpu_data = sram_data_reg;
 // - During odd lines when GPU uses line buffer (SRAM is free)
 wire can_write = blank || using_line_buffer;
 
-// CPU write state machine
-localparam STATE_IDLE       = 2'd0;
-localparam STATE_WRITE_WAIT = 2'd1;  // Wait one cycle for FIFO data
-localparam STATE_WRITE_EXEC = 2'd2;  // Execute SRAM write
+// ---- CPU write state machine ----
+localparam
+    STATE_IDLE       = 2'd0,
+    STATE_WRITE_WAIT = 2'd1,  // Wait one cycle for FIFO data
+    STATE_WRITE_EXEC = 2'd2;  // Execute SRAM write
 
 reg [1:0] write_state = STATE_IDLE;
 
@@ -87,10 +88,9 @@ always @(posedge clk100) begin
         cpu_fifo_rd_en <= 1'b0;
         
         if (can_write) begin
-            //=================================================================
-            // WRITE PERIOD: Blanking OR GPU using line buffer (odd lines)
+            // ---- Write period ----
+            // Blanking OR GPU using line buffer (odd lines)
             // Process CPU writes from FIFO
-            //=================================================================
             case (write_state)
                 STATE_IDLE: begin
                     sram_we_n <= 1'b1;
@@ -130,9 +130,7 @@ always @(posedge clk100) begin
                 end
             endcase
         end else begin
-            //=================================================================
-            // ACTIVE VIDEO (even lines): Read for GPU
-            //=================================================================
+            // ---- Active video (even lines): Read for GPU ----
             // Reset write state when entering GPU read mode
             write_state <= STATE_IDLE;
             

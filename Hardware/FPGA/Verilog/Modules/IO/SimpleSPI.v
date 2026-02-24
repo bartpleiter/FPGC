@@ -12,31 +12,23 @@
 module SimpleSPI #(
     parameter CLKS_PER_HALF_BIT = 1
 ) (
-    //========================
-    // System interface
-    //========================
+    // ---- System interface ----
     input  wire         clk,
     input  wire         reset,
 
-    //========================
-    // Control interface
-    //========================
+    // ---- Control interface ----
     input  wire         start,          // Start transfer (active high pulse)
     input  wire [7:0]   data_in,        // Byte to transmit
     output reg          done = 1'b0,    // Transfer complete (high for one cycle)
     output reg  [7:0]   data_out = 8'd0,// Received byte
 
-    //========================
-    // SPI interface
-    //========================
+    // ---- SPI interface ----
     output reg          spi_clk = 1'b0, // SPI clock (idle low for Mode 0)
     input  wire         spi_miso,       // Master In Slave Out
     output reg          spi_mosi = 1'b0 // Master Out Slave In
 );
 
-//========================
-// State Machine
-//========================
+// ---- State Machine ----
 localparam
     STATE_IDLE      = 2'd0,
     STATE_TRANSFER  = 2'd1,
@@ -44,9 +36,7 @@ localparam
 
 reg [1:0] state = STATE_IDLE;
 
-//========================
-// Internal Registers
-//========================
+// ---- Internal Registers ----
 // Counter for clock edges: 16 edges per byte (8 rising + 8 falling)
 reg [4:0] edge_count = 5'd0;
 

@@ -30,11 +30,15 @@ module SRAMReadFIFO #(
 // FIFO memory - initialized to 0 for simulation
 reg [7:0] fifo_mem [0:DEPTH-1];
 integer i;
-initial begin
-    for (i = 0; i < DEPTH; i = i + 1) begin
+`ifdef __ICARUS__
+initial
+begin
+    for (i = 0; i < DEPTH; i = i + 1)
+    begin
         fifo_mem[i] = 8'd0;
     end
 end
+`endif
 
 // Write domain signals
 reg [ADDR_WIDTH:0] wr_ptr_bin = 0;          // Binary write pointer
@@ -62,7 +66,8 @@ function [ADDR_WIDTH:0] gray2bin;
     integer i;
     begin
         gray2bin[ADDR_WIDTH] = gray[ADDR_WIDTH];
-        for (i = ADDR_WIDTH - 1; i >= 0; i = i - 1) begin
+        for (i = ADDR_WIDTH - 1; i >= 0; i = i - 1)
+        begin
             gray2bin[i] = gray2bin[i+1] ^ gray[i];
         end
     end

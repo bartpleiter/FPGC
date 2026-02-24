@@ -12,29 +12,21 @@ module UARTtx #(
     parameter CLKS_PER_BIT = 100,   // 1 MBaud @ 100 MHz
     parameter ENABLE_DISPLAY = 1
 ) (
-    //========================
-    // System interface
-    //========================
+    // ---- System interface ----
     input  wire         clk,
     input  wire         reset,
 
-    //========================
-    // Control interface
-    //========================
+    // ---- Control interface ----
     input  wire         start,              // Start transmission (active high pulse)
     input  wire [7:0]   data,               // Byte to transmit
     output reg          done = 1'b0,        // Transmission complete (high for one cycle)
     output reg          tx_active = 1'b0,   // Transmission in progress
 
-    //========================
-    // UART interface
-    //========================
+    // ---- UART interface ----
     output reg          tx = 1'b1   // Serial output (idle high)
 );
 
-//========================
-// State Machine
-//========================
+// ---- State Machine ----
 localparam
     STATE_IDLE      = 3'd0,
     STATE_START_BIT = 3'd1,
@@ -44,9 +36,7 @@ localparam
 
 reg [2:0] state = STATE_IDLE;
 
-//========================
-// Internal Registers
-//========================
+// ---- Internal Registers ----
 reg [8:0] clk_count = 9'd0;     // Bit period counter
 reg [2:0] bit_index = 3'd0;     // Current bit being transmitted (0-7)
 reg [7:0] tx_data = 8'd0;       // Latched transmit data

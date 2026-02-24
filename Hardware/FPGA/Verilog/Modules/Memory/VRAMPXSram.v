@@ -10,7 +10,7 @@
 module VRAMPXSram (
     // Clocks and reset
     input  wire         clk100,        // 100MHz CPU/arbiter clock
-    input  wire         clkPixel,      // 25MHz GPU clock
+    input  wire         clk_pixel,      // 25MHz GPU clock
     input  wire         reset,
     
     // CPU interface (50MHz domain)
@@ -35,11 +35,9 @@ module VRAMPXSram (
     output wire         SRAM_WEn
 );
 
-//=============================================================================
-// GPU signals to 100MHz domain
+// ---- GPU signals to 100MHz domain ----
 // Since clocks are phase-aligned from same PLL, we can use direct connection
 // for blank (which is stable for many cycles) and only register the address
-//=============================================================================
 reg [16:0] gpu_addr_sync = 17'd0;
 
 always @(posedge clk100) begin
@@ -56,21 +54,17 @@ always @(posedge clk100) begin
     using_line_buffer_sync <= using_line_buffer;
 end
 
-//=============================================================================
-// GPU data from arbiter to PixelEngine
+// ---- GPU data from arbiter to PixelEngine ----
 // The arbiter already registers the SRAM data, so we can pass it directly
 // The 25MHz GPU clock will sample stable data
-//=============================================================================
 wire [7:0] gpu_data_from_arbiter;
 
 // Direct passthrough - arbiter output is already registered at 100MHz
 // GPU will sample on its 25MHz clock edge (phase-aligned with 100MHz)
 assign gpu_data = gpu_data_from_arbiter;
 
-//=============================================================================
-// CPU Write FIFO (100MHz, synchronous)
+// ---- CPU Write FIFO ----
 // Buffers CPU writes for processing during blanking or line buffer periods
-//=============================================================================
 wire [24:0] cpu_fifo_data_out;
 wire [16:0] cpu_fifo_addr = cpu_fifo_data_out[24:8];
 wire [7:0]  cpu_fifo_data = cpu_fifo_data_out[7:0];
@@ -97,9 +91,7 @@ SyncFIFO #(
     .rd_en(cpu_fifo_rd_en)
 );
 
-//=============================================================================
-// SRAM Arbiter (100MHz domain)
-//=============================================================================
+// ---- SRAM Arbiter ----
 wire [18:0] sram_addr_int;
 wire [7:0]  sram_dq_out;
 wire [7:0]  sram_dq_in;
@@ -135,9 +127,7 @@ SRAMArbiter arbiter (
     .sram_cs_n(sram_cs_n_int)
 );
 
-//=============================================================================
-// SRAM I/O
-//=============================================================================
+// ---- SRAM I/O ----
 assign SRAM_A = sram_addr_int;
 assign SRAM_CSn = sram_cs_n_int;
 assign SRAM_OEn = sram_oe_n_int;
