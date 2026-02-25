@@ -2,42 +2,37 @@
 
 ![FPGC Logo](images/logo_big_alpha.png)
 
-## Introduction
+## What is FPGC?
 
-FPGC (FPGA Computer) is my gigantic personal FPGA hobby project where I build an entire computer (CPU, GPU, I/O, etc) around an FPGA from scratch, meaning I do not use any existing design for the main components. This project starts at the lowest level, where you define what happens at every clock cycle of the system, up to high level software where you interact with the operating system without having to think about these lower levels anymore. In the end it becomes building abstraction layer upon abstraction layer, which only works if you have a solid foundation, otherwise you will have to start over (which has happened multiple times already, technically this is version 7 of the project).
+FPGC (FPGA Computer) is a personal hobby project where I build an entire computer around an FPGA from scratch. None of the main components (CPU, GPU, I/O, memory controller) use existing designs. The project goes from clock-by-clock hardware logic all the way up to an operating system with a shell, filesystem, including build tools like an Assembler and C compiler.
 
-Furthermore, this project also covers other parts needed to create a fully functional physical computer, such as PCB design and programming tools. As the goal is to learn about all the different parts of a (personal) computer, even things as the filesystem are designed and built from scratch.
+This is technically the successor of the FPGC6 project. Building abstraction layers only works if the foundation is solid, and it took a few restarts to get there.
 
-## Key features of the project
+## What does it cover?
 
-- FPGA Logic Design: A custom CPU, GPU, Memory Unit and I/O, all written in Verilog.
-- Hardware: Complete PCB design with FPGA, Memory and I/O, and a 3D-printed case plus monitor for a complete, although small, physical computer.
-- Software: Bootloaders, assembler, C compiler (by modifying an existing compiler instead of building one from scratch), custom filesystem and operating system designed specifically for FPGC, with the compiler and assembler being able to run on the FPGC itself.
-- Programming Tools: A full toolchain with development tools to program and interact with the system, via UART or network.
+- **FPGA logic design**: Custom CPU, GPU, Memory Unit, and I/O, all in Verilog
+- **PCB design**: A fully custom board with FPGA, SDRAM, SRAM, SPI Flash, Ethernet, USB, and HDMI
+- **Software**: Bootloaders, assembler, C compiler, filesystem, operating system, and networking protocol
+- **Toolchain**: Development tools for programming and interacting with the system via UART and Ethernet
+- **Physical design**: 3D-printed case and monitor for a standalone desktop computer
 
-See the System Overview subpages for more details on specs and achitecture.
+See [Specifications](System-overview/Specifications.md) for the full hardware/software spec sheet, or [Architecture](System-overview/Architecture.md) for how everything connects.
 
-## End goal of the project
-
-This project is currently considered finished when the FPGC meets the following requirements.
+## Project goals
 
 ### Main goals
 
-The FPGC:
+- [ ] Use the FPGC as a fully portable standalone PC that can write, compile, and run software without an external computer
+- [ ] Run DOOM (or a similar game) at a playable framerate, which requires the CPU to average under 2 cycles per instruction
+- [ ] Run a demo in a cluster setup of 5 FPGCs networked together, with one acting as a server and the other four rendering different parts of the screen in parallel
+- [x] Properly document the entire project
 
-- [ ] Can be used as a fully portable standalone PC that can be used to write, compile and run software without the need for an external PC or programmer.
-- [ ] Can run DOOM, either the original or a simplified but similar version.
-    - Preferably with a playable framerate, and if not then the CPU of the FPGC should run the code on average in <2 cycles per instruction, which should only be possible with a proper CPU pipeline design and caching.
-- [ ] Is properly documented.
+### Sub goals
 
-## Sub goals
-
-The FPGC:
-
-- [x] Uses a fully custom RAM-optimized filesystem.
-- [x] The FPGC uses a fully custom desgined PCB without the use of an FPGA development board/module.
-- [ ] The FPGC uses a custom designed OS with system calls and a proper architecture to run user programs.
-- [ ] The FPGC has a 3d printed case and monitor to be a fully standalone physical computer.
-- [ ] The FPGC can run an assembler and C compiler.
-- [ ] The FPGC can communicate via Ethernet.
-- [ ] The FPGC can load and store data to mass storage (SD card).
+- [x] Custom RAM-optimized filesystem (BRFS)
+- [x] Fully custom PCB without a development board
+- [ ] Custom OS with system calls and a proper architecture for user programs
+- [ ] 3D-printed case and monitor for a standalone physical computer
+- [ ] Self-hosted assembler and C compiler running on the FPGC
+- [x] Ethernet communication via custom layer 2 protocol
+- [ ] SD card mass storage

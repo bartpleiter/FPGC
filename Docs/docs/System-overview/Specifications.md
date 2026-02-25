@@ -1,53 +1,70 @@
 # Specifications
 
-!!! Note
-    This page needs to be updated as I am switching to the Cyclone IV FPGA on the custom PCB.
+A quick-reference summary of the FPGC's hardware and software specifications.
 
-## CPU
+## CPU (B32P3)
 
-- 32 Bit
-- Fully custom instruction set (called B32P3)
-- 5 Stage pipeline (classic MIPS-style: IF, ID, EX, MEM, WB)
-- 16 Registers (15 GP and R0 is always 0)
-- L1i and L1d cache (direct mapped, 128 cache lines of 8 instructions per line)
-    - Cache controller with write-back policy and dirty bit tracking, acting as arbiter for external DRAM
-- 32 Bit program counter for 4 GiW (or 16 GiB) of addressable memory
-- Shared instruction and data memory
-- 50 MHz, with some memory related components running at 100 MHz
-- Extendable amount of hardware interrupts
+| Spec | Value |
+|---|---|
+| Architecture | 32-bit RISC, custom ISA |
+| Pipeline | 5-stage (IF, ID, EX, MEM, WB) |
+| Clock | 100 MHz |
+| Registers | 16 (r0 hardwired to zero) |
+| Hardware stack | 256 entries |
+| Instruction width | 32 bits, 16 opcodes |
+| Address space | 32-bit word-addressable (27-bit jump range) |
+| ALU | Add, sub, logic, shift, multiply, divide, fixed-point multiply/divide |
+| L1I cache | 128 lines × 8 words, direct-mapped, next-line prefetch |
+| L1D cache | 128 lines × 8 words, direct-mapped, write-back with dirty bit |
+| Interrupts | 8 hardware interrupts, vectored through address 1 |
 
-## GPU
+## GPU (FSX)
 
-- 640x480 HDMI output using TMDS
-- Two tile based planes of 40x25 visible characters at 8x8 pixels (320x200 pixels). This is mainly for text and sprites
-    - Background plane with horizontal scrolling support (64x25 tiles in memory)
-    - Window plane
-- One bitmap plane
-    - Bitmap resolution of 320x240 at 8bits per pixel (r3g3b2 color depth)
-- All video memory is dual port, meaning that the CPU can write at any time during the frame rendering process
-- Interrupts the CPU after each frame drawn to allow for synchronization
+| Spec | Value |
+|---|---|
+| Output | 640×480, 60 Hz, HDMI (TMDS) |
+| Render resolution | 320×240, 2× scaled |
+| BGW plane | Two layers of 8×8 tiles, 40×25 visible grid, 256 tile patterns, 256 palettes of 4 colors |
+| Pixel plane | 320×240 bitmap, 8-bit color (R3G3B2), external SRAM |
+| VRAM | ~100 KiB dual-port block RAM, CPU-writable at any time |
+| Sync | Frame-drawn interrupt at vblank |
 
 ## Memory
 
-- 112 MiW (448 MiB) DDR3 SDRAM available through L1 cache
-- 1 KiW (4 KiB) single cycle ROM
-- ~ 100 KiB single cycle dual port dual clock VRAM in various data widths
-- 128 entries of CPU hardware stack
-- SPI Flash and Micro SD Card available in software through SPI hardware interface
+| Component | Type | Size | Access |
+|---|---|---|---|
+| SDRAM | 2× W9825G6KH-6 | 64 MiB (16 MiW) | Via L1 caches, 256-bit burst |
+| ROM | FPGA block RAM | 1 KiW (4 KiB) | Single-cycle |
+| VRAM | FPGA block RAM | ~100 KiB | Dual-port, GPU + CPU |
+| SRAM | IS61LV5128AL | 512 KB | Pixel framebuffer |
+| SPI Flash | 2× W25Q128 | 32 MiB total | FPGA config + filesystem |
+| SD Card | External, via SPI | Variable | Mass storage |
 
 ## I/O
 
-Memory mapped I/O via Memory Unit that presents the following I/O:
+| Peripheral | Count | Notes |
+|---|---|---|
+| UART | 1 | USB via CH340C, 1 Mbaud |
+| SPI | 6 | 2× Flash, 2× USB Host (CH376T), 1× Ethernet (ENC28J60), 1× SD Card |
+| Timer | 3 | One-shot, interrupt on trigger |
+| GPIO | 8 pins | General-purpose |
 
-- 1 UART interface (for USB - UART converter)
-- 6 SPI interfaces (2x SPI Flash, 2x SPI USB Host, 1x ENC28J60, 1x Micro SD)
-- 8 GPIO pins
-- 3 One shot timers
-- Registers for boot mode, FPGA temp, Microseconds
+## FPGA
 
-## Performance
+| Spec | Value |
+|---|---|
+| Device | Cyclone IV EP4CE40F23I7N |
+| Logic elements | 39,600 |
+| Block RAM | 1.1 Mbit |
+| Multipliers | 116 |
+| Clocks | 100 MHz (CPU), 25 MHz (GPU), 125 MHz (TMDS), 100 MHz 180° (SDRAM) |
 
-!!! note
-    I still need to evaluate performance once more software is up and running
+## Software
 
-Hopefully comparable if not faster than an Intel 486 (SX as there is no Floating Point support yet)
+| Component | Description |
+|---|---|
+| ASMPY | Python assembler for B32P3 ISA |
+| B32CC | C compiler (SmallerC-derived), targets B32P3 assembly |
+| BDOS | Custom OS with shell, syscalls, program loading |
+| BRFS | FAT-based filesystem, RAM-cached with SPI Flash persistence |
+| FNP | Custom Layer 2 Ethernet protocol for file transfer and remote input |

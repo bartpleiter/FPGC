@@ -1,9 +1,6 @@
 # Development Workflows
 
-This guide covers the development workflows for the main components of the FPGC project: how to make changes, test them, and debug issues.
-
-!!! note
-    All commands should be run from the project root directory.
+This guide covers the development workflows for the main components of the FPGC project: how to make changes, test them, and debug issues. All commands should be run from the project root directory.
 
 ## Project Setup and Full Check
 
@@ -42,8 +39,7 @@ The Verilog sources live in `Hardware/FPGA/Verilog/`. After writing or modifying
 
 For simulation iverilog and GTKWave are used to verify the design before running it on an FPGA. I like iverilog because it is fast and simple to use from command line scripts. GTKWave is a fast, simple and intuitive tool to view the resulting waveforms for debugging and verification. I specifically avoided using the integrated simulator from Quartus as these are slow, proprietary, unintuitive and way more complex than needed while being more difficult to automate (or at least have a too steep learning curve that quickly made me switch towards iverilog when I was just starting to learn Verilog).
 
-!!! Note
-    It is required to use iverilog >= 12.0 as older versions do not support certain features used in the testbenches.
+Requires iverilog >= 12.0, as older versions do not support certain features used in the testbenches.
 
 Running single simulations (via the `make` commands below) will show logs from `vvp` in the terminal and open GTKWave with the generated waveform and some pre-configured configuration file.
 
@@ -52,8 +48,7 @@ Running single simulations (via the `make` commands below) will show logs from `
 
 ### Running tests and simulations
 
-!!! Note
-    By default, the CPU and B32CC tests run in parallel with 4 workers to prevent crashes on machines with low RAM (<16GB), as each simulation uses quite a bit of RAM. To adjust the worker count, set the `FPGC_TEST_WORKERS` environment variable (e.g. `export FPGC_TEST_WORKERS=12` in `~/.bashrc`)
+By default, the CPU and B32CC tests run in parallel with 4 workers to prevent crashes on machines with low RAM (<16GB), as each simulation uses quite a bit of RAM. To adjust the worker count, set the `FPGC_TEST_WORKERS` environment variable (e.g. `export FPGC_TEST_WORKERS=12` in `~/.bashrc`).
 
 **CPU tests:**
 
