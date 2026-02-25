@@ -46,23 +46,27 @@ wire [31:0] next_data_a = forward_a ? data_d : reg_read_a;
 wire [31:0] next_data_b = forward_b ? data_d : reg_read_b;
 
 // Sequential logic - two pipeline stages
-always @(posedge clk) begin
-    if (reset) begin
+always @(posedge clk)
+begin
+    if (reset)
+    begin
         addr_a_reg <= 4'd0;
         addr_b_reg <= 4'd0;
         data_a <= 32'd0;
         data_b <= 32'd0;
-    end else if (clear) begin
+    end else if (clear)
+    begin
         // Clear creates pipeline bubble - reset both stages
         addr_a_reg <= 4'd0;
         addr_b_reg <= 4'd0;
         data_a <= 32'd0;
         data_b <= 32'd0;
-    end else if (!hold) begin
+    end else if (!hold)
+    begin
         // Stage 1: Register the addresses
         addr_a_reg <= addr_a;
         addr_b_reg <= addr_b;
-        
+
         // Stage 2: Register the data outputs
         data_a <= next_data_a;
         data_b <= next_data_b;
@@ -71,7 +75,8 @@ always @(posedge clk) begin
 
     // Write to register file (reg0 writes are ignored)
     // Writes happen independently of hold/clear
-    if (we && (addr_d != 4'd0)) begin
+    if (we && (addr_d != 4'd0))
+    begin
         regs[addr_d] <= data_d;
         $display("%0t reg r%02d: %d", $time, addr_d, data_d);
     end
@@ -80,8 +85,10 @@ end
 `ifdef __ICARUS__
 // Initialize all registers to 0
 integer i;
-initial begin
-    for (i = 0; i < 16; i = i + 1) begin
+initial
+begin
+    for (i = 0; i < 16; i = i + 1)
+    begin
         regs[i] = 32'd0;
     end
     addr_a_reg = 4'd0;

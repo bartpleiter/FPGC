@@ -2,20 +2,6 @@
 Docs/site
 
 # Quartus
-Hardware/FPGA/Cyclone10_CL120/db
-Hardware/FPGA/Cyclone10_CL120/incremental_db
-Hardware/FPGA/Cyclone10_CL120/greybox_tmp
-Hardware/FPGA/Cyclone10_CL120/.qsys_edit
-Hardware/FPGA/Cyclone10_CL120/output_files
-Hardware/FPGA/Cyclone10_CL120/*.bak
-Hardware/FPGA/Cyclone10_CL120/*.qws
-Hardware/FPGA/Cyclone10_CL120/*.rpt
-Hardware/FPGA/Cyclone10_CL120/*.htm
-Hardware/FPGA/Cyclone10_CL120/*.sof
-Hardware/FPGA/Cyclone10_CL120/*.summary
-Hardware/FPGA/Cyclone10_CL120/*.jdi
-Hardware/FPGA/Cyclone10_CL120/*.sld
-
 Hardware/FPGA/CycloneIV_EP4CE40/db
 Hardware/FPGA/CycloneIV_EP4CE40/incremental_db
 Hardware/FPGA/CycloneIV_EP4CE40/greybox_tmp

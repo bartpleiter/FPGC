@@ -1,93 +1,87 @@
 /*
  * OStimer
  * One shot timer that counts in milliseconds
- * Uses a delay of sysClkMHz-1 cycles per timerValue
- * Assumes 100MHz input clock
+ * Uses a delay of 99999 cycles per timer_value (1ms at 100MHz)
  */
 module OStimer (
     input wire          clk,
     input wire          reset,
 
-    input wire  [31:0]  timerValue,
+    input wire  [31:0]  timer_value,
     input wire          trigger,
-    input wire          setValue,
+    input wire          set_value,
 
     output reg          interrupt = 1'b0
 );
 
-// States
-localparam s_idle        = 0;
-localparam s_start       = 1;
-localparam s_done        = 2;
+// ---- State Machine ----
+localparam
+    STATE_IDLE  = 0,
+    STATE_START = 1,
+    STATE_DONE  = 2;
 
-parameter delay         = 99999; // Clock cycles delay per timerValue, could eventually become programmable, should then default to 1ms
+parameter DELAY = 99999; // Clock cycles delay per timer_value
 
-reg [31:0] counterValue = 32'd0;            // 32 bits for timerValue
-reg [31:0] delayCounter = 32'd0;            // counter for timer delay
-reg [1:0] state = s_idle;                     // state of timer
+reg [31:0] counter_value = 32'd0;
+reg [31:0] delay_counter = 32'd0;
+reg [1:0]  state = STATE_IDLE;
 
 always @(posedge clk)
 begin
     if (reset)
     begin
-        counterValue                <= 32'd0;
-        delayCounter                <= 32'd0;
-        state                       <= s_idle;
-        interrupt                   <= 1'd0;  
+        counter_value <= 32'd0;
+        delay_counter <= 32'd0;
+        state         <= STATE_IDLE;
+        interrupt     <= 1'b0;
     end
     else
     begin
-        if (setValue)
+        if (set_value)
         begin
-            counterValue <= timerValue;
+            counter_value <= timer_value;
         end
-        else 
+        else
         begin
-            
             case (state)
-                s_idle:
+                STATE_IDLE:
                 begin
                     if (trigger)
                     begin
-                        state <= s_start;
-                        delayCounter <= delay;
+                        state <= STATE_START;
+                        delay_counter <= DELAY;
                     end
-                    
                 end
-                s_start:
+
+                STATE_START:
                 begin
-                    if (counterValue == 32'd0)
+                    if (counter_value == 32'd0)
                     begin
-                        state <= s_done;
+                        state <= STATE_DONE;
                         interrupt <= 1'b1;
                     end
-                    else 
+                    else
                     begin
-
-                        if (delayCounter == 32'd0)
+                        if (delay_counter == 32'd0)
                         begin
-                            counterValue <= counterValue - 1'b1;
-                            delayCounter <= delay;
+                            counter_value <= counter_value - 1'b1;
+                            delay_counter <= DELAY;
                         end
-                        else 
+                        else
                         begin
-                            delayCounter <= delayCounter - 1'b1;    
+                            delay_counter <= delay_counter - 1'b1;
                         end
                     end
                 end
-                s_done:
+
+                STATE_DONE:
                 begin
                     interrupt <= 1'b0;
-                    state <= s_idle;
+                    state <= STATE_IDLE;
                 end
-
             endcase
-
         end
-
-        
     end
 end
-
 
 endmodule

@@ -1,103 +1,147 @@
-# CPU (B32P3)
+# CPU
 
-The B32P3 is a 32-bit pipelined RISC processor designed specifically for the FPGC project. It implements a classic 5-stage MIPS-style pipeline with simplified hazard handling, data forwarding, and optimized timing for running at 100MHz on a Cyclone IV/10 (and better) FPGA.
+The B32P3 is a 32-bit RISC CPU designed from scratch for the FPGC. It's the third iteration of the B32P design, optimized to run at 100 MHz on a Cyclone IV FPGA. The architecture follows a classic 5-stage MIPS-style pipeline.
 
-## Overview
+## Architecture Overview
 
-The B32P3 implements a classic 5-stage pipeline architecture designed for simplicity and good timing characteristics. It features:
+The CPU has 16 general-purpose 32-bit registers (r0 is hardwired to zero), a 256-entry hardware stack, and a 32-bit word-addressable address space. It runs at a single clock frequency of 100 MHz with no clock gating or dynamic frequency scaling.
 
-- **32-bit RISC ISA** with support for most important common instructions
-- **Classic 5-stage pipeline** (IF, ID, EX, MEM, WB) for straightforward design
-- **Dual L1 caches** (instruction and data) with cache controller to greatly reduce stalls
-- **Simple hazard detection** with load-use stalls and data forwarding
-- **Hardware stack** with push/pop instructions for single cycle stack operations (256 entries, allows for quick and easy register saving and restoring, with software-accessible stack pointer at a special memory-mapped I/O register)
-- **Multi-cycle ALU operations** for complex arithmetic (multiplication using registered hardware multiplier or DSP blocks, division) and extensions for Fixed Point operations
-- **32-bit address space** supporting up to 16GiB of addressable memory, with 27-bit jump constants for 512MiB jumpable instruction memory (in theory more by using JUMPR instructions)
-- **Hardware interrupt support** with context switching by saving/restoring the program counter (PC)
-- **Branch resolution in MEM stage** for improved timing at the cost of slightly higher branch penalty
+The pipeline has five stages:
 
-## Pipeline Architecture
+1. **IF (Instruction Fetch)**: Reads the next instruction from ROM or L1I cache
+2. **ID (Instruction Decode)**: Decodes instruction fields, reads register file
+3. **EX (Execute)**: ALU operations, branch condition evaluation
+4. **MEM (Memory Access)**: Load/store through L1D cache, VRAM, or I/O
+5. **WB (Write Back)**: Writes results back to the register file
 
-The B32P3 uses a classic 5-stage pipeline following the MIPS-style design:
+In ideal conditions (cache hits, no hazards, no branches), the CPU executes one instruction per clock cycle. In practice, stalls from cache misses, multi-cycle ALU operations (like division), and pipeline hazards reduce the throughput.
+
+## Instruction Set
+
+The ISA has 16 instructions, all 32 bits wide. There are no variable-length instructions or instruction modes. The opcode is always in the top 4 bits.
+
+### Instruction Encoding
 
 ```text
-┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐
-│    IF   │───▶│    ID   │───▶│    EX   │───▶│   MEM   │───▶│    WB   │
-│  Instr  │    │ Decode  │    │ Execute │    │ Memory  │    │  Write  │
-│  Fetch  │    │ & Reg   │    │   ALU   │    │ Access  │    │  Back   │
-│         │    │  Read   │    │         │    │         │    │         │
-└─────────┘    └─────────┘    └─────────┘    └─────────┘    └─────────┘
+         |31|30|29|28|27|26|25|24|23|22|21|20|19|18|17|16|15|14|13|12|11|10|09|08|07|06|05|04|03|02|01|00|
+----------------------------------------------------------------------------------------------------------
+ HALT      1  1  1  1| 1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
+ READ      1  1  1  0||----------------16 BIT CONSTANT---------------||--A REG---| x  x  x  x |--D REG---|
+ WRITE     1  1  0  1||----------------16 BIT CONSTANT---------------||--A REG---||--B REG---| x  x  x  x
+ INTID     1  1  0  0| x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x |--D REG---|
+ PUSH      1  0  1  1| x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x |--B REG---| x  x  x  x
+ POP       1  0  1  0| x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x |--D REG---|
+ JUMP      1  0  0  1||--------------------------------27 BIT CONSTANT--------------------------------||O|
+ JUMPR     1  0  0  0||----------------16 BIT CONSTANT---------------| x  x  x  x |--B REG---| x  x  x |O|
+ CCACHE    0  1  1  1| x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x
+ BRANCH    0  1  1  0||----------------16 BIT CONSTANT---------------||--A REG---||--B REG---||-OPCODE||S|
+ SAVPC     0  1  0  1| x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x |--D REG---|
+ RETI      0  1  0  0| x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x
+ ARITHMC   0  0  1  1||--OPCODE--||----------------16 BIT CONSTANT---------------||--A REG---||--D REG---|
+ ARITHM    0  0  1  0||--OPCODE--| x  x  x  x  x  x  x  x  x  x  x  x |--A REG---||--B REG---||--D REG---|
+ ARITHC    0  0  0  1||--OPCODE--||----------------16 BIT CONSTANT---------------||--A REG---||--D REG---|
+ ARITH     0  0  0  0||--OPCODE--| x  x  x  x  x  x  x  x  x  x  x  x |--A REG---||--B REG---||--D REG---|
 ```
 
-### Pipeline Stages
+The instruction set is split into four categories:
 
-1. **IF (Instruction Fetch)**: Fetches instructions from L1I cache or ROM. Handles cache miss detection and initiates cache controller requests on misses.
+**Control flow:** HALT, JUMP, JUMPR, BRANCH, SAVPC, RETI
 
-2. **ID (Instruction Decode & Register Read)**: Decodes the instruction and reads source operands from the register file.
+**Memory access:** READ (load), WRITE (store), PUSH, POP
 
-3. **EX (Execute)**: Performs ALU operations, calculates memory addresses, and prepares branch comparison operands. Data forwarding is applied here to resolve RAW hazards.
+**Arithmetic/Logic (single-cycle):** ARITH and ARITHC use the combinational ALU. ARITHC takes a 16-bit immediate instead of a second register.
 
-4. **MEM (Memory Access)**: Performs load/store operations, resolves branches/jumps, and handles L1D cache accesses. Branch resolution is performed here for improved timing.
+**Arithmetic/Logic (multi-cycle):** ARITHM and ARITHMC use the multi-cycle ALU for multiplication, division, and modulo. Division takes about 32 cycles.
 
-5. **WB (Write Back)**: Writes results back to the register file. Results are selected from ALU output, memory data, stack data, or special registers.
+**Miscellaneous:** INTID (get interrupt ID), CCACHE (clear all caches)
+
+### ALU Operations (Single-Cycle)
+
+| Opcode | Operation | Description |
+|--------|-----------|-------------|
+| `0000` | OR | Bitwise OR |
+| `0001` | AND | Bitwise AND |
+| `0010` | XOR | Bitwise XOR |
+| `0011` | ADD | Addition |
+| `0100` | SUB | Subtraction |
+| `0101` | SHIFTL | Logical shift left |
+| `0110` | SHIFTR | Logical shift right |
+| `0111` | NOT | Bitwise NOT (of A) |
+| `1010` | SLT | Set if A < B (signed) |
+| `1011` | SLTU | Set if A < B (unsigned) |
+| `1100` | LOAD | Load B (or constant) |
+| `1101` | LOADHI | Load upper 16 bits: `{const16, A[15:0]}` |
+| `1110` | SHIFTRS | Arithmetic shift right |
+
+### ALU Operations (Multi-Cycle)
+
+| Opcode | Operation | Description | Cycles |
+|--------|-----------|-------------|--------|
+| `0000` | MULTS | Signed multiply | ~4 |
+| `0001` | MULTU | Unsigned multiply | ~4 |
+| `0010` | MULTFP | Fixed-point multiply (Q16.16) | ~4 |
+| `0011` | DIVS | Signed divide | ~32 |
+| `0100` | DIVU | Unsigned divide | ~32 |
+| `0101` | DIVFP | Fixed-point divide | ~32 |
+| `0110` | MODS | Signed modulo | ~32 |
+| `0111` | MODU | Unsigned modulo | ~32 |
+
+### Branch Conditions
+
+| Opcode | Condition | Signed variant (S=1) |
+|--------|-----------|---------------------|
+| `000` | BEQ (A == B) | Same |
+| `001` | BGT (A > B) | BGTS |
+| `010` | BGE (A >= B) | BGES |
+| `100` | BNE (A != B) | Same |
+| `101` | BLT (A < B) | BLTS |
+| `110` | BLE (A <= B) | BLES |
+
+### Registers
+
+16 registers, r0 hardwired to zero:
+
+| Register | Notes |
+|----------|-------|
+| r0 | Always zero. Writes are ignored. |
+| r1 through r14 | General purpose |
+| r15 | General purpose. Conventionally used for return values. |
+
+## Hardware Stack
+
+The CPU has a 256-entry hardware stack with dedicated PUSH and POP instructions. The stack is used primarily for saving/restoring registers during function calls and interrupt handlers. The stack pointer wraps around at 256, so pushing beyond that will overwrite old entries silently.
+
+The stack pointer is readable and writable as a CPU-internal I/O register at `0x7C00001`, which is useful for context switching or debugging.
 
 ## Memory Map
 
-The B32P3 implements a 32-bit memory map with the following regions:
+All memory and I/O is mapped into a flat 27-bit address space. The CPU starts execution at the ROM address (`0x7800000`).
 
-| Start Address | End Address | Size | Memory Type | Description |
-|---------------|-------------|------|-------------|-------------|
-| `0x0000000` | `0x6FFFFFF` | 112 MiW | SDRAM | Main system memory (cached) |
-| `0x7000000` | `0x77FFFFF` | N/A | I/O | Memory-mapped peripherals |
-| `0x7800000` | `0x78003FF` | 1 KiW | ROM | Boot ROM - CPU starts here |
-| `0x7900000` | `0x790041F` | 1056 W | VRAM32 | 32-bit video memory |
-| `0x7A00000` | `0x7A02001` | 8194 W | VRAM8 | 8-bit video memory |
-| `0x7B00000` | `0x7B12BFF` | 76800 W | VRAMPX | Pixel buffer (320×240) |
-| `0x7C00000` | `0x7C00001` | 2 W | CPU I/O | CPU-internal registers (pc_backup, hw_stack_ptr) |
+| Address Range | Region | Size | Description |
+|---|---|---|---|
+| `0x0000000` - `0x6FFFFFF` | SDRAM | 112 MiW | Main working memory, accessed through L1I/L1D caches |
+| `0x7000000` - `0x700001B` | I/O | 28 words | UART, SPI, Timers, GPIO, etc. |
+| `0x7800000` - `0x78003FF` | ROM | 1 KiW | Boot ROM (also the initial PC value) |
+| `0x7900000` - `0x790041F` | VRAM32 | 32-bit entries | Tile patterns and palettes |
+| `0x7A00000` - `0x7A02001` | VRAM8 | 8-bit entries | Tile maps, scroll registers |
+| `0x7B00000` - `0x7B12BFF` | VRAMpixel | 8-bit entries | 320x240 pixel framebuffer (external SRAM) |
+| `0x7C00000` - `0x7C00001` | CPU Internal I/O | 2 words | PC Backup (`0x00`), Stack Pointer (`0x01`) |
 
-### Memory Types
+SDRAM is the main working memory. It's accessed through L1 instruction (L1I) and data (L1D) caches, so most reads complete in a single cycle on cache hits. Only SDRAM and ROM can be used as instruction memory.
 
-- **SDRAM**: Main system memory via SDRAM controller, cached in L1. Direct-mapped with 8-word cache lines.
-- **ROM**: Boot memory for initial program loading. Dual-port for instruction fetch and data access.
-- **VRAM32**: 32-bit video memory for tile-based graphics.
-- **VRAM8**: 8-bit video memory for tile-based graphics.
-- **VRAMPX**: Bitmap video memory for pixel manipulation.
-- **I/O**: Memory-mapped peripherals accessed via the Memory Unit.
-- **CPU I/O**: CPU-internal registers handled directly inside B32P3.v, bypassing the Memory Unit.
+The VRAM regions are on-chip dual-port block RAM (VRAM32 and VRAM8) or external SRAM (VRAMpixel) and are accessed in a single cycle without caching. They are used by the GPU for rendering.
 
-## Hazard Handling
+I/O devices are accessed through the Memory Unit, which is a separate module that handles SPI, UART, timers, and other peripherals. I/O accesses stall the pipeline until complete.
 
-The B32P3 implements straightforward hazard detection and resolution mechanisms:
+## Interrupts
 
-### Hazard Types
+The CPU supports 8 interrupt lines, priority-encoded (lower index = higher priority). Interrupts are edge-triggered with CDC synchronization.
 
-1. **Load-Use Hazard**: When an instruction in ID needs data from a load currently in EX. Resolved by stalling one cycle.
+When an interrupt fires:
+1. The current PC is saved to `PC_backup` (readable/writable at `0x7C00000`)
+2. Interrupts are disabled (no nesting)
+3. PC jumps to address `0x0000001` (the interrupt handler)
 
-2. **Pop-Use Hazard**: Similar to load-use, but for stack pop operations whose data isn't available until WB.
+The handler uses INTID to determine which interrupt fired, handles it, then executes RETI to restore the PC and re-enable interrupts.
 
-3. **Cache Line Hazard**: Back-to-back SDRAM accesses to different cache lines. The cache has 1-cycle read latency, so a stall is needed when consecutive memory operations target different cache lines.
-
-4. **Control Hazards**: Branches and jumps resolved in MEM stage. Results in 2-cycle branch penalty (flush IF/ID, ID/EX, EX/MEM).
-
-### Resolution Strategies
-
-- **Data Forwarding**: Results forwarded from EX/MEM and MEM/WB stages to EX stage inputs
-- **Pipeline Stalling**: For load-use hazards, pop-use hazards, cache misses, and multi-cycle operations
-- **Pipeline Flushing**: For taken branches, jumps, interrupts, and return-from-interrupt
-
-### Forwarding Network
-
-The CPU supports two-level forwarding to the EX stage:
-
-- **EX/MEM → EX**: Forward ALU results from the previous instruction (1 cycle old)
-- **MEM/WB → EX**: Forward results from 2 instructions ago
-
-## Interrupt Support
-
-The B32P3 supports up to 8 hardware interrupt lines with the following behavior:
-
-- Interrupts are only valid when executing from SDRAM (PC < ROM_ADDRESS)
-- Interrupts only trigger during jump instructions to simplify hazard handling
-- On interrupt: PC is saved, interrupts disabled, jump to INTERRUPT_JUMP_ADDR
-- `INTID` instruction retrieves the interrupt ID (1-8)
-- `RETI` instruction restores PC and re-enables interrupts
+An important constraint: interrupts only fire when a jump or branch is being taken in the MEM stage. This greatly simplifies pipeline hazard handling during interrupt delivery, at the cost of slightly delayed interrupt response. In practice, most code has enough jumps (function calls, loops) that the latency is negligible.

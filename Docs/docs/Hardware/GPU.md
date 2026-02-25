@@ -1,96 +1,117 @@
-# GPU (FSX2)
+# GPU
 
-The GPU, called the FSX2 (Frame Synthesizer 2), generates a video signal based on the contents of VRAM. Two types of rendering are supported (simultaneously): tile based rendering and bitmap rendering. The resolutions internally are 320x200 for the tile based rendering, and 320x240 for the bitmap rendering. The tile based rendering consists of two layers, a background layer and a window layer. The output video signal is sent over a 480p TMDS encoded HDMI connection.
+The FPGC GPU, called FSX (Frame Synthesizer), generates a 640×480 HDMI video signal at 60Hz from two independently rendered graphics layers. It doesn't have a sophisticated rendering pipeline like a modern GPU. Instead, it's closer to a classic console PPU with an added pixel framebuffer.
 
-The GPU consists of three main parts:
+## Architecture at a Glance
 
-- Timing generator
-- Render engines
-- Output encoder
+The GPU has two rendering planes that are composited together:
 
-## Timing generator
+1. **BGW plane**: a tile-based renderer for backgrounds and text (inspired by the NES)
+2. **Pixel plane**: a simple bitmap framebuffer stored in external SRAM
 
-The timing generator generates a 480p video signal with horizontal and vertical counters and sync signals that then can be used by the render engines to draw RGB values for the video output. The timing of the HDMI video signal is as follows:
+BGW gets priority. When a BGW pixel is black (RGB = 0,0,0), the pixel plane shows through instead. This gives a cheap color-key transparency without any per-pixel alpha blending hardware.
 
-``` text
-H_RES   = 640    // horizontal resolution (pixels)
-V_RES   = 480    // vertical resolution (lines)
-H_FP    = 16     // horizontal front porch
-H_SYNC  = 96     // horizontal sync
-H_BP    = 48     // horizontal back porch
-V_FP    = 10     // vertical front porch
-V_SYNC  = 2      // vertical sync
-V_BP    = 33     // vertical back porch
-H_POL   = 0      // horizontal sync polarity (0:neg, 1:pos)
-V_POL   = 0      // vertical sync polarity
+Both planes render at 320x240 and are scaled up 2× to fill the 640×480 output.
+
+## Timing
+
+The GPU runs off a 25 MHz pixel clock derived from the system PLL. Standard 640×480 VGA timing:
+
+- 800 total pixels per line (640 active + 160 blanking)
+- 525 total lines per frame (480 active + 45 blanking)
+- ~60 Hz refresh rate
+
+A `frame_drawn` interrupt is sent to the CPU at the start of each vertical blanking period, so software can synchronize rendering to avoid tearing or as a simple frame counter or timer.
+
+## BGW Plane (Tile Renderer)
+
+The Background/Window renderer draws two layers of 8×8 pixel tiles, displayed at 2× scale (so each tile appears as 16×16 on screen). This gives a visible grid of 40×25 tiles covering 320×200 logical pixels. The remaining 40 lines at the bottom of the screen are unused by this plane.
+
+### Why Tiles?
+
+Tile rendering requires far less memory than a full framebuffer. Instead of storing 76,800 individual pixel colors, you store a small set of reusable tile patterns and a grid of indices saying which tile goes where. The CPU just writes a tile index to change an 8×8 region, which is great for text, UI, and backgrounds. Even more importantly, this saves a bunch of CPU complexity compared to just software rendering into a pixel framebuffer.
+
+### Two Layers
+
+- **Background (BG):** 64 tiles wide (wraps around), supports horizontal scrolling at both tile granularity and fine per-pixel offsets. This is used for scrolling game worlds. This was also implemented by the NES PPU.
+- **Window:** 40 tiles wide, no scrolling, draws on top of the background. Useful for fixed UI elements like score displays or text overlays, a perfect fit for a terminal output as well! A window pixel is transparent when its pattern bits are zero and its palette's first color is black.
+
+### Memory Layout
+
+The tile renderer reads from two on-chip dual-port RAMs:
+
+**VRAM8 (8-bit, 16K entries)**, containing tile maps and scroll registers:
+
+| Range | Content |
+|---|---|
+| 0–2047 | BG tile indices (64×32 grid, 1 byte each) |
+| 2048–4095 | BG color/palette indices |
+| 4096–6143 | Window tile indices (40×25 grid) |
+| 6144–8191 | Window color/palette indices |
+| 8192 | Horizontal tile scroll offset |
+| 8193 | Horizontal fine scroll offset (0–7 pixels) |
+
+**VRAM32 (32-bit, ~1K entries)**, containing tile patterns and palettes:
+
+| Range | Content |
+|---|---|
+| 0–1023 | Pattern data (256 tiles × 4 words; each word encodes 2 rows of 8 pixels at 2 bits per pixel) |
+| 1024+ | Palette entries (each 32-bit word holds 4 colors in R3G3B2 format) |
+
+### Rendering Pipeline
+
+For each tile on screen, the renderer executes an 8-phase fetch sequence (one fetch per pixel clock cycle), reading BG data first then Window data. The phases are interleaved to give enough time for both layers:
+
+1. Read BG tile index → 2. Read BG pattern → 3. Read BG palette index → 4. Read BG palette → 5–8. Same for window layer
+
+The result is a stream of 8-bit R3G3B2 colors at the pixel clock rate.
+
+### Scrolling
+
+Background scrolling uses a shift-register buffer that holds one tile's worth of pixel data. The `x_fine_offset` (0–7) selects a tap position in the buffer, enabling smooth sub-tile scrolling. Combined with the `x_tile_offset`, you get full horizontal scrolling:
+
+- **Coarse scroll:** shift the starting tile index
+- **Fine scroll:** shift the tap position in the pixel buffer
+
+Vertical scrolling isn't supported in hardware. You'd need to rewrite the tile map in software.
+
+## Pixel Plane (Bitmap Framebuffer)
+
+For games that need per-pixel control (like Doom), the BGW renderer doesn't cut it. The Pixel Plane provides a straightforward 320×240 framebuffer where each pixel is individually addressable.
+
+### Pixel Format
+
+Each pixel is 8 bits in R3G3B2 format (3 bits red, 3 green, 2 blue = 256 colors). The framebuffer lives in external SRAM at CPU addresses `0x7B00000` through `0x7B12BFF`. Pixels are stored linearly:
+
+```
+address = 0x7B00000 + (y × 320) + x
 ```
 
-## Render engines
+### The SRAM Sharing Problem
 
-The GPU uses render engines to draw different graphic planes, which are then combined in some way and added to the video signal.
+The pixel framebuffer lives in a single external SRAM chip (IS61LV5128AL, 512K×8) for two reasons:
 
-### BGWrenderer
+- If you want to keep the entire framebuffer in FPGA BRAM, the amount of BRAM becomes the bottleneck in selecting an FPGA for this project, limiting the FPGAs this project can target. The EP4CE40 that this project uses just barely does not fit when you include all other BRAM needs.
+- Using BRAM feels like cheating as it makes implementation trivial, and this project basically compares to ~1990 hardware. Dual port dual clock SRAM of this size was basically not an option back then.
 
-The main render engine is the BGWrenderer, which stands for Background and Window plane renderer. It uses a tile based rendering system inspired by the NES PPU in order to prevent having to use a frame buffer and therefore save video RAM. This also makes it easy to draw characters by loading an ASCII tile set into the pattern table, and then just writing the ascii values of the characters you want into the tile table. However, this also makes it impossible to draw individual pixels (you want to use the bitmap renderer for that). The BGWrenderer works as follows:
+Both the GPU and CPU need access. The GPU reads pixels for display, the CPU writes pixels to draw. Since the SRAM has only one port, they can't both access it simultaneously.
 
-#### Tile based rendering process
+The solution is **time-division multiplexing** based on scanline parity, enabled by a line buffer trick:
 
-For each tile, the GPU has to read the following tables in order to know which color to draw (in the following order):
+- **Even scanlines:** GPU reads from SRAM. Since we're doing 2× vertical scaling, even and odd output lines display the same source row.
+- **Odd scanlines:** GPU replays the data it already read (from an internal 320-byte line buffer). SRAM is free for CPU writes.
+- **Blanking periods:** No pixels needed, SRAM is free for CPU writes.
 
-- BG Tile table
-- Pattern table
-- BG Color table
-- Palette table
-- Window Tile table
-- Pattern table
-- Window Color table
-- Palette table
+This gives the CPU write access during about 65% of each frame, and at a higher clock rate than the GPU uses, so it can easily write frames faster than the GPU can read.
 
-The Pattern table allows for 256 different tiles on a single screen.
+### Write Path
 
-The Palette table allows for 32 different palettes per screen with four colors per palette.
+CPU writes go through a 1024-entry FIFO that buffers them at 100 MHz. A SRAM arbiter drains the FIFO during available time windows (blanking and odd scanlines), writing entries to SRAM at a rate of one every 3 clock cycles (~33 million pixels/second). If the FIFO fills completely, the CPU pipeline stalls until space opens up. This prevents any writes from being silently dropped. Note that this will basically not happen given the speed, but this design is future-proofed if I were to replace the SRAM with SDRAM to get a larger framebuffer at the cost of latency. This would be needed for higher color depths or multiple planes.
 
-Each address in the tile tables and the color tables is mapped to one tile on screen.
+## HDMI Output
 
-Two layers of tiles are rendered, the background layer which can be scrolled horizontally, and the window layer which draws on top of the background layer and does not scroll.
+The final composited R3G3B2 pixel is expanded to 24-bit RGB (by repeating bits, so 0 maps to 0 and max maps to 255), then TMDS-encoded for HDMI output.
 
-#### Background layer
+### TMDS on Cyclone IV
 
-The background layer consists of 512x200 pixels. They are indexed by tiles of 8x8 pixels making 64x25 tiles. The background is horizontally scrollable by using the tile offset parameter and fine offset parameter. The tile offset parameter specifies how many tiles the background has to be scrolled to the left. The fine offset parameter specifies how many pixels (ranging from 0 to 7) the background has to be scrolled to the left. The background wraps around horizontally. This means no vertical scrolling (in hardware).
-
-#### Window layer
-
-The window layer consists of 320x200 pixels. They are indexed by tiles of 8x8 pixels making 40x25 tiles. The window is not scrollable and is rendered above the background. When a pixel is fully black, it will not be rendered which makes the background layer visible. There is no support for transparency. The window is especially useful for static UI elements in games like text, score and a life bar, or for text you want to write on top of the bitmap renderer output.
-
-### PixelPlane Engine (bitmap renderer)
-
-The PixelPlane Engine is a very simple rendering engine to allow changing individual pixels, which is also known as bitmap graphics, to overcome the limitation of the BGWrenderer. For every 320x240 pixels there is an address in the pixel table (bitmap) where the 8 bits indicate the color of that pixel. All pixels are sequentially stored in this pixel table, meaning that the second pixel of the second line will be stored in address 321. The rendering engine uses a simple counter that increments when the video signal in in the active area, and resets to 0 at vsync. This counter is used as the address of the pixel table and the resulting data is the RGB value of that pixel.
-
-Because the PixelPlane Engine is very simplistic, the CPU has to do more work for generating graphics. For example, for drawing a line, every pixel has to be calculated and set by the CPU.
-
-!!! info
-    Note that bitmap rendering needs relatively many BRAM resources in the FPGA if stored in block RAM. On the custom PCB (Cyclone IV EP4CE40), the framebuffer is stored in external SRAM to free up block RAM. On the Cyclone 10 10CL120 and Artix 7 XC7A75T platforms, the framebuffer is stored in block RAM as these FPGAs have sufficient resources. If you want to run the FPGC on a lower-end FPGA, it should be quite easy to remove this renderer from the design (or reduce the color depth to monochrome), or add external SRAM with arbitration logic.
-
-## Output encoder (HDMI)
-
-To output the video signal, which is in parallel RGBHV + blank format, it needs to be encoded. For VGA this would be very easy, as you only need a DAC to make an analog signal from you R, G and B signals. HDMI, which is smaller, digital, more common nowadays and can be converted externally to VGA, needs some extra work before you can output it. Alternatively, you could use an external digital RGBHV to HDMI/DVI encoder ic. While this is actually a quite viable solution for FPGA's without the TMDS IO standard (like Altera FPGAs), this does cost quite some IO pins depending on the solution.
-
-### Converting from R3G3B2 to R8B8G8
-
-To output a signal over HDMI, the colors need to be (at least) 8 bits per color. This is achieved by repeating the 3 or 2 bits color signal to fill the 8 bits required. This results in an even transition between fully off and fully on. Appending zeroes or ones to the 3 or 2 bits signal does not work well, since that will cause either full white or full black to be impossible.
-
-### TMDS
-
-To output a HDMI signal, the timing signals and R8G8B8 color output have to be TMDS encoded. TMDS minimizes the number of transitions between 1 and 0, resulting in higher signal integrity. Since I do not feel the need to exactly understand the algorithm of TMDS encoding, I used existing Verilog code from [this blog post on msjeemjdo.com](https://mjseemjdo.com/2021/04/02/tutorial-6-hdmi-display-output/)
-
-### Outputting TMDS
-
-After generating the TMDS registers for the clock, R, G and B (+sync) signals, it is required to serialize them and create differential signals. The method for doing this varies depending on the FPGA platform:
-
-#### Xilinx (Spartan, Artix)
-
-Xilinx FPGAs like the Spartan and Artix 7 have native TMDS support, containing serializers, differential output buffers and hardware outputs for TMDS signals at 3.3V. This makes HDMI output relatively straightforward. As at some point in this project the Artix 7 XC7A75T was supported, there still is code available to output TMDS on this platform.
-
-#### Intel/Altera Cyclone IV and Cyclone 10 (Custom PCB and QMTECH module)
-
-The Cyclone IV (used on the custom PCB) and Cyclone 10 LP (used on the QMTECH module) do not support the TMDS IO standard natively. Adding an HDMI encoder IC is expensive, more difficult to solder, increases PCB complexity and costs more I/O pins. At the fixed output resolution of the FPGC (480p), the clock speeds are low enough to use regular output pins with some serialization logic in the FPGA, in combination with AC coupling capacitors (100nF). This works perfect for the few different monitors I tested on.
+The Cyclone IV FPGA doesn't have native TMDS serializers, but at 480p the data rate is manageable with a workaround: a 125 MHz clock (5× the pixel clock) combined with DDR output gives the required 250 Mbps per channel. A self-rotating 10-bit shift register loads a TMDS symbol every 5 clock cycles and shifts out 2 bits per cycle through DDR primitives. AC coupling capacitors on the board handle the DC offset. It works reliably on every monitor tested so far. The nice thing is that it also works with HDMI to VGA converters, allowing extremely clean output on CRT monitors as well, which fits the retro vibe of the project.

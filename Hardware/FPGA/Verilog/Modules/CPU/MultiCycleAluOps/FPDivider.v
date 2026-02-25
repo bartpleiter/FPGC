@@ -10,15 +10,11 @@ module FPDivider #(
     parameter WIDTH = 32,   // Width of numbers in bits
     parameter FBITS = 16    // Fractional bits within WIDTH
 ) (
-    //========================
-    // System interface
-    //========================
+    // ---- System interface ----
     input  wire                     clk,
     input  wire                     reset,
 
-    //========================
-    // Control interface
-    //========================
+    // ---- Control interface ----
     input  wire signed [WIDTH-1:0]  a,          // Dividend (fixed-point)
     input  wire signed [WIDTH-1:0]  b,          // Divisor (fixed-point)
     input  wire                     start,      // Start division
@@ -27,9 +23,7 @@ module FPDivider #(
     output reg                      done = 1'b0 // Division complete
 );
 
-//========================
-// State Machine
-//========================
+// ---- State Machine ----
 localparam
     STATE_IDLE  = 2'd0,
     STATE_CALC  = 2'd1,
@@ -38,15 +32,11 @@ localparam
 
 reg [1:0] state = STATE_IDLE;
 
-//========================
-// Internal Parameters
-//========================
+// ---- Internal Parameters ----
 localparam WIDTHU = WIDTH - 1;                              // Unsigned width (sign bit excluded)
 localparam ITER = WIDTHU + FBITS;                           // Total iterations needed
 
-//========================
-// Internal Registers
-//========================
+// ---- Internal Registers ----
 reg [$clog2(ITER+1):0] count = 0;                           // Iteration counter
 reg [WIDTHU-1:0] quotient = 0;                              // Working quotient (unsigned)
 reg [WIDTHU:0] accumulator = 0;                             // Accumulator (1 bit wider for subtraction)

@@ -13,6 +13,10 @@
  * - During active video, even lines: continuously read for GPU
  * - During active video, odd lines: drain write FIFO (GPU uses line buffer)
  * 
+ * IMPORTANT: Once a write is started (FIFO entry popped), the write MUST
+ * complete even if can_write drops. Otherwise the FIFO data is consumed
+ * but never written to SRAM, causing lost pixels.
+ * 
  * Clock relationships (all from same PLL, phase-aligned):
  * - clk100: 100MHz arbiter clock (this module)
  * - GPU: 25MHz (1:4 ratio)
@@ -66,12 +70,17 @@ assign gpu_data = sram_data_reg;
 // - During odd lines when GPU uses line buffer (SRAM is free)
 wire can_write = blank || using_line_buffer;
 
-// CPU write state machine
-localparam STATE_IDLE       = 2'd0;
-localparam STATE_WRITE_WAIT = 2'd1;  // Wait one cycle for FIFO data
-localparam STATE_WRITE_EXEC = 2'd2;  // Execute SRAM write
+// ---- CPU write state machine ----
+localparam
+    STATE_IDLE       = 2'd0,
+    STATE_WRITE_WAIT = 2'd1,  // Wait one cycle for FIFO data
+    STATE_WRITE_EXEC = 2'd2;  // Execute SRAM write
 
 reg [1:0] write_state = STATE_IDLE;
+
+// Write in progress: must complete current write even if can_write drops,
+// because the FIFO entry has already been consumed (rd_en was pulsed in IDLE).
+wire write_in_progress = (write_state != STATE_IDLE);
 
 always @(posedge clk100) begin
     if (reset) begin
@@ -86,22 +95,22 @@ always @(posedge clk100) begin
         // Default: no FIFO read
         cpu_fifo_rd_en <= 1'b0;
         
-        if (can_write) begin
-            //=================================================================
-            // WRITE PERIOD: Blanking OR GPU using line buffer (odd lines)
+        if (can_write || write_in_progress) begin
+            // ---- Write period (or completing in-progress write) ----
             // Process CPU writes from FIFO
-            //=================================================================
             case (write_state)
                 STATE_IDLE: begin
                     sram_we_n <= 1'b1;
                     
-                    if (!cpu_fifo_empty) begin
+                    if (!cpu_fifo_empty && can_write) begin
+                        // Only start NEW writes when can_write is active
                         // Request next FIFO entry
                         cpu_fifo_rd_en <= 1'b1;
                         sram_oe_n <= 1'b1;
                         write_state <= STATE_WRITE_WAIT;
                     end else begin
-                        // No writes pending - keep reading GPU address to prime data
+                        // No writes pending (or can't start new ones) -
+                        // keep reading GPU address to prime data
                         sram_addr <= {2'b00, gpu_addr};
                         sram_oe_n <= 1'b0;
                         sram_data_reg <= sram_dq_in;
@@ -110,6 +119,7 @@ always @(posedge clk100) begin
                 
                 STATE_WRITE_WAIT: begin
                     // FIFO data now valid (registered output)
+                    // Must complete: data was already popped from FIFO
                     // Set up SRAM write
                     sram_addr <= {2'b00, cpu_wr_addr};
                     sram_dq_out <= cpu_wr_data;
@@ -130,11 +140,8 @@ always @(posedge clk100) begin
                 end
             endcase
         end else begin
-            //=================================================================
-            // ACTIVE VIDEO (even lines): Read for GPU
-            //=================================================================
-            // Reset write state when entering GPU read mode
-            write_state <= STATE_IDLE;
+            // ---- Active video (even lines): Read for GPU ----
+            // Safe to enter: no write in progress (checked above)
             
             // Continuously read current GPU address
             sram_addr <= {2'b00, gpu_addr};

@@ -20,7 +20,7 @@ module ROM #(
     input  wire                     fe_hold,
 
     input  wire [ADDR_BITS-1:0]     mem_addr,
-    output reg  [    WIDTH-1:0]     mem_q
+    output reg  [    WIDTH-1:0]     mem_q = {WIDTH{1'b0}}
 );
 
 reg [WIDTH-1:0] rom[0:WORDS-1];
@@ -50,7 +50,6 @@ end
 initial
 begin
     $readmemb(LIST, rom);
-    mem_q = {WIDTH{1'b0}};
 end
 
 endmodule

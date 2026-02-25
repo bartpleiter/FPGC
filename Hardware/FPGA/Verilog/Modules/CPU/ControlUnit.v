@@ -3,8 +3,8 @@
  * Simple control unit that sets flags based on the instruction opcode and optional ALU opcode
  */
 module ControlUnit (
-    input wire  [3:0]   instrOP,
-    input wire  [3:0]   aluOP,
+    input wire  [3:0]   instr_op,
+    input wire  [3:0]   alu_op,
 
     output reg          alu_use_const,
     output reg          alu_use_constu,
@@ -19,13 +19,13 @@ module ControlUnit (
     output reg          branch,
     output reg          halt,
     output reg          reti,
-    output reg          getIntID,
-    output reg          getPC,
-    output reg          clearCache
+    output reg          get_int_id,
+    output reg          get_pc,
+    output reg          clear_cache
 );
 
 // Instruction Opcodes
-localparam 
+localparam
     OP_HALT     = 4'b1111,
     OP_READ     = 4'b1110,
     OP_WRITE    = 4'b1101,
@@ -47,125 +47,125 @@ localparam
 always @(*)
 begin
     // Default values
-    alu_use_const   <= 1'b0;
-    alu_use_constu  <= 1'b0;
-    push            <= 1'b0;
-    pop             <= 1'b0;
-    dreg_we         <= 1'b0;
-    mem_write       <= 1'b0;
-    mem_read        <= 1'b0;
-    arithm          <= 1'b0;
-    jumpc           <= 1'b0;
-    jumpr           <= 1'b0;
-    getIntID        <= 1'b0;
-    getPC           <= 1'b0;
-    branch          <= 1'b0;
-    halt            <= 1'b0;
-    reti            <= 1'b0;
-    clearCache      <= 1'b0;
+    alu_use_const   = 1'b0;
+    alu_use_constu  = 1'b0;
+    push            = 1'b0;
+    pop             = 1'b0;
+    dreg_we         = 1'b0;
+    mem_write       = 1'b0;
+    mem_read        = 1'b0;
+    arithm          = 1'b0;
+    jumpc           = 1'b0;
+    jumpr           = 1'b0;
+    get_int_id        = 1'b0;
+    get_pc           = 1'b0;
+    branch          = 1'b0;
+    halt            = 1'b0;
+    reti            = 1'b0;
+    clear_cache      = 1'b0;
 
     // Set values based on opcode
-    case (instrOP)
+    case (instr_op)
         OP_HALT:
         begin
-            halt <= 1'b1;
+            halt = 1'b1;
         end
 
         OP_READ:
         begin
-            mem_read <= 1'b1;
-            dreg_we <= 1'b1;
+            mem_read = 1'b1;
+            dreg_we = 1'b1;
         end
 
         OP_WRITE:
         begin
-            mem_write <= 1'b1;
+            mem_write = 1'b1;
         end
 
         // Write interrupt ID to dreg
         OP_INTID:
         begin
-            getIntID <= 1'b1;
-            dreg_we <= 1'b1;
+            get_int_id = 1'b1;
+            dreg_we = 1'b1;
         end
 
         // Push reg to stack
         OP_PUSH:
         begin
-            push <= 1'b1;
+            push = 1'b1;
         end
 
         // Pop stack to reg
         OP_POP:
         begin
-            dreg_we <= 1'b1;
-            pop <= 1'b1;
+            dreg_we = 1'b1;
+            pop = 1'b1;
         end
 
         OP_JUMP:
         begin
-            jumpc <= 1'b1;
+            jumpc = 1'b1;
         end
 
         OP_JUMPR:
         begin
-            jumpr <= 1'b1;
+            jumpr = 1'b1;
         end
 
         OP_BRANCH:
         begin
-            branch <= 1'b1;
+            branch = 1'b1;
         end
 
         // Write PC to dreg
         OP_SAVPC:
         begin
-            getPC <= 1'b1;
-            dreg_we <= 1'b1;
+            get_pc = 1'b1;
+            dreg_we = 1'b1;
         end
 
         OP_RETI:
         begin
-            reti <= 1'b1;
+            reti = 1'b1;
         end
 
         OP_CCACHE:
         begin
-            clearCache <= 1'b1;
+            clear_cache = 1'b1;
         end
 
         OP_ARITH:
         begin
-            dreg_we <= 1'b1;
+            dreg_we = 1'b1;
         end
 
         OP_ARITHC:
         begin
-            alu_use_const <= 1'b1;
-            if (aluOP[3:1] == 3'b110)
+            alu_use_const = 1'b1;
+            if (alu_op[3:1] == 3'b110)
             begin
-                alu_use_constu <= 1'b1;
+                alu_use_constu = 1'b1;
             end
-            dreg_we <= 1'b1;
+            dreg_we = 1'b1;
         end
 
         OP_ARITHM:
         begin
-            arithm <= 1'b1;
-            dreg_we <= 1'b1;
+            arithm = 1'b1;
+            dreg_we = 1'b1;
         end
 
         OP_ARITHMC:
         begin
-            arithm <= 1'b1;
-            alu_use_const <= 1'b1;
-            if (aluOP[3:1] == 3'b110)
+            arithm = 1'b1;
+            alu_use_const = 1'b1;
+            if (alu_op[3:1] == 3'b110)
             begin
-                alu_use_constu <= 1'b1;
+                alu_use_constu = 1'b1;
             end
-            dreg_we <= 1'b1;
+            dreg_we = 1'b1;
         end
-        
+
 
     endcase
 end

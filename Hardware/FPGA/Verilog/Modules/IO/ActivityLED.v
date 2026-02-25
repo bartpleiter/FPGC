@@ -1,3 +1,7 @@
+/*
+ * ActivityLED
+ * Holds an LED on for HOLD_CYCLES after activity pulse
+ */
 module ActivityLED #(
     parameter integer HOLD_CYCLES = 24'd8000000
 ) (

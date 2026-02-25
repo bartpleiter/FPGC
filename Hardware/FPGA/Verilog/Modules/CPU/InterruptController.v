@@ -4,8 +4,8 @@
  * Outputs a single interrupt signal and ID to the CPU
  * When multiple interrupts happen at the same time, the lower priority ones are queued
  *
- * On interrupt, CPU should set intDisabled high, save the PC and jump to ADDR 1
- * and restore everything on reti by setting intDisabled to low and jumping to the saved PC
+ * On interrupt, CPU should set int_disabled high, save the PC and jump to ADDR 1
+ * and restore everything on reti by setting int_disabled to low and jumping to the saved PC
  */
 module InterruptController #(
     parameter NUM_INTERRUPTS = 8 // Changing this requires changing the priority encoder logic below
@@ -14,10 +14,10 @@ module InterruptController #(
     input wire                       reset,
 
     input wire [NUM_INTERRUPTS-1:0]  interrupts,  // int1=bit0, int2=bit1, etc.
-    input wire                       intDisabled,
+    input wire                       int_disabled,
 
-    output reg                       intCPU = 1'b0,
-    output reg [7:0]                 intID = 8'd0
+    output reg                       int_cpu = 1'b0,
+    output reg [7:0]                 int_id = 8'd0
 );
 
 // CDC: Two-stage synchronizer for each interrupt input
@@ -32,7 +32,7 @@ integer i;
 
 // First always block: Synchronization chain
 // This MUST be separate to ensure proper synchronizer implementation
-always @(posedge clk) 
+always @(posedge clk)
 begin
     if (reset)
     begin
@@ -48,85 +48,85 @@ end
 
 // Second always block: Edge detection and interrupt handling
 // Now operating on fully synchronized signals
-always @(posedge clk) 
+always @(posedge clk)
 begin
     if (reset)
     begin
         int_prev <= {NUM_INTERRUPTS{1'b0}};
         int_triggered <= {NUM_INTERRUPTS{1'b0}};
-        intCPU <= 1'b0;
-        intID <= 8'd0;
+        int_cpu <= 1'b0;
+        int_id <= 8'd0;
     end
     else
     begin
         // Edge detection on SYNCHRONIZED signals
         int_prev <= int_sync2;
-        
+
         // Detect rising edges
         for (i = 0; i < NUM_INTERRUPTS; i = i + 1)
         begin
             if (int_sync2[i] && !int_prev[i])
                 int_triggered[i] <= 1'b1;
         end
-        
+
         // Handle interrupt requests with priority encoding
-        if (!intDisabled && !intCPU)
+        if (!int_disabled && !int_cpu)
         begin
             // Priority encoder: lowest index has highest priority
             if (int_triggered[0])
             begin
                 int_triggered[0] <= 1'b0;
-                intCPU <= 1'b1;
-                intID <= 8'd1; // Interrupt IDs start at 1
+                int_cpu <= 1'b1;
+                int_id <= 8'd1; // Interrupt IDs start at 1
             end
             else if (int_triggered[1])
             begin
                 int_triggered[1] <= 1'b0;
-                intCPU <= 1'b1;
-                intID <= 8'd2;
+                int_cpu <= 1'b1;
+                int_id <= 8'd2;
             end
             else if (int_triggered[2])
             begin
                 int_triggered[2] <= 1'b0;
-                intCPU <= 1'b1;
-                intID <= 8'd3;
+                int_cpu <= 1'b1;
+                int_id <= 8'd3;
             end
             else if (int_triggered[3])
             begin
                 int_triggered[3] <= 1'b0;
-                intCPU <= 1'b1;
-                intID <= 8'd4;
+                int_cpu <= 1'b1;
+                int_id <= 8'd4;
             end
             else if (int_triggered[4])
             begin
                 int_triggered[4] <= 1'b0;
-                intCPU <= 1'b1;
-                intID <= 8'd5;
+                int_cpu <= 1'b1;
+                int_id <= 8'd5;
             end
             else if (int_triggered[5])
             begin
                 int_triggered[5] <= 1'b0;
-                intCPU <= 1'b1;
-                intID <= 8'd6;
+                int_cpu <= 1'b1;
+                int_id <= 8'd6;
             end
             else if (int_triggered[6])
             begin
                 int_triggered[6] <= 1'b0;
-                intCPU <= 1'b1;
-                intID <= 8'd7;
+                int_cpu <= 1'b1;
+                int_id <= 8'd7;
             end
             else if (int_triggered[7])
             begin
                 int_triggered[7] <= 1'b0;
-                intCPU <= 1'b1;
-                intID <= 8'd8;
+                int_cpu <= 1'b1;
+                int_id <= 8'd8;
             end
         end
-        
-        // Clear intCPU when interrupts are disabled
-        if (intDisabled)
+
+        // Clear int_cpu when interrupts are disabled
+        if (int_disabled)
         begin
-            intCPU <= 1'b0;
+            int_cpu <= 1'b0;
         end
     end
 end

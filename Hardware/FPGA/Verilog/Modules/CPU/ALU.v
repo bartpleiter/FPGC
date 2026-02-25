@@ -10,7 +10,7 @@ module ALU (
 );
 
 // Opcodes
-localparam 
+localparam
     OP_OR       = 4'b0000, // OR
     OP_AND      = 4'b0001, // AND
     OP_XOR      = 4'b0010, // XOR
@@ -29,7 +29,7 @@ localparam
     // OP_XXX      = 4'b1111; // Reserved
 
 
-always @ (*) 
+always @(*)
 begin
     case (opcode)
         OP_OR:      y = a | b;

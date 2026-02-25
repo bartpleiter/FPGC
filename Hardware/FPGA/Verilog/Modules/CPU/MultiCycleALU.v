@@ -18,7 +18,7 @@ module MultiCycleALU (
 );
 
 // Opcodes
-localparam 
+localparam
     OP_MULTS  = 4'b0000, // Multiply signed
     OP_MULTU  = 4'b0001, // Multiply unsigned
     OP_MULTFP = 4'b0010, // Multiply fixed point signed
@@ -42,8 +42,7 @@ reg [2:0] state = STATE_IDLE;
 // Track whether we want quotient or remainder for integer division
 reg idiv_want_remainder = 1'b0;
 
-// Multicycle operations submodules
-// ================================
+// ---- Multicycle operations submodules ----
 
 // Unsigned Multiplier
 reg [31:0] multu_a = 32'd0;
@@ -113,7 +112,7 @@ FPDivider fpdiv (
     .done(fpdiv_done)
 );
 
-always @ (posedge clk)
+always @(posedge clk)
 begin
     if (reset)
     begin
@@ -146,7 +145,7 @@ begin
         mults_start <= 1'b0;
         idiv_start <= 1'b0;
         fpdiv_start <= 1'b0;
-        
+
         case (state)
             STATE_IDLE:
             begin
@@ -176,7 +175,7 @@ begin
                         state <= STATE_WAIT_MULTFP;
                     end
 
-                    if (opcode == OP_DIVS || opcode == OP_DIVU || 
+                    if (opcode == OP_DIVS || opcode == OP_DIVU ||
                         opcode == OP_MODS || opcode == OP_MODU)
                     begin
                         idiv_a <= a;

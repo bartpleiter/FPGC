@@ -387,6 +387,7 @@ wire [16:0] vramPX_cpu_addr;
 wire [7:0]  vramPX_cpu_d;
 wire        vramPX_cpu_we;
 wire [7:0]  vramPX_cpu_q;  // Not used in this design (write-only from CPU)
+wire        vramPX_fifo_full; // FIFO backpressure to CPU
 
 // GPU pixel interface - direct SRAM read
 wire [16:0] gpu_pixel_addr;
@@ -402,7 +403,7 @@ wire        fsx_blank;
 VRAMPXSram vrampx_sram (
     // Clocks and reset
     .clk100(clk100),
-    .clkPixel(clkGPU),
+    .clk_pixel(clkGPU),
     .reset(reset),
     
     // CPU interface (100MHz)
@@ -419,6 +420,9 @@ VRAMPXSram vrampx_sram (
     .blank(fsx_blank),
     .vsync(fsx_vsync),
     
+    // CPU backpressure
+    .cpu_fifo_full(vramPX_fifo_full),
+
     // External SRAM
     .SRAM_A(SRAM_A),
     .SRAM_DQ(SRAM_DQ),
@@ -599,18 +603,18 @@ CacheController cache_controller (
 wire frameDrawn;
 FSX_SRAM fsx (
     // Clocks
-    .clkPixel(clkGPU),
-    .clkTMDShalf(clkTMDShalf),
+    .clk_pixel(clkGPU),
+    .clk_tmds_half(clkTMDShalf),
 
     // HDMI
-    .TMDS_clk_p(HDMI_CLK_P),
-    .TMDS_clk_n(HDMI_CLK_N),
-    .TMDS_d0_p (HDMI_D0_P),
-    .TMDS_d0_n (HDMI_D0_N),
-    .TMDS_d1_p (HDMI_D1_P),
-    .TMDS_d1_n (HDMI_D1_N),
-    .TMDS_d2_p (HDMI_D2_P),
-    .TMDS_d2_n (HDMI_D2_N),
+    .tmds_clk_p(HDMI_CLK_P),
+    .tmds_clk_n(HDMI_CLK_N),
+    .tmds_d0_p (HDMI_D0_P),
+    .tmds_d0_n (HDMI_D0_N),
+    .tmds_d1_p (HDMI_D1_P),
+    .tmds_d1_n (HDMI_D1_N),
+    .tmds_d2_p (HDMI_D2_P),
+    .tmds_d2_n (HDMI_D2_N),
 
     // VRAM32
     .vram32_addr(vram32_gpu_addr),
@@ -632,10 +636,10 @@ FSX_SRAM fsx (
     .blank_out(fsx_blank),
     
     // Parameters
-    .halfRes(half_res),
+    .half_res(half_res),
 
     // Interrupt signal
-    .frameDrawn(frameDrawn)
+    .frame_drawn(frameDrawn)
 );
 
 /******************************************************************************
@@ -768,6 +772,7 @@ B32P3 cpu (
     .vramPX_d(vramPX_cpu_d),
     .vramPX_we(vramPX_cpu_we),
     .vramPX_q(vramPX_cpu_q),
+    .vramPX_fifo_full(vramPX_fifo_full),
     
     // L1i cache (cpu pipeline port)
     .l1i_pipe_addr(l1i_pipe_addr),

@@ -10,7 +10,7 @@
  */
 module PixelEngineSRAM (
     // Video timings
-    input wire          clkPixel,  // 25MHz GPU clock
+    input wire          clk_pixel,  // 25MHz GPU clock
     input wire          blank,
     input wire  [11:0]  h_count,   // Line position in pixels including blanking
     input wire  [11:0]  v_count,   // Frame position in lines including blanking
@@ -28,10 +28,10 @@ module PixelEngineSRAM (
     output wire         using_line_buffer,
 
     // Parameters
-    input wire          halfRes    // Render half res (160×120) at full res
+    input wire          half_res    // Render half res (160x120) at full res
 );
 
-    // halfRes is disabled for now
+    // half_res is disabled for now
 
     // VGA timing constants
     localparam HSTART_HDMI = 159; // Pixel to start rendering
@@ -58,7 +58,7 @@ module PixelEngineSRAM (
     wire [7:0] source_y = line_active[9:1];
     
     // Calculate pixel address: y * 320 + x
-    // For halfRes: y * 320 + x (where x is 0-159, y is 0-119)
+    // For half_res: y * 320 + x (where x is 0-159, y is 0-119)
     // We need to calculate: source_y * 320 + source_x
     // 320 = 256 + 64 = (y << 8) + (y << 6)
     wire [16:0] pixel_addr = ({9'd0, source_y} << 8) + ({9'd0, source_y} << 6) + {8'd0, source_x};
@@ -67,20 +67,24 @@ module PixelEngineSRAM (
     assign sram_addr = pixel_addr;
 
     // Line buffer for vertical 2× scaling
-    // Stores one source row (320 pixels for normal mode, 160 for halfRes)
+    // Stores one source row (320 pixels for normal mode, 160 for half_res)
     // When on even lines (0, 2, 4...), we read from SRAM and fill line buffer
     // When on odd lines (1, 3, 5...), we read from line buffer (same source row)
     reg [7:0] line_buffer [0:319];
     integer lb_i;
-    initial begin
-        for (lb_i = 0; lb_i < 320; lb_i = lb_i + 1) begin
+    `ifdef __ICARUS__
+    initial
+    begin
+        for (lb_i = 0; lb_i < 320; lb_i = lb_i + 1)
+        begin
             line_buffer[lb_i] = 8'd0;
         end
     end
+    `endif
 
     // Is this the first display line of a source row pair?
     // For 2× vertical: even lines (0, 2, 4, ...) are first of pair
-    // For 4× vertical (halfRes): lines 0, 4, 8, ... are first of quad
+    // For 4× vertical (half_res): lines 0, 4, 8, ... are first of quad
     wire first_line_of_pair = (line_active[0] == 1'b0);
     
     // Signal when line buffer is being used (odd lines don't need SRAM reads)
@@ -89,7 +93,7 @@ module PixelEngineSRAM (
     
     // Is this the first display pixel of a source pixel pair?
     // For 2× horizontal: even pixels (0, 2, 4, ...) are first of pair
-    // For 4× horizontal (halfRes): pixels 0, 4, 8, ... are first of quad
+    // For 4× horizontal (half_res): pixels 0, 4, 8, ... are first of quad
     wire first_pixel_of_pair = (pixel_active[0] == 1'b0);
 
     // Pixel data source selection:
@@ -101,15 +105,18 @@ module PixelEngineSRAM (
     // Pixel holding register for horizontal 2× scaling
     reg [7:0] pixel_hold = 8'd0;
 
-    always @(posedge clkPixel) begin
+    always @(posedge clk_pixel)
+    begin
         // On first line of pair, store SRAM data to line buffer
         // Only store on first pixel of horizontal pair (avoid duplicate writes)
-        if (in_active_video && first_line_of_pair && first_pixel_of_pair) begin
+        if (in_active_video && first_line_of_pair && first_pixel_of_pair)
+        begin
             line_buffer[source_x] <= sram_data;
         end
         
         // Update pixel hold on first pixel of horizontal pair
-        if (in_active_video && first_pixel_of_pair) begin
+        if (in_active_video && first_pixel_of_pair)
+        begin
             pixel_hold <= pixel_source;
         end
     end

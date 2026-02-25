@@ -1,7 +1,7 @@
 nav:
     - CPU
     - GPU.md
-    - Memory
-    - IO
+    - Memory-Unit.md
+    - Memory-Map.md
     - FPGA.md
     - PCB.md

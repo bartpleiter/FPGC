@@ -50,6 +50,7 @@ end
 
 // Initialize RAM to be zero
 integer i;
+`ifdef __ICARUS__
 initial
 begin
     for (i = 0; i < WORDS; i = i + 1)
@@ -57,5 +58,6 @@ begin
         ram[i] = {WIDTH{1'b0}};
     end
 end
+`endif
 
 endmodule

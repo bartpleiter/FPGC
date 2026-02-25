@@ -11,27 +11,19 @@
 module UARTrx #(
     parameter CLKS_PER_BIT = 100    // 1 MBaud @ 100 MHz
 ) (
-    //========================
-    // System interface
-    //========================
+    // ---- System interface ----
     input  wire         clk,
     input  wire         reset,
 
-    //========================
-    // Control interface
-    //========================
+    // ---- Control interface ----
     output reg          done = 1'b0,    // Byte received (high for one cycle)
     output reg  [7:0]   data = 8'd0,    // Received byte
 
-    //========================
-    // UART interface
-    //========================
+    // ---- UART interface ----
     input  wire         rx              // Serial input
 );
 
-//========================
-// State Machine
-//========================
+// ---- State Machine ----
 localparam
     STATE_IDLE      = 3'd0,
     STATE_START_BIT = 3'd1,
@@ -41,9 +33,7 @@ localparam
 
 reg [2:0] state = STATE_IDLE;
 
-//========================
-// Internal Registers
-//========================
+// ---- Internal Registers ----
 reg [8:0] clk_count = 9'd0;     // Bit period counter
 reg [2:0] bit_index = 3'd0;     // Current bit being received (0-7)
 reg [7:0] rx_data = 8'd0;       // Shift register for received data
