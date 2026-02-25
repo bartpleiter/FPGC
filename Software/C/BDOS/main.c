@@ -5,6 +5,7 @@
 #include "BDOS/bdos.h"
 
 // Include BDOS code modules
+#include "BDOS/heap.c"
 #include "BDOS/init.c"
 #include "BDOS/hid.c"
 #include "BDOS/fs.c"

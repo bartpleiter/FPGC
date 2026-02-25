@@ -4,6 +4,7 @@
 // Domain headers
 #include "BDOS/bdos_imports.h"
 #include "BDOS/bdos_syscall.h"
+#include "BDOS/bdos_heap.h"
 #include "BDOS/bdos_hid.h"
 #include "BDOS/bdos_fnp.h"
 #include "BDOS/bdos_shell.h"

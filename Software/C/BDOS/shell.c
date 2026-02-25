@@ -359,7 +359,7 @@ void bdos_shell_print_welcome()
   term_puts(" ___ ___   ___  ___ \n");
   term_puts("| _ )   \\ / _ \\/ __|\n");
   term_puts("| _ \\ |) | (_) \\__ \\\n");
-  term_puts("|___/___/ \\___/|___/v2.2-dev1\n\n");
+  term_puts("|___/___/ \\___/|___/v2.2-dev2\n\n");
 }
 
 // ---- Command submit lifecycle ----

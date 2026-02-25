@@ -15,15 +15,19 @@ Pipeline: `main.c` → B32CC → `.asm` → ASMPY → `.list` → `.bin`
 | File | Role |
 |------|------|
 | `bdos.h` | Shared defines, globals, library imports, function declarations |
+| `bdos_heap.h` | Heap allocator declarations |
+| `bdos_shell.h` | Shell declarations (argc/argv globals) |
+| `bdos_syscall.h` | Syscall number definitions (0–20) |
 | `mem_map.h` | Memory layout constants (must match `cgb32p3.inc` in B32CC) |
 | `main.c` | Entry point, main loop, interrupt dispatcher, `bdos_panic()` |
 | `init.c` | Hardware init: GPU, terminal, UART, timers, USB keyboard (CH376), Ethernet (ENC28J60) |
+| `heap.c` | Bump allocator for the kernel heap region |
 | `hid.c` | USB keyboard driver, HID report → key event translation, FIFO, key repeat |
 | `fs.c` | BRFS mount/format/sync wrappers with progress bar rendering |
 | `eth.c` | FNP (FPGC Network Protocol) over ENC28J60: file transfer, remote keycode injection |
 | `syscall.c` | Syscall dispatcher (called from inline assembly trampoline in cgb32p3.inc) |
 | `shell.c` | Interactive line editor with cursor movement, command history (ring buffer of 8) |
-| `shell_cmds.c` | Built-in commands, format wizard, path resolution, user program loader |
+| `shell_cmds.c` | Built-in commands, format wizard, path resolution, user program loader, argv storage |
 
 All modules are `#include`d directly into `main.c` (single compilation unit, no linker).
 
@@ -88,20 +92,43 @@ Custom Layer 2 protocol over ENC28J60 Ethernet (EtherType `0xB4B4`).
 - Message types: `FILE_START`/`FILE_DATA`/`FILE_END`/`FILE_ABORT` (reliable file transfer with ACK/NACK and checksum), `KEYCODE` (remote keyboard input injection), `MESSAGE`
 - `bdos_fnp_poll()` is called each main loop iteration (non-blocking)
 
+## Heap
+
+A bump allocator manages the kernel heap region (`0x100000`–`0x7FFFFF`, 7 MiW). User programs allocate via the `HEAP_ALLOC` syscall. All allocations are freed together when the program exits (in `bdos_slot_free()`). There is no individual `free()` — programs that need reallocation simply allocate a new block and abandon the old one.
+
+- `bdos_heap_init()` — called during boot, resets the bump pointer to `MEM_HEAP_START`
+- `bdos_heap_alloc(size_words)` — returns pointer to allocated block, or 0 on failure
+- `bdos_heap_free_all()` — resets the bump pointer (called on program exit/kill)
+
 ## Syscall Interface
 
-User programs invoke syscalls via an assembly trampoline. Dispatcher in `syscall.c`:
+User programs invoke syscalls via an assembly trampoline. ABI: `r4` = syscall number, `r5`–`r7` = up to 3 arguments, return value in `r1`. Dispatcher in `syscall.c`:
 
-| Number | Name | Args |
-|--------|------|------|
-| 0 | `PRINT_CHAR` | char |
-| 1 | `PRINT_STR` | char* |
-| 2 | `READ_KEY` | — (returns key event) |
-| 3 | `KEY_AVAILABLE` | — (returns count) |
-| 4 | `FS_OPEN` | path |
-| 5 | `FS_CLOSE` | fd |
-| 6 | `FS_READ` | fd, buf, count |
-| 7 | `FS_WRITE` | fd, buf, count |
+| Number | Name | Args | Returns |
+|--------|------|------|---------|
+| 0 | `PRINT_CHAR` | char | 0 |
+| 1 | `PRINT_STR` | char* | 0 |
+| 2 | `READ_KEY` | — | key event (or -1) |
+| 3 | `KEY_AVAILABLE` | — | 0 or 1 |
+| 4 | `FS_OPEN` | path | fd |
+| 5 | `FS_CLOSE` | fd | 0 on success |
+| 6 | `FS_READ` | fd, buf, count | words read |
+| 7 | `FS_WRITE` | fd, buf, count | words written |
+| 8 | `FS_SEEK` | fd, offset | 0 on success |
+| 9 | `FS_STAT` | path, entry_buf | 0 on success |
+| 10 | `FS_DELETE` | path | 0 on success |
+| 11 | `FS_CREATE` | path | 0 on success |
+| 12 | `FS_FILESIZE` | fd | size in words |
+| 13 | `SHELL_ARGC` | — | argc |
+| 14 | `SHELL_ARGV` | — | pointer to argv[] |
+| 15 | `SHELL_GETCWD` | — | pointer to cwd string |
+| 16 | `TERM_PUT_CELL` | x, y, (tile<<8)\|palette | 0 |
+| 17 | `TERM_CLEAR` | — | 0 |
+| 18 | `TERM_SET_CURSOR` | x, y | 0 |
+| 19 | `TERM_GET_CURSOR` | — | (x<<8)\|y |
+| 20 | `HEAP_ALLOC` | size_words | pointer (or 0) |
+
+Note: `TERM_PUT_CELL` packs tile and palette into a single argument (`a3`) because the syscall ABI only allows 3 arguments. `TERM_GET_CURSOR` packs x and y into the return value similarly.
 
 ## User Program Execution
 

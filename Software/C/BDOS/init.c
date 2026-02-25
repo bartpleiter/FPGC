@@ -121,5 +121,8 @@ void bdos_init()
   bdos_slot_init();
   term_puts("Program slot system initialized\n");
 
+  bdos_heap_init();
+  term_puts("Heap allocator initialized\n");
+
   set_user_led(0); // Turn off user LED after initialization
 }

@@ -11,6 +11,7 @@ int bdos_syscall_dispatch(int num, int a1, int a2, int a3)
 {
   switch (num)
   {
+    // ---- I/O ----
     case SYSCALL_PRINT_CHAR:
       term_putchar(a1);
       return 0;
@@ -25,6 +26,7 @@ int bdos_syscall_dispatch(int num, int a1, int a2, int a3)
     case SYSCALL_KEY_AVAILABLE:
       return bdos_keyboard_event_available();
 
+    // ---- Filesystem ----
     case SYSCALL_FS_OPEN:
       return brfs_open((char*)a1);
 
@@ -36,6 +38,62 @@ int bdos_syscall_dispatch(int num, int a1, int a2, int a3)
 
     case SYSCALL_FS_WRITE:
       return brfs_write(a1, (unsigned int*)a2, (unsigned int)a3);
+
+    case SYSCALL_FS_SEEK:
+      return brfs_seek(a1, (unsigned int)a2);
+
+    case SYSCALL_FS_STAT:
+      return brfs_stat((char*)a1, (struct brfs_dir_entry*)a2);
+
+    case SYSCALL_FS_DELETE:
+      return brfs_delete((char*)a1);
+
+    case SYSCALL_FS_CREATE:
+      return brfs_create_file((char*)a1);
+
+    case SYSCALL_FS_FILESIZE:
+      return brfs_file_size(a1);
+
+    // ---- Shell integration ----
+    case SYSCALL_SHELL_ARGC:
+      return bdos_shell_prog_argc;
+
+    case SYSCALL_SHELL_ARGV:
+      return (int)bdos_shell_prog_argv;
+
+    case SYSCALL_SHELL_GETCWD:
+      return (int)bdos_shell_cwd;
+
+    // ---- Terminal control ----
+    case SYSCALL_TERM_PUT_CELL:
+    {
+      // a1=x, a2=y, a3=packed (tile<<8 | palette)
+      unsigned int tile = ((unsigned int)a3 >> 8) & 0xFF;
+      unsigned int palette = (unsigned int)a3 & 0xFF;
+      term_put_cell((unsigned int)a1, (unsigned int)a2, tile, palette);
+      return 0;
+    }
+
+    case SYSCALL_TERM_CLEAR:
+      term_clear();
+      return 0;
+
+    case SYSCALL_TERM_SET_CURSOR:
+      term_set_cursor((unsigned int)a1, (unsigned int)a2);
+      return 0;
+
+    case SYSCALL_TERM_GET_CURSOR:
+    {
+      // Return packed (x<<8 | y)
+      unsigned int cx;
+      unsigned int cy;
+      term_get_cursor(&cx, &cy);
+      return (int)((cx << 8) | cy);
+    }
+
+    // ---- Heap ----
+    case SYSCALL_HEAP_ALLOC:
+      return (int)bdos_heap_alloc((unsigned int)a1);
 
     default:
       return -1;

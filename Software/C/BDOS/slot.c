@@ -72,6 +72,8 @@ void bdos_slot_free(int slot)
     {
       bdos_active_slot = BDOS_SLOT_NONE;
     }
+    // Free all heap allocations made by the program
+    bdos_heap_free_all();
   }
 }
 

@@ -65,3 +65,68 @@ int sys_fs_write(int fd, unsigned int* buf, unsigned int count)
 {
   return syscall(SYSCALL_FS_WRITE, fd, (int)buf, (int)count);
 }
+
+int sys_fs_seek(int fd, unsigned int offset)
+{
+  return syscall(SYSCALL_FS_SEEK, fd, (int)offset, 0);
+}
+
+int sys_fs_stat(char* path, unsigned int* entry_buf)
+{
+  return syscall(SYSCALL_FS_STAT, (int)path, (int)entry_buf, 0);
+}
+
+int sys_fs_delete(char* path)
+{
+  return syscall(SYSCALL_FS_DELETE, (int)path, 0, 0);
+}
+
+int sys_fs_create(char* path)
+{
+  return syscall(SYSCALL_FS_CREATE, (int)path, 0, 0);
+}
+
+int sys_fs_filesize(int fd)
+{
+  return syscall(SYSCALL_FS_FILESIZE, fd, 0, 0);
+}
+
+int sys_shell_argc()
+{
+  return syscall(SYSCALL_SHELL_ARGC, 0, 0, 0);
+}
+
+char** sys_shell_argv()
+{
+  return (char**)syscall(SYSCALL_SHELL_ARGV, 0, 0, 0);
+}
+
+char* sys_shell_getcwd()
+{
+  return (char*)syscall(SYSCALL_SHELL_GETCWD, 0, 0, 0);
+}
+
+void sys_term_put_cell(int x, int y, int tile_palette)
+{
+  syscall(SYSCALL_TERM_PUT_CELL, x, y, tile_palette);
+}
+
+void sys_term_clear()
+{
+  syscall(SYSCALL_TERM_CLEAR, 0, 0, 0);
+}
+
+void sys_term_set_cursor(int x, int y)
+{
+  syscall(SYSCALL_TERM_SET_CURSOR, x, y, 0);
+}
+
+int sys_term_get_cursor()
+{
+  return syscall(SYSCALL_TERM_GET_CURSOR, 0, 0, 0);
+}
+
+unsigned int* sys_heap_alloc(int size_words)
+{
+  return (unsigned int*)syscall(SYSCALL_HEAP_ALLOC, size_words, 0, 0);
+}

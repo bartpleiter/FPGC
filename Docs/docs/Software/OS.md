@@ -46,39 +46,49 @@ BDOS provides a basic interactive shell with the following commands:
 | `clear` | Clear the terminal screen |
 | `echo <text>` | Print text to the terminal |
 | `uptime` | Show system uptime |
-| `run <program>` | Load and execute a user program |
 | `pwd` | Print working directory |
 | `cd <path>` | Change directory |
 | `ls [path]` | List directory contents |
 | `cat <file>` | Display file contents |
-| `write <file> <text>` | Write text to a file (for testing, should be replaced by a text editor program) |
+| `write <file> <text>` | Write text to a file |
 | `mkdir <path>` | Create a directory |
 | `mkfile <path>` | Create an empty file |
 | `rm <path>` | Remove a file or directory |
 | `df` | Show filesystem usage |
 | `sync` | Flush filesystem to flash |
 | `format` | Format the filesystem (interactive wizard) |
+| `jobs` | List running/suspended user programs |
+| `fg <slot>` | Resume a suspended program |
+| `kill <slot>` | Kill a running/suspended program |
 
-!!! note
-    No piping or output redirection have been implemented yet, so the `echo` and `pwd` commands are not that useful currently.
+Any non-built-in command is treated as a program name and resolved/executed automatically. Arguments are passed to the program via the `SHELL_ARGC` and `SHELL_ARGV` syscalls.
 
 ## Program Loading and Execution
 
-The `run` command loads a binary from BRFS into a user program slot and transfers control to it.
+Programs are launched by typing their name or path at the shell prompt. The dispatcher tries built-in commands first, then program resolution:
 
-!!! note
-    In the (near) future, this command should be removed and programs should be able to be loaded by just typing their name or path in the terminal, with argument support, and a program manager that keeps track of which programs are loaded in which slots. `run` is for now a temporary way to test user programs and allow development of things like syscalls.
+1. If the name contains `/` or starts with `.`: resolved as a path (absolute or relative to cwd)
+2. Bare names: try `/bin/<name>` first, then fall back to cwd
+
+Before execution, the shell stores `argc` and `argv` in kernel globals so the program can retrieve them via the `SHELL_ARGC` and `SHELL_ARGV` syscalls.
 
 ### Loading Process
 
-1. **Path resolution**: If the argument has no `/`, BDOS looks in `/bin/` automatically
-2. **Read binary**: The file is read from BRFS in 256-word chunks into slot 0 (`0x800000`)
-3. **Cache flush**: The `ccache` instruction clears L1I/L1D caches to ensure the CPU fetches fresh instructions
-4. **Register setup**:
-      - `r13` (stack pointer) = top of slot (`0x87FFFF`)
+1. **Path resolution**: If the name has no `/`, BDOS looks in `/bin/` automatically, then falls back to cwd
+2. **Slot allocation**: A free slot is allocated via `bdos_slot_alloc()`
+3. **Read binary**: The file is read from BRFS in 256-word chunks into the slot's memory region
+4. **Cache flush**: The `ccache` instruction clears L1I/L1D caches to ensure the CPU fetches fresh instructions
+5. **Register setup**:
+      - `r13` (stack pointer) = top of slot
       - `r15` (return address) = BDOS return trampoline
-5. **Jump**: Execution transfers to offset 0 of the slot, which contains the ASMPY header `jump Main`
-6. **Return**: When the program's `main()` returns (via `r15`), BDOS restores its own registers and prints the exit code
+6. **Jump**: Execution transfers to offset 0 of the slot, which contains the ASMPY header `jump Main`
+7. **Return**: When the program's `main()` returns (via `r15`), BDOS restores its own registers, frees the slot (including heap cleanup), and prints the exit code
+
+## Heap
+
+The kernel heap region (`0x100000`–`0x7FFFFF`, 7 MiW) is managed by a simple bump allocator. User programs allocate memory via the `HEAP_ALLOC` syscall. All allocations are freed together when the program exits, is killed, or encounters an error — there is no individual `free()`.
+
+This design is intentional: the bump allocator is very fast and simple, and the per-program cleanup ensures no memory leaks across program invocations. Programs that need to "reallocate" a buffer simply allocate a new, larger block and copy the data over; the old block is wasted but freed on exit.
 
 ## Syscalls
 
@@ -98,18 +108,33 @@ The ASMPY assembler header places a `jump Syscall` instruction at absolute addre
 ### Available Syscalls
 
 !!! note
-    This list will likely grow over time as I am extending BDOS. See `bdos.h` for the currently implemented list of syscalls.
+    See `bdos_syscall.h` for the up to date list of syscall numbers.
 
 | Number | Name | Arguments | Returns | Description |
 |--------|------|-----------|---------|-------------|
 | 0 | `PRINT_CHAR` | `a1` = character | 0 | Print a character to the terminal |
 | 1 | `PRINT_STR` | `a1` = string pointer | 0 | Print a null-terminated string |
-| 2 | `READ_KEY` | — | key code | Read a key from the keyboard buffer |
+| 2 | `READ_KEY` | — | key code | Read a key from the keyboard buffer (-1 if empty) |
 | 3 | `KEY_AVAILABLE` | — | 0 or 1 | Check if a key is available |
 | 4 | `FS_OPEN` | `a1` = path pointer | file descriptor | Open a file |
 | 5 | `FS_CLOSE` | `a1` = fd | 0 on success | Close a file |
-| 6 | `FS_READ` | `a1` = fd, `a2` = buffer, `a3` = count | bytes read | Read from a file |
-| 7 | `FS_WRITE` | `a1` = fd, `a2` = buffer, `a3` = count | bytes written | Write to a file |
+| 6 | `FS_READ` | `a1` = fd, `a2` = buffer, `a3` = count | words read | Read from a file |
+| 7 | `FS_WRITE` | `a1` = fd, `a2` = buffer, `a3` = count | words written | Write to a file |
+| 8 | `FS_SEEK` | `a1` = fd, `a2` = offset | 0 on success | Seek to a position in a file |
+| 9 | `FS_STAT` | `a1` = path, `a2` = entry_buf | 0 on success | Get file/directory metadata |
+| 10 | `FS_DELETE` | `a1` = path | 0 on success | Delete a file or directory |
+| 11 | `FS_CREATE` | `a1` = path | 0 on success | Create an empty file |
+| 12 | `FS_FILESIZE` | `a1` = fd | size in words | Get the size of an open file |
+| 13 | `SHELL_ARGC` | — | argc | Get argument count for current program |
+| 14 | `SHELL_ARGV` | — | pointer to argv[] | Get argument vector for current program |
+| 15 | `SHELL_GETCWD` | — | pointer to cwd string | Get the shell's current working directory |
+| 16 | `TERM_PUT_CELL` | `a1` = x, `a2` = y, `a3` = (tile<<8)\|palette | 0 | Write a tile+palette to a terminal cell |
+| 17 | `TERM_CLEAR` | — | 0 | Clear the terminal screen |
+| 18 | `TERM_SET_CURSOR` | `a1` = x, `a2` = y | 0 | Set the terminal cursor position |
+| 19 | `TERM_GET_CURSOR` | — | (x<<8)\|y | Get the terminal cursor position (packed) |
+| 20 | `HEAP_ALLOC` | `a1` = size_words | pointer (or 0) | Allocate memory from the kernel heap |
+
+The syscall ABI allows a maximum of 3 arguments (`a1`–`a3` in `r5`–`r7`), with the return value in `r1`. Where more data is needed, arguments are packed (e.g., `TERM_PUT_CELL` packs tile and palette into a single word) or pointers are used.
 
 ### User-Side Library
 

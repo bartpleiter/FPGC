@@ -7,6 +7,10 @@
 #define BDOS_SHELL_LS_MAX_ENTRIES 32
 #define BDOS_SHELL_IO_CHUNK_WORDS 64
 
+// Program argc/argv storage (accessible to user programs via syscall)
+int bdos_shell_prog_argc = 0;
+char* bdos_shell_prog_argv[BDOS_SHELL_ARGV_MAX];
+
 // ---- Built-in commands ----
 
 int bdos_shell_cmd_help(int argc, char** argv)
@@ -932,7 +936,17 @@ void bdos_shell_execute_line(char* line)
     resolve_result = bdos_shell_resolve_program(argv[0], prog_path);
     if (resolve_result == BRFS_OK && brfs_exists(prog_path) && !brfs_is_dir(prog_path))
     {
+      // Store argc/argv for user program access via syscall
+      bdos_shell_prog_argc = argc;
+      {
+        int i;
+        for (i = 0; i < argc && i < BDOS_SHELL_ARGV_MAX; i++)
+        {
+          bdos_shell_prog_argv[i] = argv[i];
+        }
+      }
       bdos_exec_program(prog_path);
+      bdos_shell_prog_argc = 0;
       return;
     }
   }

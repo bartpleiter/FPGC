@@ -10,6 +10,19 @@
 #define SYSCALL_FS_CLOSE       5
 #define SYSCALL_FS_READ        6
 #define SYSCALL_FS_WRITE       7
+#define SYSCALL_FS_SEEK        8
+#define SYSCALL_FS_STAT        9
+#define SYSCALL_FS_DELETE      10
+#define SYSCALL_FS_CREATE      11
+#define SYSCALL_FS_FILESIZE    12
+#define SYSCALL_SHELL_ARGC     13
+#define SYSCALL_SHELL_ARGV     14
+#define SYSCALL_SHELL_GETCWD   15
+#define SYSCALL_TERM_PUT_CELL  16
+#define SYSCALL_TERM_CLEAR     17
+#define SYSCALL_TERM_SET_CURSOR 18
+#define SYSCALL_TERM_GET_CURSOR 19
+#define SYSCALL_HEAP_ALLOC     20
 
 int bdos_syscall_dispatch(int num, int a1, int a2, int a3);
 

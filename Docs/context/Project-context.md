@@ -104,6 +104,10 @@ Run `make test-cpu` to run all CPU tests, followed by `make test-b32cc` to run a
 
 Run `make test-b32cc` to run all C compiler tests. If a test fails, you can run it individually using `make test-b32cc-single file=<path>`. To debug with verilog display output, run `make debug-b32cc file=<path>`.
 
+**When you change C code in BDOS or a user program:**
+
+Just compile the code. No need to run any of the `make test-*` commands, since those are only for testing the CPU and C compiler.
+
 ### How the testing framework works
 
 - First, the C code is compiled to B32P3 assembly using B32CC.

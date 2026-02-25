@@ -11,6 +11,10 @@
 extern char bdos_shell_cwd[BDOS_SHELL_PATH_MAX];
 extern unsigned int bdos_shell_start_micros;
 
+// Program argc/argv (set before bdos_exec_program, readable via syscall)
+extern int bdos_shell_prog_argc;
+extern char* bdos_shell_prog_argv[BDOS_SHELL_ARGV_MAX];
+
 // Shell lifecycle
 void bdos_shell_init();
 void bdos_shell_tick();
