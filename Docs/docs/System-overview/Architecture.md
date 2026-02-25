@@ -2,7 +2,8 @@
 
 The FPGC is built from three main hardware modules (CPU, GPU, Memory Unit) sharing a common memory bus, plus a software stack that runs on top. This page gives the big-picture view of how everything connects. Each component has its own detailed page elsewhere in the docs.
 
-![FPGC_arch](../images/FPGC_arch.png)
+!!! note
+    The picture needs to be updated as it was very outdated
 
 ## Hardware
 
