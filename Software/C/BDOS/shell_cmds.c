@@ -25,7 +25,7 @@ int bdos_shell_cmd_help(int argc, char** argv)
   term_puts("Filesystem\n");
   term_puts("  pwd  cd  ls  df\n");
   term_puts("  mkdir  mkfile  rm\n");
-  term_puts("  cat  write\n");
+  term_puts("  cat  write  cp  mv\n");
   term_puts("Maintenance\n");
   term_puts("  format  sync\n");
   term_puts("Programs\n");
@@ -534,6 +534,297 @@ int bdos_shell_cmd_write(int argc, char** argv)
   return 0;
 }
 
+// Copy a file.
+// If dest is a directory, appends source basename: cp /a/foo /b/ -> /b/foo
+int bdos_shell_cmd_cp(int argc, char** argv)
+{
+  char src_resolved[BDOS_SHELL_PATH_MAX];
+  char dst_resolved[BDOS_SHELL_PATH_MAX];
+  unsigned int chunk[BDOS_SHELL_IO_CHUNK_WORDS];
+  int result;
+  int src_fd;
+  int dst_fd;
+  int remaining;
+  int chunk_len;
+  int words_read;
+  int words_written;
+  char* slash;
+
+  if (!bdos_shell_require_fs_ready())
+  {
+    return 0;
+  }
+
+  if (argc != 3)
+  {
+    term_puts("usage: cp <source> <dest>\n");
+    return 0;
+  }
+
+  result = bdos_shell_resolve_path(argv[1], src_resolved);
+  if (result != BRFS_OK)
+  {
+    bdos_shell_print_fs_error("resolve source", result);
+    return 0;
+  }
+
+  if (!brfs_exists(src_resolved))
+  {
+    term_puts("cp: source not found\n");
+    return 0;
+  }
+
+  if (brfs_is_dir(src_resolved))
+  {
+    term_puts("cp: cannot copy a directory\n");
+    return 0;
+  }
+
+  result = bdos_shell_resolve_path(argv[2], dst_resolved);
+  if (result != BRFS_OK)
+  {
+    bdos_shell_print_fs_error("resolve dest", result);
+    return 0;
+  }
+
+  // If dest is an existing directory, append source basename
+  if (brfs_exists(dst_resolved) && brfs_is_dir(dst_resolved))
+  {
+    slash = strrchr(src_resolved, '/');
+    if (slash != 0)
+    {
+      strcat(dst_resolved, "/");
+      strcat(dst_resolved, slash + 1);
+    }
+    else
+    {
+      strcat(dst_resolved, "/");
+      strcat(dst_resolved, src_resolved);
+    }
+  }
+
+  // If dest file already exists, delete it first
+  if (brfs_exists(dst_resolved) && !brfs_is_dir(dst_resolved))
+  {
+    result = brfs_delete(dst_resolved);
+    if (result != BRFS_OK)
+    {
+      bdos_shell_print_fs_error("cp: replace dest", result);
+      return 0;
+    }
+  }
+
+  // Create dest file
+  result = brfs_create_file(dst_resolved);
+  if (result != BRFS_OK)
+  {
+    bdos_shell_print_fs_error("cp: create dest", result);
+    return 0;
+  }
+
+  // Open source
+  src_fd = brfs_open(src_resolved);
+  if (src_fd < 0)
+  {
+    bdos_shell_print_fs_error("cp: open source", src_fd);
+    return 0;
+  }
+
+  // Open dest
+  dst_fd = brfs_open(dst_resolved);
+  if (dst_fd < 0)
+  {
+    bdos_shell_print_fs_error("cp: open dest", dst_fd);
+    brfs_close(src_fd);
+    return 0;
+  }
+
+  // Copy data in chunks
+  remaining = brfs_file_size(src_fd);
+  while (remaining > 0)
+  {
+    chunk_len = remaining;
+    if (chunk_len > BDOS_SHELL_IO_CHUNK_WORDS)
+    {
+      chunk_len = BDOS_SHELL_IO_CHUNK_WORDS;
+    }
+
+    words_read = brfs_read(src_fd, chunk, (unsigned int)chunk_len);
+    if (words_read <= 0)
+    {
+      if (words_read < 0)
+      {
+        bdos_shell_print_fs_error("cp: read", words_read);
+      }
+      break;
+    }
+
+    words_written = brfs_write(dst_fd, chunk, (unsigned int)words_read);
+    if (words_written < 0)
+    {
+      bdos_shell_print_fs_error("cp: write", words_written);
+      break;
+    }
+
+    remaining -= words_read;
+  }
+
+  brfs_close(src_fd);
+  brfs_close(dst_fd);
+  return 0;
+}
+
+// Move (rename) a file. Implemented as copy + delete
+// If dest is a directory, appends source basename: mv /a/foo /b/ -> /b/foo
+int bdos_shell_cmd_mv(int argc, char** argv)
+{
+  char src_resolved[BDOS_SHELL_PATH_MAX];
+  char dst_resolved[BDOS_SHELL_PATH_MAX];
+  unsigned int chunk[BDOS_SHELL_IO_CHUNK_WORDS];
+  int result;
+  int src_fd;
+  int dst_fd;
+  int remaining;
+  int chunk_len;
+  int words_read;
+  int words_written;
+  char* slash;
+
+  if (!bdos_shell_require_fs_ready())
+  {
+    return 0;
+  }
+
+  if (argc != 3)
+  {
+    term_puts("usage: mv <source> <dest>\n");
+    return 0;
+  }
+
+  result = bdos_shell_resolve_path(argv[1], src_resolved);
+  if (result != BRFS_OK)
+  {
+    bdos_shell_print_fs_error("resolve source", result);
+    return 0;
+  }
+
+  if (!brfs_exists(src_resolved))
+  {
+    term_puts("mv: source not found\n");
+    return 0;
+  }
+
+  if (brfs_is_dir(src_resolved))
+  {
+    term_puts("mv: cannot move a directory\n");
+    return 0;
+  }
+
+  result = bdos_shell_resolve_path(argv[2], dst_resolved);
+  if (result != BRFS_OK)
+  {
+    bdos_shell_print_fs_error("resolve dest", result);
+    return 0;
+  }
+
+  // If dest is an existing directory, append source basename
+  if (brfs_exists(dst_resolved) && brfs_is_dir(dst_resolved))
+  {
+    slash = strrchr(src_resolved, '/');
+    if (slash != 0)
+    {
+      strcat(dst_resolved, "/");
+      strcat(dst_resolved, slash + 1);
+    }
+    else
+    {
+      strcat(dst_resolved, "/");
+      strcat(dst_resolved, src_resolved);
+    }
+  }
+
+  // If dest file already exists, delete it first
+  if (brfs_exists(dst_resolved) && !brfs_is_dir(dst_resolved))
+  {
+    result = brfs_delete(dst_resolved);
+    if (result != BRFS_OK)
+    {
+      bdos_shell_print_fs_error("mv: replace dest", result);
+      return 0;
+    }
+  }
+
+  // Create dest file
+  result = brfs_create_file(dst_resolved);
+  if (result != BRFS_OK)
+  {
+    bdos_shell_print_fs_error("mv: create dest", result);
+    return 0;
+  }
+
+  // Open source
+  src_fd = brfs_open(src_resolved);
+  if (src_fd < 0)
+  {
+    bdos_shell_print_fs_error("mv: open source", src_fd);
+    return 0;
+  }
+
+  // Open dest
+  dst_fd = brfs_open(dst_resolved);
+  if (dst_fd < 0)
+  {
+    bdos_shell_print_fs_error("mv: open dest", dst_fd);
+    brfs_close(src_fd);
+    return 0;
+  }
+
+  // Copy data in chunks
+  remaining = brfs_file_size(src_fd);
+  while (remaining > 0)
+  {
+    chunk_len = remaining;
+    if (chunk_len > BDOS_SHELL_IO_CHUNK_WORDS)
+    {
+      chunk_len = BDOS_SHELL_IO_CHUNK_WORDS;
+    }
+
+    words_read = brfs_read(src_fd, chunk, (unsigned int)chunk_len);
+    if (words_read <= 0)
+    {
+      if (words_read < 0)
+      {
+        bdos_shell_print_fs_error("mv: read", words_read);
+      }
+      break;
+    }
+
+    words_written = brfs_write(dst_fd, chunk, (unsigned int)words_read);
+    if (words_written < 0)
+    {
+      bdos_shell_print_fs_error("mv: write", words_written);
+      break;
+    }
+
+    remaining -= words_read;
+  }
+
+  brfs_close(src_fd);
+  brfs_close(dst_fd);
+
+  // Delete source only if copy succeeded (remaining == 0)
+  if (remaining <= 0)
+  {
+    result = brfs_delete(src_resolved);
+    if (result != BRFS_OK)
+    {
+      bdos_shell_print_fs_error("mv: delete source", result);
+    }
+  }
+
+  return 0;
+}
+
 int bdos_shell_cmd_sync(int argc, char** argv)
 {
   int result;
@@ -891,6 +1182,18 @@ void bdos_shell_execute_line(char* line)
   if (strcmp(argv[0], "write") == 0)
   {
     bdos_shell_cmd_write(argc, argv);
+    return;
+  }
+
+  if (strcmp(argv[0], "cp") == 0)
+  {
+    bdos_shell_cmd_cp(argc, argv);
+    return;
+  }
+
+  if (strcmp(argv[0], "mv") == 0)
+  {
+    bdos_shell_cmd_mv(argc, argv);
     return;
   }
 
