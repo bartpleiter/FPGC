@@ -26,7 +26,7 @@ B32CC_OUTPUT = $(B32CC_DIR)/output/b32cc
 .PHONY: flash-c-baremetal-spi flash-bdos
 .PHONY: b32cc test-b32cc test-b32cc-single debug-b32cc clean-b32cc
 .PHONY: check
-.PHONY: fnp-upload-text fnp-upload-userbdos fnp-keyboard fnp-detect-iface
+.PHONY: fnp-upload-text fnp-upload-userbdos fnp-keyboard fnp-detect-iface fnp-sync-files
 
 # -----------------------------------------------------------------------------
 # Default Target
@@ -291,6 +291,9 @@ fnp-upload-userbdos: $(B32CC_OUTPUT)
 fnp-keyboard:
 	./Scripts/Programmer/Network/fnp_keyboard.sh
 
+fnp-sync-files:
+	@.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py sync-files Files/BRFS-init
+
 # =============================================================================
 # Cleanup
 # =============================================================================
@@ -390,6 +393,7 @@ help:
 	@echo "  fnp-upload-userbdos   - Compile and upload a userBDOS C program to /bin"
 	@echo "                          Usage: make fnp-upload-userbdos file=<name>"
 	@echo "  fnp-keyboard          - Interactive keyboard streaming to FPGC"
+	@echo "  fnp-sync-files        - Sync Files/BRFS-init/ to FPGC root filesystem"
 	@echo ""
 	@echo "--- Cleanup ---"
 	@echo "  clean               - Clean all build artifacts and environments"

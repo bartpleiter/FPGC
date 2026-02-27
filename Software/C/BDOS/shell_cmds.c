@@ -320,27 +320,126 @@ int bdos_shell_cmd_mkfile(int argc, char** argv)
   return 0;
 }
 
+// Recursively delete a directory and all its contents.
+// Returns BRFS_OK on success, or a negative error code.
+int bdos_shell_rm_recursive(char* path)
+{
+  struct brfs_dir_entry entries[BDOS_SHELL_LS_MAX_ENTRIES];
+  char name[BRFS_MAX_FILENAME_LENGTH + 1];
+  char child_path[BDOS_SHELL_PATH_MAX];
+  int count;
+  int i;
+  int result;
+  int path_len;
+
+  // Read directory contents
+  count = brfs_read_dir(path, entries, BDOS_SHELL_LS_MAX_ENTRIES);
+  if (count < 0)
+  {
+    return count;
+  }
+
+  path_len = strlen(path);
+
+  for (i = 0; i < count; i++)
+  {
+    brfs_decompress_string(name, entries[i].filename, 4);
+
+    // Skip . and ..
+    if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0)
+    {
+      continue;
+    }
+
+    // Build child path
+    strcpy(child_path, path);
+    if (path_len > 1)
+    {
+      strcat(child_path, "/");
+    }
+    strcat(child_path, name);
+
+    if (entries[i].flags & BRFS_FLAG_DIRECTORY)
+    {
+      // Recurse into subdirectory
+      result = bdos_shell_rm_recursive(child_path);
+      if (result != BRFS_OK)
+      {
+        return result;
+      }
+    }
+
+    // Delete the entry (directory is now empty, or it was a file)
+    result = brfs_delete(child_path);
+    if (result != BRFS_OK)
+    {
+      return result;
+    }
+  }
+
+  return BRFS_OK;
+}
+
 int bdos_shell_cmd_rm(int argc, char** argv)
 {
   char resolved[BDOS_SHELL_PATH_MAX];
   int result;
+  int recursive;
+  char* path_arg;
 
   if (!bdos_shell_require_fs_ready())
   {
     return 0;
   }
 
-  if (argc != 2)
+  // Parse arguments
+  recursive = 0;
+  path_arg = NULL;
+
+  if (argc == 2)
   {
-    term_puts("usage: rm <path>\n");
+    if (strcmp(argv[1], "-r") == 0)
+    {
+      term_puts("usage: rm [-r] <path>\n");
+      return 0;
+    }
+    path_arg = argv[1];
+  }
+  else if (argc == 3)
+  {
+    if (strcmp(argv[1], "-r") == 0)
+    {
+      recursive = 1;
+      path_arg = argv[2];
+    }
+    else
+    {
+      term_puts("usage: rm [-r] <path>\n");
+      return 0;
+    }
+  }
+  else
+  {
+    term_puts("usage: rm [-r] <path>\n");
     return 0;
   }
 
-  result = bdos_shell_resolve_path(argv[1], resolved);
+  result = bdos_shell_resolve_path(path_arg, resolved);
   if (result != BRFS_OK)
   {
     bdos_shell_print_fs_error("resolve path", result);
     return 0;
+  }
+
+  if (recursive)
+  {
+    // First recursively delete contents, then delete the directory itself
+    result = bdos_shell_rm_recursive(resolved);
+    if (result != BRFS_OK)
+    {
+      bdos_shell_print_fs_error("rm", result);
+      return 0;
+    }
   }
 
   result = brfs_delete(resolved);

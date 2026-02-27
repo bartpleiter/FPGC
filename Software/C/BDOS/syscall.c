@@ -95,6 +95,20 @@ int bdos_syscall_dispatch(int num, int a1, int a2, int a3)
     case SYSCALL_HEAP_ALLOC:
       return (int)bdos_heap_alloc((unsigned int)a1);
 
+    // ---- Timing ----
+    case SYSCALL_DELAY:
+      delay((unsigned int)a1);
+      return 0;
+
+    // ---- GPU ----
+    case SYSCALL_SET_PALETTE:
+    {
+      // a1 = palette index (0-31), a2 = palette value (bg<<8 | fg)
+      unsigned int *palette_addr = (unsigned int *)(GPU_PALETTE_TABLE_ADDR + (unsigned int)a1);
+      *palette_addr = (unsigned int)a2;
+      return 0;
+    }
+
     default:
       return -1;
   }

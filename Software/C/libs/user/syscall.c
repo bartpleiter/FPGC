@@ -130,3 +130,13 @@ unsigned int* sys_heap_alloc(int size_words)
 {
   return (unsigned int*)syscall(SYSCALL_HEAP_ALLOC, size_words, 0, 0);
 }
+
+void sys_delay(int ms)
+{
+  syscall(SYSCALL_DELAY, ms, 0, 0);
+}
+
+void sys_set_palette(int index, int value)
+{
+  syscall(SYSCALL_SET_PALETTE, index, value, 0);
+}

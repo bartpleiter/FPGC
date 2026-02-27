@@ -17,7 +17,7 @@ Pipeline: `main.c` → B32CC → `.asm` → ASMPY → `.list` → `.bin`
 | `bdos.h` | Shared defines, globals, library imports, function declarations |
 | `bdos_heap.h` | Heap allocator declarations |
 | `bdos_shell.h` | Shell declarations (argc/argv globals) |
-| `bdos_syscall.h` | Syscall number definitions (0–20) |
+| `bdos_syscall.h` | Syscall number definitions (0–22) |
 | `mem_map.h` | Memory layout constants (must match `cgb32p3.inc` in B32CC) |
 | `main.c` | Entry point, main loop, interrupt dispatcher, `bdos_panic()` |
 | `init.c` | Hardware init: GPU, terminal, UART, timers, USB keyboard (CH376), Ethernet (ENC28J60) |
@@ -127,8 +127,10 @@ User programs invoke syscalls via an assembly trampoline. ABI: `r4` = syscall nu
 | 18 | `TERM_SET_CURSOR` | x, y | 0 |
 | 19 | `TERM_GET_CURSOR` | — | (x<<8)\|y |
 | 20 | `HEAP_ALLOC` | size_words | pointer (or 0) |
+| 21 | `DELAY` | milliseconds | 0 |
+| 22 | `SET_PALETTE` | index, value | 0 |
 
-Note: `TERM_PUT_CELL` packs tile and palette into a single argument (`a3`) because the syscall ABI only allows 3 arguments. `TERM_GET_CURSOR` packs x and y into the return value similarly.
+Note: `TERM_PUT_CELL` packs tile and palette into a single argument (`a3`) because the syscall ABI only allows 3 arguments. `TERM_GET_CURSOR` packs x and y into the return value similarly. `SET_PALETTE` writes to `GPU_PALETTE_TABLE_ADDR + index`; value format is `(bg_color << 8) | fg_color` with 8-bit RRRGGGBB colors.
 
 ## User Program Execution
 
@@ -185,7 +187,7 @@ Per-slot parallel arrays: `bdos_slot_status[]` (EMPTY/RUNNING/SUSPENDED), `bdos_
 
 ### Built-in Commands
 
-`help`, `clear`, `echo`, `uptime`, `pwd`, `cd`, `ls`, `df`, `mkdir`, `mkfile`, `rm`, `cat`, `write`, `format`, `sync`, `jobs`, `fg <slot>`, `kill <slot>`
+`help`, `clear`, `echo`, `uptime`, `pwd`, `cd`, `ls`, `df`, `mkdir`, `mkfile`, `rm`, `cat`, `write`, `cp`, `mv`, `format`, `sync`, `jobs`, `fg <slot>`, `kill <slot>`
 
 Any non-built-in command is treated as a program name and resolved/executed automatically.
 
@@ -208,3 +210,13 @@ The shell has modal input for the format wizard (multi-step: blocks → words/bl
 - Keep FIFO API stable — shell and FNP both push events into it.
 - New shell commands: add handler function in `shell_cmds.c`, add dispatch entry in `bdos_shell_execute_line()`.
 - New syscalls: add define in `bdos.h`, add case in `bdos_syscall_dispatch()`.
+
+## User Programs
+
+User programs live in `Software/C/userBDOS/` and are compiled with `Scripts/BCC/compile_user_bdos.sh <name>`. Notable programs:
+
+| Program | Description |
+|---------|-------------|
+| `edit` | Text editor with gap buffer, colored status bars, horizontal/vertical scrolling, file save/load |
+| `cmatrix` | Matrix rain effect — green-on-black palette, LFSR RNG, exits on Escape/Q |
+| `snake` | Snake game — event-based input (arrow/WASD), adjustable speed (+/=), LFSR RNG, exits on Escape/Q |

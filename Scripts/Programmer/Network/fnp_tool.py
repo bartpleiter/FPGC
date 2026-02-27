@@ -8,6 +8,7 @@ protocol (EtherType 0xB4B4).
 
 Usage:
   python fnp_tool.py [<interface>] upload [-t] <local_file> <fpgc_path>
+  python fnp_tool.py [<interface>] sync-files <local_dir>
   python fnp_tool.py [<interface>] key <text>
   python fnp_tool.py [<interface>] keycode <hex_code>
   python fnp_tool.py [<interface>] keyboard
@@ -27,6 +28,7 @@ Requires raw socket capability. Either run as root, or grant it with:
 import fcntl
 import math
 import os
+import pathlib
 import select
 import socket
 import struct
@@ -410,6 +412,108 @@ class FNPConnection:
         """Send FILE_ABORT to cancel any in-progress transfer."""
         return self._send_and_wait_ack(FNP_TYPE_FILE_ABORT, 0, b"")
 
+    def send_shell_command(self, command: str, delay: float = 0.5) -> bool:
+        """
+        Send a shell command to the FPGC by typing it as keycodes
+        followed by Enter.
+        """
+        print(f"  Shell: {command}")
+        for ch in command:
+            if not self.send_keycode(ord(ch)):
+                print(f"  Failed to send '{ch}'", file=sys.stderr)
+                return False
+        # Press Enter
+        if not self.send_keycode(HID_KEY_ENTER):
+            print("  Failed to send Enter", file=sys.stderr)
+            return False
+        # Wait for the shell to process the command
+        time.sleep(delay)
+        return True
+
+    # File extensions considered text. Everything else is treated as binary.
+    TEXT_EXTENSIONS = {".c", ".h", ".asm", ".txt", ".md", ".log"}
+
+    @staticmethod
+    def _is_text_file(path: pathlib.Path) -> bool:
+        """Determine if a file should be uploaded in text mode.
+
+        Only files with known text extensions are treated as text.
+        Everything else (including files without an extension) is binary.
+        """
+        ext = path.suffix.lower()
+        return ext in FNPConnection.TEXT_EXTENSIONS
+
+    def sync_files(
+        self, local_dir: str, delay: float = 0.5
+    ) -> bool:
+        """
+        Sync a local directory tree to the FPGC root filesystem.
+
+        1. Sends 'cd /' via keycodes to go to root.
+        2. Creates all directories via 'mkdir' shell commands.
+        3. Uploads all files via FNP file transfer.
+
+        Text files (detected by extension) are uploaded one-char-per-word.
+        Binary files (e.g. compiled programs in /bin) are uploaded packed.
+        """
+        base = pathlib.Path(local_dir)
+        if not base.is_dir():
+            print(f"Error: not a directory: {local_dir}", file=sys.stderr)
+            return False
+
+        # Collect directories and files (sorted for deterministic order)
+        dirs: list[str] = []
+        files: list[tuple[pathlib.Path, str, bool]] = []  # (local, fpgc, text?)
+
+        for item in sorted(base.rglob("*")):
+            rel = item.relative_to(base)
+            fpgc_path = "/" + str(rel)
+            if item.is_dir():
+                dirs.append(fpgc_path)
+            elif item.is_file():
+                text = self._is_text_file(item)
+                files.append((item, fpgc_path, text))
+
+        print(f"Syncing {local_dir} -> FPGC root")
+        print(f"  {len(dirs)} directories, {len(files)} files")
+        print(f"  Command delay: {delay}s")
+        print()
+
+        # Step 1: Navigate to root
+        print("[1/3] Navigating to root directory...")
+        if not self.send_shell_command("cd /", delay=delay):
+            return False
+
+        # Step 2: Create directories (breadth-first order is guaranteed
+        # by sorted rglob since parent paths sort before children)
+        if dirs:
+            print(f"[2/3] Creating {len(dirs)} directories...")
+            for d in dirs:
+                if not self.send_shell_command(f"mkdir {d}", delay=delay):
+                    print(f"  Warning: mkdir {d} may have failed",
+                          file=sys.stderr)
+                    # Continue anyway — directory might already exist
+        else:
+            print("[2/3] No directories to create.")
+
+        # Step 3: Upload files
+        if files:
+            print(f"[3/3] Uploading {len(files)} files...")
+            for i, (local_path, fpgc_path, text_mode) in enumerate(files, 1):
+                mode_str = "text" if text_mode else "binary"
+                print(f"\n--- File {i}/{len(files)}: "
+                      f"{fpgc_path} ({mode_str}) ---")
+                if not self.upload_file(str(local_path), fpgc_path,
+                                        text_mode=text_mode):
+                    print(f"  Failed to upload {fpgc_path}",
+                          file=sys.stderr)
+                    return False
+        else:
+            print("[3/3] No files to upload.")
+
+        print("\nSync complete!")
+        return True
+
     def keyboard_stream(self) -> None:
         """
         Interactive keyboard streaming mode.
@@ -504,6 +608,7 @@ def print_usage():
     print(__doc__)
     print("Commands:")
     print("  upload [-t] <local_file> <fpgc_path>   Upload a file")
+    print("  sync-files [--delay S] <local_dir>      Sync directory tree to FPGC root")
     print("  key <text>                              Send text as keycodes")
     print("  keycode <hex_code>                      Send a single HID keycode")
     print("  keyboard                                Interactive keyboard streaming")
@@ -533,7 +638,8 @@ def parse_mac(mac_str: str) -> bytes:
 
 
 # Known FNP commands (used for auto-detect logic)
-FNP_COMMANDS = {"upload", "key", "keycode", "keyboard", "abort", "detect-iface"}
+FNP_COMMANDS = {"upload", "sync-files", "key", "keycode", "keyboard", "abort",
+                "detect-iface"}
 
 
 def main():
@@ -605,6 +711,31 @@ def main():
                 sys.exit(1)
 
             success = conn.upload_file(local_file, fpgc_path, text_mode=text_mode)
+            sys.exit(0 if success else 1)
+
+        elif cmd == "sync-files":
+            sync_args = list(cmd_args)
+            delay = 0.5
+            if "--delay" in sync_args:
+                idx = sync_args.index("--delay")
+                if idx + 1 >= len(sync_args):
+                    print("Error: --delay requires a value",
+                          file=sys.stderr)
+                    sys.exit(1)
+                delay = float(sync_args[idx + 1])
+                sync_args = sync_args[:idx] + sync_args[idx + 2:]
+            if len(sync_args) < 1:
+                print(
+                    "Usage: fnp_tool.py [<iface>] sync-files "
+                    "[--delay S] <local_dir>"
+                )
+                sys.exit(1)
+            local_dir = sync_args[0]
+            if not os.path.isdir(local_dir):
+                print(f"Error: not a directory: {local_dir}",
+                      file=sys.stderr)
+                sys.exit(1)
+            success = conn.sync_files(local_dir, delay=delay)
             sys.exit(0 if success else 1)
 
         elif cmd == "key":

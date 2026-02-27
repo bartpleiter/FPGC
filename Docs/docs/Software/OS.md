@@ -54,6 +54,8 @@ BDOS provides a basic interactive shell with the following commands:
 | `mkdir <path>` | Create a directory |
 | `mkfile <path>` | Create an empty file |
 | `rm <path>` | Remove a file or directory |
+| `cp <src> <dest>` | Copy a file |
+| `mv <src> <dest>` | Move/rename a file |
 | `df` | Show filesystem usage |
 | `sync` | Flush filesystem to flash |
 | `format` | Format the filesystem (interactive wizard) |
@@ -133,6 +135,8 @@ The ASMPY assembler header places a `jump Syscall` instruction at absolute addre
 | 18 | `TERM_SET_CURSOR` | `a1` = x, `a2` = y | 0 | Set the terminal cursor position |
 | 19 | `TERM_GET_CURSOR` | — | (x<<8)\|y | Get the terminal cursor position (packed) |
 | 20 | `HEAP_ALLOC` | `a1` = size_words | pointer (or 0) | Allocate memory from the kernel heap |
+| 21 | `DELAY` | `a1` = milliseconds | 0 | Sleep for the given number of milliseconds |
+| 22 | `SET_PALETTE` | `a1` = index, `a2` = value | 0 | Set a GPU palette entry (value = (bg<<8)\|fg, 8-bit RRRGGGBB) |
 
 The syscall ABI allows a maximum of 3 arguments (`a1`–`a3` in `r5`–`r7`), with the return value in `r1`. Where more data is needed, arguments are packed (e.g., `TERM_PUT_CELL` packs tile and palette into a single word) or pointers are used.
 

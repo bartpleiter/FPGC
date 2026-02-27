@@ -23,6 +23,8 @@
 #define SYSCALL_TERM_SET_CURSOR 18
 #define SYSCALL_TERM_GET_CURSOR 19
 #define SYSCALL_HEAP_ALLOC     20
+#define SYSCALL_DELAY          21
+#define SYSCALL_SET_PALETTE    22
 
 // Special key codes (must match BDOS_KEY_* in bdos_hid.h)
 #define KEY_SPECIAL_BASE 0x100
@@ -82,5 +84,11 @@ int sys_term_get_cursor();
 
 // Convenience wrappers — Heap
 unsigned int* sys_heap_alloc(int size_words);
+
+// Convenience wrappers — Timing
+void sys_delay(int ms);
+
+// Convenience wrappers — GPU
+void sys_set_palette(int index, int value);
 
 #endif // SYSCALL_H

@@ -23,6 +23,8 @@
 #define SYSCALL_TERM_SET_CURSOR 18
 #define SYSCALL_TERM_GET_CURSOR 19
 #define SYSCALL_HEAP_ALLOC     20
+#define SYSCALL_DELAY          21
+#define SYSCALL_SET_PALETTE    22
 
 int bdos_syscall_dispatch(int num, int a1, int a2, int a3);
 
