@@ -7,7 +7,6 @@
 if [ $# -lt 1 ]; then
     echo "Usage: $0 <c_filename_in_userBDOS_dir_without_extension> [extra B32CC flags...]"
     echo "Example: $0 syscall_test"
-    echo "Example: $0 b32cc -I ../../BuildTools/B32CC/"
     exit 1
 fi
 

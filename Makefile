@@ -282,7 +282,6 @@ fnp-upload-userbdos: $(B32CC_OUTPUT)
 	@if [ -z "$(file)" ]; then \
 		echo "Usage: make fnp-upload-userbdos file=<c_filename_in_userBDOS_dir_without_extension> [flags=<extra B32CC flags>]"; \
 		echo "Example: make fnp-upload-userbdos file=hello"; \
-		echo "Example: make fnp-upload-userbdos file=b32cc flags='-I ../../BuildTools/B32CC/'"; \
 		echo "Available programs:"; \
 		find Software/C/userBDOS -name "*.c" -type f 2>/dev/null | grep -v "tmp" | sed 's|Software/C/userBDOS/||' | sed 's|.c||' | sort; \
 		exit 1; \

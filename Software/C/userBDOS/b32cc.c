@@ -5,9 +5,7 @@
 // and __WORD_ADDRESSABLE__ which sets CHAR_BIT=32 for correct buffer sizing.
 //
 // Compile with:
-//   ./Scripts/BCC/compile_user_bdos.sh b32cc -I ../../BuildTools/B32CC/
-//
-// The -I flag is needed so #include "cgb32p3.inc" inside smlrc.c resolves correctly.
+//   make fnp-upload-userbdos file=b32cc
 //
 // smlrc.c's __SMALLER_C__ block has #ifndef guards for macros also defined by
 // the common libs (NULL, size_t, FILE, EOF, EXIT_FAILURE, fpos_t).

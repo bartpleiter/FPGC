@@ -498,7 +498,12 @@ int CharQueueLen = 0;
     exlen char:     length of what the identifier expands into (<= 127)
     ex char[exlen]: what the identifier expands into (ASCII)
 */
+#ifdef __SMALLER_C__
+// On FPGC, big arrays are heap-allocated to reduce binary size
+char *MacroTable;
+#else
 char MacroTable[MAX_MACRO_TABLE_LEN];
+#endif
 int MacroTableLen = 0;
 
 /*
@@ -506,7 +511,11 @@ int MacroTableLen = 0;
     id char[idlen]: string (ASCIIZ)
     idlen char:     string length (<= 127)
 */
+#ifdef __SMALLER_C__
+char *IdentTable;
+#else
 char IdentTable[MAX_IDENT_TABLE_LEN];
+#endif
 int IdentTableLen = 0;
 int DummyIdent; // corresponds to empty string
 
@@ -605,8 +614,13 @@ int IsMain; // if inside main()
 int ParseLevel = 0; // Parse level/scope (file:0, fxn:1+)
 int ParamLevel = 0; // 1+ if parsing params, 0 otherwise
 
+#ifdef __SMALLER_C__
+unsigned char *SyntaxStack0;
+int *SyntaxStack1;
+#else
 unsigned char SyntaxStack0[SYNTAX_STACK_MAX];
 int SyntaxStack1[SYNTAX_STACK_MAX];
+#endif
 int SyntaxStackCnt;
 
 // all code
@@ -1993,7 +2007,13 @@ void errorRedecl(char* s)
 }
 
 // We always compile for B32P3
+#ifdef __SMALLER_C__
+// When cross-compiling for FPGC, B32CC searches includes relative to CWD
+// (Software/C/), not relative to the source file like gcc does.
+#include "../../BuildTools/B32CC/cgb32p3.inc"
+#else
 #include "cgb32p3.inc"
+#endif
 
 // expr.c code
 
@@ -8188,6 +8208,16 @@ int main(int argc, char** argv)
   argv = sys_shell_argv();
   // Default to userBDOS mode when running on the FPGC
   UserBDOS = 1;
+
+  // Heap-allocate large arrays to reduce binary size.
+  MacroTable = (char*)sys_heap_alloc(MAX_MACRO_TABLE_LEN);
+  memset(MacroTable, 0, MAX_MACRO_TABLE_LEN);
+  IdentTable = (char*)sys_heap_alloc(MAX_IDENT_TABLE_LEN);
+  memset(IdentTable, 0, MAX_IDENT_TABLE_LEN);
+  SyntaxStack0 = (unsigned char*)sys_heap_alloc(SYNTAX_STACK_MAX);
+  memset(SyntaxStack0, 0, SYNTAX_STACK_MAX);
+  SyntaxStack1 = (int*)sys_heap_alloc(SYNTAX_STACK_MAX);
+  memset(SyntaxStack1, 0, SYNTAX_STACK_MAX);
 #endif
 
   // Run-time initializer for SyntaxStack0[] to reduce

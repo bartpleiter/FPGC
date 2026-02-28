@@ -22,7 +22,7 @@ See [Specifications](System-overview/Specifications.md) for the full hardware/so
 
 ### Main goals
 
-- [ ] Use the FPGC as a fully portable standalone PC that can write, compile, and run software without an external computer
+- [x] Use the FPGC as a fully portable standalone PC that can write, compile, and run software without an external computer
 - [ ] Run DOOM (or a similar game) at a playable framerate, which requires the CPU to average under 2 cycles per instruction
 - [ ] Run a demo in a cluster setup of 5 FPGCs networked together, with one acting as a server and the other four rendering different parts of the screen in parallel
 - [x] Properly document the entire project
@@ -33,6 +33,6 @@ See [Specifications](System-overview/Specifications.md) for the full hardware/so
 - [x] Fully custom PCB without a development board
 - [ ] Custom OS with system calls and a proper architecture for user programs
 - [ ] 3D-printed case and monitor for a standalone physical computer
-- [ ] Self-hosted assembler and C compiler running on the FPGC
+- [x] Self-hosted assembler and C compiler running on the FPGC
 - [x] Ethernet communication via custom layer 2 protocol
 - [ ] SD card mass storage
