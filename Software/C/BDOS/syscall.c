@@ -109,6 +109,21 @@ int bdos_syscall_dispatch(int num, int a1, int a2, int a3)
       return 0;
     }
 
+    // ---- Process control ----
+    case SYSCALL_EXIT:
+    {
+      // Terminate the calling user program immediately.
+      // a1 = exit code.
+      bdos_run_retval = a1;
+      asm(
+        "load32 0x7C00001 r1"   // IO_HW_STACK_PTR
+        "load 13 r2"            // trampoline depth
+        "write 0 r1 r2"         // discard everything above trampoline
+        "jump Label_bdos_run_return"
+      );
+      return 0; // unreachable
+    }
+
     default:
       return -1;
   }

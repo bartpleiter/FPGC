@@ -17,7 +17,7 @@ Pipeline: `main.c` → B32CC → `.asm` → ASMPY → `.list` → `.bin`
 | `bdos.h` | Shared defines, globals, library imports, function declarations |
 | `bdos_heap.h` | Heap allocator declarations |
 | `bdos_shell.h` | Shell declarations (argc/argv globals) |
-| `bdos_syscall.h` | Syscall number definitions (0–22) |
+| `bdos_syscall.h` | Syscall number definitions (0–23) |
 | `mem_map.h` | Memory layout constants (must match `cgb32p3.inc` in B32CC) |
 | `main.c` | Entry point, main loop, interrupt dispatcher, `bdos_panic()` |
 | `init.c` | Hardware init: GPU, terminal, UART, timers, USB keyboard (CH376), Ethernet (ENC28J60) |
@@ -129,8 +129,9 @@ User programs invoke syscalls via an assembly trampoline. ABI: `r4` = syscall nu
 | 20 | `HEAP_ALLOC` | size_words | pointer (or 0) |
 | 21 | `DELAY` | milliseconds | 0 |
 | 22 | `SET_PALETTE` | index, value | 0 |
+| 23 | `EXIT` | exit_code | *(does not return)* |
 
-Note: `TERM_PUT_CELL` packs tile and palette into a single argument (`a3`) because the syscall ABI only allows 3 arguments. `TERM_GET_CURSOR` packs x and y into the return value similarly. `SET_PALETTE` writes to `GPU_PALETTE_TABLE_ADDR + index`; value format is `(bg_color << 8) | fg_color` with 8-bit RRRGGGBB colors.
+Note: `TERM_PUT_CELL` packs tile and palette into a single argument (`a3`) because the syscall ABI only allows 3 arguments. `TERM_GET_CURSOR` packs x and y into the return value similarly. `SET_PALETTE` writes to `GPU_PALETTE_TABLE_ADDR + index`; value format is `(bg_color << 8) | fg_color` with 8-bit RRRGGGBB colors. `EXIT` terminates the calling program immediately by resetting the HW stack to the trampoline depth and jumping to the BDOS return path — the exit code is reported as the program's return value.
 
 ## User Program Execution
 

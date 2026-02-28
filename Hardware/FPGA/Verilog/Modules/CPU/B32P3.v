@@ -417,16 +417,48 @@ wire [31:0] ex_alu_a;
 wire [31:0] ex_alu_b;
 wire [31:0] ex_alu_result;
 
-// Forwarding mux for ALU input A
-// Data comes directly from regbank (1-cycle latency handled by regbank)
+// ---- Forwarded-value capture for EX stalls ----
+// When EX is stalled (e.g., cache_line_hazard), the forwarding sources may
+// advance out of the pipeline before EX can latch. This creates a gap where
+// forward_a/b fall to 00 (no forward) but the register file output is stale.
+// Shadow registers capture the forwarded value during the stall so it persists.
+reg [31:0] ex_stall_saved_a = 32'd0;
+reg [31:0] ex_stall_saved_b = 32'd0;
+reg        ex_stall_saved_a_valid = 1'b0;
+reg        ex_stall_saved_b_valid = 1'b0;
+
+always @(posedge clk) begin
+    if (reset) begin
+        ex_stall_saved_a_valid <= 1'b0;
+        ex_stall_saved_b_valid <= 1'b0;
+    end else if (!ex_pipeline_stall) begin
+        // EX advancing: clear saved values
+        ex_stall_saved_a_valid <= 1'b0;
+        ex_stall_saved_b_valid <= 1'b0;
+    end else begin
+        // EX stalled: capture forwarded values when available
+        if (forward_a != 2'b00) begin
+            ex_stall_saved_a <= (forward_a == 2'b01) ? ex_mem_alu_result : wb_data;
+            ex_stall_saved_a_valid <= 1'b1;
+        end
+        if (forward_b != 2'b00) begin
+            ex_stall_saved_b <= (forward_b == 2'b01) ? ex_mem_alu_result : wb_data;
+            ex_stall_saved_b_valid <= 1'b1;
+        end
+    end
+end
+
+// Forwarding mux for ALU input A, with stall-capture fallback
 assign ex_alu_a = (forward_a == 2'b01) ? ex_mem_alu_result :
                   (forward_a == 2'b10) ? wb_data :
+                  ex_stall_saved_a_valid ? ex_stall_saved_a :
                   ex_areg_data;  // Use regbank output directly
 
-// Forwarding mux for ALU input B (before const selection)
+// Forwarding mux for ALU input B (before const selection), with stall-capture fallback
 wire [31:0] ex_breg_forwarded;
 assign ex_breg_forwarded = (forward_b == 2'b01) ? ex_mem_alu_result :
                            (forward_b == 2'b10) ? wb_data :
+                           ex_stall_saved_b_valid ? ex_stall_saved_b :
                            ex_breg_data;  // Use regbank output directly
 
 // ALU source B: register or constant

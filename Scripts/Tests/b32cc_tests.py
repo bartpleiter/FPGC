@@ -111,15 +111,17 @@ class ResultParsingError(B32CCTestError):
 class B32CCTestRunner:
     """Main class for running B32CC tests with improved error handling and logging."""
 
-    def __init__(self, config: B32CCTestConfig = None, temp_dir: Optional[str] = None):
+    def __init__(self, config: B32CCTestConfig = None, temp_dir: Optional[str] = None, pic_mode: bool = False):
         """Initialize the test runner with configuration.
 
         Args:
             config: Configuration for the test runner
             temp_dir: Optional temporary directory for isolated test execution
+            pic_mode: Whether to assemble in PIC mode (-i flag)
         """
         self.config = config or B32CCTestConfig()
         self.temp_dir = temp_dir
+        self.pic_mode = pic_mode
 
         # If using temp_dir, override paths for isolation
         if temp_dir:
@@ -282,6 +284,7 @@ class B32CCTestRunner:
         output_path: str,
         description: str,
         hex_format: bool = False,
+        pic: bool = False,
     ) -> None:
         """
         Assemble assembly code to a list file.
@@ -291,13 +294,15 @@ class B32CCTestRunner:
             output_path: Path to output list file
             description: Description for logging
             hex_format: Whether to use hex format (-h flag)
+            pic: Whether to use PIC mode (-i flag)
 
         Raises:
             AssemblerError: If assembly fails
         """
         # Run asmpy assembler
         hex_flag = "-h" if hex_format else ""
-        assemble_cmd = f"asmpy {source_path} {output_path} {hex_flag}".strip()
+        pic_flag = "-i" if pic else ""
+        assemble_cmd = f"asmpy {source_path} {output_path} {hex_flag} {pic_flag}".strip()
         exit_code, output = self._run_command(assemble_cmd, f"Assembling {description}")
 
         if exit_code != 0:
@@ -322,7 +327,8 @@ class B32CCTestRunner:
 
         # Assemble the test code for RAM
         self._assemble_code(
-            asm_path, self.config.RAM_LIST_PATH, "RAM code", hex_format=True
+            asm_path, self.config.RAM_LIST_PATH, "RAM code", hex_format=True,
+            pic=self.pic_mode
         )
 
         # Convert to 256 bit lines for SDRAM memory init file
@@ -491,19 +497,19 @@ def _run_single_test_parallel(args: tuple) -> tuple[str, bool, str]:
     Run a single test in isolation for parallel execution.
 
     Args:
-        args: Tuple of (test_file, temp_base_dir, test_index)
+        args: Tuple of (test_file, temp_base_dir, test_index, pic_mode)
 
     Returns:
         Tuple of (test_file, passed, error_message)
     """
-    test_file, temp_base_dir, test_index = args
+    test_file, temp_base_dir, test_index, pic_mode = args
 
     # Create a unique temp directory for this test
     temp_dir = os.path.join(temp_base_dir, f"test_{test_index}")
     os.makedirs(temp_dir, exist_ok=True)
 
     try:
-        runner = B32CCTestRunner(temp_dir=temp_dir)
+        runner = B32CCTestRunner(temp_dir=temp_dir, pic_mode=pic_mode)
         runner.run_single_test(test_file)
         return (test_file, True, "")
     except Exception as e:
@@ -595,15 +601,17 @@ class ParallelB32CCTestRunner:
     # Can be overridden via FPGC_TEST_WORKERS environment variable
     DEFAULT_WORKERS = int(os.environ.get("FPGC_TEST_WORKERS", 4))
 
-    def __init__(self, max_workers: Optional[int] = None):
+    def __init__(self, max_workers: Optional[int] = None, pic_mode: bool = False):
         """
         Initialize parallel test runner.
 
         Args:
             max_workers: Maximum number of parallel workers. Defaults to 4.
+            pic_mode: Whether to assemble in PIC mode (-i flag)
         """
         self.max_workers = max_workers or self.DEFAULT_WORKERS
         self.config = B32CCTestConfig()
+        self.pic_mode = pic_mode
 
     def run_tests_parallel(self) -> tuple[list[str], list[tuple[str, str]]]:
         """
@@ -629,7 +637,7 @@ class ParallelB32CCTestRunner:
         total = len(tests)
 
         # Prepare arguments for parallel execution
-        test_args = [(test, temp_base_dir, i) for i, test in enumerate(tests)]
+        test_args = [(test, temp_base_dir, i, self.pic_mode) for i, test in enumerate(tests)]
 
         passed_tests: list[str] = []
         failed_tests: list[tuple[str, str]] = []
@@ -689,11 +697,16 @@ def main() -> None:
         nargs="?",
         help="Specific test file to run (e.g., 04_control_flow/if_statements.c). If not provided, runs all tests.",
     )
+    parser.add_argument(
+        "--pic",
+        action="store_true",
+        help="Assemble tests in PIC mode (-i flag) to test position-independent code",
+    )
     args = parser.parse_args()
 
     if args.test_file:
         # Run single test
-        runner = B32CCTestRunner()
+        runner = B32CCTestRunner(pic_mode=args.pic)
         try:
             os.makedirs(runner.config.TMP_DIRECTORY, exist_ok=True)
             runner.run_single_test(args.test_file)
@@ -703,7 +716,7 @@ def main() -> None:
             sys.exit(1)
     else:
         # Run all tests in parallel (default)
-        runner = ParallelB32CCTestRunner(max_workers=args.workers)
+        runner = ParallelB32CCTestRunner(max_workers=args.workers, pic_mode=args.pic)
         passed, failed = runner.run_tests_parallel()
         total = len(passed) + len(failed)
         _display_results_grouped(passed, failed, total)

@@ -4,13 +4,16 @@
 # The resulting binary can be loaded by the BDOS 'run' command.
 
 # Check for required argument
-if [ $# -ne 1 ]; then
-    echo "Usage: $0 <c_filename_in_userBDOS_dir_without_extension>"
+if [ $# -lt 1 ]; then
+    echo "Usage: $0 <c_filename_in_userBDOS_dir_without_extension> [extra B32CC flags...]"
     echo "Example: $0 syscall_test"
+    echo "Example: $0 b32cc -I ../../BuildTools/B32CC/"
     exit 1
 fi
 
 C_FILENAME="$1"
+shift
+EXTRA_FLAGS="$@"
 C_FILENAME_WITHOUT_DIR="${C_FILENAME##*/}"
 C_SOURCE="Software/C/userBDOS/${C_FILENAME}.c"
 ASM_OUTPUT="Software/ASM/Output/${C_FILENAME_WITHOUT_DIR}.asm"
@@ -41,7 +44,7 @@ mkdir -p Software/ASM/Output
 echo "Compiling C to assembly..."
 # Change to Software/C directory so includes work correctly
 cd Software/C
-if ../../"$B32CC" "userBDOS/${C_FILENAME}.c" "../../${ASM_OUTPUT}" "-user-bdos"
+if ../../"$B32CC" "userBDOS/${C_FILENAME}.c" "../../${ASM_OUTPUT}" "-user-bdos" $EXTRA_FLAGS
 then
     echo "C compilation successful"
 else

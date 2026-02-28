@@ -7,7 +7,7 @@ The B32P CPU has gone through several iterations. Each revision improved perform
 The third iteration is mainly a pipeline redesign focused on simplicity and timing optimization, while maintaining ISA compatibility with B32P2 (drop-in replacement). The new classic MIPS-style 5-stage pipeline achieves 100 MHz on a Cyclone IV FPGA, completely outperforming the B32P2 despite slightly worse IPC from the simpler design.
 
 - **5-stage pipeline**: IF, ID, EX, MEM, WB
-- **Straightforward hazard handling**: Load-use detection with 2-level data forwarding
+- **Straightforward hazard handling**: Load-use detection with 2-level data forwarding, although there are still some complex hazard cases that needed to be handled
 - **100 MHz timing**: Critical paths specifically broken up to reach this clock speed for the first time
 - **Simpler to extend**: The cleaner design makes it easier to add features like step-through debugging
 

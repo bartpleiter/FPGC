@@ -12,6 +12,12 @@
 #endif
 #endif
 
+#ifdef COMMON_STDIO
+#ifndef COMMON_STRING
+#define COMMON_STRING
+#endif
+#endif
+
 // Flag based inclusion of libraries
 // Header files
 #ifdef COMMON_STRING
@@ -30,6 +36,14 @@
 #include "libs/common/fixedmath.h"
 #endif
 
+#ifdef COMMON_STDIO
+#include "libs/common/stdio.h"
+#endif
+
+#ifdef COMMON_TIME
+#include "libs/common/time.h"
+#endif
+
 // Implementation files
 #ifdef COMMON_STRING
 #include "libs/common/string.c"
@@ -45,6 +59,14 @@
 
 #ifdef COMMON_FIXEDMATH
 #include "libs/common/fixedmath.c"
+#endif
+
+#ifdef COMMON_STDIO
+#include "libs/common/stdio.c"
+#endif
+
+#ifdef COMMON_TIME
+#include "libs/common/time.c"
 #endif
 
 #endif // COMMON_H

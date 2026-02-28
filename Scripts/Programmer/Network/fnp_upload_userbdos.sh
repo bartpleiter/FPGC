@@ -13,9 +13,10 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 FNP_TOOL="$SCRIPT_DIR/fnp_tool.py"
 COMPILE_SCRIPT="$PROJECT_ROOT/Scripts/BCC/compile_user_bdos.sh"
 
-if [ $# -ne 1 ]; then
-    echo "Usage: $0 <c_filename_in_userBDOS_dir_without_extension>"
+if [ $# -lt 1 ]; then
+    echo "Usage: $0 <c_filename_in_userBDOS_dir_without_extension> [extra B32CC flags...]"
     echo "Example: $0 hello"
+    echo "Example: $0 b32cc -I ../../BuildTools/B32CC/"
     echo ""
     echo "Available programs:"
     find "$PROJECT_ROOT/Software/C/userBDOS" -name "*.c" -type f 2>/dev/null | \
@@ -24,6 +25,8 @@ if [ $# -ne 1 ]; then
 fi
 
 C_FILENAME="$1"
+shift
+EXTRA_FLAGS="$@"
 C_FILENAME_WITHOUT_DIR="${C_FILENAME##*/}"
 BIN_OUTPUT="Software/ASM/Output/code.bin"
 
@@ -31,7 +34,7 @@ cd "$PROJECT_ROOT"
 
 # Step 1: Compile using the compile script
 echo "=== Compiling userBDOS program ==="
-"$COMPILE_SCRIPT" "$C_FILENAME"
+"$COMPILE_SCRIPT" "$C_FILENAME" $EXTRA_FLAGS
 
 # Activate the virtual environment (needed for FNP tool)
 source .venv/bin/activate

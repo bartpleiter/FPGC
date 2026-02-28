@@ -140,3 +140,8 @@ void sys_set_palette(int index, int value)
 {
   syscall(SYSCALL_SET_PALETTE, index, value, 0);
 }
+
+void sys_exit(int code)
+{
+  syscall(SYSCALL_EXIT, code, 0, 0);
+}

@@ -119,6 +119,41 @@ Note that the detection happens in EX before the second instruction moves to MEM
 
 This hazard behaves differently from load-use. The cache line hazard stalls IF, ID, and EX, but lets MEM and WB continue. This is critical, because the first instruction needs to complete its memory access in MEM to clear the hazard. If MEM were also stalled, the pipeline would deadlock.
 
+#### Shadow Registers: Preserving Forwarded Values During EX Stalls
+
+The cache line hazard creates a subtle interaction with data forwarding. Because it stalls EX while letting MEM and WB advance, forwarding sources can disappear while EX still needs them.
+
+Consider this sequence:
+
+```text
+Instr:   sub r1 1 r1         ; ALU write to r1
+         write 0 r11 r1      ; SDRAM write (uses r1), cache line A
+         write -1 r14 r1     ; SDRAM write (uses r1), cache line B
+
+Cycle:    1    2    3    4    5    6    7    8    9   10
+sub:     [IF] [ID] [EX] [MEM][WB]
+write1:       [IF] [ID] [EX] [MEM][  ] [  ] [WB]
+write2:            [IF] [ID] [EX] [  ] [  ] [EX] [MEM][WB]
+                              ↑    ↑
+                        EX stalled. MEM/WB advance.
+```
+
+Here's what happens step by step:
+
+1. In cycle 4, sub is in MEM and write1 is in EX. Forward `b = 01` delivers sub's result from EX/MEM to write1. All correct.
+2. In cycle 5, sub reaches WB. Write2 is in EX with forward `b = 10` (from MEM/WB). Write1 starts its SDRAM access in MEM.
+3. In cycle 6, write1 is still in MEM (multi-cycle SDRAM write) and write2 is stalled in EX. But sub has left WB — its result is no longer in any pipeline register.
+4. When the cache line hazard holds EX one more cycle (cycle 7), MEM/WB advances, overwriting sub's result.
+5. In cycle 8, write2 finally enters EX with forward `b = 00` (no forwarding). It falls back to the register file, which holds the **stale** pre-sub value.
+
+The fix is a pair of **shadow registers** (`ex_stall_saved_a` and `ex_stall_saved_b`) that capture forwarded values while EX is stalled:
+
+- When `ex_pipeline_stall` is active and `forward_a` or `forward_b` is non-zero, the forwarded value is saved into the shadow register and a valid flag is set.
+- When the stall clears, the valid flags are reset.
+- The forwarding MUX chain becomes: active pipeline forward → shadow register (if valid) → register file output.
+
+This ensures that once a forwarded value is delivered to EX, it's preserved even if the forwarding source advances out of the pipeline during a multi-cycle stall.
+
 ## The Three-Tier Stall Architecture
 
 The pipeline has three separate stall signals, each freezing a different subset of stages:

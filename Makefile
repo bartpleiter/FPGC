@@ -280,13 +280,14 @@ fnp-upload-text:
 
 fnp-upload-userbdos: $(B32CC_OUTPUT)
 	@if [ -z "$(file)" ]; then \
-		echo "Usage: make fnp-upload-userbdos file=<c_filename_in_userBDOS_dir_without_extension>"; \
+		echo "Usage: make fnp-upload-userbdos file=<c_filename_in_userBDOS_dir_without_extension> [flags=<extra B32CC flags>]"; \
 		echo "Example: make fnp-upload-userbdos file=hello"; \
+		echo "Example: make fnp-upload-userbdos file=b32cc flags='-I ../../BuildTools/B32CC/'"; \
 		echo "Available programs:"; \
 		find Software/C/userBDOS -name "*.c" -type f 2>/dev/null | grep -v "tmp" | sed 's|Software/C/userBDOS/||' | sed 's|.c||' | sort; \
 		exit 1; \
 	fi
-	./Scripts/Programmer/Network/fnp_upload_userbdos.sh $(file)
+	./Scripts/Programmer/Network/fnp_upload_userbdos.sh $(file) $(flags)
 
 fnp-keyboard:
 	./Scripts/Programmer/Network/fnp_keyboard.sh
@@ -391,7 +392,7 @@ help:
 	@echo "  fnp-upload-text       - Upload a text file to the FPGC"
 	@echo "                          Usage: make fnp-upload-text file=<local> dest=<fpgc_path>"
 	@echo "  fnp-upload-userbdos   - Compile and upload a userBDOS C program to /bin"
-	@echo "                          Usage: make fnp-upload-userbdos file=<name>"
+	@echo "                          Usage: make fnp-upload-userbdos file=<name> [flags='<B32CC flags>']"
 	@echo "  fnp-keyboard          - Interactive keyboard streaming to FPGC"
 	@echo "  fnp-sync-files        - Sync Files/BRFS-init/ to FPGC root filesystem"
 	@echo ""

@@ -101,8 +101,9 @@
 #include "libs/kernel/io/timer.h"
 #endif
 
-// Always include sys library
+// Always include sys and common time libraries
 #include "libs/kernel/sys.h"
+#include "libs/common/time.h"
 
 // Implementation files
 #ifdef KERNEL_GPU_HAL
@@ -153,7 +154,8 @@
 #include "libs/kernel/io/timer.c"
 #endif
 
-// Always include sys library
+// Always include sys and common time libraries
 #include "libs/kernel/sys.c"
+#include "libs/common/time.c"
 
 #endif // KERNEL_H

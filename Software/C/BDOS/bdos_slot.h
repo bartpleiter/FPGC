@@ -36,6 +36,9 @@ extern unsigned int bdos_suspend_temp_regs[15];
 extern unsigned int bdos_loop_saved_sp;
 extern unsigned int bdos_loop_saved_bp;
 
+// Program execution globals (used by trampoline and EXIT syscall)
+extern int bdos_run_retval;
+
 // Slot management functions
 void bdos_slot_init();
 int bdos_slot_alloc();

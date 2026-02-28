@@ -42,10 +42,20 @@
 
 #else // #ifndef __SMALLER_C__
 
-#define NULL 0
-#define size_t unsigned int
+#define NO_ANNOTATIONS
 
+#ifndef NULL
+#define NULL 0
+#endif
+#ifndef size_t
+#define size_t unsigned int
+#endif
+
+#ifdef __WORD_ADDRESSABLE__
+#define CHAR_BIT (32)
+#else
 #define CHAR_BIT (8)
+#endif
 
 #ifdef __SMALLER_C_SCHAR__
 #define CHAR_MIN (-128)
@@ -81,7 +91,9 @@
 #endif
 #endif
 
+#ifndef EXIT_FAILURE
 #define EXIT_FAILURE 1
+#endif
 
 void exit(int);
 int atoi(char*);
@@ -101,8 +113,12 @@ int isdigit(int);
 int isalpha(int);
 int isalnum(int);
 
+#ifndef FILE
 #define FILE void
+#endif
+#ifndef EOF
 #define EOF (-1)
+#endif
 FILE* fopen(char*, char*);
 int fclose(FILE*);
 int putchar(int);
@@ -119,6 +135,8 @@ int fprintf(FILE*, char*, ...);
 int vprintf(char*, void*);
 //int vfprintf(FILE*, char*, va_list);
 int vfprintf(FILE*, char*, void*);
+#ifndef FPOS_T_DEFINED
+#define FPOS_T_DEFINED
 struct fpos_t_
 {
   union
@@ -128,6 +146,7 @@ struct fpos_t_
   } u;
 }; // keep in sync with stdio.h !!!
 #define fpos_t struct fpos_t_
+#endif
 int fgetpos(FILE*, fpos_t*);
 int fsetpos(FILE*, fpos_t*);
 
@@ -542,11 +561,11 @@ int UserBDOS = 0; // if set, compile program as BDOS User Program
 // Global C identifiers in the ELF format should not be predixed with an underscore.
 int UseLeadingUnderscores = 1;
 
-char* FileHeader = "";
-char* CodeHeaderFooter[2] = { "", "" };
-char* DataHeaderFooter[2] = { "", "" };
-char* RoDataHeaderFooter[2] = { "", "" };
-char* BssHeaderFooter[2] = { "", "" };
+char* FileHeader = 0;
+char* CodeHeaderFooter[2] = { 0, 0 };
+char* DataHeaderFooter[2] = { 0, 0 };
+char* RoDataHeaderFooter[2] = { 0, 0 };
+char* BssHeaderFooter[2] = { 0, 0 };
 char** CurHeaderFooter;
 
 int CharIsSigned = 1;
@@ -857,7 +876,7 @@ void DumpIdentTable()
 }
 #endif
 
-char* rws[] =
+char rws[][12] =
 {
   "break", "case", "char", "continue", "default", "do", "else",
   "extern", "for", "if", "int", "return", "signed", "sizeof",
@@ -916,7 +935,7 @@ unsigned char tktk[] =
   tokMultFP, tokDivFP
 };
 
-char* tks[] =
+char tks[][16] =
 {
   "<EOF>",
   // Single-character operators and punctuators:
@@ -2973,7 +2992,11 @@ int GetFxnInfo(int ExprTypeSynPtr, int* MinParams, int* MaxParams, int* ReturnEx
   if (SyntaxStack0[ExprTypeSynPtr] == ')')
   {
     // "fxn()": unspecified parameters, so, there can be any number of them
-    *MaxParams = 32767; // INT_MAX;
+    // B32P3: Cap at 4 (register args only). The caller always allocates at least
+    // 4 words. With MaxParams=4, the prologue only saves r4-r7 and doesn't pop
+    // from the hardware stack, preventing writes beyond the caller's allocation.
+    // Variadic arg access via &param+N works for args 1-4 in the stack area.
+    *MaxParams = 4;
     *ReturnExprTypeSynPtr = ExprTypeSynPtr + 1;
     return 1;
   }
@@ -2998,7 +3021,9 @@ int GetFxnInfo(int ExprTypeSynPtr, int* MinParams, int* MaxParams, int* ReturnEx
       }
       else
       {
-        *MaxParams = 32767; // INT_MAX;
+        // B32P3: Cap at 4 (register args only) — see note above about
+        // hardware stack pops and caller-allocated stack area.
+        *MaxParams = 4;
       }
     }
     else if (tok == '(')
@@ -4700,9 +4725,12 @@ int puts2(char* s)
   int res;
   if (!OutFile)
     return 0;
-  // Turbo C++ 1.01's fputs() returns EOF if s is empty, which is wrong.
-  // Hence the workaround.
-  if (*s == '\0' || (res = fputs(s, OutFile)) >= 0)
+  if (!s || *s == '\0')
+  {
+    // NULL or empty string: just output a newline
+    return fputc('\n', OutFile);
+  }
+  if ((res = fputs(s, OutFile)) >= 0)
   {
     // unlike puts(), fputs() doesn't append '\n', append it manually
     res = fputc('\n', OutFile);
@@ -6107,7 +6135,7 @@ int InitScalar(int synPtr, int tok)
     // so they are always in range for the assembler?
     GenIntData(elementSz, val);
   }
-  else if (elementSz == (unsigned)SizeOfWord)
+  else if (elementSz == (unsigned)(WordAddressable ? 1 : SizeOfWord))
   {
     if (ttop == tokIdent)
     {
@@ -8142,8 +8170,9 @@ int ParseBlock(int BrkCntTarget[2], int casesIdx)
       tok = ParseStatement(tok, BrkCntTarget, casesIdx);
     }
     else
-      //error("ParseBlock(): Unexpected token %s\n", GetTokenName(tok));
+    {
       errorUnexpectedToken(tok);
+    }
   }
 }
 
@@ -8151,6 +8180,15 @@ int main(int argc, char** argv)
 {
   // gcc/MinGW inserts a call to __main() here.
   int i;
+
+#ifdef __SMALLER_C__
+  // On FPGC userBDOS, command-line args come via syscall, not main() params.
+  // The BDOS loader doesn't pass argc/argv — it just jumps to Main.
+  argc = sys_shell_argc();
+  argv = sys_shell_argv();
+  // Default to userBDOS mode when running on the FPGC
+  UserBDOS = 1;
+#endif
 
   // Run-time initializer for SyntaxStack0[] to reduce
   // executable file size (SyntaxStack0[] will be in .bss)
@@ -8354,6 +8392,8 @@ int main(int argc, char** argv)
     DefineMacro("__SMALLER_C_SCHAR__", "");
   else
     DefineMacro("__SMALLER_C_UCHAR__", "");
+  if (WordAddressable)
+    DefineMacro("__WORD_ADDRESSABLE__", "");
 
   // populate CharQueue[] with the initial file characters
   ShiftChar();

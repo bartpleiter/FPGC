@@ -183,6 +183,18 @@ B32CC generates a wrapper that:
 The wrapper also contains a jump to the `interrupt()` function for handling interrupts and is automatically included in the generated assembly.
 The wrapper changes depending on the command line option used.
 
+## Self-Hosting on the FPGC
+
+B32CC can compile itself to run natively on the FPGC under BDOS. When compiled with itself (using the `__SMALLER_C__` define), several defaults change automatically:
+
+- **`NO_ANNOTATIONS`**: Assembly output annotations are disabled at compile time to reduce output file size (and increase compilation speed).
+- **`-user-bdos` mode**: Defaults to on when running on the FPGC, since the native compiler only targets userBDOS programs.
+- **Command-line arguments**: Retrieved via `sys_shell_argc()` / `sys_shell_argv()` syscalls instead of traditional `main(argc, argv)`.
+
+Surprisingly, the C compiler was able to run on the word-addressable, no-linker, no-MMU architecture of the FPGC with only minor adjustments.
+
+The output can be further assembled using the `asm` user program and then executed directly all on the FPGC.
+
 ## Testing
 
 B32CC can be tested in combination with the Assembler (ASMPY) and Verilog simulation using the provided test suite commands from the Makefile:

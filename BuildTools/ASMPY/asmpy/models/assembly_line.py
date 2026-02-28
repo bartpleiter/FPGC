@@ -60,9 +60,24 @@ class AssemblyLine(ABC):
     def parse_line(source_line: SourceLine) -> "AssemblyLine":
         """Parse the line into an appropriate AssemblyLine subclass."""
         original = source_line.line
-        parts = original.split(";")
-        code_str = parts[0].strip()
-        comment = parts[1].strip() if len(parts) > 1 else ""
+
+        # Split on semicolons for comments, but respect quoted strings.
+        # A semicolon inside double quotes is part of the string, not a comment.
+        code_str = ""
+        comment = ""
+        in_quotes = False
+        for i, ch in enumerate(original):
+            if ch == '"':
+                # Check for escaped quote: only toggle if previous char is not backslash
+                if i == 0 or original[i - 1] != '\\':
+                    in_quotes = not in_quotes
+            elif ch == ';' and not in_quotes:
+                code_str = original[:i].strip()
+                comment = original[i + 1:].strip()
+                break
+        else:
+            code_str = original.strip()
+            comment = ""
 
         if not code_str:
             return CommentAssemblyLine(

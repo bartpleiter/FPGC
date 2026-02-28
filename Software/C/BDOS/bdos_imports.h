@@ -5,6 +5,7 @@
 #define COMMON_STRING
 #define COMMON_STDLIB
 #define COMMON_CTYPE
+#define COMMON_TIME
 #include "libs/common/common.h"
 
 // Kernel libraries
