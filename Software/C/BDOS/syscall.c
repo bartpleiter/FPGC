@@ -124,6 +124,10 @@ int bdos_syscall_dispatch(int num, int a1, int a2, int a3)
       return 0; // unreachable
     }
 
+    // ---- Directory listing ----
+    case SYSCALL_FS_READDIR:
+      return brfs_read_dir((char*)a1, (struct brfs_dir_entry*)a2, (unsigned int)a3);
+
     default:
       return -1;
   }

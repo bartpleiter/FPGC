@@ -130,8 +130,9 @@ User programs invoke syscalls via an assembly trampoline. ABI: `r4` = syscall nu
 | 21 | `DELAY` | milliseconds | 0 |
 | 22 | `SET_PALETTE` | index, value | 0 |
 | 23 | `EXIT` | exit_code | *(does not return)* |
+| 24 | `FS_READDIR` | path, entry_buf, max | entry count (or <0 error) |
 
-Note: `TERM_PUT_CELL` packs tile and palette into a single argument (`a3`) because the syscall ABI only allows 3 arguments. `TERM_GET_CURSOR` packs x and y into the return value similarly. `SET_PALETTE` writes to `GPU_PALETTE_TABLE_ADDR + index`; value format is `(bg_color << 8) | fg_color` with 8-bit RRRGGGBB colors. `EXIT` terminates the calling program immediately by resetting the HW stack to the trampoline depth and jumping to the BDOS return path — the exit code is reported as the program's return value.
+Note: `TERM_PUT_CELL` packs tile and palette into a single argument (`a3`) because the syscall ABI only allows 3 arguments. `TERM_GET_CURSOR` packs x and y into the return value similarly. `SET_PALETTE` writes to `GPU_PALETTE_TABLE_ADDR + index`; value format is `(bg_color << 8) | fg_color` with 8-bit RRRGGGBB colors. `EXIT` terminates the calling program immediately by resetting the HW stack to the trampoline depth and jumping to the BDOS return path — the exit code is reported as the program's return value. `FS_READDIR` fills `entry_buf` with raw `brfs_dir_entry` structs (8 words each: 4×filename, modify_date, flags, fat_idx, filesize) and returns the number of entries.
 
 ## User Program Execution
 
@@ -221,3 +222,4 @@ User programs live in `Software/C/userBDOS/` and are compiled with `Scripts/BCC/
 | `edit` | Text editor with gap buffer, colored status bars, horizontal/vertical scrolling, file save/load |
 | `cmatrix` | Matrix rain effect — green-on-black palette, LFSR RNG, exits on Escape/Q |
 | `snake` | Snake game — event-based input (arrow/WASD), adjustable speed (+/=), LFSR RNG, exits on Escape/Q |
+| `tree` | Directory tree listing — recursive, box-drawing characters, optional path argument, summary line |

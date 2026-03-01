@@ -26,6 +26,7 @@
 #define SYSCALL_DELAY          21
 #define SYSCALL_SET_PALETTE    22
 #define SYSCALL_EXIT           23
+#define SYSCALL_FS_READDIR     24
 
 // Special key codes (must match BDOS_KEY_* in bdos_hid.h)
 #define KEY_SPECIAL_BASE 0x100
@@ -71,6 +72,7 @@ int sys_fs_stat(char* path, unsigned int* entry_buf);
 int sys_fs_delete(char* path);
 int sys_fs_create(char* path);
 int sys_fs_filesize(int fd);
+int sys_fs_readdir(char* path, unsigned int* entry_buf, unsigned int max_entries);
 
 // Convenience wrappers — Shell
 int sys_shell_argc();

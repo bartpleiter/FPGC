@@ -26,6 +26,7 @@
 #define SYSCALL_DELAY          21
 #define SYSCALL_SET_PALETTE    22
 #define SYSCALL_EXIT           23
+#define SYSCALL_FS_READDIR     24
 
 int bdos_syscall_dispatch(int num, int a1, int a2, int a3);
 

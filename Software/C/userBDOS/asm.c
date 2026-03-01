@@ -140,13 +140,16 @@ int   text_buf_size;
 /* Temporary line buffer */
 char  line_buf[MAX_LINE_LEN];
 
+/* Debug mode flag - set by -d argument */
+int   debug_mode;
+
 /*===========================================================================*/
 /*  Utility functions                                                        */
 /*===========================================================================*/
 
 void print_str(char *s)
 {
-  sys_print_str(s);
+  if (debug_mode) sys_print_str(s);
 }
 
 /* Global error flag - set by error functions, checked by main */
@@ -156,15 +159,18 @@ void print_int(int n)
 {
   char buf[16];
   itoa(n, buf, 10);
-  sys_print_str(buf);
+  if (debug_mode) sys_print_str(buf);
 }
 
 void print_hex(unsigned int n)
 {
   char buf[16];
   utoa(n, buf, 16, 0);
-  sys_print_str("0x");
-  sys_print_str(buf);
+  if (debug_mode)
+  {
+    sys_print_str("0x");
+    sys_print_str(buf);
+  }
 }
 
 void error_exit(char *msg)
@@ -1697,8 +1703,18 @@ int main()
 
   if (argc < 3)
   {
-    print_str("Usage: asm <input.asm> <output.bin>\n");
+    sys_print_str("Usage: asm <input.asm> <output.bin> [-d]\n");
     return 1;
+  }
+
+  /* Check for -d debug flag */
+  debug_mode = 0;
+  for (i = 1; i < argc; i = i + 1)
+  {
+    if (strcmp(argv[i], "-d") == 0)
+    {
+      debug_mode = 1;
+    }
   }
 
   input_path = argv[1];
@@ -1754,7 +1770,7 @@ int main()
 
   /* Pass 1: parse lines into sections, collect labels */
   pass1();
-  if (has_error) { print_str("Aborted due to errors in Pass 1\n"); return 1; }
+  if (has_error) { sys_print_str("Aborted due to errors in Pass 1\n"); return 1; }
 
   print_str("Pass 1: ");
   for (i = 0; i < 4; i = i + 1)
@@ -1766,7 +1782,7 @@ int main()
 
   /* Merge sections and expand pseudo-instructions */
   merge_sections_and_expand();
-  if (has_error) { print_str("Aborted due to errors in merge/expand\n"); return 1; }
+  if (has_error) { sys_print_str("Aborted due to errors in merge/expand\n"); return 1; }
 
   print_str("After merge: ");
   print_int(prog_count);
@@ -1780,7 +1796,7 @@ int main()
   if (a2r_count > 0)
   {
     pic_stabilize();
-    if (has_error) { print_str("Aborted due to PIC errors\n"); return 1; }
+    if (has_error) { sys_print_str("Aborted due to PIC errors\n"); return 1; }
     print_str("PIC stabilized\n");
   }
 
@@ -1789,7 +1805,7 @@ int main()
 
   /* Pass 2: encode all instructions */
   pass2();
-  if (has_error) { print_str("Aborted due to encoding errors\n"); return 1; }
+  if (has_error) { sys_print_str("Aborted due to encoding errors\n"); return 1; }
 
   print_str("Pass 2: ");
   print_int(output_count);

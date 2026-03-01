@@ -34,8 +34,8 @@
 #define CTRL_G  7
 #define CTRL_H  8    // Backspace on some terminals
 #define CTRL_L  12
-#define CTRL_Q  17
 #define CTRL_S  19
+#define KEY_ESCAPE 27
 
 // ============================================================================
 // Gap buffer
@@ -364,7 +364,7 @@ void render_header()
 // Render the status bar (row 24)
 void render_status()
 {
-  char* msg = "^S Save  ^Q Quit";
+  char* msg = "^S Save  Esc Quit";
   int i;
 
   for (i = 0; i < SCREEN_WIDTH; i++)
@@ -1170,7 +1170,7 @@ int main()
       // Don't redraw status yet — let user see the message until next keypress
       continue;
     }
-    else if (key == CTRL_Q)
+    else if (key == KEY_ESCAPE)
     {
       if (modified)
       {

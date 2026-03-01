@@ -114,9 +114,15 @@ int bdos_shell_cmd_cd(int argc, char** argv)
     return 0;
   }
 
+  if (argc == 1)
+  {
+    strcpy(bdos_shell_cwd, "/");
+    return 0;
+  }
+
   if (argc != 2)
   {
-    term_puts("usage: cd <path>\n");
+    term_puts("usage: cd [path]\n");
     return 0;
   }
 

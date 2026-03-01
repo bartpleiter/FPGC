@@ -91,6 +91,11 @@ int sys_fs_filesize(int fd)
   return syscall(SYSCALL_FS_FILESIZE, fd, 0, 0);
 }
 
+int sys_fs_readdir(char* path, unsigned int* entry_buf, unsigned int max_entries)
+{
+  return syscall(SYSCALL_FS_READDIR, (int)path, (int)entry_buf, (int)max_entries);
+}
+
 int sys_shell_argc()
 {
   return syscall(SYSCALL_SHELL_ARGC, 0, 0, 0);
