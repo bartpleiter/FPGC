@@ -31,9 +31,10 @@
 // Camera FOV scale (about 0.66 in 16.16 fixed-point)
 #define FOV_SCALE     43254
 
-// Movement tuning (base speeds, scaled by delta time)
+// Movement tuning
 #define MOVE_SPEED    3072
 #define ROT_SPEED     2
+#define WALL_MARGIN   8192
 
 // Ceiling and floor colors (R3G3B2)
 #define CEIL_COLOR    0x1B
@@ -588,13 +589,17 @@ void process_input()
   if (keys & KEYSTATE_E)
   {
     mx = __multfp(dirY, MOVE_SPEED);
-    my = __multfp(-dirX, MOVE_SPEED);
-    if (worldMap[fixed2int(posX + mx)][fixed2int(posY)] == 0)
-      posX += mx;
-    if (worldMap[fixed2int(posX)][fixed2int(posY + my)] == 0)
-      posY += my;
+    my = __multfp(-dirX, MOVE_SPEED
   }
-}
+
+  if (keys & KEYSTATE_E)
+  {
+    mx = __multfp(dirY, MOVE_SPEED);
+    my = __multfp(-dirX, MOVE_SPEED);
+    if (worldMap[fixed2int(posX + mx + WALL_MARGIN)][fixed2int(posY)] == 0 &&
+        worldMap[fixed2int(posX + mx - WALL_MARGIN)][fixed2int(posY)] == 0)
+      posX += mx;
+    if (worldMap[fixed2int(posX)][fixed2int(posY + my + WALL_MARGIN)] == 0 &&
 
 int main()
 {
