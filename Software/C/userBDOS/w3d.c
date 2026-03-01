@@ -1,5 +1,6 @@
 // w3d.c — Wolfenstein 3D-style raycaster for FPGC BDOS
-// Phase 1-4: userBDOS port, LUT-free rotation, textured walls, assembly renderer.
+// Phase 1-5: userBDOS port, LUT-free rotation, textured walls, assembly renderer,
+// delta-time movement, viewport border.
 
 #define COMMON_STDLIB
 #define COMMON_FIXEDMATH
@@ -18,13 +19,21 @@
 #define TEX_SIZE      64
 #define TEX_PIXELS    4096
 
+// Viewport (Doom-style reduced screen area)
+#define VIEW_X        32
+#define VIEW_Y        20
+#define VIEW_W        256   // 320 - 2*32
+#define VIEW_H        200   // 240 - 2*20
+
+// Border color
+#define BORDER_COLOR  0x49
+
 // Camera FOV scale (about 0.66 in 16.16 fixed-point)
 #define FOV_SCALE     43254
 
 // Movement tuning (base speeds, scaled by delta time)
-#define MOVE_SPEED    4096    // about 0.06 per frame at 30 FPS
-#define ROT_SPEED     2       // degrees per frame at 30 FPS
-#define TARGET_DT_MS  33      // 30 FPS in milliseconds
+#define MOVE_SPEED    3072
+#define ROT_SPEED     2
 
 // Ceiling and floor colors (R3G3B2)
 #define CEIL_COLOR    0x1B
@@ -80,6 +89,8 @@ unsigned int *textures;
 int g_texBase;
 int g_texStep;
 int g_texPos;
+int g_colTop;   // fb addr of viewport top for this column
+int g_colBot;   // fb addr of viewport bottom for this column
 
 // ---- Functions ----
 
@@ -99,6 +110,46 @@ void clear_framebuffer()
   for (i = 0; i < 76800; i++)
   {
     fb[i] = 0;
+  }
+}
+
+// Draw border around viewport (called once at startup).
+void draw_border()
+{
+  unsigned int *fb;
+  int x;
+  int y;
+  fb = (unsigned int *)0x7B00000;
+
+  // Top border
+  for (y = 0; y < VIEW_Y; y++)
+  {
+    for (x = 0; x < SCREEN_W; x++)
+    {
+      fb[y * SCREEN_W + x] = BORDER_COLOR;
+    }
+  }
+
+  // Bottom border
+  for (y = VIEW_Y + VIEW_H; y < SCREEN_H; y++)
+  {
+    for (x = 0; x < SCREEN_W; x++)
+    {
+      fb[y * SCREEN_W + x] = BORDER_COLOR;
+    }
+  }
+
+  // Left and right borders
+  for (y = VIEW_Y; y < VIEW_Y + VIEW_H; y++)
+  {
+    for (x = 0; x < VIEW_X; x++)
+    {
+      fb[y * SCREEN_W + x] = BORDER_COLOR;
+    }
+    for (x = VIEW_X + VIEW_W; x < SCREEN_W; x++)
+    {
+      fb[y * SCREEN_W + x] = BORDER_COLOR;
+    }
   }
 }
 
@@ -223,8 +274,9 @@ void generate_textures()
 
 // Assembly-optimized textured column renderer.
 // Draws a full column: ceiling, textured wall, floor.
-// Args: x (r4), drawStart (r5), drawEnd (r6), side (r7).
-// Reads globals: g_texBase, g_texStep, g_texPos.
+// Args: x (r4) [unused], drawStart (r5), drawEnd (r6), side (r7).
+// drawStart/drawEnd are viewport-relative (0 to VIEW_H-1).
+// Reads globals: g_texBase, g_texStep, g_texPos, g_colTop, g_colBot.
 void draw_textured_column(int x, int drawStart, int drawEnd, int side)
 {
   asm(
@@ -249,9 +301,9 @@ void draw_textured_column(int x, int drawStart, int drawEnd, int side)
   "addr2reg Label_g_texPos r9"
   "read 0 r9 r9                ; r9 = texPos"
 
-  "; setup framebuffer addresses"
-  "load32 0x7B00000 r1"
-  "add r1 r4 r1                ; r1 = fb + x (column top, y=0)"
+  "; setup framebuffer addresses from viewport globals"
+  "addr2reg Label_g_colTop r1"
+  "read 0 r1 r1                ; r1 = viewport top fb addr for this column"
 
   "multu r5 320 r2"
   "add r2 r1 r5                ; r5 = fb addr of wall start"
@@ -259,18 +311,19 @@ void draw_textured_column(int x, int drawStart, int drawEnd, int side)
   "multu r6 320 r2"
   "add r2 r1 r6                ; r6 = fb addr of wall end"
 
-  "load 239 r2"
-  "multu r2 320 r2"
-  "add r2 r1 r8                ; r8 = fb addr of last scanline"
+  "addr2reg Label_g_colBot r8"
+  "read 0 r8 r8                ; r8 = viewport bottom fb addr"
 
   "; -- ceiling --"
   "load 27 r3                  ; 0x1B ceiling color"
   "W3D_T_ceil:"
+  "  bge r1 r5 W3D_T_wall"
   "  write 0 r1 r3"
   "  add r1 320 r1"
-  "  blt r1 r5 W3D_T_ceil"
+  "  jump W3D_T_ceil"
 
   "; -- textured wall: branch on side --"
+  "W3D_T_wall:"
   "beq r7 r0 W3D_T_bright"
 
   "; DARK wall (side == 1)"
@@ -305,9 +358,12 @@ void draw_textured_column(int x, int drawStart, int drawEnd, int side)
   "W3D_T_floor:"
   "  load 218 r3               ; 0xDA floor color"
   "W3D_T_floor_loop:"
+  "  bge r1 r8 W3D_T_done"
   "  write 0 r1 r3"
   "  add r1 320 r1"
-  "  blt r1 r8 W3D_T_floor_loop"
+  "  jump W3D_T_floor_loop"
+
+  "W3D_T_done:"
 
   "; restore registers"
   "pop r12"
@@ -325,8 +381,13 @@ void draw_textured_column(int x, int drawStart, int drawEnd, int side)
 void render_frame()
 {
   int x;
+  int screenX;
+  unsigned int colTopAddr;
 
-  for (x = 0; x < SCREEN_W; x++)
+  // Precompute viewport top-left fb address
+  colTopAddr = 0x7B00000 + VIEW_X + VIEW_Y * SCREEN_W;
+
+  for (x = 0; x < VIEW_W; x++)
   {
     fixed_t cameraX;
     fixed_t rayDirX;
@@ -353,9 +414,11 @@ void render_frame()
     fixed_t texStep;
     fixed_t texPos;
 
+    screenX = VIEW_X + x;
+
     // ---- DDA raycasting ----
 
-    cameraX = __divfp(int2fixed(2 * x), int2fixed(SCREEN_W)) - FIXED_ONE;
+    cameraX = __divfp(int2fixed(2 * x), int2fixed(VIEW_W)) - FIXED_ONE;
     rayDirX = dirX + __multfp(planeX, cameraX);
     rayDirY = dirY + __multfp(planeY, cameraX);
 
@@ -417,16 +480,16 @@ void render_frame()
     else
       perpWallDist = sideDistY - deltaDistY;
 
-    // ---- Wall strip geometry ----
+    // ---- Wall strip geometry (viewport-relative) ----
 
-    lineHeight = fixed2int(__divfp(int2fixed(SCREEN_H), perpWallDist));
+    lineHeight = fixed2int(__divfp(int2fixed(VIEW_H), perpWallDist));
     if (lineHeight > 10000) lineHeight = 10000;
 
-    unclampedStart = -lineHeight / 2 + SCREEN_H / 2;
+    unclampedStart = -lineHeight / 2 + VIEW_H / 2;
     drawStart = unclampedStart;
     if (drawStart < 0) drawStart = 0;
-    drawEnd = lineHeight / 2 + SCREEN_H / 2;
-    if (drawEnd >= SCREEN_H) drawEnd = SCREEN_H - 1;
+    drawEnd = lineHeight / 2 + VIEW_H / 2;
+    if (drawEnd >= VIEW_H) drawEnd = VIEW_H - 1;
 
     // ---- Texture coordinates ----
 
@@ -454,8 +517,10 @@ void render_frame()
     g_texBase = (int)(textures + texIndex * TEX_PIXELS + texX);
     g_texStep = texStep;
     g_texPos = texPos;
+    g_colTop = colTopAddr + x;
+    g_colBot = g_colTop + (VIEW_H - 1) * SCREEN_W;
 
-    draw_textured_column(x, drawStart, drawEnd, side);
+    draw_textured_column(screenX, drawStart, drawEnd, side);
   }
 }
 
@@ -469,42 +534,31 @@ void drain_key_fifo()
 }
 
 // Process keyboard input and update player position/angle.
-// dt_ms: delta time in milliseconds since last frame.
-void process_input(int dt_ms)
+void process_input()
 {
   int keys;
   fixed_t mx;
   fixed_t my;
-  fixed_t frameScale;
-  fixed_t scaledMove;
-  int scaledRot;
-
-  // Scale movement by delta time (relative to 30 FPS target)
-  // Use milliseconds to avoid int2fixed overflow (33ms fits, 33333us overflows)
-  frameScale = __divfp(int2fixed(dt_ms), int2fixed(TARGET_DT_MS));
-  scaledMove = __multfp(MOVE_SPEED, frameScale);
-  scaledRot = fixed2int(__multfp(int2fixed(ROT_SPEED), frameScale));
-  if (scaledRot < 1) scaledRot = 1;
 
   keys = sys_get_key_state();
 
   if (keys & (KEYSTATE_A | KEYSTATE_LEFT))
   {
-    rotationAngle -= scaledRot;
+    rotationAngle -= ROT_SPEED;
     if (rotationAngle < 0) rotationAngle += 360;
     update_camera();
   }
   if (keys & (KEYSTATE_D | KEYSTATE_RIGHT))
   {
-    rotationAngle += scaledRot;
+    rotationAngle += ROT_SPEED;
     if (rotationAngle >= 360) rotationAngle -= 360;
     update_camera();
   }
 
   if (keys & (KEYSTATE_W | KEYSTATE_UP))
   {
-    mx = __multfp(dirX, scaledMove);
-    my = __multfp(dirY, scaledMove);
+    mx = __multfp(dirX, MOVE_SPEED);
+    my = __multfp(dirY, MOVE_SPEED);
     if (worldMap[fixed2int(posX + mx)][fixed2int(posY)] == 0)
       posX += mx;
     if (worldMap[fixed2int(posX)][fixed2int(posY + my)] == 0)
@@ -513,8 +567,8 @@ void process_input(int dt_ms)
 
   if (keys & (KEYSTATE_S | KEYSTATE_DOWN))
   {
-    mx = __multfp(dirX, scaledMove);
-    my = __multfp(dirY, scaledMove);
+    mx = __multfp(dirX, MOVE_SPEED);
+    my = __multfp(dirY, MOVE_SPEED);
     if (worldMap[fixed2int(posX - mx)][fixed2int(posY)] == 0)
       posX -= mx;
     if (worldMap[fixed2int(posX)][fixed2int(posY - my)] == 0)
@@ -523,8 +577,8 @@ void process_input(int dt_ms)
 
   if (keys & KEYSTATE_Q)
   {
-    mx = __multfp(-dirY, scaledMove);
-    my = __multfp(dirX, scaledMove);
+    mx = __multfp(-dirY, MOVE_SPEED);
+    my = __multfp(dirX, MOVE_SPEED);
     if (worldMap[fixed2int(posX + mx)][fixed2int(posY)] == 0)
       posX += mx;
     if (worldMap[fixed2int(posX)][fixed2int(posY + my)] == 0)
@@ -533,8 +587,8 @@ void process_input(int dt_ms)
 
   if (keys & KEYSTATE_E)
   {
-    mx = __multfp(dirY, scaledMove);
-    my = __multfp(-dirX, scaledMove);
+    mx = __multfp(dirY, MOVE_SPEED);
+    my = __multfp(-dirX, MOVE_SPEED);
     if (worldMap[fixed2int(posX + mx)][fixed2int(posY)] == 0)
       posX += mx;
     if (worldMap[fixed2int(posX)][fixed2int(posY + my)] == 0)
@@ -563,6 +617,7 @@ int main()
 
   sys_term_clear();
   clear_framebuffer();
+  draw_border();
 
   last_time = get_micros();
 
