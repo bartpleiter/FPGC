@@ -150,3 +150,8 @@ void sys_exit(int code)
 {
   syscall(SYSCALL_EXIT, code, 0, 0);
 }
+
+int sys_get_key_state()
+{
+  return syscall(SYSCALL_GET_KEY_STATE, 0, 0, 0);
+}

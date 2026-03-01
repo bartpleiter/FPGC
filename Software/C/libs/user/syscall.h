@@ -27,6 +27,23 @@
 #define SYSCALL_SET_PALETTE    22
 #define SYSCALL_EXIT           23
 #define SYSCALL_FS_READDIR     24
+#define SYSCALL_GET_KEY_STATE  25
+
+// Key state bitmap bit positions (matching BDOS bdos_hid.h)
+#define KEYSTATE_W        0x0001
+#define KEYSTATE_A        0x0002
+#define KEYSTATE_S        0x0004
+#define KEYSTATE_D        0x0008
+#define KEYSTATE_UP       0x0010
+#define KEYSTATE_DOWN     0x0020
+#define KEYSTATE_LEFT     0x0040
+#define KEYSTATE_RIGHT    0x0080
+#define KEYSTATE_SPACE    0x0100
+#define KEYSTATE_SHIFT    0x0200
+#define KEYSTATE_CTRL     0x0400
+#define KEYSTATE_ESCAPE   0x0800
+#define KEYSTATE_E        0x1000
+#define KEYSTATE_Q        0x2000
 
 // Special key codes (must match BDOS_KEY_* in bdos_hid.h)
 #define KEY_SPECIAL_BASE 0x100
@@ -96,5 +113,8 @@ void sys_set_palette(int index, int value);
 
 // Convenience wrappers — Process control
 void sys_exit(int code);
+
+// Convenience wrappers — Key state
+int sys_get_key_state();
 
 #endif // SYSCALL_H

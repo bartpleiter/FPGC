@@ -128,6 +128,10 @@ int bdos_syscall_dispatch(int num, int a1, int a2, int a3)
     case SYSCALL_FS_READDIR:
       return brfs_read_dir((char*)a1, (struct brfs_dir_entry*)a2, (unsigned int)a3);
 
+    // ---- Key state ----
+    case SYSCALL_GET_KEY_STATE:
+      return (int)bdos_key_state_bitmap;
+
     default:
       return -1;
   }

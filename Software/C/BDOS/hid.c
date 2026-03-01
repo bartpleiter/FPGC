@@ -183,6 +183,50 @@ void bdos_reset_keyboard_state()
   bdos_keyboard_event_fifo_tail = 0;
   bdos_clear_repeat_state();
   memset(&bdos_usb_keyboard_device, 0, sizeof(usb_device_info_t));
+  bdos_key_state_bitmap = 0;
+}
+
+// Rebuild the key state bitmap from a HID keyboard report.
+// Maps USB HID keycodes and modifier bits to KEYSTATE_* flags.
+void bdos_rebuild_key_state_bitmap(const hid_keyboard_report_t *report)
+{
+  unsigned int bitmap;
+  int i;
+  int kc;
+
+  bitmap = 0;
+
+  // Modifier keys
+  if (report->modifier & (USB_HID_MOD_LSHIFT | USB_HID_MOD_RSHIFT))
+    bitmap |= KEYSTATE_SHIFT;
+  if (report->modifier & (USB_HID_MOD_LCTRL | USB_HID_MOD_RCTRL))
+    bitmap |= KEYSTATE_CTRL;
+
+  // Scan all 6 keycode slots
+  for (i = 0; i < 6; i++)
+  {
+    kc = report->keycode[i];
+    if (kc == 0)
+      continue;
+
+    // Letters: USB HID keycodes 0x04 (A) through 0x1D (Z)
+    if (kc == 0x04) bitmap |= KEYSTATE_A;
+    else if (kc == 0x07) bitmap |= KEYSTATE_D;
+    else if (kc == 0x08) bitmap |= KEYSTATE_E;
+    else if (kc == 0x14) bitmap |= KEYSTATE_Q;
+    else if (kc == 0x16) bitmap |= KEYSTATE_S;
+    else if (kc == 0x1A) bitmap |= KEYSTATE_W;
+    // Arrow keys
+    else if (kc == 0x52) bitmap |= KEYSTATE_UP;
+    else if (kc == 0x51) bitmap |= KEYSTATE_DOWN;
+    else if (kc == 0x50) bitmap |= KEYSTATE_LEFT;
+    else if (kc == 0x4F) bitmap |= KEYSTATE_RIGHT;
+    // Other
+    else if (kc == 0x2C) bitmap |= KEYSTATE_SPACE;
+    else if (kc == 0x29) bitmap |= KEYSTATE_ESCAPE;
+  }
+
+  bdos_key_state_bitmap = bitmap;
 }
 
 // Timer callback: poll keyboard and handle key repeat.
@@ -207,6 +251,9 @@ void bdos_poll_usb_keyboard(int timer_id)
         {
           // Successfully read a keyboard report, process only newly pressed key
           new_keycode = bdos_find_new_keycode(&bdos_prev_kb_report, &kb_report);
+
+          // Update key state bitmap from fresh report
+          bdos_rebuild_key_state_bitmap(&kb_report);
 
           if (new_keycode)
           {
@@ -247,13 +294,27 @@ void bdos_poll_usb_keyboard(int timer_id)
               }
               else
               {
-                bdos_keyboard_event_fifo_push(key_event);
+                // Filter Ctrl+Up/Down from FIFO (handled by scrollback via bitmap)
+                if ((kb_report.modifier & (USB_HID_MOD_LCTRL | USB_HID_MOD_RCTRL)) &&
+                    (key_event == BDOS_KEY_UP || key_event == BDOS_KEY_DOWN))
+                {
+                  // Don't push to FIFO; scrollback is handled via key state bitmap
+                }
+                else
+                {
+                  bdos_keyboard_event_fifo_push(key_event);
+                }
               }
             }
             bdos_start_repeat_state(new_keycode, kb_report.modifier, key_event, now);
           }
 
           memcpy(&bdos_prev_kb_report, &kb_report, sizeof(hid_keyboard_report_t));
+        }
+        else
+        {
+          // No new report; refresh bitmap from previous report to keep it current
+          bdos_rebuild_key_state_bitmap(&bdos_prev_kb_report);
         }
 
         if (bdos_repeat_keycode)
@@ -283,7 +344,16 @@ void bdos_poll_usb_keyboard(int timer_id)
                 (unsigned int)(now - bdos_repeat_start_us) >= BDOS_KEY_REPEAT_DELAY_US &&
                 (unsigned int)(now - bdos_repeat_last_us) >= BDOS_KEY_REPEAT_INTERVAL_US)
             {
-              if (bdos_keyboard_event_fifo_push(bdos_repeat_event))
+              // Filter Ctrl+arrow repeats from FIFO (handled by bitmap)
+              int ctrl_in_report;
+              ctrl_in_report = active_report->modifier & (USB_HID_MOD_LCTRL | USB_HID_MOD_RCTRL);
+              if (ctrl_in_report &&
+                  (bdos_repeat_event == BDOS_KEY_UP || bdos_repeat_event == BDOS_KEY_DOWN))
+              {
+                // Don't push repeat to FIFO; scrollback handles it
+                bdos_repeat_last_us = now;
+              }
+              else if (bdos_keyboard_event_fifo_push(bdos_repeat_event))
               {
                 bdos_repeat_last_us = now;
               }

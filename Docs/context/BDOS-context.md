@@ -22,7 +22,7 @@ Pipeline: `main.c` → B32CC → `.asm` → ASMPY → `.list` → `.bin`
 | `main.c` | Entry point, main loop, interrupt dispatcher, `bdos_panic()` |
 | `init.c` | Hardware init: GPU, terminal, UART, timers, USB keyboard (CH376), Ethernet (ENC28J60) |
 | `heap.c` | Bump allocator for the kernel heap region |
-| `hid.c` | USB keyboard driver, HID report → key event translation, FIFO, key repeat |
+| `hid.c` | USB keyboard driver, HID report → key event translation, FIFO, key repeat, key state bitmap |
 | `fs.c` | BRFS mount/format/sync wrappers with progress bar rendering |
 | `eth.c` | FNP (FPGC Network Protocol) over ENC28J60: file transfer, remote keycode injection |
 | `syscall.c` | Syscall dispatcher (called from inline assembly trampoline in cgb32p3.inc) |
@@ -67,7 +67,7 @@ Kernel stacks: main `0x0F7FFF`, syscall `0x0FBFFF`, interrupt `0x0FFFFF`.
 
 - USB host: CH376 via SPI (default bottom CH376)
 - `bdos_usb_keyboard_main_loop()`: handles connect/disconnect/enumeration lifecycle (non-interrupt context)
-- `bdos_poll_usb_keyboard()`: timer callback, reads HID reports, translates keycodes, pushes events to FIFO, handles key repeat (400 ms initial, 80 ms interval)
+- `bdos_poll_usb_keyboard()`: timer callback, reads HID reports, translates keycodes, pushes events to FIFO, handles key repeat (400 ms initial, 80 ms interval), updates key state bitmap
 - Event FIFO: 64-entry ring buffer. Overflow drops new events with UART warning.
 - Consumer API: `bdos_keyboard_event_available()`, `bdos_keyboard_event_read()` (returns `-1` when empty)
 
@@ -76,6 +76,30 @@ Kernel stacks: main `0x0F7FFF`, syscall `0x0FBFFF`, interrupt `0x0FFFFF`.
 - Printable ASCII: raw value
 - Ctrl+A..Z: control codes 1..26
 - Special keys: `BDOS_KEY_*` constants (base `0x100`): arrows, Insert/Delete/Home/End/PageUp/PageDown, F1–F12
+- Note: Ctrl+Up/Down are filtered from the FIFO (handled by terminal scrollback via key state bitmap)
+
+### Key State Bitmap
+
+A global `bdos_key_state_bitmap` (updated every HID poll cycle from the raw USB keyboard report) provides real-time "key is held" state for all commonly-used game/navigation keys. Unlike the event FIFO, the bitmap reflects simultaneous key state and has no repeat delay.
+
+| Bit | Constant | Key |
+|-----|----------|-----|
+| 0x0001 | `KEYSTATE_W` | W |
+| 0x0002 | `KEYSTATE_A` | A |
+| 0x0004 | `KEYSTATE_S` | S |
+| 0x0008 | `KEYSTATE_D` | D |
+| 0x0010 | `KEYSTATE_UP` | Up Arrow |
+| 0x0020 | `KEYSTATE_DOWN` | Down Arrow |
+| 0x0040 | `KEYSTATE_LEFT` | Left Arrow |
+| 0x0080 | `KEYSTATE_RIGHT` | Right Arrow |
+| 0x0100 | `KEYSTATE_SPACE` | Space |
+| 0x0200 | `KEYSTATE_SHIFT` | Shift |
+| 0x0400 | `KEYSTATE_CTRL` | Ctrl |
+| 0x0800 | `KEYSTATE_ESCAPE` | Escape |
+| 0x1000 | `KEYSTATE_E` | E |
+| 0x2000 | `KEYSTATE_Q` | Q |
+
+`bdos_rebuild_key_state_bitmap()` is called in the timer ISR after each HID report read. The bitmap is also accessible to user programs via syscall 25 (`GET_KEY_STATE`).
 
 ## Filesystem (BRFS)
 
@@ -131,8 +155,9 @@ User programs invoke syscalls via an assembly trampoline. ABI: `r4` = syscall nu
 | 22 | `SET_PALETTE` | index, value | 0 |
 | 23 | `EXIT` | exit_code | *(does not return)* |
 | 24 | `FS_READDIR` | path, entry_buf, max | entry count (or <0 error) |
+| 25 | `GET_KEY_STATE` | — | key state bitmap |
 
-Note: `TERM_PUT_CELL` packs tile and palette into a single argument (`a3`) because the syscall ABI only allows 3 arguments. `TERM_GET_CURSOR` packs x and y into the return value similarly. `SET_PALETTE` writes to `GPU_PALETTE_TABLE_ADDR + index`; value format is `(bg_color << 8) | fg_color` with 8-bit RRRGGGBB colors. `EXIT` terminates the calling program immediately by resetting the HW stack to the trampoline depth and jumping to the BDOS return path — the exit code is reported as the program's return value. `FS_READDIR` fills `entry_buf` with raw `brfs_dir_entry` structs (8 words each: 4×filename, modify_date, flags, fat_idx, filesize) and returns the number of entries.
+Note: `TERM_PUT_CELL` packs tile and palette into a single argument (`a3`) because the syscall ABI only allows 3 arguments. `TERM_GET_CURSOR` packs x and y into the return value similarly. `SET_PALETTE` writes to `GPU_PALETTE_TABLE_ADDR + index`; value format is `(bg_color << 8) | fg_color` with 8-bit RRRGGGBB colors. `EXIT` terminates the calling program immediately by resetting the HW stack to the trampoline depth and jumping to the BDOS return path — the exit code is reported as the program's return value. `FS_READDIR` fills `entry_buf` with raw `brfs_dir_entry` structs (8 words each: 4×filename, modify_date, flags, fat_idx, filesize) and returns the number of entries. `GET_KEY_STATE` returns the current key state bitmap — see Key State Bitmap section above.
 
 ## User Program Execution
 
@@ -198,7 +223,19 @@ Any non-built-in command is treated as a program name and resolved/executed auto
 - Cursor movement (left/right arrows), insert anywhere, backspace/delete
 - Command history: 8-entry ring buffer, navigated with up/down arrows
 - Ctrl+C clears input, Ctrl+L clears screen
+- Ctrl+Up/Down: scroll back/forward through terminal history (key-held via bitmap, ~33 lines/sec)
 - Visual cursor rendered by palette inversion
+
+### Terminal Scrollback
+
+The terminal maintains a 200-line ring buffer (`history_tiles`/`history_palettes` in `term.c`) of lines that have scrolled off the top of the 25-line display. This enables reviewing output that has scrolled past.
+
+- **Ctrl+Up**: scroll view back into history (per-line, rate-limited to 30 ms)
+- **Ctrl+Down**: scroll view forward towards current output
+- **Any new output** (keypress, command output): auto-snaps back to live view
+- **`clear` command**: resets the scrollback history buffer
+- Implementation: `bdos_shell_tick()` checks `bdos_key_state_bitmap` for Ctrl+arrow state each main loop iteration. Ctrl+Up/Down are filtered from the event FIFO so they don't interfere with shell history navigation.
+- GPU refresh: `term_scroll_view_refresh()` redraws all 25 rows from the appropriate mix of history and screen buffer data.
 
 ### Special Input Modes
 

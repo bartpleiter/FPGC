@@ -8,6 +8,7 @@
 #define TERM_WIDTH 40
 #define TERM_HEIGHT 25
 #define TAB_WIDTH 4
+#define TERM_HISTORY_LINES 200  // Number of scrollback history lines
 
 // Initialize the terminal library
 void term_init();
@@ -47,5 +48,14 @@ void term_put_cell(unsigned int x, unsigned int y, unsigned char tile, unsigned 
 
 // Set the palette index for subsequent character output
 void term_set_palette(unsigned int palette_index);
+
+// Scroll the view up (back into history). Returns 1 if scrolled, 0 if at limit.
+int term_scroll_view_up();
+
+// Scroll the view down (towards current output). Returns 1 if scrolled, 0 if already at bottom.
+int term_scroll_view_down();
+
+// Returns 1 if the terminal is currently scrolled back into history
+int term_is_scrolled_back();
 
 #endif // TERM_H

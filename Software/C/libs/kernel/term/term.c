@@ -13,9 +13,18 @@ unsigned int current_palette = 0; // Current palette index for text
 unsigned char screen_tiles[TERM_HEIGHT][TERM_WIDTH];
 unsigned char screen_palettes[TERM_HEIGHT][TERM_WIDTH];
 
+// Scrollback history ring buffer
+unsigned char history_tiles[TERM_HISTORY_LINES][TERM_WIDTH];
+unsigned char history_palettes[TERM_HISTORY_LINES][TERM_WIDTH];
+int history_head = 0;     // Next write position in ring buffer (0..TERM_HISTORY_LINES-1)
+int history_count = 0;    // Number of valid history lines (saturates at TERM_HISTORY_LINES)
+int scroll_view_offset = 0; // 0 = showing live content, >0 = scrolled back N lines
+
 // Forward declarations of internal helper functions
 void term_advance_cursor();
 void term_newline();
+void term_scroll_view_refresh();
+void term_snap_to_bottom();
 
 // Initialize the terminal library
 void term_init()
@@ -23,6 +32,9 @@ void term_init()
   cursor_x = 0;
   cursor_y = 0;
   current_palette = 0;
+  history_head = 0;
+  history_count = 0;
+  scroll_view_offset = 0;
   gpu_set_window_palette(0);
   term_clear();
 }
@@ -45,12 +57,33 @@ void term_clear()
 
   cursor_x = 0;
   cursor_y = 0;
+  scroll_view_offset = 0;
+  history_head = 0;
+  history_count = 0;
 }
 
 // Scroll screen content up by one line
 void term_scroll()
 {
   unsigned int x, y;
+
+  // Save the top row (being pushed off screen) into history ring buffer
+  for (x = 0; x < TERM_WIDTH; x++)
+  {
+    history_tiles[history_head][x] = screen_tiles[0][x];
+    history_palettes[history_head][x] = screen_palettes[0][x];
+  }
+  history_head = (history_head + 1) % TERM_HISTORY_LINES;
+  if (history_count < TERM_HISTORY_LINES)
+  {
+    history_count++;
+  }
+
+  // If scrolled back, snap to bottom and do a full refresh
+  if (scroll_view_offset > 0)
+  {
+    scroll_view_offset = 0;
+  }
 
   // Move all rows up by one
   for (y = 0; y < TERM_HEIGHT - 1; y++)
@@ -129,6 +162,12 @@ void term_newline()
 // Output a single character with special character handling
 void term_putchar(char c)
 {
+  // If scrolled back, snap to bottom before any new output
+  if (scroll_view_offset > 0)
+  {
+    term_snap_to_bottom();
+  }
+
   // Handle special characters
   if (c == '\n')
   { // Newline (0x0A)
@@ -253,4 +292,86 @@ void term_put_cell(unsigned int x, unsigned int y, unsigned char tile, unsigned 
 void term_set_palette(unsigned int palette_index)
 {
   current_palette = palette_index;
+}
+
+// Internal: redraw the entire GPU screen from history + screen buffer
+// based on current scroll_view_offset.
+void term_scroll_view_refresh()
+{
+  int y;
+  unsigned int x;
+  int hist_idx;
+
+  for (y = 0; y < TERM_HEIGHT; y++)
+  {
+    if (y < scroll_view_offset)
+    {
+      // This row comes from history
+      hist_idx = history_head - scroll_view_offset + y;
+      if (hist_idx < 0)
+      {
+        hist_idx = hist_idx + TERM_HISTORY_LINES;
+      }
+      for (x = 0; x < TERM_WIDTH; x++)
+      {
+        gpu_write_window_tile(x, y, history_tiles[hist_idx][x], history_palettes[hist_idx][x]);
+      }
+    }
+    else
+    {
+      // This row comes from current screen buffer
+      for (x = 0; x < TERM_WIDTH; x++)
+      {
+        gpu_write_window_tile(x, y, screen_tiles[y - scroll_view_offset][x],
+                              screen_palettes[y - scroll_view_offset][x]);
+      }
+    }
+  }
+}
+
+// Internal: snap back to live view (offset=0) and refresh the display
+void term_snap_to_bottom()
+{
+  unsigned int x, y;
+
+  scroll_view_offset = 0;
+
+  // Restore the screen from the shadow buffer
+  for (y = 0; y < TERM_HEIGHT; y++)
+  {
+    for (x = 0; x < TERM_WIDTH; x++)
+    {
+      gpu_write_window_tile(x, y, screen_tiles[y][x], screen_palettes[y][x]);
+    }
+  }
+}
+
+// Scroll the view up (back into history). Returns 1 if scrolled, 0 if at limit.
+int term_scroll_view_up()
+{
+  if (scroll_view_offset < history_count)
+  {
+    scroll_view_offset++;
+    term_scroll_view_refresh();
+    return 1;
+  }
+  return 0;
+}
+
+// Scroll the view down (towards current output). Returns 1 if scrolled, 0 if already at bottom.
+int term_scroll_view_down()
+{
+  if (scroll_view_offset > 0)
+  {
+    scroll_view_offset--;
+    term_scroll_view_refresh();
+    return 1;
+  }
+  return 0;
+}
+
+// Returns 1 if the terminal is currently scrolled back into history
+int term_is_scrolled_back()
+{
+  return scroll_view_offset > 0 ? 1 : 0;
 }

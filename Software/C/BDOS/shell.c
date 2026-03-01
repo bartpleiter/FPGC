@@ -547,10 +547,34 @@ void bdos_shell_init()
   bdos_shell_start_line();
 }
 
+// Minimum interval between scroll events when Ctrl+arrow is held (microseconds)
+#define BDOS_SCROLL_REPEAT_INTERVAL_US 30000U
+unsigned int bdos_scroll_last_us = 0;
+
 // Consume all queued keyboard events and feed shell editor.
 void bdos_shell_tick()
 {
   int key_event;
+  unsigned int now;
+
+  // Handle Ctrl+Up/Down scrollback via key state bitmap (key-held logic)
+  if (bdos_key_state_bitmap & KEYSTATE_CTRL)
+  {
+    now = get_micros();
+    if ((unsigned int)(now - bdos_scroll_last_us) >= BDOS_SCROLL_REPEAT_INTERVAL_US)
+    {
+      if (bdos_key_state_bitmap & KEYSTATE_UP)
+      {
+        term_scroll_view_up();
+        bdos_scroll_last_us = now;
+      }
+      else if (bdos_key_state_bitmap & KEYSTATE_DOWN)
+      {
+        term_scroll_view_down();
+        bdos_scroll_last_us = now;
+      }
+    }
+  }
 
   while (bdos_keyboard_event_available())
   {
