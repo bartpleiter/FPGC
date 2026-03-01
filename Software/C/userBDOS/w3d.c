@@ -30,8 +30,11 @@
 #define CEIL_COLOR    0x1B
 #define FLOOR_COLOR   0xDA
 
-// Number of procedural textures
+// Number of textures
 #define NUM_TEXTURES  5
+
+// Texture data file path on BRFS (one pixel per word, all textures concatenated)
+#define TEXTURE_FILE  "/data/w3d/textures.dat"
 
 // ---- Map ----
 
@@ -97,6 +100,61 @@ void clear_framebuffer()
   {
     fb[i] = 0;
   }
+}
+
+// Try to load textures from BRFS. Returns 1 on success, 0 on failure.
+int load_textures_from_file()
+{
+  int fd;
+  int fsize;
+  int expected;
+  int words_remaining;
+  int chunk;
+  int words_read;
+  int dest_idx;
+
+  expected = NUM_TEXTURES * TEX_PIXELS;
+
+  fd = sys_fs_open(TEXTURE_FILE);
+  if (fd < 0)
+  {
+    return 0;
+  }
+
+  fsize = sys_fs_filesize(fd);
+  if (fsize < expected)
+  {
+    sys_fs_close(fd);
+    return 0;
+  }
+
+  textures = (unsigned int *)sys_heap_alloc(expected);
+  if (textures == (unsigned int *)0)
+  {
+    sys_fs_close(fd);
+    return 0;
+  }
+
+  dest_idx = 0;
+  words_remaining = expected;
+  while (words_remaining > 0)
+  {
+    chunk = words_remaining;
+    if (chunk > 256)
+    {
+      chunk = 256;
+    }
+    words_read = sys_fs_read(fd, &textures[dest_idx], chunk);
+    if (words_read <= 0)
+    {
+      break;
+    }
+    dest_idx = dest_idx + words_read;
+    words_remaining = words_remaining - words_read;
+  }
+
+  sys_fs_close(fd);
+  return (words_remaining == 0) ? 1 : 0;
 }
 
 // Generate procedural test textures in heap memory.
@@ -497,7 +555,11 @@ int main()
   rotationAngle = 0;
   update_camera();
 
-  generate_textures();
+  // Try loading textures from BRFS, fall back to procedural
+  if (!load_textures_from_file())
+  {
+    generate_textures();
+  }
 
   sys_term_clear();
   clear_framebuffer();

@@ -27,6 +27,7 @@ B32CC_OUTPUT = $(B32CC_DIR)/output/b32cc
 .PHONY: b32cc test-b32cc test-b32cc-single debug-b32cc clean-b32cc
 .PHONY: check
 .PHONY: fnp-upload-text fnp-upload-userbdos fnp-keyboard fnp-detect-iface fnp-sync-files
+.PHONY: convert-w3d-textures
 
 # -----------------------------------------------------------------------------
 # Default Target
@@ -262,6 +263,22 @@ flash-c-baremetal-spi: $(B32CC_OUTPUT)
 
 flash-bdos: compile-bdos
 	./Scripts/Programmer/flash_bdos.sh
+
+# =============================================================================
+# Asset Conversion
+# =============================================================================
+
+# W3D texture order: redbrick(1) bluestone(2) greystone(3) wood(4) mossy(5)
+W3D_TEXTURES = Files/textures/redbrick.png \
+               Files/textures/bluestone.png \
+               Files/textures/greystone.png \
+               Files/textures/wood.png \
+               Files/textures/mossy.png
+W3D_TEX_OUT  = Files/BRFS-init/data/w3d/textures.dat
+
+convert-w3d-textures:
+	@mkdir -p $(dir $(W3D_TEX_OUT))
+	@.venv/bin/python3 Scripts/Graphics/convert_textures.py -o $(W3D_TEX_OUT) $(W3D_TEXTURES)
 
 # =============================================================================
 # FNP (Network Programming)
