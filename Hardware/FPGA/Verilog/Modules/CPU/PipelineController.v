@@ -23,12 +23,16 @@ module PipelineController (
     input wire [3:0]  id_breg,
     input wire        if_id_valid,
     input wire        id_ex_mem_write,
-    input wire [31:0] id_ex_const16,
     input wire        ex_mem_valid,
     input wire        ex_mem_mem_write,
     input wire        mem_sel_sdram,
     input wire [31:0] ex_mem_mem_addr,
-    input wire [31:0] ex_alu_a,
+
+    // Pre-computed cache-line hazard inputs (from B32P3.v)
+    // Uses registered base address to avoid forwarding-mux → adder critical path
+    input wire [6:0]  ex_hazard_cache_line,      // Cache line from registered base + const16
+    input wire        ex_hazard_is_sdram,         // SDRAM check from registered base upper bits
+    input wire        ex_hazard_forward_active,   // Forwarding active on base register
 
     // ---- Stall source inputs ----
     input wire        cache_stall_if,
@@ -89,14 +93,15 @@ wire pop_use_hazard = id_ex_valid && id_ex_pop &&
                       if_id_valid;
 
 // Cache line hazard: back-to-back SDRAM accesses to different cache lines
-wire [31:0] ex_full_addr = ex_alu_a + id_ex_const16;
-wire ex_sel_sdram = ex_full_addr >= 32'h0000000 && ex_full_addr < 32'h7000000;
-wire [6:0] ex_cache_line = ex_full_addr[9:3];
+// Uses pre-computed inputs from registered base (no forwarding mux in path).
+// When forwarding is active, conservatively assumes hazard (safe: 1 extra stall cycle).
 wire [6:0] mem_cache_line = ex_mem_mem_addr[9:3];
 
-wire ex_needs_sdram = id_ex_valid && (id_ex_mem_read || id_ex_mem_write) && ex_sel_sdram;
+wire ex_needs_sdram = id_ex_valid && (id_ex_mem_read || id_ex_mem_write) &&
+                      (ex_hazard_forward_active || ex_hazard_is_sdram);
 wire mem_has_sdram = ex_mem_valid && (ex_mem_mem_read || ex_mem_mem_write) && mem_sel_sdram;
-assign cache_line_hazard = ex_needs_sdram && mem_has_sdram && (ex_cache_line != mem_cache_line);
+assign cache_line_hazard = ex_needs_sdram && mem_has_sdram &&
+    (ex_hazard_forward_active || (ex_hazard_cache_line != mem_cache_line));
 
 wire hazard_stall = load_use_hazard || pop_use_hazard || cache_line_hazard;
 

@@ -535,8 +535,22 @@ wire [63:0] fp_write_data =
     64'd0;
 
 // FP register write enable for single-cycle operations
+// Uses a "write-once" flag to avoid repeated writes during pipeline stalls.
+// This removes ex_pipeline_stall from the combinational write-enable path,
+// breaking the critical timing path through cache_line_hazard → pipeline_stall.
+reg fp_write_pending = 1'b0;
 wire fp_singlecycle_we = id_ex_valid && is_fp_singlecycle && fp_writes_to_fpregs
-                         && !ex_pipeline_stall;
+                         && !fp_write_pending;
+
+// fp_write_pending: set after writing, cleared when stall ends (instruction advances)
+always @(posedge clk) begin
+    if (reset)
+        fp_write_pending <= 1'b0;
+    else if (!ex_pipeline_stall)
+        fp_write_pending <= 1'b0;   // Instruction advancing, reset for next
+    else if (fp_singlecycle_we)
+        fp_write_pending <= 1'b1;   // Written, block further writes during stall
+end
 
 // FP register file write (synchronous)
 always @(posedge clk) begin
@@ -693,6 +707,23 @@ assign stack_ptr_we = ex_mem_valid && ex_mem_mem_write &&
 assign stack_ptr_in = ex_mem_breg_data[7:0];
 
 // ---- PIPELINE CONTROLLER ----
+
+// ---- Fast cache-line hazard inputs (uses registered base, no forwarding mux) ----
+// The cache_line_hazard detection previously used ex_alu_a (which depends on the
+// forwarding mux) to compute ex_full_addr via a 27-bit adder. This created a
+// critical timing path: id_ex_areg → forwarding mux → adder → hazard → stall → regbank.
+//
+// Fix: use the registered base address (Regbank output or stall shadow register)
+// for cache line computation. When forwarding is active (forward_a != 00), we
+// conservatively assert the hazard — this is safe (at most 1 extra stall cycle)
+// since cache_line_hazard only lasts 1 cycle anyway.
+wire [31:0] ex_hazard_base = ex_stall_saved_a_valid ? ex_stall_saved_a : ex_areg_data;
+wire [9:0]  ex_hazard_addr_low = ex_hazard_base[9:0] + id_ex_const16[9:0];
+wire [6:0]  ex_hazard_cache_line = ex_hazard_addr_low[9:3];
+wire        ex_hazard_is_sdram = (ex_hazard_base[31:27] == 5'd0) &&
+                                  (ex_hazard_base[26:24] != 3'b111);
+wire        ex_hazard_forward_active = (forward_a != 2'b00);
+
 PipelineController pipeline_controller (
     // Forwarding inputs
     .ex_mem_dreg_we     (ex_mem_dreg_we),
@@ -712,12 +743,14 @@ PipelineController pipeline_controller (
     .id_breg            (id_breg),
     .if_id_valid        (if_id_valid),
     .id_ex_mem_write    (id_ex_mem_write),
-    .id_ex_const16      (id_ex_const16),
     .ex_mem_valid       (ex_mem_valid),
     .ex_mem_mem_write   (ex_mem_mem_write),
     .mem_sel_sdram      (mem_sel_sdram),
     .ex_mem_mem_addr    (ex_mem_mem_addr),
-    .ex_alu_a           (ex_alu_a),
+    // Pre-computed cache-line hazard inputs (registered base, no forwarding mux)
+    .ex_hazard_cache_line     (ex_hazard_cache_line),
+    .ex_hazard_is_sdram       (ex_hazard_is_sdram),
+    .ex_hazard_forward_active (ex_hazard_forward_active),
     // Stall source inputs
     .cache_stall_if     (cache_stall_if),
     .cache_stall_mem    (cache_stall_mem),
