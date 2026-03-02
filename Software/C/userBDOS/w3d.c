@@ -560,9 +560,11 @@ void process_input()
   {
     mx = __multfp(dirX, MOVE_SPEED);
     my = __multfp(dirY, MOVE_SPEED);
-    if (worldMap[fixed2int(posX + mx)][fixed2int(posY)] == 0)
+    if (worldMap[fixed2int(posX + mx + WALL_MARGIN)][fixed2int(posY)] == 0 &&
+        worldMap[fixed2int(posX + mx - WALL_MARGIN)][fixed2int(posY)] == 0)
       posX += mx;
-    if (worldMap[fixed2int(posX)][fixed2int(posY + my)] == 0)
+    if (worldMap[fixed2int(posX)][fixed2int(posY + my + WALL_MARGIN)] == 0 &&
+        worldMap[fixed2int(posX)][fixed2int(posY + my - WALL_MARGIN)] == 0)
       posY += my;
   }
 
@@ -570,9 +572,11 @@ void process_input()
   {
     mx = __multfp(dirX, MOVE_SPEED);
     my = __multfp(dirY, MOVE_SPEED);
-    if (worldMap[fixed2int(posX - mx)][fixed2int(posY)] == 0)
+    if (worldMap[fixed2int(posX - mx + WALL_MARGIN)][fixed2int(posY)] == 0 &&
+        worldMap[fixed2int(posX - mx - WALL_MARGIN)][fixed2int(posY)] == 0)
       posX -= mx;
-    if (worldMap[fixed2int(posX)][fixed2int(posY - my)] == 0)
+    if (worldMap[fixed2int(posX)][fixed2int(posY - my + WALL_MARGIN)] == 0 &&
+        worldMap[fixed2int(posX)][fixed2int(posY - my - WALL_MARGIN)] == 0)
       posY -= my;
   }
 
@@ -580,16 +584,12 @@ void process_input()
   {
     mx = __multfp(-dirY, MOVE_SPEED);
     my = __multfp(dirX, MOVE_SPEED);
-    if (worldMap[fixed2int(posX + mx)][fixed2int(posY)] == 0)
+    if (worldMap[fixed2int(posX + mx + WALL_MARGIN)][fixed2int(posY)] == 0 &&
+        worldMap[fixed2int(posX + mx - WALL_MARGIN)][fixed2int(posY)] == 0)
       posX += mx;
-    if (worldMap[fixed2int(posX)][fixed2int(posY + my)] == 0)
+    if (worldMap[fixed2int(posX)][fixed2int(posY + my + WALL_MARGIN)] == 0 &&
+        worldMap[fixed2int(posX)][fixed2int(posY + my - WALL_MARGIN)] == 0)
       posY += my;
-  }
-
-  if (keys & KEYSTATE_E)
-  {
-    mx = __multfp(dirY, MOVE_SPEED);
-    my = __multfp(-dirX, MOVE_SPEED
   }
 
   if (keys & KEYSTATE_E)
@@ -600,6 +600,10 @@ void process_input()
         worldMap[fixed2int(posX + mx - WALL_MARGIN)][fixed2int(posY)] == 0)
       posX += mx;
     if (worldMap[fixed2int(posX)][fixed2int(posY + my + WALL_MARGIN)] == 0 &&
+        worldMap[fixed2int(posX)][fixed2int(posY + my - WALL_MARGIN)] == 0)
+      posY += my;
+  }
+}
 
 int main()
 {
