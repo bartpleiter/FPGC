@@ -260,6 +260,14 @@ void GenRecordFxnSize(char* startLabelName, int endLabelNo)
 #define B32InstrMultfp  0x2A  // Fixed-point multiply
 #define B32InstrDivfp   0x2B  // Fixed-point divide
 
+// FP64 coprocessor instructions
+#define B32InstrFmul    0x2C
+#define B32InstrFadd    0x2D
+#define B32InstrFsub    0x2E
+#define B32InstrFld     0x2F
+#define B32InstrFsthi   0x30
+#define B32InstrFstlo   0x31
+
 STATIC
 void GenPrintInstr(int instr, int val)
 {
@@ -310,6 +318,13 @@ void GenPrintInstr(int instr, int val)
   case B32InstrJumpr   : p = "jumpr"; break;
   case B32InstrMultfp  : p = "multfp"; break;
   case B32InstrDivfp   : p = "divfp"; break;
+  // FP64 coprocessor
+  case B32InstrFmul    : p = "fmul"; break;
+  case B32InstrFadd    : p = "fadd"; break;
+  case B32InstrFsub    : p = "fsub"; break;
+  case B32InstrFld     : p = "fld"; break;
+  case B32InstrFsthi   : p = "fsthi"; break;
+  case B32InstrFstlo   : p = "fstlo"; break;
   }
 
   printf2("  %s ", p);
@@ -1157,6 +1172,11 @@ void GenPrep(int* idx)
   case tokNum0:
   case tokIdent:
   case tokLocalOfs:
+  case tokFAdd:   // nullary: all args packed in value
+  case tokFSub:
+  case tokFMul:
+  case tokFstHi:
+  case tokFstLo:
     break;
 
   case tokPostAdd:
@@ -1248,6 +1268,7 @@ void GenPrep(int* idx)
   case tokUGEQ:
   case tokMultFP:
   case tokDivFP:
+  case tokFld:     // binary: hi/lo are expression operands, fd packed in value
     GenPrep(idx);
     oldIdxLeft = *idx;
     GenPrep(idx);
@@ -1910,6 +1931,64 @@ void GenExpr0()
                                GenLreg, 0,
                                GenWreg, 0);
       }
+      break;
+
+    // ---- FP64 coprocessor intrinsics ----
+
+    case tokFAdd:
+    case tokFSub:
+    case tokFMul:
+      {
+        // __fadd(fd, fa, fb), __fsub(fd, fa, fb), __fmul(fd, fa, fb)
+        // All 3 args are constants packed in v: (fd << 8) | (fa << 4) | fb
+        // No CPU register operands needed, instruction operates on FP registers
+        int fd = (v >> 8) & 0xF;
+        int fa = (v >> 4) & 0xF;
+        int fb = v & 0xF;
+        int instr = (tok == tokFAdd) ? B32InstrFadd :
+                    (tok == tokFSub) ? B32InstrFsub :
+                    B32InstrFmul;
+        GenPrintInstr3Operands(instr, 0,
+                               B32OpReg0 + fa, 0,
+                               B32OpReg0 + fb, 0,
+                               B32OpReg0 + fd, 0);
+      }
+      // No CPU value produced — don't set gotUnary
+      gotUnary = 0;
+      break;
+
+    case tokFld:
+      {
+        // __fld(fd, hi, lo): fd is packed in v, hi/lo are expression operands
+        // After right-to-left eval: expression stack is <lo_expr> <hi_expr> tokFld
+        // After GenPopReg: GenLreg = lo (left/first in postfix), GenRreg = hi (right/second)
+        // Assembly: fld <hi> <lo> <fd>
+        int fd = v;
+        GenPopReg();
+        GenPrintInstr3Operands(B32InstrFld, 0,
+                               GenRreg, 0,      // areg: hi word
+                               GenLreg, 0,      // breg: lo word
+                               B32OpReg0 + fd, 0); // dreg: FP register
+      }
+      // No CPU value produced — don't set gotUnary
+      gotUnary = 0;
+      break;
+
+    case tokFstHi:
+    case tokFstLo:
+      {
+        // __fsthi(fs), __fstlo(fs): fs is FP register index packed in v
+        // Nullary value-producing: emits instruction that writes to GenWreg
+        if (gotUnary)
+          GenPushReg();
+        int fs = v;
+        int instr = (tok == tokFstHi) ? B32InstrFsthi : B32InstrFstlo;
+        GenPrintInstr3Operands(instr, 0,
+                               B32OpReg0 + fs, 0,   // areg: FP register to read
+                               B32OpRegZero, 0,      // breg: unused (r0)
+                               GenWreg, 0);          // dreg: CPU destination
+      }
+      gotUnary = 1;
       break;
 
     case tokInc:

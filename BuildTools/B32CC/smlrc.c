@@ -295,6 +295,14 @@ int fsetpos(FILE*, fpos_t*);
 #define tokMultFP     0x98
 #define tokDivFP      0x99
 
+/* FP64 coprocessor intrinsic tokens */
+#define tokFAdd       0x9A
+#define tokFSub       0x9B
+#define tokFMul       0x9C
+#define tokFld        0x9D
+#define tokFstHi      0x9E
+#define tokFstLo      0x9F
+
 #define FormatSegmented 1
 #define FormatSegHuge   3
 #define FormatSegUnreal 4
@@ -946,7 +954,9 @@ unsigned char tktk[] =
   tokSChar, tokShort, tokLong, tokUChar, tokUShort, tokULong, tokNumFloat,
   tokNumCharWide, tokLitStrWide,
   // Fixed-point intrinsics:
-  tokMultFP, tokDivFP
+  tokMultFP, tokDivFP,
+  // FP64 coprocessor intrinsics:
+  tokFAdd, tokFSub, tokFMul, tokFld, tokFstHi, tokFstLo
 };
 
 char tks[][16] =
@@ -971,7 +981,9 @@ char tks[][16] =
   "signed char", "short", "long", "unsigned char", "unsigned short", "unsigned long", "float",
   "<NumCharWide>", "<LitStrWide>",
   // Fixed-point intrinsics:
-  "__multfp", "__divfp"
+  "__multfp", "__divfp",
+  // FP64 coprocessor intrinsics:
+  "__fadd", "__fsub", "__fmul", "__fld", "__fsthi", "__fstlo"
 };
 
 STATIC
@@ -3189,6 +3201,76 @@ int exprval(int* idx, int* ExprTypeSynPtr, int* ConstExpr)
         break;
       }
 
+      // Check for FP64 coprocessor intrinsics
+      if (!strcmp(ident, "__fadd") || !strcmp(ident, "__fsub") || !strcmp(ident, "__fmul"))
+      {
+        synPtr = FindSymbol(ident);
+        if (synPtr < 0)
+        {
+          // Declare as "int __fadd(int, int, int)" (3 args)
+          PushSyntax2(tokIdent, s);
+          PushSyntax('(');
+          PushSyntax2(tokIdent, AddIdent("a"));
+          PushSyntax(tokInt);
+          PushSyntax2(tokIdent, AddIdent("b"));
+          PushSyntax(tokInt);
+          PushSyntax2(tokIdent, AddIdent("c"));
+          PushSyntax(tokInt);
+          PushSyntax(')');
+          PushSyntax(tokInt);
+          synPtr = FindSymbol(ident);
+        }
+        while (SyntaxStack0[synPtr] == tokIdent || SyntaxStack0[synPtr] == tokLocalOfs)
+          synPtr++;
+        *ExprTypeSynPtr = synPtr;
+        *ConstExpr = 0;
+        break;
+      }
+      if (!strcmp(ident, "__fld"))
+      {
+        synPtr = FindSymbol(ident);
+        if (synPtr < 0)
+        {
+          // Declare as "int __fld(int, int, int)" (fd, hi, lo)
+          PushSyntax2(tokIdent, s);
+          PushSyntax('(');
+          PushSyntax2(tokIdent, AddIdent("a"));
+          PushSyntax(tokInt);
+          PushSyntax2(tokIdent, AddIdent("b"));
+          PushSyntax(tokInt);
+          PushSyntax2(tokIdent, AddIdent("c"));
+          PushSyntax(tokInt);
+          PushSyntax(')');
+          PushSyntax(tokInt);
+          synPtr = FindSymbol(ident);
+        }
+        while (SyntaxStack0[synPtr] == tokIdent || SyntaxStack0[synPtr] == tokLocalOfs)
+          synPtr++;
+        *ExprTypeSynPtr = synPtr;
+        *ConstExpr = 0;
+        break;
+      }
+      if (!strcmp(ident, "__fsthi") || !strcmp(ident, "__fstlo"))
+      {
+        synPtr = FindSymbol(ident);
+        if (synPtr < 0)
+        {
+          // Declare as "int __fsthi(int)" (1 arg: FP register index)
+          PushSyntax2(tokIdent, s);
+          PushSyntax('(');
+          PushSyntax2(tokIdent, AddIdent("a"));
+          PushSyntax(tokInt);
+          PushSyntax(')');
+          PushSyntax(tokInt);
+          synPtr = FindSymbol(ident);
+        }
+        while (SyntaxStack0[synPtr] == tokIdent || SyntaxStack0[synPtr] == tokLocalOfs)
+          synPtr++;
+        *ExprTypeSynPtr = synPtr;
+        *ConstExpr = 0;
+        break;
+      }
+
       {
         synPtr = FindSymbol(ident);
         // "Rename" static vars in function scope
@@ -4066,6 +4148,36 @@ int exprval(int* idx, int* ExprTypeSynPtr, int* ConstExpr)
           isIntrinsic = 1;
           intrinsicTok = tokDivFP;
         }
+        else if (!strcmp(fxnName, "__fadd"))
+        {
+          isIntrinsic = 1;
+          intrinsicTok = tokFAdd;
+        }
+        else if (!strcmp(fxnName, "__fsub"))
+        {
+          isIntrinsic = 1;
+          intrinsicTok = tokFSub;
+        }
+        else if (!strcmp(fxnName, "__fmul"))
+        {
+          isIntrinsic = 1;
+          intrinsicTok = tokFMul;
+        }
+        else if (!strcmp(fxnName, "__fld"))
+        {
+          isIntrinsic = 1;
+          intrinsicTok = tokFld;
+        }
+        else if (!strcmp(fxnName, "__fsthi"))
+        {
+          isIntrinsic = 1;
+          intrinsicTok = tokFstHi;
+        }
+        else if (!strcmp(fxnName, "__fstlo"))
+        {
+          isIntrinsic = 1;
+          intrinsicTok = tokFstLo;
+        }
       }
 
       if (!GetFxnInfo(*ExprTypeSynPtr, &minParams, &maxParams, ExprTypeSynPtr, &firstParamSynPtr))
@@ -4141,64 +4253,240 @@ int exprval(int* idx, int* ExprTypeSynPtr, int* ConstExpr)
       // Handle fixed-point intrinsics that were detected earlier
       if (isIntrinsic)
       {
-        // Verify exactly 2 arguments
-        if (c != 2)
-          error("Fixed-point intrinsic %s requires exactly 2 arguments\n", fxnName);
-        
-        // Transform the stack to replace function call with intrinsic binary operator
-        // 
-        // Current stack structure after argument evaluation:
-        //   ... '(' arg1Expr ',' arg2Expr ',' fxnIdent ')' ...
-        //   where:
-        //   - '(' is at position *idx + 1
-        //   - ')' is at position closeParenIdx  
-        //   - fxnIdent is right before ')' (at closeParenIdx - 1)
-        //   - There are 2 commas at the top level (one original, one inserted)
-        //   - BUT there may be nested '()' pairs with their own commas that must be preserved
-        //
-        // Target stack: ... arg1Expr arg2Expr tokMultFP ...
-        
-        // Calculate ')' position accounting for any stack changes
+        // Calculate positions for stack manipulation
         int closeParenIdx = oldIdxRight + 1 - (oldSpRight - sp);
         int openParenIdx = *idx + 1;
         int i;
-        
-        // The function identifier should be right before ')'
         int fxnIdIdx = closeParenIdx - 1;
-        
-        // Replace ')' with intrinsic token
-        stack[closeParenIdx][0] = intrinsicTok;
-        stack[closeParenIdx][1] = 0;
-        
-        // Remove function identifier (right before the ')' we just changed to intrinsicTok)
-        del(fxnIdIdx, 1);
-        closeParenIdx--;
-        
-        // Remove only TOP-LEVEL commas between '(' and the intrinsic token
-        // We must NOT remove commas inside nested () pairs (e.g., from function call arguments)
-        // Work backwards, tracking parenthesis depth
+
+        if (intrinsicTok == tokMultFP || intrinsicTok == tokDivFP)
         {
-          int depth = 0;
-          for (i = closeParenIdx - 1; i > openParenIdx; i--)
+          // 2-arg binary operator intrinsics: __multfp(a, b), __divfp(a, b)
+          if (c != 2)
+            error("Fixed-point intrinsic %s requires exactly 2 arguments\n", fxnName);
+          
+          // Replace ')' with intrinsic token
+          stack[closeParenIdx][0] = intrinsicTok;
+          stack[closeParenIdx][1] = 0;
+          
+          // Remove function identifier
+          del(fxnIdIdx, 1);
+          closeParenIdx--;
+          
+          // Remove top-level commas
           {
-            int tok = stack[i][0];
-            if (tok == ')')
-              depth++;
-            else if (tok == '(')
-              depth--;
-            else if (tok == ',' && depth == 0)
+            int depth = 0;
+            for (i = closeParenIdx - 1; i > openParenIdx; i--)
             {
-              // This comma is at the top level of the intrinsic call - remove it
-              del(i, 1);
-              closeParenIdx--;
+              int tok = stack[i][0];
+              if (tok == ')') depth++;
+              else if (tok == '(') depth--;
+              else if (tok == ',' && depth == 0)
+              {
+                del(i, 1);
+                closeParenIdx--;
+              }
             }
           }
+          
+          // Remove '('
+          del(openParenIdx, 1);
+        }
+        else if (intrinsicTok == tokFAdd || intrinsicTok == tokFSub || intrinsicTok == tokFMul)
+        {
+          // 3-constant-arg FP64 intrinsics: __fadd(fd, fa, fb)
+          // All 3 args must be constants (FP register indices 0-7)
+          // Pack as: (fd << 8) | (fa << 4) | fb
+          if (c != 3)
+            error("FP64 intrinsic %s requires exactly 3 arguments\n", fxnName);
+          
+          // Extract the 3 constant args from the expression stack
+          // After argument evaluation, the stack has:
+          //   *idx+1='('  ...arg3Expr... ',' ...arg2Expr... ',' ...arg1Expr... ',' fxnIdent ')'
+          // Arguments are evaluated right-to-left, so we find them by scanning
+          // For constants, each argExpr is a single tokNumInt or tokNumUint
+          
+          // Find the 3 constant values by scanning top-level entries between ( and fxnIdent
+          int constVals[3];
+          int constCount = 0;
+          {
+            int depth = 0;
+            for (i = openParenIdx + 1; i < fxnIdIdx; i++)
+            {
+              int tok = stack[i][0];
+              if (tok == '(' || tok == '[') depth++;
+              else if (tok == ')' || tok == ']') depth--;
+              else if (depth == 0 && tok != ',')
+              {
+                if (tok == tokNumInt || tok == tokNumUint)
+                {
+                  if (constCount < 3)
+                    constVals[constCount] = stack[i][1];
+                  constCount++;
+                }
+                else
+                {
+                  error("FP64 intrinsic %s requires constant arguments (FP register indices 0-7)\n", fxnName);
+                }
+              }
+            }
+          }
+          if (constCount != 3)
+            error("FP64 intrinsic %s requires exactly 3 constant arguments\n", fxnName);
+          
+          // Arguments are stored in reverse order (right-to-left evaluation)
+          // constVals[0] = third arg (fb), constVals[1] = second arg (fa), constVals[2] = first arg (fd)
+          int fd = constVals[2];
+          int fa = constVals[1];
+          int fb = constVals[0];
+          
+          if (fd < 0 || fd > 7 || fa < 0 || fa > 7 || fb < 0 || fb > 7)
+            error("FP64 register index must be 0-7\n");
+          
+          int packed = (fd << 8) | (fa << 4) | fb;
+          
+          // Replace ')' with intrinsic token + packed value
+          stack[closeParenIdx][0] = intrinsicTok;
+          stack[closeParenIdx][1] = packed;
+          
+          // Remove everything between '(' and the intrinsic token
+          // (function identifier, commas, constant args)
+          for (i = closeParenIdx - 1; i > openParenIdx; i--)
+          {
+            del(i, 1);
+            closeParenIdx--;
+          }
+          
+          // Remove '('
+          del(openParenIdx, 1);
+        }
+        else if (intrinsicTok == tokFld)
+        {
+          // __fld(fd, hi, lo): fd is constant, hi/lo are expressions
+          // Treat as binary operator with fd packed in token value
+          if (c != 3)
+            error("__fld requires exactly 3 arguments\n");
+          
+          // Find the first (rightmost in evaluation order = fd) constant argument
+          // The last argument evaluated (first in C source = fd) is the rightmost on the stack
+          // After evaluation: '(' arg3 ',' arg2 ',' arg1 ',' fxnIdent ')'
+          // arg1 = last evaluated = fd (first C arg)
+          // We need to find and extract the fd constant, leaving hi and lo as binary operands
+          
+          // Scan for the third argument (fd) - it's the last top-level entry before fxnIdent
+          // Actually, due to right-to-left evaluation:
+          // Stack: '(' <fb_expr> ',' <fa_expr> ',' <fd_expr> ',' fxnIdent ')'
+          // where fb=lo (3rd C arg), fa=hi (2nd C arg), fd=1st C arg
+          
+          // Find fd: last top-level expression before fxnIdent
+          int fdIdx = -1;
+          int fdVal = 0;
+          {
+            int depth = 0;
+            int lastTopLevelIdx = -1;
+            for (i = openParenIdx + 1; i < fxnIdIdx; i++)
+            {
+              int tok = stack[i][0];
+              if (tok == '(' || tok == '[') depth++;
+              else if (tok == ')' || tok == ']') depth--;
+              else if (depth == 0 && tok != ',')
+                lastTopLevelIdx = i;
+            }
+            fdIdx = lastTopLevelIdx;
+          }
+          
+          if (fdIdx < 0 || (stack[fdIdx][0] != tokNumInt && stack[fdIdx][0] != tokNumUint))
+            error("__fld first argument must be a constant (FP register index 0-7)\n");
+          fdVal = stack[fdIdx][1];
+          if (fdVal < 0 || fdVal > 7)
+            error("FP64 register index must be 0-7\n");
+          
+          // Remove fd expression and its preceding comma
+          // fd is at fdIdx, comma is at fdIdx-1
+          del(fdIdx, 1);  // remove fd constant
+          closeParenIdx--;
+          fxnIdIdx--;
+          // remove the comma before fd
+          if (fdIdx - 1 > openParenIdx && stack[fdIdx - 1][0] == ',')
+          {
+            del(fdIdx - 1, 1);
+            closeParenIdx--;
+            fxnIdIdx--;
+          }
+          
+          // Now we have: '(' <lo_expr> ',' <hi_expr> ',' fxnIdent ')'
+          // This is a 2-arg pattern like __multfp
+          
+          // Replace ')' with tokFld + fd value
+          stack[closeParenIdx][0] = tokFld;
+          stack[closeParenIdx][1] = fdVal;
+          
+          // Remove function identifier
+          del(fxnIdIdx, 1);
+          closeParenIdx--;
+          
+          // Remove top-level commas
+          {
+            int depth = 0;
+            for (i = closeParenIdx - 1; i > openParenIdx; i--)
+            {
+              int tok = stack[i][0];
+              if (tok == ')') depth++;
+              else if (tok == '(') depth--;
+              else if (tok == ',' && depth == 0)
+              {
+                del(i, 1);
+                closeParenIdx--;
+              }
+            }
+          }
+          
+          // Remove '('
+          del(openParenIdx, 1);
+        }
+        else if (intrinsicTok == tokFstHi || intrinsicTok == tokFstLo)
+        {
+          // __fsthi(fs), __fstlo(fs): 1 constant arg, returns value in CPU register
+          if (c != 1)
+            error("%s requires exactly 1 argument\n", fxnName);
+          
+          // Find the constant argument
+          int fsVal = 0;
+          {
+            int depth = 0;
+            for (i = openParenIdx + 1; i < fxnIdIdx; i++)
+            {
+              int tok = stack[i][0];
+              if (tok == '(' || tok == '[') depth++;
+              else if (tok == ')' || tok == ']') depth--;
+              else if (depth == 0 && tok != ',')
+              {
+                if (tok == tokNumInt || tok == tokNumUint)
+                  fsVal = stack[i][1];
+                else
+                  error("%s argument must be a constant (FP register index 0-7)\n", fxnName);
+              }
+            }
+          }
+          if (fsVal < 0 || fsVal > 7)
+            error("FP64 register index must be 0-7\n");
+          
+          // Replace ')' with intrinsic token + fs value
+          stack[closeParenIdx][0] = intrinsicTok;
+          stack[closeParenIdx][1] = fsVal;
+          
+          // Remove everything between '(' and the intrinsic token
+          for (i = closeParenIdx - 1; i > openParenIdx; i--)
+          {
+            del(i, 1);
+            closeParenIdx--;
+          }
+          
+          // Remove '('
+          del(openParenIdx, 1);
         }
         
-        // Remove '(' at openParenIdx
-        del(openParenIdx, 1);
-        
-        // Set return type to int (fixed-point values are stored in int)
+        // Set return type to int
         *ExprTypeSynPtr = SymIntSynPtr;
         *ConstExpr = 0;
         break;  // Exit the case - don't generate normal function call
