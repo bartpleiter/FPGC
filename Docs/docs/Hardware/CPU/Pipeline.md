@@ -311,6 +311,8 @@ next:         [IF] [ID]  stall        [EX] ...
 
 A nice implementation detail: the multi-cycle ALU result is captured in `malu_result_reg`, but on the same cycle that `malu_done` fires, the pipeline uses `malu_result` directly (the combinational output) rather than the registered value. This avoids needing an extra cycle to register the result before the EX stage can use it.
 
+The FP64 coprocessor operations (FMUL, FADD, FSUB, FLD, FSTHI, FSTLO) also use the ARITHM encoding and share the same stalling mechanism. FMUL takes ~5 cycles and stalls the pipeline like a regular multiply. FADD, FSUB, FLD, FSTHI, and FSTLO complete in a single cycle and do not cause multi-cycle stalls. Since the FP64 register file is separate from the CPU register file, FP64 operations that only operate on FP registers (FADD, FSUB, FMUL) do not participate in CPU data forwarding or hazard detection.
+
 ## Interrupt Delivery
 
 Interrupts are only accepted when a jump or branch instruction is being taken in MEM. This is a deliberate constraint that greatly simplifies interrupt handling in the pipeline.

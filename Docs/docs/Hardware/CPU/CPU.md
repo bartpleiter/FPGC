@@ -85,6 +85,16 @@ The instruction set is split into four categories:
 | `0101` | DIVFP | Fixed-point divide | ~32 |
 | `0110` | MODS | Signed modulo | ~32 |
 | `0111` | MODU | Unsigned modulo | ~32 |
+| `1000` | FMUL | FP64 fixed-point multiply (Q32.32) | ~5 |
+| `1001` | FADD | FP64 fixed-point add (Q32.32) | 1 |
+| `1010` | FSUB | FP64 fixed-point subtract (Q32.32) | 1 |
+| `1011` | FLD | Load FP64 register from two CPU registers | 1 |
+| `1100` | FSTHI | Store FP64 register high word to CPU register | 1 |
+| `1101` | FSTLO | Store FP64 register low word to CPU register | 1 |
+| `1110` | MULSHI | Signed multiply, return upper 32 bits | ~4 |
+| `1111` | MULTUHI | Unsigned multiply, return upper 32 bits | ~4 |
+
+The FP64 operations (`1000`–`1101`) use the FP64 coprocessor described below. MULSHI and MULTUHI return the upper 32 bits of a 64-bit multiply result, which is useful for implementing fixed-point arithmetic without the coprocessor.
 
 ### Branch Conditions
 
@@ -145,3 +155,50 @@ When an interrupt fires:
 The handler uses INTID to determine which interrupt fired, handles it, then executes RETI to restore the PC and re-enable interrupts.
 
 An important constraint: interrupts only fire when a jump or branch is being taken in the MEM stage. This greatly simplifies pipeline hazard handling during interrupt delivery, at the cost of slightly delayed interrupt response. In practice, most code has enough jumps (function calls, loops) that the latency is negligible.
+
+## FP64 Coprocessor
+
+The FP64 coprocessor extends the B32P3 with 64-bit fixed-point arithmetic using a signed Q32.32 format. It has its own register file of 8 × 64-bit registers (`f0`–`f7`), separate from the CPU's general-purpose registers.
+
+### Q32.32 Fixed-Point Format
+
+Each 64-bit FP register stores a value in signed Q32.32 format:
+
+```text
+ 63        32 31         0
++------------+------------+
+|   hi (s32) |   lo (u32) |
++------------+------------+
+```
+
+- **hi** (bits 63–32): Signed 32-bit integer part
+- **lo** (bits 31–0): Unsigned 32-bit fractional part (representing a value in the range [0, 1))
+
+The represented value is: `value = hi + lo / 2^32`
+
+For example, to represent 3.75: `hi = 3`, `lo = 0xC0000000` (0.75 × 2^32).
+
+### FP64 Register File
+
+| Register | Width | Description |
+|----------|-------|-------------|
+| f0–f7 | 64 bits | General-purpose FP64 registers |
+
+There is no hardwired zero register. All 8 registers are freely usable. The register index is encoded in 3 bits within the ARITHM instruction fields (A, B, and D register fields, using only the lower 3 bits).
+
+### FP64 Instructions
+
+All FP64 instructions use the **ARITHM** encoding (opcode `0010`). The `alu_op` field (bits 27–24) selects the operation. Register fields A, B, and D are reused: for FP64 operations, only the lower 3 bits index into the FP64 register file.
+
+| Instruction | alu_op | Operands | Description |
+|-------------|--------|----------|-------------|
+| FMUL | `1000` | fd, fa, fb | `fd = fa × fb` (Q32.32 multiply, ~5 cycles) |
+| FADD | `1001` | fd, fa, fb | `fd = fa + fb` (Q32.32 add, 1 cycle) |
+| FSUB | `1010` | fd, fa, fb | `fd = fa - fb` (Q32.32 subtract, 1 cycle) |
+| FLD | `1011` | fd, areg, breg | `fd = {areg, breg}` (load hi/lo from CPU registers) |
+| FSTHI | `1100` | dreg, fa | `dreg = fa[63:32]` (store hi word to CPU register) |
+| FSTLO | `1101` | dreg, fa | `dreg = fa[31:0]` (store lo word to CPU register) |
+
+FLD loads an FP64 register from two CPU registers: `areg` provides the high (integer) word and `breg` provides the low (fractional) word. FSTHI and FSTLO extract the high or low 32-bit half of an FP64 register into a CPU register, which is the only way to move data from the FP64 register file back to the CPU.
+
+FADD and FSUB complete in a single cycle. FMUL takes approximately 5 cycles because it uses DSP multiplier blocks and accumulates partial products. During multi-cycle FP64 operations, the pipeline stalls the same way as for regular multi-cycle ALU operations.

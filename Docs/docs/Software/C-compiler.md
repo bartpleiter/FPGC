@@ -134,12 +134,13 @@ Lower addresses
 
 **Supported:**
 
-- Fixed-point intrinsics for hardware acceleration: `__multfp(a, b)` and `__divfp(a, b)`
+- Fixed-point 16.16 intrinsics for hardware acceleration: `__multfp(a, b)` and `__divfp(a, b)`
+- Fixed-point 64-bit (Q32.32) intrinsics using the FP64 coprocessor (see [FP64 Intrinsics](#fp64-intrinsics) below)
 
 **Not Supported:**
 
 - Floating point types: `float`, `double`, `long double`
-- 64-bit integers: `long long`
+- 64-bit integers: `long long` (use the FP64 coprocessor intrinsics for 64-bit fixed-point arithmetic instead)
 - Bit fields in structs
 - Variable-length arrays (VLAs)
 - Complex numbers (`_Complex`)
@@ -149,6 +150,36 @@ Lower addresses
 - Complex macro expansion
 - Stringification (`#`) and token pasting (`##`)
 - `#error`, `#warning`
+
+## FP64 Intrinsics
+
+B32CC provides built-in intrinsics for the FP64 coprocessor, enabling 64-bit fixed-point arithmetic (Q32.32 format) from C code. The FP64 coprocessor has 8 dedicated 64-bit registers (`f0`–`f7`), separate from the CPU's general-purpose registers.
+
+### Q32.32 Format
+
+Each FP64 register holds a signed fixed-point value split into two 32-bit halves:
+
+- **hi** (signed integer part): the whole number portion
+- **lo** (unsigned fractional part): represents a fraction in the range [0, 1)
+
+The value is: `value = hi + lo / 2^32`. For example, 3.75 is stored as `hi = 3`, `lo = 0xC0000000`.
+
+### Available Intrinsics
+
+| Intrinsic | Description |
+|-----------|-------------|
+| `__fld(fd, hi, lo)` | Load FP64 register `fd` with `{hi, lo}` |
+| `__fadd(fd, fa, fb)` | `fd = fa + fb` (Q32.32 add) |
+| `__fsub(fd, fa, fb)` | `fd = fa - fb` (Q32.32 subtract) |
+| `__fmul(fd, fa, fb)` | `fd = fa × fb` (Q32.32 multiply) |
+| `__fsthi(fs)` | Returns the high (integer) word of FP64 register `fs` |
+| `__fstlo(fs)` | Returns the low (fractional) word of FP64 register `fs` |
+
+All register arguments (`fd`, `fa`, `fb`, `fs`) are integer constants in the range 0–7, corresponding to registers `f0`–`f7`. The `hi` and `lo` arguments to `__fld` are regular C expressions (variables or constants).
+
+### FP64 Register Allocation
+
+The FP64 registers are **not** managed by the compiler, the programmer is responsible for choosing which registers to use and avoiding conflicts. Since the FP64 register file is completely separate from the CPU registers, there are no interactions with the compiler's register allocator.
 
 ## Inline Assembly
 

@@ -119,6 +119,14 @@ The following table provides a complete overview of all B32P3 instructions suppo
 | `divfp` | R | R/C16 | R | Compute Arg1 / Arg2 (signed fixed-point), write result to Arg3 |
 | `mods` | R | R/C16 | R | Compute Arg1 % Arg2 (signed), write result to Arg3 |
 | `modu` | R | R/C16 | R | Compute Arg1 % Arg2 (unsigned), write result to Arg3 |
+| `fmul` | FR | FR | FR | FP64 multiply: Arg3 = Arg1 × Arg2 (Q32.32) |
+| `fadd` | FR | FR | FR | FP64 add: Arg3 = Arg1 + Arg2 (Q32.32) |
+| `fsub` | FR | FR | FR | FP64 subtract: Arg3 = Arg1 - Arg2 (Q32.32) |
+| `fld` | FR | R | R | Load FP64 register Arg1 from hi=Arg2, lo=Arg3 |
+| `fsthi` | FR | R | - | Store high 32 bits of FP64 register Arg1 to Arg2 |
+| `fstlo` | FR | R | - | Store low 32 bits of FP64 register Arg1 to Arg2 |
+| `mulshi` | R | R/C16 | R | Signed multiply, return upper 32 bits to Arg3 |
+| `multuhi` | R | R/C16 | R | Unsigned multiply, return upper 32 bits to Arg3 |
 | `load` | C16 | R | - | Load unsigned 16-bit constant from Arg1 into lower bits of Arg2 |
 | `loadhi` | C16 | R | - | Load unsigned 16-bit constant from Arg1 into upper bits of Arg2 |
 | `load32` | C32 | R | - | Load signed 32-bit constant from Arg1 into Arg2 (expands to load+loadhi) |
@@ -141,6 +149,7 @@ The following table provides a complete overview of all B32P3 instructions suppo
 **Legend:**
 
 - `R` = Register (r0-r15)
+- `FR` = FP64 register (f0-f7)
 - `C16` = 16-bit constant (signed unless noted)
 - `C27` = 27-bit constant
 - `C32` = 32-bit constant
