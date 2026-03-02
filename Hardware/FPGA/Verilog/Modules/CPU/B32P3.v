@@ -489,9 +489,78 @@ reg        malu_start_reg = 1'b0;
 
 wire [31:0] malu_result;
 wire        malu_done;
+wire [63:0] malu_fp_result;  // 64-bit result from FMUL
+
+// ---- FP64 COPROCESSOR ----
+// 8 x 64-bit register file for 64-bit fixed-point operations
+// Combinational reads (data available same cycle), synchronous writes
+
+(* ramstyle = "logic" *) reg [63:0] fp_regs [0:7];
+
+// FP register addresses extracted from instruction fields (lower 3 bits)
+wire [2:0] fp_areg = id_ex_areg[2:0];
+wire [2:0] fp_breg = id_ex_breg[2:0];
+wire [2:0] fp_dreg = id_ex_dreg[2:0];
+
+// Combinational read ports
+wire [63:0] fp_a_data = fp_regs[fp_areg];
+wire [63:0] fp_b_data = fp_regs[fp_breg];
+
+// Identify single-cycle FP operations that should NOT stall the pipeline
+wire is_fp_singlecycle = id_ex_arithm && (
+    id_ex_alu_op == 4'b1001 ||  // FADD
+    id_ex_alu_op == 4'b1010 ||  // FSUB
+    id_ex_alu_op == 4'b1011 ||  // FLD
+    id_ex_alu_op == 4'b1100 ||  // FSTHI
+    id_ex_alu_op == 4'b1101     // FSTLO
+);
+
+// Identify FP operations that write to FP register file (not CPU register file)
+wire fp_writes_to_fpregs = id_ex_arithm && (
+    id_ex_alu_op == 4'b1000 ||  // FMUL
+    id_ex_alu_op == 4'b1001 ||  // FADD
+    id_ex_alu_op == 4'b1010 ||  // FSUB
+    id_ex_alu_op == 4'b1011     // FLD
+);
+
+// 64-bit adder/subtractor (combinational)
+wire [63:0] fp_add_result = fp_a_data + fp_b_data;
+wire [63:0] fp_sub_result = fp_a_data - fp_b_data;
+
+// FP register write data selection
+wire [63:0] fp_write_data =
+    (id_ex_alu_op == 4'b1001)  ? fp_add_result :          // FADD
+    (id_ex_alu_op == 4'b1010)  ? fp_sub_result :          // FSUB
+    (id_ex_alu_op == 4'b1011)  ? {ex_alu_a, ex_alu_b} :   // FLD: {rA, rB}
+    64'd0;
+
+// FP register write enable for single-cycle operations
+wire fp_singlecycle_we = id_ex_valid && is_fp_singlecycle && fp_writes_to_fpregs
+                         && !ex_pipeline_stall;
+
+// FP register file write (synchronous)
+always @(posedge clk) begin
+    if (reset) begin
+        // Initialize FP registers to 0
+        fp_regs[0] <= 64'd0;
+        fp_regs[1] <= 64'd0;
+        fp_regs[2] <= 64'd0;
+        fp_regs[3] <= 64'd0;
+        fp_regs[4] <= 64'd0;
+        fp_regs[5] <= 64'd0;
+        fp_regs[6] <= 64'd0;
+        fp_regs[7] <= 64'd0;
+    end else if (fp_singlecycle_we) begin
+        fp_regs[fp_dreg] <= fp_write_data;
+    end else if (malu_done && id_ex_alu_op == 4'b1000) begin
+        // FMUL writeback: pipeline is stalled so fp_dreg is still valid
+        fp_regs[fp_dreg] <= malu_fp_result;
+    end
+end
 
 // Stall pipeline while multi-cycle ALU is in progress
-assign multicycle_stall = id_ex_valid && id_ex_arithm && !malu_request_finished;
+// Single-cycle FP operations (fadd, fsub, fld, fsthi, fstlo) do NOT stall
+assign multicycle_stall = id_ex_valid && id_ex_arithm && !is_fp_singlecycle && !malu_request_finished;
 
 
 MultiCycleALU multi_cycle_alu (
@@ -502,7 +571,11 @@ MultiCycleALU multi_cycle_alu (
     .b          (malu_b_reg),
     .opcode     (malu_opcode_reg),
     .y          (malu_result),
-    .done       (malu_done)
+    .done       (malu_done),
+    // FP64 coprocessor ports
+    .fp_a       (fp_a_data),
+    .fp_b       (fp_b_data),
+    .fp_result  (malu_fp_result)
 );
 
 // Multi-cycle ALU state machine
@@ -525,8 +598,9 @@ begin
                 malu_request_finished <= 1'b0;
                 malu_result_reg <= 32'd0;
 
-                // Start when we have a valid arithm instruction that hasn't been processed
-                if (id_ex_valid && id_ex_arithm && !malu_request_finished)
+                // Start when we have a valid multi-cycle arithm instruction
+                // Single-cycle FP ops (fadd, fsub, fld, fsthi, fstlo) must NOT start the MALU
+                if (id_ex_valid && id_ex_arithm && !malu_request_finished && !is_fp_singlecycle)
                 begin
                     malu_start_reg <= 1'b1;
                     malu_a_reg <= ex_alu_a;
@@ -838,8 +912,11 @@ MemoryStage #(
 // SAVPC uses PC, INTID uses interrupt ID, otherwise ALU result
 // For multi-cycle ALU: use malu_result directly when done (not the registered value,
 // which hasn't been updated yet on the same clock edge)
+// For FP store: extract 32-bit half from FP register
 wire [31:0] ex_result = id_ex_get_pc    ? id_ex_pc :
                         id_ex_get_int_id ? {24'd0, int_id} :
+                        (is_fp_singlecycle && id_ex_alu_op == 4'b1100) ? fp_a_data[63:32] :  // FSTHI
+                        (is_fp_singlecycle && id_ex_alu_op == 4'b1101) ? fp_a_data[31:0]  :  // FSTLO
                         (id_ex_arithm && malu_done) ? malu_result :
                         id_ex_arithm   ? malu_result_reg :
                         ex_alu_result;
@@ -880,7 +957,7 @@ begin
         ex_mem_breg_data <= ex_breg_forwarded;
         ex_mem_dreg <= id_ex_dreg;
         ex_mem_mem_addr <= ex_mem_addr_calc;
-        ex_mem_dreg_we <= id_ex_dreg_we;
+        ex_mem_dreg_we <= id_ex_dreg_we && !fp_writes_to_fpregs;
         ex_mem_mem_read <= id_ex_mem_read;
         ex_mem_mem_write <= id_ex_mem_write;
         ex_mem_push <= id_ex_push;

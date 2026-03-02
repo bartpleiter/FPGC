@@ -14,30 +14,47 @@ module MultiCycleALU (
     input wire  [31:0]  a,
     input wire  [31:0]  b,
     input wire  [3:0]   opcode,
-    output reg  [31:0]  y = 32'd0
+    output reg  [31:0]  y = 32'd0,
+
+    // FP64 coprocessor ports for FMUL
+    input wire  [63:0]  fp_a,        // 64-bit FP operand A (from FP register file)
+    input wire  [63:0]  fp_b,        // 64-bit FP operand B (from FP register file)
+    output reg  [63:0]  fp_result = 64'd0  // 64-bit FP result (32.32 fixed-point)
 );
 
 // Opcodes
 localparam
-    OP_MULTS  = 4'b0000, // Multiply signed
-    OP_MULTU  = 4'b0001, // Multiply unsigned
-    OP_MULTFP = 4'b0010, // Multiply fixed point signed
-    OP_DIVS   = 4'b0011, // Divide signed
-    OP_DIVU   = 4'b0100, // Divide unsigned
-    OP_DIVFP  = 4'b0101, // Divide fixed point signed
-    OP_MODS   = 4'b0110, // Modulus signed
-    OP_MODU   = 4'b0111; // Modulus unsigned
+    OP_MULTS    = 4'b0000, // Multiply signed
+    OP_MULTU    = 4'b0001, // Multiply unsigned
+    OP_MULTFP   = 4'b0010, // Multiply fixed point signed
+    OP_DIVS     = 4'b0011, // Divide signed
+    OP_DIVU     = 4'b0100, // Divide unsigned
+    OP_DIVFP    = 4'b0101, // Divide fixed point signed
+    OP_MODS     = 4'b0110, // Modulus signed
+    OP_MODU     = 4'b0111, // Modulus unsigned
+    // FP64 coprocessor opcodes
+    OP_FMUL     = 4'b1000, // 64-bit fixed-point multiply (uses Mults64)
+    OP_FADD     = 4'b1001, // 64-bit add (single-cycle, handled in B32P3.v)
+    OP_FSUB     = 4'b1010, // 64-bit sub (single-cycle, handled in B32P3.v)
+    OP_FLD      = 4'b1011, // Load FP reg (single-cycle, handled in B32P3.v)
+    OP_FSTHI    = 4'b1100, // Store FP reg high (single-cycle, handled in B32P3.v)
+    OP_FSTLO    = 4'b1101, // Store FP reg low (single-cycle, handled in B32P3.v)
+    OP_MULSHI   = 4'b1110, // Multiply signed, return high 32 bits
+    OP_MULTUHI  = 4'b1111; // Multiply unsigned, return high 32 bits
 
 // State machine states
 localparam
-    STATE_IDLE      = 3'd0,
-    STATE_WAIT_MULTU = 3'd1,
-    STATE_WAIT_MULTS = 3'd2,
-    STATE_WAIT_MULTFP = 3'd3,
-    STATE_WAIT_IDIV = 3'd4,
-    STATE_WAIT_FPDIV = 3'd5;
+    STATE_IDLE          = 4'd0,
+    STATE_WAIT_MULTU    = 4'd1,
+    STATE_WAIT_MULTS    = 4'd2,
+    STATE_WAIT_MULTFP   = 4'd3,
+    STATE_WAIT_IDIV     = 4'd4,
+    STATE_WAIT_FPDIV    = 4'd5,
+    STATE_WAIT_MULSHI   = 4'd6,
+    STATE_WAIT_MULTUHI  = 4'd7,
+    STATE_WAIT_MULTS64  = 4'd8;
 
-reg [2:0] state = STATE_IDLE;
+reg [3:0] state = STATE_IDLE;
 
 // Track whether we want quotient or remainder for integer division
 reg idiv_want_remainder = 1'b0;
@@ -112,6 +129,20 @@ FPDivider fpdiv (
     .done(fpdiv_done)
 );
 
+// 64-bit Signed Multiplier (FP64 coprocessor)
+reg mults64_start = 1'b0;
+wire signed [127:0] mults64_y;
+wire mults64_done;
+Mults64 mults64 (
+    .clk(clk),
+    .reset(reset),
+    .a(fp_a),
+    .b(fp_b),
+    .start(mults64_start),
+    .y(mults64_y),
+    .done(mults64_done)
+);
+
 always @(posedge clk)
 begin
     if (reset)
@@ -135,6 +166,8 @@ begin
         fpdiv_start <= 1'b0;
         fpdiv_a <= 32'd0;
         fpdiv_b <= 32'd0;
+        mults64_start <= 1'b0;
+        fp_result <= 64'd0;
     end
     else
     begin
@@ -145,6 +178,7 @@ begin
         mults_start <= 1'b0;
         idiv_start <= 1'b0;
         fpdiv_start <= 1'b0;
+        mults64_start <= 1'b0;
 
         case (state)
             STATE_IDLE:
@@ -192,6 +226,29 @@ begin
                         fpdiv_b <= b;
                         fpdiv_start <= 1'b1;
                         state <= STATE_WAIT_FPDIV;
+                    end
+
+                    if (opcode == OP_MULSHI)
+                    begin
+                        mults_a <= a;
+                        mults_b <= b;
+                        mults_start <= 1'b1;
+                        state <= STATE_WAIT_MULSHI;
+                    end
+
+                    if (opcode == OP_MULTUHI)
+                    begin
+                        multu_a <= a;
+                        multu_b <= b;
+                        multu_start <= 1'b1;
+                        state <= STATE_WAIT_MULTUHI;
+                    end
+
+                    if (opcode == OP_FMUL)
+                    begin
+                        // fp_a and fp_b are wired directly from FP register file
+                        mults64_start <= 1'b1;
+                        state <= STATE_WAIT_MULTS64;
                     end
                 end
             end
@@ -244,6 +301,37 @@ begin
                 if (fpdiv_done)
                 begin
                     y <= fpdiv_y;
+                    done <= 1'b1;
+                    state <= STATE_IDLE;
+                end
+            end
+
+            STATE_WAIT_MULSHI:
+            begin
+                if (mults_done)
+                begin
+                    y <= mults_y[63:32]; // Return high 32 bits of signed multiply
+                    done <= 1'b1;
+                    state <= STATE_IDLE;
+                end
+            end
+
+            STATE_WAIT_MULTUHI:
+            begin
+                if (multu_done)
+                begin
+                    y <= multu_y[63:32]; // Return high 32 bits of unsigned multiply
+                    done <= 1'b1;
+                    state <= STATE_IDLE;
+                end
+            end
+
+            STATE_WAIT_MULTS64:
+            begin
+                if (mults64_done)
+                begin
+                    // 32.32 × 32.32 = 64.64, we want the middle 64 bits [95:32]
+                    fp_result <= mults64_y[95:32];
                     done <= 1'b1;
                     state <= STATE_IDLE;
                 end

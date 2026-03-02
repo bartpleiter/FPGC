@@ -102,6 +102,15 @@ class MultiCycleArithmeticOperation(StringParsableEnum):
     DIVIDE_FIXED_POINT = "divfp"
     MODULO_SIGNED = "mods"
     MODULO_UNSIGNED = "modu"
+    # FP64 coprocessor instructions
+    FLOAT_MULTIPLY = "fmul"
+    FLOAT_ADD = "fadd"
+    FLOAT_SUBTRACT = "fsub"
+    FLOAT_LOAD = "fld"
+    FLOAT_STORE_HIGH = "fsthi"
+    FLOAT_STORE_LOW = "fstlo"
+    MULTIPLY_SIGNED_HIGH = "mulshi"
+    MULTIPLY_UNSIGNED_HIGH = "multuhi"
 
 
 class BranchOperation(StringParsableEnum):
@@ -195,6 +204,15 @@ class ArithmOpcode(Enum):
     DIVFP = "0101"
     MODS = "0110"
     MODU = "0111"
+    # FP64 coprocessor opcodes
+    FMUL = "1000"
+    FADD = "1001"
+    FSUB = "1010"
+    FLD = "1011"
+    FSTHI = "1100"
+    FSTLO = "1101"
+    MULSHI = "1110"
+    MULTUHI = "1111"
 
 
 class RegisterValue(StringParsableEnum):

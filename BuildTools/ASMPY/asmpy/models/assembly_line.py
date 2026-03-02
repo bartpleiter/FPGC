@@ -492,6 +492,15 @@ class InstructionAssemblyLine(AssemblyLine):
             MultiCycleArithmeticOperation.DIVIDE_FIXED_POINT: ArithmOpcode.DIVFP,
             MultiCycleArithmeticOperation.MODULO_SIGNED: ArithmOpcode.MODS,
             MultiCycleArithmeticOperation.MODULO_UNSIGNED: ArithmOpcode.MODU,
+            # FP64 coprocessor instructions
+            MultiCycleArithmeticOperation.FLOAT_MULTIPLY: ArithmOpcode.FMUL,
+            MultiCycleArithmeticOperation.FLOAT_ADD: ArithmOpcode.FADD,
+            MultiCycleArithmeticOperation.FLOAT_SUBTRACT: ArithmOpcode.FSUB,
+            MultiCycleArithmeticOperation.FLOAT_LOAD: ArithmOpcode.FLD,
+            MultiCycleArithmeticOperation.FLOAT_STORE_HIGH: ArithmOpcode.FSTHI,
+            MultiCycleArithmeticOperation.FLOAT_STORE_LOW: ArithmOpcode.FSTLO,
+            MultiCycleArithmeticOperation.MULTIPLY_SIGNED_HIGH: ArithmOpcode.MULSHI,
+            MultiCycleArithmeticOperation.MULTIPLY_UNSIGNED_HIGH: ArithmOpcode.MULTUHI,
         }
         arithm_opcode = opcode_map[self.instruction_type].value
         if isinstance(self.arguments[1], Register):

@@ -426,6 +426,7 @@ set_global_assignment -name VERILOG_FILE ../Verilog/Modules/Memory/VRAMPXSram.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/BGWrenderer.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/MultiCycleAluOps/Multu.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/MultiCycleAluOps/Mults.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/MultiCycleAluOps/Mults64.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/Stack.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/Regbank.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/MultiCycleALU.v
@@ -441,6 +442,7 @@ set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/MemoryStage.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/ALU.v
 set_global_assignment -name QIP_FILE main_pll.qip
 set_global_assignment -name QIP_FILE ddr.qip
+
 
 
 
