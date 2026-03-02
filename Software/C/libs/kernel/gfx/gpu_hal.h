@@ -15,6 +15,7 @@
 #define GPU_WINDOW_COLOR_ADDR 0x7A01800    // Window plane color table
 #define GPU_PARAMETERS_ADDR 0x7A02000      // GPU parameters
 #define GPU_PIXEL_DATA_ADDR 0x7B00000      // Pixel plane data
+#define GPU_PIXEL_PALETTE_ADDR 0x7B20000   // Pixel palette (256 × 24-bit RGB entries)
 
 void gpu_clear_tables();
 void gpu_clear_bg();

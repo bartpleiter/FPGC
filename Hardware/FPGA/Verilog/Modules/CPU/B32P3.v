@@ -62,6 +62,11 @@ module B32P3 #(
     input  wire [7:0]   vramPX_q,
     input  wire         vramPX_fifo_full,
 
+    // ---- Pixel Palette ----
+    output wire         palette_we,
+    output wire [7:0]   palette_addr,
+    output wire [23:0]  palette_wdata,
+
     // ---- L1i cache (CPU pipeline port) ----
     output wire [6:0]   l1i_pipe_addr,
     input  wire [270:0] l1i_pipe_q,
@@ -909,6 +914,10 @@ MemoryStage #(
     .vramPX_d                   (vramPX_d),
     .vramPX_we                  (vramPX_we),
     .vramPX_fifo_full           (vramPX_fifo_full),
+    // Pixel Palette
+    .palette_we                 (palette_we),
+    .palette_addr               (palette_addr),
+    .palette_wdata              (palette_wdata),
     // L1D cache pipeline port
     .l1d_pipe_q                 (l1d_pipe_q),
     .l1d_pipe_addr              (l1d_pipe_addr),

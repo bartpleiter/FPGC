@@ -146,6 +146,11 @@ void sys_set_palette(int index, int value)
   syscall(SYSCALL_SET_PALETTE, index, value, 0);
 }
 
+void sys_set_pixel_palette(int index, int rgb24)
+{
+  syscall(SYSCALL_SET_PIXEL_PALETTE, index, rgb24, 0);
+}
+
 void sys_exit(int code)
 {
   syscall(SYSCALL_EXIT, code, 0, 0);

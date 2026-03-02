@@ -81,11 +81,25 @@ For games that need per-pixel control (like Doom), the BGW renderer doesn't cut 
 
 ### Pixel Format
 
-Each pixel is 8 bits in R3G3B2 format (3 bits red, 3 green, 2 blue = 256 colors). The framebuffer lives in external SRAM at CPU addresses `0x7B00000` through `0x7B12BFF`. Pixels are stored linearly:
+Each pixel is an 8-bit index into a **programmable 256-entry color palette**. The framebuffer lives in external SRAM at CPU addresses `0x7B00000` through `0x7B12BFF`. Pixels are stored linearly:
 
 ```
 address = 0x7B00000 + (y × 320) + x
 ```
+
+### Color Palette
+
+The pixel plane has a dedicated 256×24-bit color palette stored in on-chip dual-port BRAM. Each framebuffer pixel value (0–255) is used as an index into this palette to produce a 24-bit RGB color for display.
+
+The palette is memory-mapped at CPU addresses `0x7B20000` through `0x7B200FF`:
+
+```
+palette_address = 0x7B20000 + index    (index 0–255)
+```
+
+Each entry holds a 24-bit RGB value in the format `0x00RRGGBB`. The GPU reads the palette at the pixel clock rate (25 MHz) with a registered output, adding one pixel clock cycle of latency. Sync signals (blank, hsync, vsync) are delayed by a matching register stage to keep everything aligned.
+
+At power-on, the palette is initialized to a default R3G3B2 color mapping using bit-replication (e.g., a 3-bit red value of `0b101` becomes `0b10110110`), so without any software intervention the palette behaves identically to a classic R3G3B2 framebuffer. Software can reprogram any or all entries at runtime to implement custom color schemes, palette cycling, fade effects, or optimized palettes for specific content.
 
 ### The SRAM Sharing Problem
 
@@ -110,7 +124,7 @@ CPU writes go through a 1024-entry FIFO that buffers them at 100 MHz. A SRAM arb
 
 ## HDMI Output
 
-The final composited R3G3B2 pixel is expanded to 24-bit RGB (by repeating bits, so 0 maps to 0 and max maps to 255), then TMDS-encoded for HDMI output.
+The final composited pixel passes through the pixel-plane color palette (a 256×24-bit lookup table) to produce a 24-bit RGB value, which is then TMDS-encoded for HDMI output. The default palette entries use R3G3B2 bit-replication, so out of the box the output looks identical to the original fixed R3G3B2 scheme.
 
 ### TMDS on Cyclone IV
 

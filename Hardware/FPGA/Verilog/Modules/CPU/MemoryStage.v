@@ -68,6 +68,11 @@ module MemoryStage #(
     output wire         vramPX_we,
     input  wire         vramPX_fifo_full,
 
+    // ---- Pixel Palette ----
+    output wire         palette_we,
+    output wire [7:0]   palette_addr,
+    output wire [23:0]  palette_wdata,
+
     // ---- L1D cache pipeline port ----
     input  wire [270:0] l1d_pipe_q,
     output wire [6:0]   l1d_pipe_addr,
@@ -141,7 +146,9 @@ assign ex_mem_addr_calc = ex_addr_captured ? ex_mem_addr_calc_reg : ex_mem_addr_
 wire ex_sel_rom    = ex_mem_addr_calc >= 32'h7800000 && ex_mem_addr_calc < 32'h7900000;
 wire ex_sel_vram32 = ex_mem_addr_calc >= 32'h7900000 && ex_mem_addr_calc < 32'h7A00000;
 wire ex_sel_vram8  = ex_mem_addr_calc >= 32'h7A00000 && ex_mem_addr_calc < 32'h7B00000;
-wire ex_sel_vrampx = ex_mem_addr_calc >= 32'h7B00000 && ex_mem_addr_calc < 32'h7C00000;
+wire ex_sel_vrampx_pixel  = ex_mem_addr_calc >= 32'h7B00000 && ex_mem_addr_calc < 32'h7B20000;
+wire ex_sel_palette       = ex_mem_addr_calc >= 32'h7B20000 && ex_mem_addr_calc < 32'h7B20100;
+wire ex_sel_vrampx        = ex_sel_vrampx_pixel || ex_sel_palette;
 
 // EX-stage local address calculations for BRAM (ROM and VRAM)
 wire [31:0] ex_local_addr_rom    = ex_mem_addr_calc - 32'h7800000;
@@ -155,7 +162,9 @@ wire   mem_sel_io     = ex_mem_mem_addr >= 32'h7000000 && ex_mem_mem_addr < 32'h
 wire   mem_sel_rom    = ex_mem_mem_addr >= 32'h7800000 && ex_mem_mem_addr < 32'h7900000;
 wire   mem_sel_vram32 = ex_mem_mem_addr >= 32'h7900000 && ex_mem_mem_addr < 32'h7A00000;
 wire   mem_sel_vram8  = ex_mem_mem_addr >= 32'h7A00000 && ex_mem_mem_addr < 32'h7B00000;
-wire   mem_sel_vrampx = ex_mem_mem_addr >= 32'h7B00000 && ex_mem_mem_addr < 32'h7C00000;
+wire   mem_sel_vrampx_pixel = ex_mem_mem_addr >= 32'h7B00000 && ex_mem_mem_addr < 32'h7B20000;
+wire   mem_sel_palette      = ex_mem_mem_addr >= 32'h7B20000 && ex_mem_mem_addr < 32'h7B20100;
+wire   mem_sel_vrampx       = mem_sel_vrampx_pixel || mem_sel_palette;
 
 // ---- CPU-INTERNAL I/O ----
 wire mem_sel_cpu_io = (ex_mem_mem_addr == CPU_IO_PC_BACKUP) ||
@@ -187,15 +196,21 @@ assign vram8_addr = (ex_mem_valid && ex_mem_mem_write && mem_sel_vram8) ?
 assign vram8_d  = ex_mem_breg_data[7:0];
 assign vram8_we = ex_mem_valid && ex_mem_mem_write && mem_sel_vram8 && !backend_pipeline_stall;
 
-// ---- VRAMPX INTERFACE ----
-assign vramPX_addr = (ex_mem_valid && ex_mem_mem_write && mem_sel_vrampx) ?
+// ---- VRAMPX INTERFACE (pixel framebuffer only) ----
+assign vramPX_addr = (ex_mem_valid && ex_mem_mem_write && mem_sel_vrampx_pixel) ?
                      mem_local_addr[16:0] : ex_local_addr_vrampx[16:0];
 assign vramPX_d  = ex_mem_breg_data[7:0];
-assign vramPX_we = ex_mem_valid && ex_mem_mem_write && mem_sel_vrampx && !backend_pipeline_stall;
+assign vramPX_we = ex_mem_valid && ex_mem_mem_write && mem_sel_vrampx_pixel && !backend_pipeline_stall;
+
+// ---- PIXEL PALETTE INTERFACE ----
+assign palette_we    = ex_mem_valid && ex_mem_mem_write && mem_sel_palette && !backend_pipeline_stall;
+assign palette_addr  = mem_local_addr[7:0];
+assign palette_wdata = ex_mem_breg_data[23:0];
 
 // ---- VRAMPX FIFO BACKPRESSURE ----
-// Stall the pipeline when MEM stage wants to write to VRAMPX but FIFO is full
-assign vrampx_stall = ex_mem_valid && ex_mem_mem_write && mem_sel_vrampx && vramPX_fifo_full;
+// Stall the pipeline when MEM stage wants to write to VRAMPX pixel framebuffer but FIFO is full
+// Palette writes go to BRAM (instant) and don't need backpressure
+assign vrampx_stall = ex_mem_valid && ex_mem_mem_write && mem_sel_vrampx_pixel && vramPX_fifo_full;
 
 // ---- L1D CACHE INTERFACE ----
 assign l1d_pipe_addr = ex_mem_mem_addr[9:3];

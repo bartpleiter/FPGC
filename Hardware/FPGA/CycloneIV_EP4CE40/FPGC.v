@@ -389,6 +389,11 @@ wire        vramPX_cpu_we;
 wire [7:0]  vramPX_cpu_q;  // Not used in this design (write-only from CPU)
 wire        vramPX_fifo_full; // FIFO backpressure to CPU
 
+// Pixel palette CPU write signals
+wire        palette_cpu_we;
+wire [7:0]  palette_cpu_addr;
+wire [23:0] palette_cpu_wdata;
+
 // GPU pixel interface - direct SRAM read
 wire [16:0] gpu_pixel_addr;
 wire [7:0]  gpu_pixel_data;
@@ -605,6 +610,7 @@ FSX_SRAM fsx (
     // Clocks
     .clk_pixel(clkGPU),
     .clk_tmds_half(clkTMDShalf),
+    .clk_sys(clk100),
 
     // HDMI
     .tmds_clk_p(HDMI_CLK_P),
@@ -637,6 +643,11 @@ FSX_SRAM fsx (
     
     // Parameters
     .half_res(half_res),
+
+    // Palette CPU write port
+    .palette_we(palette_cpu_we),
+    .palette_addr(palette_cpu_addr),
+    .palette_wdata(palette_cpu_wdata),
 
     // Interrupt signal
     .frame_drawn(frameDrawn)
@@ -773,6 +784,11 @@ B32P3 cpu (
     .vramPX_we(vramPX_cpu_we),
     .vramPX_q(vramPX_cpu_q),
     .vramPX_fifo_full(vramPX_fifo_full),
+
+    // Pixel Palette
+    .palette_we(palette_cpu_we),
+    .palette_addr(palette_cpu_addr),
+    .palette_wdata(palette_cpu_wdata),
     
     // L1i cache (cpu pipeline port)
     .l1i_pipe_addr(l1i_pipe_addr),

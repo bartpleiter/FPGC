@@ -136,8 +136,11 @@ The ASMPY assembler header places a `jump Syscall` instruction at absolute addre
 | 19 | `TERM_GET_CURSOR` | — | (x<<8)\|y | Get the terminal cursor position (packed) |
 | 20 | `HEAP_ALLOC` | `a1` = size_words | pointer (or 0) | Allocate memory from the kernel heap |
 | 21 | `DELAY` | `a1` = milliseconds | 0 | Sleep for the given number of milliseconds |
-| 22 | `SET_PALETTE` | `a1` = index, `a2` = value | 0 | Set a GPU palette entry (value = (bg<<8)\|fg, 8-bit RRRGGGBB) |
+| 22 | `SET_PALETTE` | `a1` = index, `a2` = value | 0 | Set a BGW tile palette entry (value = (bg<<8)\|fg, 8-bit RRRGGGBB) |
 | 23 | `EXIT` | `a1` = exit code | *(does not return)* | Terminate the calling program immediately and return to BDOS |
+| 24 | `FS_READDIR` | `a1` = path, `a2` = entry_buf, `a3` = index | 0 on success | Read a directory entry by index |
+| 25 | `GET_KEY_STATE` | — | bitmap | Get the raw keyboard key-state bitmap |
+| 26 | `SET_PIXEL_PALETTE` | `a1` = index (0–255), `a2` = 24-bit RGB | 0 | Set a pixel-plane palette color (0x00RRGGBB) |
 
 The syscall ABI allows a maximum of 3 arguments (`a1`–`a3` in `r5`–`r7`), with the return value in `r1`. Where more data is needed, arguments are packed (e.g., `TERM_PUT_CELL` packs tile and palette into a single word) or pointers are used. The `EXIT` syscall is special: it never returns to the caller. Instead, it resets the hardware stack to the trampoline depth and jumps directly to the BDOS return path, cleanly unwinding the entire user program state.
 

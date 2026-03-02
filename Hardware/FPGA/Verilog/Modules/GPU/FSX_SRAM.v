@@ -6,6 +6,7 @@ module FSX_SRAM (
     // Clocks
     input wire          clk_pixel,    // Pixel clock (25MHz)
     input wire          clk_tmds_half, // Half of HDMI TDMS clock (pre-ddr)
+    input wire          clk_sys,      // System clock (100MHz) for palette writes
 
     // HDMI
     output wire         tmds_clk_p,
@@ -38,6 +39,11 @@ module FSX_SRAM (
 
     // Parameters
     input wire          half_res, // Render half res at full res by zooming in at top left corner
+
+    // Palette CPU write port
+    input wire          palette_we,
+    input wire  [7:0]   palette_addr,
+    input wire  [23:0]  palette_wdata,
 
     // Interrupt signal
     output wire         frame_drawn
@@ -114,15 +120,34 @@ assign r_combined = (px_priority) ? px_r : bgw_r;
 assign g_combined = (px_priority) ? px_g : bgw_g;
 assign b_combined = (px_priority) ? px_b : bgw_b;
 
-// ---- RGB conversion ----
+// ---- RGB conversion via programmable palette ----
 wire [7:0] r_byte;
 wire [7:0] g_byte;
 wire [7:0] b_byte;
 
-RGB8toRGB24 rgb8_to_24 (
-    .rgb8  ({r_combined, g_combined, b_combined}),
-    .rgb24 ({r_byte, g_byte, b_byte})
+PixelPalette px_palette (
+    // GPU read port (25 MHz)
+    .clk_pixel (clk_pixel),
+    .gpu_index ({r_combined, g_combined, b_combined}),
+    .gpu_rgb24 ({r_byte, g_byte, b_byte}),
+
+    // CPU write port (100 MHz)
+    .clk_sys   (clk_sys),
+    .cpu_we    (palette_we),
+    .cpu_addr  (palette_addr),
+    .cpu_wdata (palette_wdata)
 );
+
+// ---- Sync signal delay (1 cycle to match palette BRAM read latency) ----
+reg        blank_d = 1'b1;
+reg        hsync_d = 1'b0;
+reg        vsync_d = 1'b0;
+
+always @(posedge clk_pixel) begin
+    blank_d <= blank;
+    hsync_d <= hsync;
+    vsync_d <= vsync;
+end
 
 
 // ---- HDMI output ----
@@ -133,9 +158,9 @@ RGB2HDMI rgb2hdmi (
     .r_rgb         (r_byte),
     .g_rgb         (g_byte),
     .b_rgb         (b_byte),
-    .blk           (blank),
-    .hs            (hsync),
-    .vs            (vsync),
+    .blk           (blank_d),
+    .hs            (hsync_d),
+    .vs            (vsync_d),
     .tmds_clk_p    (tmds_clk_p),
     .tmds_clk_n    (tmds_clk_n),
     .tmds_d0_p     (tmds_d0_p),
@@ -153,7 +178,7 @@ RGB2HDMI rgb2hdmi (
 integer file;
 integer framecounter = 0;
 
-always @(negedge vsync)
+always @(negedge vsync_d)
 begin
     file = $fopen(
         $sformatf(
@@ -170,7 +195,7 @@ end
 
 always @(posedge clk_pixel)
 begin
-    if (~blank)
+    if (~blank_d)
     begin
         $fwrite(file, "%d  %d  %d\n", r_byte, g_byte, b_byte);
     end

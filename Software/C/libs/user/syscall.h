@@ -28,6 +28,7 @@
 #define SYSCALL_EXIT           23
 #define SYSCALL_FS_READDIR     24
 #define SYSCALL_GET_KEY_STATE  25
+#define SYSCALL_SET_PIXEL_PALETTE 26
 
 // Key state bitmap bit positions (matching BDOS bdos_hid.h)
 #define KEYSTATE_W        0x0001
@@ -110,6 +111,7 @@ void sys_delay(int ms);
 
 // Convenience wrappers — GPU
 void sys_set_palette(int index, int value);
+void sys_set_pixel_palette(int index, int rgb24);
 
 // Convenience wrappers — Process control
 void sys_exit(int code);

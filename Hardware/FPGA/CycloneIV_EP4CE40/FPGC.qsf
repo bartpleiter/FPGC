@@ -418,6 +418,7 @@ set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/HDMI/TMDSenc.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/HDMI/RGB8toRGB24.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/HDMI/RGB2HDMI.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/TimingGenerator.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/PixelPalette.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/PixelEngineSRAM.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/FSX_SRAM.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/Memory/SRAMArbiter.v
@@ -442,6 +443,7 @@ set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/MemoryStage.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/ALU.v
 set_global_assignment -name QIP_FILE main_pll.qip
 set_global_assignment -name QIP_FILE ddr.qip
+
 
 
 

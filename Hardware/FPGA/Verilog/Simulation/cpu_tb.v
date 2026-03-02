@@ -639,6 +639,11 @@ B32P3 cpu (
     .vramPX_q(vramPX_cpu_q),
     .vramPX_fifo_full(1'b0),
 
+    // Pixel Palette (unused in CPU testbench — signals left unconnected)
+    .palette_we(),
+    .palette_addr(),
+    .palette_wdata(),
+
     // L1i cache (cpu pipeline port)
     .l1i_pipe_addr(l1i_pipe_addr),
     .l1i_pipe_q(l1i_pipe_q),
