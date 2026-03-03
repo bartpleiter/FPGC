@@ -1,16 +1,6 @@
 //
-// mandelbrot_coord.c — Cluster Mandelbrot coordinator program (userBDOS).
-//
-// Manages 4 worker FPGCs to render a collaborative Mandelbrot zoom animation.
-// The coordinator:
-//   1. Sets up a 256-color gradient palette
-//   2. Sends view parameters and row assignments to workers
-//   3. Collects rendered pixel chunks and writes them to the framebuffer
-//   4. Advances the zoom and cycles colors each frame
-//
-// Worker MACs (per Q2 answer: MAC :01 is coordinator):
-//   Coordinator: 02:B4:B4:00:00:01
-//   Workers:     02:B4:B4:00:00:02 through 02:B4:B4:00:00:05
+// mbrot_host.c — Cluster Mandelbrot coordinator (userBDOS).
+// Controls 4 worker FPGCs (MAC :02–:05) for a Mandelbrot zoom animation.
 //
 
 #define USER_SYSCALL
@@ -24,11 +14,9 @@
 
 unsigned int *fb = (unsigned int *)PIXEL_FB_ADDR;
 
-// ---- Off-screen buffers for zoom animation ----
-// backbuf: workers write results here, then blit to fb
-// prevbuf: copy of completed frame, used as upscale source
+// ---- Off-screen buffer ----
+// Workers write results here; upscale reads from here and writes to fb.
 int backbuf[76800];  // 320 * 240
-int prevbuf[76800];
 
 // Upscale source rect for 0.90× zoom (center 90% of image)
 // 320 * 0.9 = 288, (320 - 288) / 2 = 16
@@ -38,8 +26,6 @@ int prevbuf[76800];
 #define UPSCALE_W   288
 #define UPSCALE_H   216
 
-// How often to refresh screen during collection (in chunks received)
-#define REFRESH_EVERY_N_CHUNKS 8
 
 // ---- Worker configuration ----
 #define NUM_WORKERS   4
@@ -95,21 +81,17 @@ int scale_hi;
 unsigned int scale_lo;
 int max_iter_val;
 
-// Zoom target: Seahorse Valley
-int target_re_hi;
-unsigned int target_re_lo;
-int target_im_hi;
-unsigned int target_im_lo;
+// Minimum scale before reset (~1e-7 in Q32.32)
+#define MIN_SCALE_LO 0x00001000
 
-// Minimum scale before reset
-unsigned int min_scale_lo;
+// Zoom factor per frame: 0.90 in Q32.32
+#define ZOOM_FACTOR_LO 0xE6666666
 
 // ---- Auto-zoom state ----
 int auto_zoom;
-int frame_count;
 
 // ---- Collection timeout (ms) ----
-#define COLLECT_TIMEOUT_MS 5000
+#define COLLECT_TIMEOUT_MS 3000
 
 // ---- Helper: write big-endian 32-bit into buffer ----
 void write_u32(char *buf, int offset, unsigned int val)
@@ -127,49 +109,6 @@ unsigned int read_u32(char *buf, int offset)
          ((buf[offset + 1] & 0xFF) << 16) |
          ((buf[offset + 2] & 0xFF) << 8) |
          (buf[offset + 3] & 0xFF);
-}
-
-// ---- Print decimal integer ----
-void print_int(int val)
-{
-  char buf[12];
-  int i;
-  int neg;
-  unsigned int uval;
-
-  if (val == 0)
-  {
-    sys_print_char('0');
-    return;
-  }
-
-  neg = 0;
-  if (val < 0)
-  {
-    neg = 1;
-    uval = (unsigned int)(0 - val);
-  }
-  else
-  {
-    uval = (unsigned int)val;
-  }
-
-  i = 11;
-  buf[i] = 0;
-  while (uval > 0)
-  {
-    i = i - 1;
-    buf[i] = '0' + (uval % 10);
-    uval = uval / 10;
-  }
-
-  if (neg)
-  {
-    i = i - 1;
-    buf[i] = '-';
-  }
-
-  sys_print_str(buf + i);
 }
 
 // ---- Palette generation ----
@@ -278,7 +217,7 @@ void load_palette_mono()
   palette[0] = 0x000000;
   for (i = 1; i < 256; i++)
   {
-    int v = (i * 255) / 255;
+    int v = i;
     palette[i] = (v << 16) | (v << 8) | v;
   }
 }
@@ -304,22 +243,6 @@ void apply_palette()
   {
     sys_set_pixel_palette(i, palette[i]);
   }
-}
-
-// Cycle palette entries by 1 position (skip index 0)
-void cycle_palette()
-{
-  int saved;
-  int i;
-
-  saved = palette[255];
-  for (i = 255; i > 1; i--)
-  {
-    palette[i] = palette[i - 1];
-  }
-  palette[1] = saved;
-
-  apply_palette();
 }
 
 // ---- Identify worker from source MAC ----
@@ -421,11 +344,16 @@ int process_result_chunk(int worker_id, char *data, int data_len)
   // Chunk within worker starts at chunk_index * CHUNK_MAX_PIXELS
   pixel_offset = worker_id * PIXELS_PER_WORKER + (int)chunk_index * CHUNK_MAX_PIXELS;
 
-  // Write pixels to off-screen buffer
+  // Write pixels to both off-screen buffer and framebuffer.
+  // Writing to fb directly gives smooth progressive fill over
+  // the upscaled zoom preview.
   i = 0;
   while (i < pixel_count && (pixel_offset + i) < (SCREEN_WIDTH * SCREEN_HEIGHT))
   {
-    backbuf[pixel_offset + i] = data[CHUNK_HEADER_SIZE + i] & 0xFF;
+    int px;
+    px = data[CHUNK_HEADER_SIZE + i] & 0xFF;
+    backbuf[pixel_offset + i] = px;
+    fb[pixel_offset + i] = px;
     i = i + 1;
   }
 
@@ -435,7 +363,7 @@ int process_result_chunk(int worker_id, char *data, int data_len)
   return 1;
 }
 
-// ---- Blit backbuf to pixel framebuffer ----
+// ---- Blit backbuf directly to pixel framebuffer ----
 void blit_backbuf()
 {
   int i;
@@ -445,44 +373,24 @@ void blit_backbuf()
   }
 }
 
-// ---- Upscale center of backbuf (zoom preview) ----
-// Copies backbuf to prevbuf, then nearest-neighbor scales a
-// UPSCALE_W × UPSCALE_H region of prevbuf centered at (cx, cy)
-// to fill all of backbuf. This creates a pixelated zoom preview.
-void upscale_backbuf(int cx, int cy)
+// ---- Upscale center of backbuf → pixel framebuffer (fused) ----
+// Nearest-neighbor scales UPSCALE_W × UPSCALE_H region of backbuf
+// (starting at UPSCALE_X0, UPSCALE_Y0) directly to fb.
+// Eliminates prevbuf by writing to fb instead of backbuf.
+void upscale_to_fb()
 {
-  int i;
   int ox;
   int oy;
   int sx;
   int sy;
-  int x0;
-  int y0;
 
-  // Save completed frame as upscale source
-  for (i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++)
-  {
-    prevbuf[i] = backbuf[i];
-  }
-
-  // Compute source rectangle centered on (cx, cy)
-  x0 = cx - UPSCALE_W / 2;
-  y0 = cy - UPSCALE_H / 2;
-
-  // Clamp so source rect stays within prevbuf
-  if (x0 < 0) x0 = 0;
-  if (y0 < 0) y0 = 0;
-  if (x0 + UPSCALE_W > SCREEN_WIDTH)  x0 = SCREEN_WIDTH - UPSCALE_W;
-  if (y0 + UPSCALE_H > SCREEN_HEIGHT) y0 = SCREEN_HEIGHT - UPSCALE_H;
-
-  // Nearest-neighbor upscale source rect to fill backbuf
   for (oy = 0; oy < SCREEN_HEIGHT; oy++)
   {
-    sy = y0 + (oy * UPSCALE_H) / SCREEN_HEIGHT;
+    sy = UPSCALE_Y0 + (oy * UPSCALE_H) / SCREEN_HEIGHT;
     for (ox = 0; ox < SCREEN_WIDTH; ox++)
     {
-      sx = x0 + (ox * UPSCALE_W) / SCREEN_WIDTH;
-      backbuf[oy * SCREEN_WIDTH + ox] = prevbuf[sy * SCREEN_WIDTH + sx];
+      sx = UPSCALE_X0 + (ox * UPSCALE_W) / SCREEN_WIDTH;
+      fb[oy * SCREEN_WIDTH + ox] = backbuf[sy * SCREEN_WIDTH + sx];
     }
   }
 }
@@ -533,78 +441,31 @@ int try_collect_packets()
   return collected;
 }
 
-// ---- Collect results with periodic screen refresh ----
-// Drains packets, periodically blits backbuf→fb so user sees detail filling in.
+// ---- Collect results from workers ----
+// Drain packets until all chunks received or timeout.
+// process_result_chunk writes to both backbuf and fb, so the
+// user sees detail filling in over the zoomed preview in real time.
 // Returns 1 if all chunks received, 0 if timed out.
-int collect_with_refresh(int timeout_ms)
+int collect_all(int timeout_ms)
 {
   int elapsed;
-  int last_refresh_chunks;
 
   elapsed = 0;
-  last_refresh_chunks = 0;
 
   while (total_chunks_done < TOTAL_CHUNKS && elapsed < timeout_ms)
   {
     if (sys_net_packet_count() > 0)
     {
       try_collect_packets();
-
-      // Refresh screen periodically as detail fills in
-      if (total_chunks_done - last_refresh_chunks >= REFRESH_EVERY_N_CHUNKS)
-      {
-        blit_backbuf();
-        last_refresh_chunks = total_chunks_done;
-      }
     }
     else
     {
-      sys_delay(1);
-      elapsed = elapsed + 1;
+      sys_delay(5);
+      elapsed = elapsed + 5;
     }
   }
 
   return (total_chunks_done >= TOTAL_CHUNKS) ? 1 : 0;
-}
-
-// ---- 64-bit arithmetic helpers using FP64 coprocessor ----
-void fp64_half(int *hi, unsigned int *lo)
-{
-  unsigned int carry;
-  carry = (*hi & 1) ? 0x80000000u : 0;
-  *hi = *hi >> 1;
-  *lo = (*lo >> 1) | carry;
-}
-
-void fp64_lerp_center()
-{
-  // Move center toward target: center += (target - center) * 0.1
-  // For simplicity, just set center = target (instant snap)
-  // In practice, with deep zoom the center converges quickly anyway
-  // since each frame halves the scale.
-
-  // center_re += (target_re - center_re) * lerp_factor
-  // Using FP64: load, sub, mul by 0.1, add
-  __fld(6, target_re_hi, target_re_lo);
-  __fld(7, center_re_hi, center_re_lo);
-  __fsub(6, 6, 7);                          // diff_re
-  __fld(7, 0, 0x1999999A);                  // ~0.1 in Q32.32
-  __fmul(6, 6, 7);                          // diff_re * 0.1
-  __fld(7, center_re_hi, center_re_lo);
-  __fadd(6, 7, 6);                          // center_re + step
-  center_re_hi = __fsthi(6);
-  center_re_lo = __fstlo(6);
-
-  // Same for im
-  __fld(6, target_im_hi, target_im_lo);
-  __fld(7, center_im_hi, center_im_lo);
-  __fsub(6, 6, 7);
-  __fld(7, 0, 0x1999999A);
-  __fmul(6, 6, 7);
-  __fld(7, center_im_hi, center_im_lo);
-  __fadd(6, 7, 6);
-  center_im_hi = __fsthi(6);
-  center_im_lo = __fstlo(6);
 }
 
 // ---- Compute max iterations from current zoom scale ----
@@ -653,27 +514,14 @@ void reset_view()
   scale_hi = 3;
   scale_lo = 0x80000000;
 
-  max_iter_val = 128;
+  update_max_iter();
 }
 
 // ---- Initialize view state ----
 void init_view()
 {
   reset_view();
-
-  // Zoom target: Seahorse Valley
-  // Real: -0.743643887... → {-1, 0x41A1BEB0}
-  // Imag:  0.131825904... → {0, 0x21C01C90}
-  target_re_hi = -1;
-  target_re_lo = 0x41A1BEB0;
-  target_im_hi = 0;
-  target_im_lo = 0x21C01C90;
-
-  // Minimum scale: ~1e-7 in Q32.32
-  min_scale_lo = 0x00001000;
-
   auto_zoom = 1;
-  frame_count = 0;
 }
 
 int main()
@@ -711,21 +559,18 @@ int main()
   send_params();
   send_assignments();
   reset_collection();
-  collect_with_refresh(COLLECT_TIMEOUT_MS);
+  collect_all(COLLECT_TIMEOUT_MS);
   blit_backbuf();
 
   // ---- Main render loop ----
   running = 1;
   while (running)
   {
-    frame_count = frame_count + 1;
-
     // Upscale center of completed frame → pixelated zoom preview
-    upscale_backbuf(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
-    blit_backbuf();
+    upscale_to_fb();
 
-    // Cycle palette for animation
-    cycle_palette();
+    // Workers' process_result_chunk writes to both backbuf and fb,
+    // so the zoomed preview gets progressively overwritten with detail.
 
     // Check keyboard input
     while (sys_key_available())
@@ -759,9 +604,8 @@ int main()
     if (auto_zoom)
     {
       // Zoom in: scale *= 0.90
-      // 0.90 in Q32.32: {0, 0xE6666666}
       __fld(6, scale_hi, scale_lo);
-      __fld(7, 0, 0xe6666666);  // 0.90
+      __fld(7, 0, ZOOM_FACTOR_LO);
       __fmul(6, 6, 7);
       scale_hi = __fsthi(6);
       scale_lo = __fstlo(6);
@@ -770,24 +614,25 @@ int main()
       update_max_iter();
 
       // Check zoom limit
-      if (scale_hi == 0 && scale_lo < min_scale_lo)
+      if (scale_hi == 0 && scale_lo < MIN_SCALE_LO)
       {
         sys_delay(3000);
         reset_view();
       }
+
+      // Dispatch work to workers
+      send_params();
+      send_assignments();
+      reset_collection();
+
+      // Collect results from workers (writes to fb progressively)
+      collect_all(COLLECT_TIMEOUT_MS);
     }
-
-    // Dispatch work to workers (they start computing right away)
-    send_params();
-    send_assignments();
-    reset_collection();
-
-    // Collect results with periodic screen refresh
-    // Workers' chunks progressively replace the pixelated preview
-    collect_with_refresh(COLLECT_TIMEOUT_MS);
-
-    // Display the sharp completed frame
-    blit_backbuf();
+    else
+    {
+      // Paused: idle briefly to avoid busy-spin
+      sys_delay(50);
+    }
   }
 
   // Cleanup: restore default RRRGGGBB palette and clear pixel framebuffer
