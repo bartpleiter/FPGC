@@ -22,11 +22,12 @@ B32CC_OUTPUT = $(B32CC_DIR)/output/b32cc
 .PHONY: sim-cpu sim-sdram sim-bootloader
 .PHONY: test-cpu test-cpu-single debug-cpu quartus-timing
 .PHONY: compile-asm compile-bootloader compile-c-baremetal compile-bdos
+.PHONY: compile-userbdos compile-userbdos-all
 .PHONY: run-uart run-asm-uart run-c-baremetal-uart run-bdos
 .PHONY: flash-c-baremetal-spi flash-bdos
 .PHONY: b32cc test-b32cc test-b32cc-single debug-b32cc clean-b32cc
 .PHONY: check
-.PHONY: fnp-upload-text fnp-upload-userbdos fnp-keyboard fnp-detect-iface fnp-sync-files
+.PHONY: fnp-upload-text fnp-upload-userbdos fnp-keyboard fnp-detect-iface fnp-sync-files fnp-run fnp-cluster-mandelbrot
 .PHONY: convert-w3d-textures
 
 # -----------------------------------------------------------------------------
@@ -238,6 +239,45 @@ compile-c-baremetal: $(B32CC_OUTPUT)
 compile-bdos:
 	./Scripts/BCC/compile_bdos.sh
 
+compile-userbdos: $(B32CC_OUTPUT)
+	@if [ -z "$(file)" ]; then \
+		echo "Usage: make compile-userbdos file=<c_filename_in_userBDOS_dir_without_extension>"; \
+		echo "Example: make compile-userbdos file=snake"; \
+		echo "Available programs:"; \
+		find Software/C/userBDOS -name "*.c" -type f | sed 's|Software/C/userBDOS/||' | sed 's|.c||' | sort; \
+		exit 1; \
+	fi
+	./Scripts/BCC/compile_user_bdos.sh $(file)
+	@mkdir -p Files/BRFS-init/bin
+	@cp Software/ASM/Output/code.bin Files/BRFS-init/bin/$(file)
+	@echo "Binary copied to Files/BRFS-init/bin/$(file)"
+
+compile-userbdos-all: $(B32CC_OUTPUT)
+	@mkdir -p Files/BRFS-init/bin
+	@echo "Compiling all userBDOS programs..."
+	@FAILED=0; TOTAL=0; \
+	for src in Software/C/userBDOS/*.c; do \
+		name=$$(basename "$$src" .c); \
+		TOTAL=$$((TOTAL + 1)); \
+		echo ""; \
+		echo "=== [$$TOTAL] Compiling $$name ==="; \
+		if ./Scripts/BCC/compile_user_bdos.sh "$$name" > /dev/null 2>&1; then \
+			cp Software/ASM/Output/code.bin Files/BRFS-init/bin/$$name; \
+			echo "  -> Files/BRFS-init/bin/$$name"; \
+		else \
+			echo "  FAILED: $$name"; \
+			FAILED=$$((FAILED + 1)); \
+		fi; \
+	done; \
+	echo ""; \
+	echo "============================================================"; \
+	echo "Compiled $$((TOTAL - FAILED))/$$TOTAL programs to Files/BRFS-init/bin/"; \
+	if [ $$FAILED -gt 0 ]; then \
+		echo "WARNING: $$FAILED program(s) failed to compile"; \
+		exit 1; \
+	fi; \
+	echo "============================================================"
+
 # =============================================================================
 # Hardware Programming
 # =============================================================================
@@ -284,32 +324,65 @@ convert-w3d-textures:
 # FNP (Network Programming)
 # =============================================================================
 
+# Target FPGC device number (1-5). MAC addresses are 02:B4:B4:00:00:0X.
+# Usage: make fnp-sync-files dev=3
+dev ?= 1
+FNP_MAC = 02:B4:B4:00:00:0$(dev)
+
 fnp-detect-iface:
 	@.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py detect-iface
 
 fnp-upload-text:
 	@if [ -z "$(file)" ] || [ -z "$(dest)" ]; then \
-		echo "Usage: make fnp-upload-text file=<local_file> dest=<fpgc_path>"; \
-		echo "Example: make fnp-upload-text file=readme.txt dest=/user/readme.txt"; \
+		echo "Usage: make fnp-upload-text file=<local_file> dest=<fpgc_path> [dev=1-5]"; \
+		echo "Example: make fnp-upload-text file=readme.txt dest=/user/readme.txt dev=2"; \
 		exit 1; \
 	fi
-	./Scripts/Programmer/Network/fnp_upload_text.sh $(file) $(dest)
+	FNP_TARGET_MAC="$(FNP_MAC)" ./Scripts/Programmer/Network/fnp_upload_text.sh $(file) $(dest)
 
 fnp-upload-userbdos: $(B32CC_OUTPUT)
 	@if [ -z "$(file)" ]; then \
-		echo "Usage: make fnp-upload-userbdos file=<c_filename_in_userBDOS_dir_without_extension> [flags=<extra B32CC flags>]"; \
-		echo "Example: make fnp-upload-userbdos file=hello"; \
+		echo "Usage: make fnp-upload-userbdos file=<name> [flags=<B32CC flags>] [dev=1-5]"; \
+		echo "Example: make fnp-upload-userbdos file=hello dev=3"; \
 		echo "Available programs:"; \
 		find Software/C/userBDOS -name "*.c" -type f 2>/dev/null | grep -v "tmp" | sed 's|Software/C/userBDOS/||' | sed 's|.c||' | sort; \
 		exit 1; \
 	fi
-	./Scripts/Programmer/Network/fnp_upload_userbdos.sh $(file) $(flags)
+	FNP_TARGET_MAC="$(FNP_MAC)" ./Scripts/Programmer/Network/fnp_upload_userbdos.sh $(file) $(flags)
 
 fnp-keyboard:
-	./Scripts/Programmer/Network/fnp_keyboard.sh
+	FNP_TARGET_MAC="$(FNP_MAC)" ./Scripts/Programmer/Network/fnp_keyboard.sh
 
 fnp-sync-files:
-	@.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py sync-files Files/BRFS-init
+	@echo "Syncing to device $(dev) (MAC $(FNP_MAC))"
+	@.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py --mac $(FNP_MAC) sync-files Files/BRFS-init
+
+# Launch a command on a specific device: make fnp-run dev=2 cmd="mbrot_client"
+fnp-run:
+	@if [ -z "$(cmd)" ]; then \
+		echo "Usage: make fnp-run cmd=<command> [dev=1-5]"; \
+		exit 1; \
+	fi
+	@echo "Sending '$(cmd)' + Enter to device $(dev) ($(FNP_MAC))"
+	@.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py --mac $(FNP_MAC) key "$(cmd)"
+	@.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py --mac $(FNP_MAC) keycode 0x0A
+
+# Launch mandelbrot cluster: workers on devices 2-5, host on device 1
+fnp-cluster-mandelbrot:
+	@echo "=== Launching Mandelbrot cluster ==="
+	@echo ""
+	@for w in 2 3 4 5; do \
+		mac="02:B4:B4:00:00:0$$w"; \
+		echo "[Device $$w] Sending 'mbrot_client' ($$mac)"; \
+		.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py --mac $$mac key "mbrot_client"; \
+		.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py --mac $$mac keycode 0x0A; \
+		echo ""; \
+	done
+	@echo "[Device 1] Sending 'mbrot_host' (02:B4:B4:00:00:01)"
+	@.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py --mac 02:B4:B4:00:00:01 key "mbrot_host"
+	@.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py --mac 02:B4:B4:00:00:01 keycode 0x0A
+	@echo ""
+	@echo "=== Mandelbrot cluster launched ==="
 
 # =============================================================================
 # Cleanup
@@ -393,6 +466,9 @@ help:
 	@echo "                        Usage: make compile-c-baremetal file=<filename>"
 	@echo "  compile-bootloader  - Compile bootloader"
 	@echo "  compile-bdos        - Compile BDOS"
+	@echo "  compile-userbdos    - Compile a single userBDOS program to Files/BRFS-init/bin/"
+	@echo "                        Usage: make compile-userbdos file=<filename>"
+	@echo "  compile-userbdos-all - Compile ALL userBDOS programs to Files/BRFS-init/bin/"
 	@echo ""
 	@echo "--- Hardware Programming ---"
 	@echo "  run-uart              - Run compiled ASM binary via UART"
@@ -404,13 +480,21 @@ help:
 	@echo "  flash-bdos            - Flash BDOS binary to SPI flash (persistent)"
 	@echo ""
 	@echo "--- FNP (Network Programming) ---"
+	@echo "  All FNP commands accept dev=1-5 to select target device (default: 1)"
+	@echo "  MAC addresses: 02:B4:B4:00:00:01 through :05"
+	@echo ""
 	@echo "  fnp-detect-iface      - Print auto-detected Ethernet interface"
 	@echo "  fnp-upload-text       - Upload a text file to the FPGC"
-	@echo "                          Usage: make fnp-upload-text file=<local> dest=<fpgc_path>"
+	@echo "                          Usage: make fnp-upload-text file=<local> dest=<fpgc_path> [dev=N]"
 	@echo "  fnp-upload-userbdos   - Compile and upload a userBDOS C program to /bin"
-	@echo "                          Usage: make fnp-upload-userbdos file=<name> [flags='<B32CC flags>']"
+	@echo "                          Usage: make fnp-upload-userbdos file=<name> [dev=N]"
 	@echo "  fnp-keyboard          - Interactive keyboard streaming to FPGC"
+	@echo "                          Usage: make fnp-keyboard [dev=N]"
 	@echo "  fnp-sync-files        - Sync Files/BRFS-init/ to FPGC root filesystem"
+	@echo "                          Usage: make fnp-sync-files [dev=N]"
+	@echo "  fnp-run               - Run a shell command on an FPGC device"
+	@echo "                          Usage: make fnp-run cmd=<command> [dev=N]"
+	@echo "  fnp-cluster-mandelbrot - Launch Mandelbrot cluster (workers 2-5, host 1)"
 	@echo ""
 	@echo "--- Cleanup ---"
 	@echo "  clean               - Clean all build artifacts and environments"

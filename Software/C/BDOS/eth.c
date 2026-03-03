@@ -428,6 +428,13 @@ void bdos_fnp_poll()
   int data_len;
   char *data;
 
+  // When a user program owns the network, skip kernel FNP polling
+  // so the user program can receive packets via syscalls.
+  if (fnp_net_user_owned)
+  {
+    return;
+  }
+
   // Check if any packets are pending
   if (enc28j60_packet_count() == 0)
   {

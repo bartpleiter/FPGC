@@ -141,6 +141,46 @@ int bdos_syscall_dispatch(int num, int a1, int a2, int a3)
       return 0;
     }
 
+    // ---- Networking (raw Ethernet) ----
+    case SYSCALL_NET_SEND:
+    {
+      // a1 = buffer pointer, a2 = frame length in bytes
+      // Implicitly takes ownership of the network from the kernel.
+      fnp_net_user_owned = 1;
+      return enc28j60_packet_send((char *)a1, a2);
+    }
+
+    case SYSCALL_NET_RECV:
+    {
+      // a1 = buffer pointer, a2 = max length in bytes
+      // Returns bytes received, or 0 if no packet available.
+      // Implicitly takes ownership of the network from the kernel.
+      fnp_net_user_owned = 1;
+      if (enc28j60_packet_count() == 0)
+      {
+        return 0;
+      }
+      return enc28j60_packet_receive((char *)a1, a2);
+    }
+
+    case SYSCALL_NET_PACKET_COUNT:
+      return enc28j60_packet_count();
+
+    case SYSCALL_NET_GET_MAC:
+    {
+      // a1 = buffer pointer (must hold 6 words)
+      // Copies our 6-byte MAC address to the user buffer.
+      int *mac_out = (int *)a1;
+      int i;
+      i = 0;
+      while (i < 6)
+      {
+        mac_out[i] = fnp_our_mac[i];
+        i = i + 1;
+      }
+      return 0;
+    }
+
     default:
       return -1;
   }

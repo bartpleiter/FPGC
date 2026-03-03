@@ -396,6 +396,7 @@ int bdos_exec_program(char* resolved_path)
   asm("ccache");
 
   bdos_active_slot = BDOS_SLOT_NONE;
+  fnp_net_user_owned = 0;
   bdos_slot_free(slot);
 
   term_puts("Program exited with code ");
@@ -535,6 +536,7 @@ void bdos_resume_program(int slot)
   asm("ccache");
 
   bdos_active_slot = BDOS_SLOT_NONE;
+  fnp_net_user_owned = 0;
   bdos_slot_free(slot);
 
   term_puts("Program exited with code ");

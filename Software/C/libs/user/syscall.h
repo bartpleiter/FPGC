@@ -29,6 +29,10 @@
 #define SYSCALL_FS_READDIR     24
 #define SYSCALL_GET_KEY_STATE  25
 #define SYSCALL_SET_PIXEL_PALETTE 26
+#define SYSCALL_NET_SEND         27
+#define SYSCALL_NET_RECV         28
+#define SYSCALL_NET_PACKET_COUNT 29
+#define SYSCALL_NET_GET_MAC      30
 
 // Key state bitmap bit positions (matching BDOS bdos_hid.h)
 #define KEYSTATE_W        0x0001
@@ -112,6 +116,12 @@ void sys_delay(int ms);
 // Convenience wrappers — GPU
 void sys_set_palette(int index, int value);
 void sys_set_pixel_palette(int index, int rgb24);
+
+// Convenience wrappers — Networking (raw Ethernet)
+int sys_net_send(char *buf, int len);
+int sys_net_recv(char *buf, int max_len);
+int sys_net_packet_count();
+void sys_net_get_mac(int *mac_buf);
 
 // Convenience wrappers — Process control
 void sys_exit(int code);

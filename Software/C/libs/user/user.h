@@ -13,9 +13,28 @@
 #include "libs/user/syscall.h"
 #endif
 
+#ifdef USER_FNP
+#ifndef USER_SYSCALL
+#error "USER_FNP requires USER_SYSCALL"
+#endif
+#include "libs/user/fnp.h"
+#endif
+
+#ifdef USER_FIXED64
+#include "libs/common/fixed64.h"
+#endif
+
 // Implementation files
 #ifdef USER_SYSCALL
 #include "libs/user/syscall.c"
+#endif
+
+#ifdef USER_FNP
+#include "libs/user/fnp.c"
+#endif
+
+#ifdef USER_FIXED64
+#include "libs/common/fixed64.c"
 #endif
 
 #endif // USER_H

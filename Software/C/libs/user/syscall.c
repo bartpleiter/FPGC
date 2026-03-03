@@ -151,6 +151,26 @@ void sys_set_pixel_palette(int index, int rgb24)
   syscall(SYSCALL_SET_PIXEL_PALETTE, index, rgb24, 0);
 }
 
+int sys_net_send(char *buf, int len)
+{
+  return syscall(SYSCALL_NET_SEND, (int)buf, len, 0);
+}
+
+int sys_net_recv(char *buf, int max_len)
+{
+  return syscall(SYSCALL_NET_RECV, (int)buf, max_len, 0);
+}
+
+int sys_net_packet_count()
+{
+  return syscall(SYSCALL_NET_PACKET_COUNT, 0, 0, 0);
+}
+
+void sys_net_get_mac(int *mac_buf)
+{
+  syscall(SYSCALL_NET_GET_MAC, (int)mac_buf, 0, 0);
+}
+
 void sys_exit(int code)
 {
   syscall(SYSCALL_EXIT, code, 0, 0);

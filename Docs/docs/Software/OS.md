@@ -141,15 +141,23 @@ The ASMPY assembler header places a `jump Syscall` instruction at absolute addre
 | 24 | `FS_READDIR` | `a1` = path, `a2` = entry_buf, `a3` = index | 0 on success | Read a directory entry by index |
 | 25 | `GET_KEY_STATE` | — | bitmap | Get the raw keyboard key-state bitmap |
 | 26 | `SET_PIXEL_PALETTE` | `a1` = index (0–255), `a2` = 24-bit RGB | 0 | Set a pixel-plane palette color (0x00RRGGBB) |
+| 27 | `NET_SEND` | `a1` = buffer, `a2` = length | 1 success, 0 error | Send a raw Ethernet frame (takes network ownership) |
+| 28 | `NET_RECV` | `a1` = buffer, `a2` = max length | bytes received (0 if none) | Receive a raw Ethernet frame (non-blocking, takes network ownership) |
+| 29 | `NET_PACKET_COUNT` | — | count | Number of pending RX packets |
+| 30 | `NET_GET_MAC` | `a1` = buffer (6 words) | 0 | Copy our 6-byte MAC address to the buffer |
 
 The syscall ABI allows a maximum of 3 arguments (`a1`–`a3` in `r5`–`r7`), with the return value in `r1`. Where more data is needed, arguments are packed (e.g., `TERM_PUT_CELL` packs tile and palette into a single word) or pointers are used. The `EXIT` syscall is special: it never returns to the caller. Instead, it resets the hardware stack to the trampoline depth and jumps directly to the BDOS return path, cleanly unwinding the entire user program state.
 
+**Network ownership:** The first call to `NET_SEND` or `NET_RECV` implicitly takes ownership of the Ethernet controller away from the kernel's FNP protocol handler. While a user program owns the network, the kernel will not poll for or consume any incoming packets. Ownership is automatically released when the program exits (via `EXIT` or normal return).
+
 ### User-Side Library
 
-User programs include the user syscall library via the user library orchestrator:
+User programs include the user syscall library via the user library orchestrator. Additional optional libraries (FNP networking, fixed-point math) are available via feature flags:
 
 ```c
 #define USER_SYSCALL
+#define USER_FNP       // Optional: FNP frame build/parse/reliable-send helpers
+#define USER_FIXED64   // Optional: Q32.32 fixed-point math via FP64 coprocessor
 #include "libs/user/user.h"
 
 int main()

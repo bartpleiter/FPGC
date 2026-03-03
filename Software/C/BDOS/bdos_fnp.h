@@ -71,6 +71,11 @@ unsigned int fnp_transfer_checksum = 0;
 unsigned int fnp_transfer_size = 0;
 unsigned int fnp_transfer_received = 0;
 
+// When set, the kernel's bdos_fnp_poll() is disabled so user programs
+// can send/receive raw Ethernet frames via syscalls.
+// Cleared automatically when the user program exits.
+int fnp_net_user_owned = 0;
+
 // Network FNP functions
 void bdos_fnp_poll();
 void bdos_fnp_init();

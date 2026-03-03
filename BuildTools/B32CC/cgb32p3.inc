@@ -1192,6 +1192,7 @@ void GenPrep(int* idx)
   case tokLogAnd:
   case tokLogOr:
   case tokComma:
+  case tokFld:      // non-commutative: hi/lo order matters, fd packed in value
     GenPrep(idx);
     // fallthrough
   case tokShortCirc:
@@ -1268,7 +1269,6 @@ void GenPrep(int* idx)
   case tokUGEQ:
   case tokMultFP:
   case tokDivFP:
-  case tokFld:     // binary: hi/lo are expression operands, fd packed in value
     GenPrep(idx);
     oldIdxLeft = *idx;
     GenPrep(idx);
