@@ -79,6 +79,21 @@ void interrupt()
     case INTID_UART:
       break;
     case INTID_TIMER0:
+      // Used for deferred ETH ISR when SPI was busy
+      if (net_isr_deferred)
+      {
+        if (enc28j60_spi_in_use)
+        {
+          // SPI still busy — retry in 1ms
+          timer_set(TIMER_0, 1);
+          timer_start(TIMER_0);
+        }
+        else
+        {
+          net_isr_deferred = 0;
+          bdos_net_isr_drain();
+        }
+      }
       break;
     case INTID_TIMER1:
       // Used for USB keyboard polling
@@ -89,6 +104,20 @@ void interrupt()
       timer_isr_handler(TIMER_2);
       break;
     case INTID_FRAME_DRAWN:
+      break;
+    case INTID_ETH:
+      // ENC28J60 received a packet — drain into ring buffer
+      if (enc28j60_spi_in_use)
+      {
+        // SPI busy (e.g., TX in progress) — defer to timer
+        net_isr_deferred = 1;
+        timer_set(TIMER_0, 1);
+        timer_start(TIMER_0);
+      }
+      else
+      {
+        bdos_net_isr_drain();
+      }
       break;
     default:
       break;

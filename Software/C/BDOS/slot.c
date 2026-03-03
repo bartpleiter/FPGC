@@ -397,6 +397,7 @@ int bdos_exec_program(char* resolved_path)
 
   bdos_active_slot = BDOS_SLOT_NONE;
   fnp_net_user_owned = 0;
+  bdos_net_ringbuf_reset();
   bdos_slot_free(slot);
 
   term_puts("Program exited with code ");
@@ -537,6 +538,7 @@ void bdos_resume_program(int slot)
 
   bdos_active_slot = BDOS_SLOT_NONE;
   fnp_net_user_owned = 0;
+  bdos_net_ringbuf_reset();
   bdos_slot_free(slot);
 
   term_puts("Program exited with code ");

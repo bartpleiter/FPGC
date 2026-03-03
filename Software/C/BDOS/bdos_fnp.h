@@ -76,8 +76,29 @@ unsigned int fnp_transfer_received = 0;
 // Cleared automatically when the user program exits.
 int fnp_net_user_owned = 0;
 
+// ---- Interrupt-driven RX ring buffer ----
+// The ENC28J60 ISR drains packets from hardware into this ring buffer.
+// Consumers (user programs via NET_RECV, or kernel FNP poll) read from it.
+#define NET_RINGBUF_SLOTS      64
+#define NET_RINGBUF_FRAME_SIZE 1518
+
+char net_ringbuf_data[NET_RINGBUF_SLOTS * NET_RINGBUF_FRAME_SIZE];
+int  net_ringbuf_len[NET_RINGBUF_SLOTS];
+int  net_ringbuf_head = 0;  // ISR writes here
+int  net_ringbuf_tail = 0;  // consumer reads here
+
+// Set when the ETH ISR was deferred due to SPI mutex.
+// TIMER_0 retries the drain when this is set.
+int net_isr_deferred = 0;
+
 // Network FNP functions
 void bdos_fnp_poll();
 void bdos_fnp_init();
+
+// ISR drain: read all pending packets from ENC28J60 into ring buffer
+void bdos_net_isr_drain();
+
+// Reset the ring buffer (called on user program exit)
+void bdos_net_ringbuf_reset();
 
 #endif // BDOS_FNP_H

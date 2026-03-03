@@ -824,7 +824,9 @@ B32P3 cpu (
     .mu_done(mu_done),
 
     // Interrupts, right is highest priority
-    .interrupts({3'd0, frameDrawn_CPU, OST3_int, OST2_int, OST1_int, uart_irq})
+    // bit0=UART, bit1=OST1, bit2=OST2, bit3=OST3, bit4=FrameDrawn, bit5=ENC28J60_RX
+    // ~eth_nint: ENC28J60 INT is active-low; invert for rising-edge detection
+    .interrupts({2'd0, ~eth_nint, frameDrawn_CPU, OST3_int, OST2_int, OST1_int, uart_irq})
 );
 
 endmodule

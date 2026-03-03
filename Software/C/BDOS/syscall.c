@@ -154,17 +154,13 @@ int bdos_syscall_dispatch(int num, int a1, int a2, int a3)
     {
       // a1 = buffer pointer, a2 = max length in bytes
       // Returns bytes received, or 0 if no packet available.
-      // Implicitly takes ownership of the network from the kernel.
+      // Reads from the interrupt-driven ring buffer.
       fnp_net_user_owned = 1;
-      if (enc28j60_packet_count() == 0)
-      {
-        return 0;
-      }
-      return enc28j60_packet_receive((char *)a1, a2);
+      return bdos_net_ringbuf_pop((char *)a1, a2);
     }
 
     case SYSCALL_NET_PACKET_COUNT:
-      return enc28j60_packet_count();
+      return bdos_net_ringbuf_count();
 
     case SYSCALL_NET_GET_MAC:
     {

@@ -415,7 +415,91 @@ void bdos_fnp_init()
   fnp_tx_seq = 0;
 }
 
-// Poll the ENC28J60 for incoming FNP frames and process them.
+// ---- Interrupt-driven RX ring buffer operations ----
+
+// Drain all pending packets from the ENC28J60 into the ring buffer.
+// Called from the ISR (INTID_ETH) or from the deferred TIMER_0 handler.
+// Follows the ENC28J60 ISR protocol: disable INTIE, drain, clear PKTIF, re-enable.
+void bdos_net_isr_drain()
+{
+  int idx;
+  int next;
+  int len;
+
+  enc28j60_isr_begin();
+
+  while (enc28j60_packet_count() > 0)
+  {
+    idx = net_ringbuf_head;
+    next = (idx + 1) & (NET_RINGBUF_SLOTS - 1);
+
+    if (next == net_ringbuf_tail)
+    {
+      // Ring buffer full — discard oldest entry
+      net_ringbuf_tail = (net_ringbuf_tail + 1) & (NET_RINGBUF_SLOTS - 1);
+    }
+
+    len = enc28j60_packet_receive(
+      &net_ringbuf_data[idx * NET_RINGBUF_FRAME_SIZE],
+      NET_RINGBUF_FRAME_SIZE);
+    net_ringbuf_len[idx] = len;
+    net_ringbuf_head = next;
+  }
+
+  enc28j60_isr_end();
+}
+
+// Reset the ring buffer. Called when a user program exits.
+void bdos_net_ringbuf_reset()
+{
+  net_ringbuf_head = 0;
+  net_ringbuf_tail = 0;
+  net_isr_deferred = 0;
+}
+
+// Pop one packet from the ring buffer into buf.
+// Returns the number of bytes copied, or 0 if the ring buffer is empty.
+static int bdos_net_ringbuf_pop(char *buf, int max_len)
+{
+  int idx;
+  int len;
+  int i;
+
+  if (net_ringbuf_head == net_ringbuf_tail)
+  {
+    return 0;
+  }
+
+  idx = net_ringbuf_tail;
+  len = net_ringbuf_len[idx];
+  if (len > max_len)
+  {
+    len = max_len;
+  }
+
+  // Copy from ring buffer to destination
+  {
+    char *src;
+    src = &net_ringbuf_data[idx * NET_RINGBUF_FRAME_SIZE];
+    i = 0;
+    while (i < len)
+    {
+      buf[i] = src[i];
+      i = i + 1;
+    }
+  }
+
+  net_ringbuf_tail = (idx + 1) & (NET_RINGBUF_SLOTS - 1);
+  return len;
+}
+
+// Return the number of packets in the ring buffer.
+static int bdos_net_ringbuf_count()
+{
+  return (net_ringbuf_head - net_ringbuf_tail + NET_RINGBUF_SLOTS) & (NET_RINGBUF_SLOTS - 1);
+}
+
+// Poll the ring buffer for incoming FNP frames and process them.
 // Non-blocking: returns immediately if no packets.
 void bdos_fnp_poll()
 {
@@ -435,14 +519,8 @@ void bdos_fnp_poll()
     return;
   }
 
-  // Check if any packets are pending
-  if (enc28j60_packet_count() == 0)
-  {
-    return;
-  }
-
-  // Receive one frame
-  rxlen = enc28j60_packet_receive(fnp_rx_buf, FNP_FRAME_BUF_SIZE);
+  // Read one frame from the ring buffer (filled by ISR)
+  rxlen = bdos_net_ringbuf_pop(fnp_rx_buf, FNP_FRAME_BUF_SIZE);
   if (rxlen <= 0)
   {
     return;

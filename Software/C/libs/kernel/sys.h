@@ -8,6 +8,7 @@
 #define INTID_TIMER1 3
 #define INTID_TIMER2 4
 #define INTID_FRAME_DRAWN 5
+#define INTID_ETH 6
 
 int get_int_id();
 

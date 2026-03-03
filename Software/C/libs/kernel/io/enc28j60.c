@@ -215,7 +215,10 @@ int enc28j60_init(int *mac)
   // ECON2: BFS AUTOINC
   enc28j60_write_op(ENC_OP_BFS, ECON2, ECON2_AUTOINC);
 
-  // EIE: BFS INTIE|PKTIE
+  // Clear all interrupt flags before enabling interrupts
+  enc28j60_write_op(ENC_OP_BFC, EIR, 0x7F);
+
+  // EIE: enable global interrupt output + receive-packet interrupt only
   enc28j60_write_op(ENC_OP_BFS, EIE, EIE_INTIE | EIE_PKTIE);
 
   // ECON1: BFS RXEN
@@ -262,11 +265,14 @@ int enc28j60_packet_count()
 int enc28j60_packet_send(char *buf, int len)
 {
   int count;
+  int result;
 
   if (len <= 0 || len > ENC28J60_MAX_FRAME)
   {
     return 0;
   }
+
+  enc28j60_spi_in_use = 1;
 
   // Errata #12: reset TX logic
   enc28j60_write_op(ENC_OP_BFS, ECON1, ECON1_TXRST);
@@ -305,15 +311,18 @@ int enc28j60_packet_send(char *buf, int len)
   if (enc28j60_read_op(ENC_OP_RCR, EIR) & EIR_TXERIF)
   {
     enc28j60_write_op(ENC_OP_BFC, ECON1, ECON1_TXRTS);
+    enc28j60_spi_in_use = 0;
     return 0;
   }
 
   if (count >= 10000)
   {
     enc28j60_write_op(ENC_OP_BFC, ECON1, ECON1_TXRTS);
+    enc28j60_spi_in_use = 0;
     return 0;
   }
 
+  enc28j60_spi_in_use = 0;
   return 1;
 }
 
@@ -386,4 +395,23 @@ void enc28j60_disable_broadcast()
   int val;
   val = enc28j60_read_reg(ERXFCON);
   enc28j60_write_reg(ERXFCON, val & ~ERXFCON_BCEN);
+}
+
+// ---- ISR Support ----
+
+// Disable ENC28J60 interrupt output.
+// Call at ISR entry before touching any SPI state.
+void enc28j60_isr_begin()
+{
+  enc28j60_write_op(ENC_OP_BFC, EIE, EIE_INTIE);
+}
+
+// Re-arm ENC28J60 interrupt output.
+// Clears PKTIF flag and re-enables INTIE + PKTIE.
+// If packets arrived during the ISR, the pin goes low immediately,
+// generating a new rising edge for the interrupt controller.
+void enc28j60_isr_end()
+{
+  enc28j60_write_op(ENC_OP_BFC, EIR, EIR_PKTIF);
+  enc28j60_write_op(ENC_OP_BFS, EIE, EIE_INTIE | EIE_PKTIE);
 }

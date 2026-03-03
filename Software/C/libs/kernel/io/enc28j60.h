@@ -106,6 +106,7 @@
 #define EIE_INTIE 0x80
 
 // EIR
+#define EIR_PKTIF 0x40
 #define EIR_TXERIF 0x02
 #define EIR_TXIF 0x08
 
@@ -174,5 +175,16 @@ void enc28j60_enable_broadcast();
 
 // Disable reception of broadcast frames.
 void enc28j60_disable_broadcast();
+
+// ---- ISR support ----
+// SPI mutex flag: set by TX path to prevent ISR SPI conflicts.
+// The ISR checks this and defers to a timer if set.
+int enc28j60_spi_in_use;
+
+// Disable ENC28J60 interrupt output (call at ISR entry).
+void enc28j60_isr_begin();
+
+// Re-arm ENC28J60 interrupt output (call at ISR exit).
+void enc28j60_isr_end();
 
 #endif // ENC28J60_H
