@@ -53,7 +53,13 @@ Binary files are packed into 32-bit words (big-endian: first byte in bits 31–2
 
 ### Reliability
 
-All messages with REQUIRES_ACK set follow: send → wait 100ms for ACK/NACK → retry up to 2 times (3 total attempts). ACK-pacing naturally limits throughput to what the FPGC can handle. This is crucial for large file transfers that cause the small internal ENC28J60 RX buffer to overflow.
+All messages with REQUIRES_ACK set follow: send -> wait 100ms for ACK/NACK -> retry up to 2 times (3 total attempts). ACK-pacing naturally limits throughput to what the FPGC can handle.
+
+### Packet Reception
+
+Incoming Ethernet packets are handled by an interrupt-driven architecture. The ENC28J60 triggers a hardware interrupt when a packet arrives, and the BDOS ISR immediately drains all pending packets from the ENC28J60's small hardware RX buffer (6656 bytes, roughly 6 max-size frames) into a 64-slot ring buffer in SDRAM. This prevents packet loss during CPU-intensive operations like screen rendering or computation.
+
+Both the kernel FNP handler and user programs read from this ring buffer rather than accessing the ENC28J60 directly. See [OS](OS.md) for details on the interrupt handling and syscall interface.
 
 ## Setup
 

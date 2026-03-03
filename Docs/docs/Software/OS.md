@@ -142,13 +142,13 @@ The ASMPY assembler header places a `jump Syscall` instruction at absolute addre
 | 25 | `GET_KEY_STATE` | — | bitmap | Get the raw keyboard key-state bitmap |
 | 26 | `SET_PIXEL_PALETTE` | `a1` = index (0–255), `a2` = 24-bit RGB | 0 | Set a pixel-plane palette color (0x00RRGGBB) |
 | 27 | `NET_SEND` | `a1` = buffer, `a2` = length | 1 success, 0 error | Send a raw Ethernet frame (takes network ownership) |
-| 28 | `NET_RECV` | `a1` = buffer, `a2` = max length | bytes received (0 if none) | Receive a raw Ethernet frame (non-blocking, takes network ownership) |
-| 29 | `NET_PACKET_COUNT` | — | count | Number of pending RX packets |
+| 28 | `NET_RECV` | `a1` = buffer, `a2` = max length | bytes received (0 if none) | Pop a packet from the RX ring buffer (non-blocking, takes network ownership) |
+| 29 | `NET_PACKET_COUNT` | — | count | Number of packets in the RX ring buffer |
 | 30 | `NET_GET_MAC` | `a1` = buffer (6 words) | 0 | Copy our 6-byte MAC address to the buffer |
 
 The syscall ABI allows a maximum of 3 arguments (`a1`–`a3` in `r5`–`r7`), with the return value in `r1`. Where more data is needed, arguments are packed (e.g., `TERM_PUT_CELL` packs tile and palette into a single word) or pointers are used. The `EXIT` syscall is special: it never returns to the caller. Instead, it resets the hardware stack to the trampoline depth and jumps directly to the BDOS return path, cleanly unwinding the entire user program state.
 
-**Network ownership:** The first call to `NET_SEND` or `NET_RECV` implicitly takes ownership of the Ethernet controller away from the kernel's FNP protocol handler. While a user program owns the network, the kernel will not poll for or consume any incoming packets. Ownership is automatically released when the program exits (via `EXIT` or normal return).
+**Network ownership:** The first call to `NET_SEND` or `NET_RECV` implicitly takes ownership of the Ethernet controller away from the kernel's FNP protocol handler. While a user program owns the network, the kernel will not consume any incoming packets from the ring buffer. Ownership is automatically released when the program exits (via `EXIT` or normal return), at which point the ring buffer is also reset.
 
 ### User-Side Library
 
@@ -174,15 +174,37 @@ The convenience wrappers (`sys_print_char`, `sys_print_str`, etc.) call the low-
 BDOS owns all hardware interrupts. The interrupt vector at address 1 points to BDOS's interrupt handler, which:
 
 - Saves all registers to a dedicated interrupt stack (`0x0FFFFF`)
-- Reads the interrupt ID
-- Dispatches to the appropriate handler (USB keyboard polling on Timer 1, delay on Timer 2)
+- Reads the interrupt ID via INTID
+- Dispatches to the appropriate handler
 - Restores registers and returns via `reti`
+
+### Interrupt Dispatch
+
+| INT ID | Source | Handler |
+|--------|--------|---------|
+| 1 | UART RX | *(no-op)* |
+| 2 | Timer 1 | Deferred Ethernet ISR retry (when SPI is busy) |
+| 3 | Timer 2 | USB keyboard polling (10 ms periodic) |
+| 4 | Timer 3 | `delay()` completion |
+| 5 | Frame Drawn | *(no-op)* |
+| 6 | ENC28J60 RX | Ethernet packet reception into ring buffer |
+
+The Ethernet interrupt (INT ID 6) is the primary network reception path. When a packet arrives, the ENC28J60 asserts its `~INT` pin, which triggers the ISR. The ISR drains all pending packets from the ENC28J60 into a kernel-managed ring buffer in SDRAM. If the SPI bus is busy (e.g., a packet is being transmitted), the ISR defers processing by starting a 1 ms one-shot timer on Timer 1 (INT ID 2), which retries the drain when it fires.
 
 User programs do not receive interrupts directly, but in the future a syscall interface should allow them to register a callback for certain interrupts.
 
 ## Networking
 
-BDOS includes an FNP (FPGC Network Protocol) handler that processes incoming Ethernet frames in the main loop. See [FNP](FNP.md) for more details.
+BDOS uses interrupt-driven packet reception for Ethernet networking. The ENC28J60 Ethernet controller triggers a hardware interrupt (INT ID 6) when packets arrive. The ISR drains all pending packets from the ENC28J60's small 6 KiB hardware RX buffer into a 64-slot ring buffer in SDRAM, preventing packet loss during CPU-intensive operations.
+
+Both the kernel FNP handler and user programs read from this ring buffer:
+
+- **Kernel mode** (no user program owns the network): `bdos_fnp_poll()` reads packets from the ring buffer and processes FNP protocol messages (file transfers, keyboard input).
+- **User mode** (a user program has called `NET_SEND` or `NET_RECV`): The kernel FNP poll is disabled, and the user program reads packets from the ring buffer via the `NET_RECV` syscall.
+
+The SPI bus is shared between TX (user-initiated sends) and RX (ISR-driven reception). A mutex flag prevents the ISR from accessing SPI during a transmit operation; if the SPI is busy when an interrupt arrives, the ISR defers to a 1 ms timer that retries the drain.
+
+See [FNP](FNP.md) for the network protocol details.
 
 ## Initialization
 

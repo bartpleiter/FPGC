@@ -154,6 +154,19 @@ When an interrupt fires:
 
 The handler uses INTID to determine which interrupt fired, handles it, then executes RETI to restore the PC and re-enable interrupts.
 
+### Interrupt Assignments
+
+| Bit | INT ID | Source | Description |
+|-----|--------|--------|-------------|
+| 0 | 1 | UART RX | UART byte received |
+| 1 | 2 | Timer 1 (OST1) | OS timer 1 |
+| 2 | 3 | Timer 2 (OST2) | OS timer 2 (USB keyboard polling) |
+| 3 | 4 | Timer 3 (OST3) | OS timer 3 (delay) |
+| 4 | 5 | Frame Drawn | GPU vblank signal |
+| 5 | 6 | ENC28J60 RX | Ethernet packet received (inverted `~INT` pin) |
+| 6 | 7 | *(unused)* | — |
+| 7 | 8 | *(unused)* | — |
+
 An important constraint: interrupts only fire when a jump or branch is being taken in the MEM stage. This greatly simplifies pipeline hazard handling during interrupt delivery, at the cost of slightly delayed interrupt response. In practice, most code has enough jumps (function calls, loops) that the latency is negligible.
 
 ## FP64 Coprocessor
