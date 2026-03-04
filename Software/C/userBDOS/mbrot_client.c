@@ -86,40 +86,70 @@ unsigned int read_u32(char *buf, int offset)
          (buf[offset + 3] & 0xFF);
 }
 
-// ---- Mandelbrot iteration for one pixel ----
-// Assumes F_CRE and F_CIM are loaded with the complex coordinate.
+// ---- Optimized Mandelbrot iteration for one pixel ----
+// Assumes F_CRE (f0) and F_CIM (f1) are loaded with the complex coordinate.
 // Returns iteration count (0 = in set, 1..max_iter = escaped).
+//
+// OPTIMIZATION: Entire iteration loop is inline assembly to eliminate B32CC's
+// per-iteration stack traffic (~9 memory ops/iteration in the C version).
+// CPU registers r4=max_iter, r5=iter are kept in registers throughout.
+// FP registers (separate file) are used for computation with no conflicts.
+// Do-while loop structure saves one branch per iteration.
 int mandelbrot_pixel()
 {
-  int iter;
-  int mag_hi;
+  int retval = 0;
+  asm(
+    // CPU registers: r4=max_iter, r5=iter, r1=temp/return, r11=momentary
+    // FP regs (separate file): f0=c_re, f1=c_im, f2=z_re, f3=z_im,
+    //   f4=z_re^2/|z|^2, f5=z_im^2, f6=z_re*z_im
 
-  __fld(F_ZRE, 0, 0);
-  __fld(F_ZIM, 0, 0);
+    // Load max_iter from global into CPU r4
+    "addr2reg Label_max_iter r11"
+    "read 0 r11 r4"
 
-  for (iter = 0; iter < max_iter; iter++)
-  {
-    __fmul(F_TMP1, F_ZRE, F_ZRE);      // z_re^2
-    __fmul(F_TMP2, F_ZIM, F_ZIM);      // z_im^2
-    __fmul(F_TMP3, F_ZRE, F_ZIM);      // z_re * z_im
+    // z_re = z_im = 0
+    "fld r0 r0 r2"
+    "fld r0 r0 r3"
 
-    __fsub(F_ZRE, F_TMP1, F_TMP2);     // z_re^2 - z_im^2
-    __fadd(F_ZRE, F_ZRE, F_CRE);       // + c_re
+    // iter = 0
+    "or r0 r0 r5"
 
-    __fadd(F_ZIM, F_TMP3, F_TMP3);     // 2 * z_re * z_im
-    __fadd(F_ZIM, F_ZIM, F_CIM);       // + c_im
+    // Edge case: max_iter == 0
+    "beq r4 r0 Label_mbrot_asm_set"
 
-    // Escape check: |z|^2 > 4.0
-    __fadd(F_TMP1, F_TMP1, F_TMP2);
-    mag_hi = __fsthi(F_TMP1);
+    "Label_mbrot_asm_loop:"
+    // --- Mandelbrot iteration (all FP register file, no CPU conflict) ---
+    "fmul r2 r2 r4       ; f4 = z_re^2"
+    "fmul r3 r3 r5       ; f5 = z_im^2"
+    "fmul r2 r3 r6       ; f6 = z_re * z_im"
+    "fsub r4 r5 r2       ; f2 = z_re^2 - z_im^2"
+    "fadd r2 r0 r2       ; f2 += c_re  (new z_re)"
+    "fadd r6 r6 r3       ; f3 = 2 * z_re * z_im"
+    "fadd r3 r1 r3       ; f3 += c_im  (new z_im)"
 
-    if (mag_hi > 4)
-      return iter + 1;
-    if (mag_hi == 4 && __fstlo(F_TMP1) != 0)
-      return iter + 1;
-  }
+    // Escape check: |z|^2 >= 4 (unsigned compare handles overflow)
+    "fadd r4 r5 r4       ; f4 = z_re^2 + z_im^2 = |z|^2"
+    "fsthi r4 r0 r1      ; r1 = integer part of |z|^2"
+    "sltu r1 4 r1        ; r1 = 1 if mag < 4 (not escaped)"
+    "beq r1 r0 Label_mbrot_asm_escaped"
 
-  return 0;
+    // Continue: iter++, check < max_iter
+    "add r5 1 r5"
+    "slt r5 r4 r1        ; iter < max_iter? (CPU r5 vs CPU r4)"
+    "bne r1 r0 Label_mbrot_asm_loop"
+
+    // Fall through: reached max_iter (in set)
+    "Label_mbrot_asm_set:"
+    "write -1 r14 r0     ; retval = 0"
+    "jump Label_mbrot_asm_done"
+
+    "Label_mbrot_asm_escaped:"
+    "add r5 1 r1         ; r1 = iter + 1"
+    "write -1 r14 r1     ; retval = iter + 1"
+
+    "Label_mbrot_asm_done:"
+  );
+  return retval;
 }
 
 // ---- Parse CLUSTER_PARAMS from received data ----
@@ -159,7 +189,7 @@ void parse_assign(char *data, int data_len)
   has_assign = 1;
 }
 
-// ---- Send one CLUSTER_RESULT chunk ----
+// ---- Send one CLUSTER_RESULT chunk (reliably, with ACK) ----
 void send_chunk(int chunk_index, char *pixels, int pixel_count)
 {
   int payload_len;
@@ -176,12 +206,13 @@ void send_chunk(int chunk_index, char *pixels, int pixel_count)
 
   payload_len = CHUNK_HEADER_SIZE + pixel_count;
 
-  fnp_send(coord_mac, FNP_TYPE_CLUSTER_RESULT, tx_seq, 0,
-           chunk_payload, payload_len, frame_buf);
-  tx_seq = tx_seq + 1;
+  fnp_send_reliable(coord_mac, FNP_TYPE_CLUSTER_RESULT,
+                    chunk_payload, payload_len, frame_buf, &tx_seq);
 }
 
 // ---- Compute assigned rows and send results ----
+// OPTIMIZATIONS: inline asm mandelbrot_pixel, reliable chunk sending.
+// Original chunk structure preserved for debugging.
 void compute_and_send()
 {
   int step_hi_cpu;
@@ -214,8 +245,7 @@ void compute_and_send()
   start_re_lo = __fstlo(F_CRE);
 
   // Compute start_im for our first row
-  // start_im = center_im - step * (HEIGHT/2) + step * y_start
-  // = center_im - step * (120 - y_start)
+  // start_im = center_im - step * (120 - y_start)
   __fld(6, 120 - assign_y_start, 0);
   __fld(F_STEP, step_hi_cpu, step_lo_cpu);
   __fmul(6, F_STEP, 6);              // step * (120 - y_start)

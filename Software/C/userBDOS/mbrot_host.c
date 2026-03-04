@@ -65,6 +65,9 @@ char frame_buf[FNP_FRAME_BUF_SIZE];
 // ---- Sequence counter ----
 int tx_seq;
 
+// ---- ACK buffer (2 bytes for acked sequence number) ----
+char ack_data[2];
+
 // ---- Palette data (256 24-bit RGB entries) ----
 #define NUM_PALETTES 5
 int current_palette;
@@ -265,51 +268,46 @@ int identify_worker(int *src_mac)
 }
 
 // ---- Send CLUSTER_PARAMS to all workers ----
-void send_params()
+// ---- Dispatch work to all workers (interleaved for minimum latency) ----
+// Sends PARAMS then ASSIGN to each worker before moving to the next,
+// so each worker can start computing immediately after receiving its pair.
+void dispatch_workers()
 {
-  char payload[28];
-  int w;
-
-  write_u32(payload, 0, (unsigned int)center_re_hi);
-  write_u32(payload, 4, center_re_lo);
-  write_u32(payload, 8, (unsigned int)center_im_hi);
-  write_u32(payload, 12, center_im_lo);
-  write_u32(payload, 16, (unsigned int)scale_hi);
-  write_u32(payload, 20, scale_lo);
-  write_u32(payload, 24, (unsigned int)max_iter_val);
-
-  for (w = 0; w < NUM_WORKERS; w++)
-  {
-    fnp_send(get_worker_mac(w), FNP_TYPE_CLUSTER_PARAMS, tx_seq, 0,
-             payload, 28, frame_buf);
-    tx_seq = tx_seq + 1;
-  }
-}
-
-// ---- Send CLUSTER_ASSIGN to each worker ----
-void send_assignments()
-{
-  char payload[12];
+  char params[28];
+  char assign[12];
   int w;
   int y_start;
   int y_end;
 
+  // Build params payload once (same for all workers)
+  write_u32(params, 0, (unsigned int)center_re_hi);
+  write_u32(params, 4, center_re_lo);
+  write_u32(params, 8, (unsigned int)center_im_hi);
+  write_u32(params, 12, center_im_lo);
+  write_u32(params, 16, (unsigned int)scale_hi);
+  write_u32(params, 20, scale_lo);
+  write_u32(params, 24, (unsigned int)max_iter_val);
+
   for (w = 0; w < NUM_WORKERS; w++)
   {
+    // Send PARAMS
+    fnp_send(get_worker_mac(w), FNP_TYPE_CLUSTER_PARAMS, tx_seq, 0,
+             params, 28, frame_buf);
+    tx_seq = tx_seq + 1;
+
+    // Send ASSIGN immediately after — worker starts computing
     y_start = w * ROWS_PER_WORKER;
     y_end = y_start + ROWS_PER_WORKER;
     if (y_end > SCREEN_HEIGHT)
     {
       y_end = SCREEN_HEIGHT;
     }
-
-    // Include worker_id so workers can verify the assignment is for them
-    write_u32(payload, 0, (unsigned int)w);
-    write_u32(payload, 4, (unsigned int)y_start);
-    write_u32(payload, 8, (unsigned int)y_end);
+    write_u32(assign, 0, (unsigned int)w);
+    write_u32(assign, 4, (unsigned int)y_start);
+    write_u32(assign, 8, (unsigned int)y_end);
 
     fnp_send(get_worker_mac(w), FNP_TYPE_CLUSTER_ASSIGN, tx_seq, 0,
-             payload, 12, frame_buf);
+             assign, 12, frame_buf);
     tx_seq = tx_seq + 1;
   }
 }
@@ -408,6 +406,7 @@ void reset_collection()
 
 // ---- Try to process all available network packets (non-blocking) ----
 // Returns number of new chunks received.
+// Sends ACKs for CLUSTER_RESULT packets with REQUIRES_ACK flag.
 int try_collect_packets()
 {
   int rxlen;
@@ -419,6 +418,9 @@ int try_collect_packets()
   int rx_data_len;
   int worker_id;
   int collected;
+  int need_ack;
+  int ack_seq;
+  int ack_mac[6];
 
   collected = 0;
   while (sys_net_packet_count() > 0)
@@ -428,13 +430,35 @@ int try_collect_packets()
                                 &msg_type, &rx_seq, &rx_flags,
                                 &rx_data, &rx_data_len))
     {
+      // Check if ACK is needed BEFORE processing (rx_flags is still valid)
+      need_ack = (rx_flags & FNP_FLAG_REQUIRES_ACK);
+      ack_seq = rx_seq;
+      if (need_ack)
+      {
+        ack_mac[0] = src_mac[0];
+        ack_mac[1] = src_mac[1];
+        ack_mac[2] = src_mac[2];
+        ack_mac[3] = src_mac[3];
+        ack_mac[4] = src_mac[4];
+        ack_mac[5] = src_mac[5];
+      }
+
       if (msg_type == FNP_TYPE_CLUSTER_RESULT)
       {
         worker_id = identify_worker(src_mac);
         if (worker_id >= 0)
         {
+          // Process chunk first (rx_data points into frame_buf)
           collected = collected + process_result_chunk(worker_id, rx_data, rx_data_len);
         }
+      }
+
+      // Send ACK after processing (frame_buf is safe to overwrite now)
+      if (need_ack)
+      {
+        ack_data[0] = (ack_seq >> 8) & 0xFF;
+        ack_data[1] = ack_seq & 0xFF;
+        fnp_send(ack_mac, FNP_TYPE_ACK, 0, 0, ack_data, 2, frame_buf);
       }
     }
   }
@@ -556,8 +580,7 @@ int main()
   apply_palette();
 
   // ---- First frame: render without zoom preview ----
-  send_params();
-  send_assignments();
+  dispatch_workers();
   reset_collection();
   collect_all(COLLECT_TIMEOUT_MS);
   blit_backbuf();
@@ -566,12 +589,6 @@ int main()
   running = 1;
   while (running)
   {
-    // Upscale center of completed frame → pixelated zoom preview
-    upscale_to_fb();
-
-    // Workers' process_result_chunk writes to both backbuf and fb,
-    // so the zoomed preview gets progressively overwritten with detail.
-
     // Check keyboard input
     while (sys_key_available())
     {
@@ -600,39 +617,40 @@ int main()
       break;
     }
 
-    // Advance zoom if auto-zoom is on
-    if (auto_zoom)
-    {
-      // Zoom in: scale *= 0.90
-      __fld(6, scale_hi, scale_lo);
-      __fld(7, 0, ZOOM_FACTOR_LO);
-      __fmul(6, 6, 7);
-      scale_hi = __fsthi(6);
-      scale_lo = __fstlo(6);
-
-      // Update iteration count based on zoom depth
-      update_max_iter();
-
-      // Check zoom limit
-      if (scale_hi == 0 && scale_lo < MIN_SCALE_LO)
-      {
-        sys_delay(3000);
-        reset_view();
-      }
-
-      // Dispatch work to workers
-      send_params();
-      send_assignments();
-      reset_collection();
-
-      // Collect results from workers (writes to fb progressively)
-      collect_all(COLLECT_TIMEOUT_MS);
-    }
-    else
+    if (!auto_zoom)
     {
       // Paused: idle briefly to avoid busy-spin
       sys_delay(50);
+      continue;
     }
+
+    // Advance zoom: scale *= 0.90
+    __fld(6, scale_hi, scale_lo);
+    __fld(7, 0, ZOOM_FACTOR_LO);
+    __fmul(6, 6, 7);
+    scale_hi = __fsthi(6);
+    scale_lo = __fstlo(6);
+
+    update_max_iter();
+
+    // Check zoom limit
+    if (scale_hi == 0 && scale_lo < MIN_SCALE_LO)
+    {
+      sys_delay(3000);
+      reset_view();
+    }
+
+    // Dispatch work to workers FIRST — they start computing immediately.
+    // Worker 0 begins after just 2 packets (PARAMS + ASSIGN interleaved).
+    dispatch_workers();
+    reset_collection();
+
+    // While workers compute, show upscaled zoom preview to the user.
+    // This overlaps host work with worker computation.
+    upscale_to_fb();
+
+    // Collect results (chunks write to both backbuf and fb progressively)
+    collect_all(COLLECT_TIMEOUT_MS);
   }
 
   // Cleanup: restore default RRRGGGBB palette and clear pixel framebuffer
