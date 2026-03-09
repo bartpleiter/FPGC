@@ -150,6 +150,7 @@ int fnp_send_reliable(int *dest_mac, int msg_type,
 
   seq = *seq_counter;
   *seq_counter = seq + 1;
+  seq = seq & 0xFFFF;
 
   attempt = 0;
   while (attempt < FNP_MAX_RETRIES)

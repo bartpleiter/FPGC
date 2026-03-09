@@ -79,7 +79,7 @@ int fnp_net_user_owned = 0;
 // ---- Interrupt-driven RX ring buffer ----
 // The ENC28J60 ISR drains packets from hardware into this ring buffer.
 // Consumers (user programs via NET_RECV, or kernel FNP poll) read from it.
-#define NET_RINGBUF_SLOTS      64
+#define NET_RINGBUF_SLOTS      32
 #define NET_RINGBUF_FRAME_SIZE 1518
 
 char net_ringbuf_data[NET_RINGBUF_SLOTS * NET_RINGBUF_FRAME_SIZE];

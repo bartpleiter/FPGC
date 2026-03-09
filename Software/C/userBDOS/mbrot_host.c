@@ -16,7 +16,8 @@ unsigned int *fb = (unsigned int *)PIXEL_FB_ADDR;
 
 // ---- Off-screen buffer ----
 // Workers write results here; upscale reads from here and writes to fb.
-int backbuf[76800];  // 320 * 240
+// Heap-allocated to avoid bloating the binary (76800 words = 300 KiB).
+int *backbuf;
 
 // Upscale source rect for 0.90× zoom (center 90% of image)
 // 320 * 0.9 = 288, (320 - 288) / 2 = 16
@@ -560,6 +561,9 @@ int main()
   fnp_get_our_mac(our_mac);
   tx_seq = 0;
   current_palette = 3; // Start with Ultra Fractal palette
+
+  // Allocate backbuf from heap (76800 words = 320*240)
+  backbuf = (int *)sys_heap_alloc(SCREEN_WIDTH * SCREEN_HEIGHT);
 
   // Clear terminal, pixel framebuffer, and backbuf
   sys_term_clear();
