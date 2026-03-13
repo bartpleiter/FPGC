@@ -308,12 +308,16 @@ flash-bdos: compile-bdos
 # Asset Conversion
 # =============================================================================
 
-# W3D texture order: redbrick(1) bluestone(2) greystone(3) wood(4) mossy(5)
-W3D_TEXTURES = Files/textures/redbrick.png \
-               Files/textures/bluestone.png \
+# W3D texture order
+W3D_TEXTURES = Files/textures/eagle.png \
+               Files/textures/redbrick.png \
+               Files/textures/purplestone.png \
                Files/textures/greystone.png \
+               Files/textures/bluestone.png \
+               Files/textures/mossy.png \
                Files/textures/wood.png \
-               Files/textures/mossy.png
+               Files/textures/colorstone.png
+
 W3D_TEX_OUT  = Files/BRFS-init/data/w3d/textures.dat
 
 convert-w3d-textures:

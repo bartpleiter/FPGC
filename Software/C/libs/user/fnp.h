@@ -94,4 +94,23 @@ int fnp_send_reliable(int *dest_mac, int msg_type,
 // mac_out: 6-element int array to receive MAC bytes.
 void fnp_get_our_mac(int *mac_out);
 
+// Send a single keycode to a remote device (reliable, with ACK).
+// dest_mac: 6-element int array with destination MAC bytes
+// keycode: ASCII code or HID keycode to inject
+// frame_buf: caller-provided buffer of at least FNP_FRAME_BUF_SIZE bytes
+// seq_counter: pointer to a sequence counter (incremented on each call)
+// Returns 1 on success, 0 on failure.
+int fnp_send_keycode(int *dest_mac, int keycode,
+                     char *frame_buf, int *seq_counter);
+
+// Send a shell command string followed by Enter to a remote device.
+// Each character is sent as a reliable keycode, followed by Enter (0x0A).
+// dest_mac: 6-element int array with destination MAC bytes
+// cmd: null-terminated command string
+// frame_buf: caller-provided buffer of at least FNP_FRAME_BUF_SIZE bytes
+// seq_counter: pointer to a sequence counter (incremented on each call)
+// Returns 1 if all keycodes sent successfully, 0 on first failure.
+int fnp_send_command(int *dest_mac, char *cmd,
+                     char *frame_buf, int *seq_counter);
+
 #endif // USER_FNP_H

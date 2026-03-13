@@ -204,3 +204,30 @@ void fnp_get_our_mac(int *mac_out)
     i = i + 1;
   }
 }
+
+int fnp_send_keycode(int *dest_mac, int keycode,
+                     char *frame_buf, int *seq_counter)
+{
+  char kc_data[2];
+  kc_data[0] = (keycode >> 8) & 0xFF;
+  kc_data[1] = keycode & 0xFF;
+  return fnp_send_reliable(dest_mac, FNP_TYPE_KEYCODE,
+                           kc_data, 2, frame_buf, seq_counter);
+}
+
+int fnp_send_command(int *dest_mac, char *cmd,
+                     char *frame_buf, int *seq_counter)
+{
+  int i;
+  i = 0;
+  while (cmd[i] != 0)
+  {
+    if (!fnp_send_keycode(dest_mac, cmd[i], frame_buf, seq_counter))
+    {
+      return 0;
+    }
+    i = i + 1;
+  }
+  // Send Enter
+  return fnp_send_keycode(dest_mac, 0x0A, frame_buf, seq_counter);
+}

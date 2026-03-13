@@ -249,6 +249,18 @@ void apply_palette()
   }
 }
 
+// ---- Launch mbrot_client on all worker devices ----
+void launch_workers()
+{
+  int w;
+  for (w = 0; w < NUM_WORKERS; w++)
+  {
+    fnp_send_command(get_worker_mac(w), "mbrot_client", frame_buf, &tx_seq);
+  }
+  // Give workers time to boot up
+  sys_delay(1000);
+}
+
 // ---- Identify worker from source MAC ----
 // Returns worker index (0-3) or -1 if unknown.
 // Uses source MAC's last byte: 0x02=worker0, 0x03=worker1, etc.
@@ -508,18 +520,17 @@ void update_max_iter()
   }
 
   // scale_hi == 0: scale is purely fractional (< 1.0)
-  // Each threshold is ~4x deeper in zoom, adding ~30-40 iterations
-  if      (scale_lo > 0x40000000) iter = 60;  // > 0.25
-  else if (scale_lo > 0x10000000) iter = 90;  // > 0.0625
-  else if (scale_lo > 0x04000000) iter = 120;  // > 0.015
-  else if (scale_lo > 0x01000000) iter = 160;  // > 0.004
-  else if (scale_lo > 0x00400000) iter = 200;  // > 0.001
-  else if (scale_lo > 0x00100000) iter = 230;  // > 0.00024
-  else if (scale_lo > 0x00040000) iter = 260;  // > 0.00006
-  else if (scale_lo > 0x00010000) iter = 290;  // > 0.000015
-  else if (scale_lo > 0x00004000) iter = 330;  // > 0.000004
-  else if (scale_lo > 0x00001000) iter = 370;  // > 0.000001
-  else                            iter = 400;
+  if      (scale_lo > 0x40000000) iter = 100;  // > 0.25
+  else if (scale_lo > 0x10000000) iter = 120;  // > 0.0625
+  else if (scale_lo > 0x04000000) iter = 160;  // > 0.015
+  else if (scale_lo > 0x01000000) iter = 200;  // > 0.004
+  else if (scale_lo > 0x00400000) iter = 240;  // > 0.001
+  else if (scale_lo > 0x00100000) iter = 280;  // > 0.00024
+  else if (scale_lo > 0x00040000) iter = 300;  // > 0.00006
+  else if (scale_lo > 0x00010000) iter = 320;  // > 0.000015
+  else if (scale_lo > 0x00004000) iter = 340;  // > 0.000004
+  else if (scale_lo > 0x00001000) iter = 380;  // > 0.000001
+  else                            iter = 410;
 
   max_iter_val = iter;
 }
@@ -561,6 +572,9 @@ int main()
   fnp_get_our_mac(our_mac);
   tx_seq = 0;
   current_palette = 3; // Start with Ultra Fractal palette
+
+  // Launch mbrot_client on all worker devices
+  launch_workers();
 
   // Allocate backbuf from heap (76800 words = 320*240)
   backbuf = (int *)sys_heap_alloc(SCREEN_WIDTH * SCREEN_HEIGHT);
