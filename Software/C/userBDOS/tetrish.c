@@ -1,5 +1,5 @@
 //
-// tetris_ga_host.c — Tetris GA coordinator (userBDOS).
+// tetrish.c — Tetris GA coordinator (userBDOS).
 // Manages a 4-island genetic algorithm across 4 worker FPGCs.
 // Displays all 4 boards and GA status on the host screen.
 //
@@ -842,7 +842,7 @@ void launch_workers()
   int w;
   for (w = 0; w < NUM_WORKERS; w++)
   {
-    fnp_send_command(get_worker_mac(w), "tetris_ga_client", frame_buf, &tx_seq);
+    fnp_send_command(get_worker_mac(w), "tetrisc", frame_buf, &tx_seq);
   }
   sys_delay(1000);
 }

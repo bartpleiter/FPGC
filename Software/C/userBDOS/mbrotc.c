@@ -1,5 +1,5 @@
 //
-// mandelbrot_worker.c — Cluster Mandelbrot worker program (userBDOS).
+// mbrotc.c — Cluster Mandelbrot worker program (userBDOS).
 //
 // Receives view parameters and row assignments from the coordinator via FNP,
 // computes Mandelbrot pixels using the FP64 coprocessor, and sends results

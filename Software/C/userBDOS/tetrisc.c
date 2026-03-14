@@ -1,5 +1,5 @@
 //
-// tetris_ga_client.c — Tetris GA worker (userBDOS).
+// tetrisc.c — Tetris GA worker (userBDOS).
 // Receives chromosome weights from the host, plays AI Tetris games,
 // periodically sends board snapshots, and reports final scores.
 //

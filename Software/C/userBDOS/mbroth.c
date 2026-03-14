@@ -1,5 +1,5 @@
 //
-// mbrot_host.c — Cluster Mandelbrot coordinator (userBDOS).
+// mbroth.c — Cluster Mandelbrot coordinator (userBDOS).
 // Controls 4 worker FPGCs (MAC :02–:05) for a Mandelbrot zoom animation.
 //
 
@@ -249,13 +249,13 @@ void apply_palette()
   }
 }
 
-// ---- Launch mbrot_client on all worker devices ----
+// ---- Launch mbrot client on all worker devices ----
 void launch_workers()
 {
   int w;
   for (w = 0; w < NUM_WORKERS; w++)
   {
-    fnp_send_command(get_worker_mac(w), "mbrot_client", frame_buf, &tx_seq);
+    fnp_send_command(get_worker_mac(w), "mbrotc", frame_buf, &tx_seq);
   }
   // Give workers time to boot up
   sys_delay(1000);
@@ -573,7 +573,7 @@ int main()
   tx_seq = 0;
   current_palette = 3; // Start with Ultra Fractal palette
 
-  // Launch mbrot_client on all worker devices
+  // Launch mbrot client on all worker devices
   launch_workers();
 
   // Allocate backbuf from heap (76800 words = 320*240)

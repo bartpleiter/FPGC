@@ -27,7 +27,7 @@ B32CC_OUTPUT = $(B32CC_DIR)/output/b32cc
 .PHONY: flash-c-baremetal-spi flash-bdos
 .PHONY: b32cc test-b32cc test-b32cc-single debug-b32cc clean-b32cc
 .PHONY: check
-.PHONY: fnp-upload-text fnp-upload-userbdos fnp-keyboard fnp-detect-iface fnp-sync-files fnp-run fnp-cluster-mandelbrot
+.PHONY: fnp-upload-text fnp-upload-userbdos fnp-keyboard fnp-detect-iface fnp-sync-files fnp-run
 .PHONY: convert-w3d-textures
 
 # -----------------------------------------------------------------------------
@@ -371,23 +371,6 @@ fnp-run:
 	@.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py --mac $(FNP_MAC) key "$(cmd)"
 	@.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py --mac $(FNP_MAC) keycode 0x0A
 
-# Launch mandelbrot cluster: workers on devices 2-5, host on device 1
-fnp-cluster-mandelbrot:
-	@echo "=== Launching Mandelbrot cluster ==="
-	@echo ""
-	@for w in 2 3 4 5; do \
-		mac="02:B4:B4:00:00:0$$w"; \
-		echo "[Device $$w] Sending 'mbrot_client' ($$mac)"; \
-		.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py --mac $$mac key "mbrot_client"; \
-		.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py --mac $$mac keycode 0x0A; \
-		echo ""; \
-	done
-	@echo "[Device 1] Sending 'mbrot_host' (02:B4:B4:00:00:01)"
-	@.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py --mac 02:B4:B4:00:00:01 key "mbrot_host"
-	@.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py --mac 02:B4:B4:00:00:01 keycode 0x0A
-	@echo ""
-	@echo "=== Mandelbrot cluster launched ==="
-
 # =============================================================================
 # Cleanup
 # =============================================================================
@@ -498,7 +481,6 @@ help:
 	@echo "                          Usage: make fnp-sync-files [dev=N]"
 	@echo "  fnp-run               - Run a shell command on an FPGC device"
 	@echo "                          Usage: make fnp-run cmd=<command> [dev=N]"
-	@echo "  fnp-cluster-mandelbrot - Launch Mandelbrot cluster (workers 2-5, host 1)"
 	@echo ""
 	@echo "--- Cleanup ---"
 	@echo "  clean               - Clean all build artifacts and environments"
