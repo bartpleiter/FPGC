@@ -59,7 +59,15 @@ wire blank;
 assign h_count_out = h_count;
 assign v_count_out = v_count;
 assign vsync_out = vsync;
-assign blank_out = blank;
+
+// Guard band: tell arbiter to stop writes 2 pixel clocks before active video.
+// This ensures sram_data_reg has valid read data before the palette captures
+// the first pixel. Without this, the write-to-read transition can leave
+// sram_data_reg with stale/undefined data from the SRAM bus turnaround.
+// Uses same constants as TimingGenerator: HA_STA=159, HA_END=799, VA_STA=44, VA_END=524
+wire arbiter_active = (h_count > 12'd157) && (h_count <= 12'd799) &&
+                      (v_count > 12'd44)  && (v_count <= 12'd524);
+assign blank_out = ~arbiter_active;
 
 TimingGenerator timing_generator (
     .clk_pixel  (clk_pixel),
