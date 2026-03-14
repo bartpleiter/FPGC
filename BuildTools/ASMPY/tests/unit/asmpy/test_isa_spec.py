@@ -30,6 +30,12 @@ def test_opcode_prefixes_basic():
     cases = [
         ("read 0 r1 r2", "1110"),
         ("write 0 r1 r2", "1101"),
+        ("readb 0 r1 r2", "1110"),
+        ("readbu 0 r1 r2", "1110"),
+        ("readh 0 r1 r2", "1110"),
+        ("readhu 0 r1 r2", "1110"),
+        ("writeb 0 r1 r2", "1101"),
+        ("writeh 0 r1 r2", "1101"),
         ("readintid r3", "1100"),
         ("push r4", "1011"),
         ("pop r5", "1010"),

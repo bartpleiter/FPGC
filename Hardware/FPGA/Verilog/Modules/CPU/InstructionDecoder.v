@@ -21,7 +21,11 @@ module InstructionDecoder (
 
     output wire         he,
     output wire         oe,
-    output wire         sig
+    output wire         sig,
+
+    // Sub-opcode fields for byte-addressable memory operations
+    output wire [3:0]   read_subop,   // bits [7:4] of READ instruction (unused BREG field)
+    output wire [3:0]   write_subop   // bits [3:0] of WRITE instruction (unused DREG field)
 );
 
 assign instr_op  = instr[31:28];
@@ -43,5 +47,12 @@ assign dreg     = instr[3:0];
 assign he       = instr[8];     // High-enable (loadhi)
 assign oe       = instr[0];     // Offset-enable (jump[r])
 assign sig      = instr[0];     // Signed comparison (branch)
+
+// Sub-opcode fields for byte-addressable memory operations
+// READ:  bits [7:4] encode the read size (0000=word, 0001=byte, 0010=half, 0101=byte-unsigned, 0110=half-unsigned)
+// WRITE: bits [3:0] encode the write size (0000=word, 0001=byte, 0010=half)
+// For non-READ/WRITE instructions these are don't-care
+assign read_subop  = instr[7:4];  // Same position as BREG (unused in READ)
+assign write_subop = instr[3:0];  // Same position as DREG (unused in WRITE)
 
 endmodule

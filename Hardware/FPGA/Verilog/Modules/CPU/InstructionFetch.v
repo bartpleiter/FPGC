@@ -8,9 +8,9 @@
  * - IF/ID pipeline register update
  */
 module InstructionFetch #(
-    parameter ROM_ADDRESS         = 32'h7800000,
-    parameter INTERRUPT_JUMP_ADDR = 32'd1,
-    parameter CPU_IO_PC_BACKUP    = 32'h7C00000
+    parameter ROM_ADDRESS         = 32'h1E000000,
+    parameter INTERRUPT_JUMP_ADDR = 32'd4,
+    parameter CPU_IO_PC_BACKUP    = 32'h1F000000
 ) (
     input  wire         clk,
     input  wire         reset,
@@ -121,7 +121,7 @@ begin
             if (pc >= ROM_ADDRESS || l1i_hit_redirect)
             begin
                 // ROM access or cache hit: proceed normally
-                pc <= pc + 32'd1;
+                pc <= pc + 32'd4;
                 redirect_pending <= 1'b0;
             end else
             begin
@@ -134,7 +134,7 @@ begin
         end else
         begin
             pc_delayed <= pc;
-            pc <= pc + 32'd1;
+            pc <= pc + 32'd4;
         end
     end
 
@@ -152,19 +152,20 @@ end
 
 // ---- ROM FETCH ----
 wire if_use_rom = (pc >= ROM_ADDRESS);
-wire [9:0] if_rom_addr = pc - ROM_ADDRESS;
+wire [9:0] if_rom_addr = (pc - ROM_ADDRESS) >> 2;  // Byte address to word address
 
 assign rom_fe_addr = if_rom_addr;
 assign rom_fe_oe = if_use_rom && !pipeline_stall;
 assign rom_fe_hold = pipeline_stall;
 
 // ---- L1I CACHE HIT DETECTION ----
+// Byte-addressable: bits [11:5] = cache index, bits [25:12] = tag, bits [4:2] = word offset
 // Use pc_delayed when stalled to keep reading the same cache line
-assign l1i_pipe_addr = pipeline_stall ? pc_delayed[9:3] : pc[9:3];
+assign l1i_pipe_addr = pipeline_stall ? pc_delayed[11:5] : pc[11:5];
 
 // Normal path: use pc_delayed because cache output corresponds to previous cycle's address
-wire [13:0] l1i_tag = pc_delayed[23:10];
-wire [2:0]  l1i_offset = pc_delayed[2:0];
+wire [13:0] l1i_tag = pc_delayed[25:12];
+wire [2:0]  l1i_offset = pc_delayed[4:2];
 wire l1i_cache_valid = l1i_pipe_q[0];
 wire [13:0] l1i_cache_tag = l1i_pipe_q[14:1];
 wire if_use_cache_delayed = (pc_delayed < ROM_ADDRESS);
@@ -172,8 +173,8 @@ wire l1i_hit = if_use_cache_delayed && l1i_cache_valid && (l1i_tag == l1i_cache_
 wire [31:0] l1i_cache_data = l1i_pipe_q[32 * l1i_offset + 15 +: 32];
 
 // Redirect path: uses pc instead of pc_delayed
-// During redirect_pending, cache was read with pc[9:3], so output corresponds to pc
-wire [13:0] l1i_tag_redirect = pc[23:10];
+// During redirect_pending, cache was read with pc[11:5], so output corresponds to pc
+wire [13:0] l1i_tag_redirect = pc[25:12];
 wire if_use_cache_redirect = (pc < ROM_ADDRESS);
 wire l1i_hit_redirect = if_use_cache_redirect && l1i_cache_valid && (l1i_tag_redirect == l1i_cache_tag);
 

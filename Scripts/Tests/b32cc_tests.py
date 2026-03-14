@@ -72,7 +72,7 @@ class B32CCTestConfig:
 
     COMPILER_PATH: str = "BuildTools/B32CC/output/b32cc"
     CONVERTER_SCRIPT: str = "Scripts/Simulation/convert_to_256_bit.py"
-    ROM_OFFSET: str = "0x7800000"
+    ROM_OFFSET: str = "0x1E000000"
 
     # Parallel test temp directory
     PARALLEL_TMP_DIR: str = "Tests/tmp"

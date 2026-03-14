@@ -14,10 +14,10 @@ Main:
 CopyLoop:
     read 0 r1 r5             ; Read word from ROM
     write 0 r2 r5            ; Write word to RAM
-    add r1 1 r1              ; Increment source
-    add r2 1 r2              ; Increment destination
+    add r1 4 r1              ; Increment source
+    add r2 4 r2              ; Increment destination
     add r4 1 r4              ; Increment counter
-    beq r4 r3 2              ; If done, skip jump
+    beq r4 r3 8              ; If done, skip jump
     jump CopyLoop
 
     ; Now read back from RAM and sum the values
@@ -28,9 +28,9 @@ CopyLoop:
 ReadBackLoop:
     read 0 r1 r5             ; Read from RAM
     add r6 r5 r6             ; sum += value
-    add r1 1 r1              ; Next address
+    add r1 4 r1              ; Next address
     add r4 1 r4              ; Increment counter
-    beq r4 r3 2              ; If done, skip jump
+    beq r4 r3 8              ; If done, skip jump
     jump ReadBackLoop
     
     ; Sum should be 1+2+3+4+5 = 15

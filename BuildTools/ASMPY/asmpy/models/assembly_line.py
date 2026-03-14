@@ -317,27 +317,47 @@ class InstructionAssemblyLine(AssemblyLine):
         raise ValueError("Invalid control operation")
 
     def _memory_operation_to_binary(self) -> str:
-        if self.instruction_type == MemoryOperation.READ:
-            if len(self.arguments) != 3:
-                raise ValueError("READ requires three arguments")
-            if not isinstance(self.arguments[0], Number):
-                raise ValueError("READ first argument must be a number")
-            if not isinstance(self.arguments[1], Register):
-                raise ValueError("READ second argument must be a register")
-            if not isinstance(self.arguments[2], Register):
-                raise ValueError("READ third argument must be a register")
-            return f"{InstructionOpcode.READ.value}{self.arguments[0].to_binary(bits=16)}{self.arguments[1].to_binary()}{0:04b}{self.arguments[2].to_binary()}"
+        # Sub-word read variants: readb, readbu, readh, readhu
+        # Encoding: same as READ (opcode 1110) but bits [7:4] encode the sub-opcode
+        _read_subop = {
+            MemoryOperation.READ: 0b0000,    # word (32-bit)
+            MemoryOperation.READB: 0b0001,   # byte, sign-extend
+            MemoryOperation.READBU: 0b0101,  # byte, zero-extend
+            MemoryOperation.READH: 0b0010,   # halfword, sign-extend
+            MemoryOperation.READHU: 0b0110,  # halfword, zero-extend
+        }
+        # Sub-word write variants: writeb, writeh
+        # Encoding: same as WRITE (opcode 1101) but bits [3:0] encode the sub-opcode
+        _write_subop = {
+            MemoryOperation.WRITE: 0b0000,   # word (32-bit)
+            MemoryOperation.WRITEB: 0b0001,  # byte
+            MemoryOperation.WRITEH: 0b0010,  # halfword
+        }
 
-        if self.instruction_type == MemoryOperation.WRITE:
+        if self.instruction_type in _read_subop:
             if len(self.arguments) != 3:
-                raise ValueError("WRITE requires three arguments")
+                raise ValueError(f"{self.instruction_type.value.upper()} requires three arguments")
             if not isinstance(self.arguments[0], Number):
-                raise ValueError("WRITE first argument must be a number")
+                raise ValueError(f"{self.instruction_type.value.upper()} first argument must be a number")
             if not isinstance(self.arguments[1], Register):
-                raise ValueError("WRITE second argument must be a register")
+                raise ValueError(f"{self.instruction_type.value.upper()} second argument must be a register")
             if not isinstance(self.arguments[2], Register):
-                raise ValueError("WRITE third argument must be a register")
-            return f"{InstructionOpcode.WRITE.value}{self.arguments[0].to_binary(bits=16)}{self.arguments[1].to_binary()}{self.arguments[2].to_binary()}{0:04b}"
+                raise ValueError(f"{self.instruction_type.value.upper()} third argument must be a register")
+            subop = _read_subop[self.instruction_type]
+            return f"{InstructionOpcode.READ.value}{self.arguments[0].to_binary(bits=16)}{self.arguments[1].to_binary()}{subop:04b}{self.arguments[2].to_binary()}"
+
+        if self.instruction_type in _write_subop:
+            if len(self.arguments) != 3:
+                raise ValueError(f"{self.instruction_type.value.upper()} requires three arguments")
+            if not isinstance(self.arguments[0], Number):
+                raise ValueError(f"{self.instruction_type.value.upper()} first argument must be a number")
+            if not isinstance(self.arguments[1], Register):
+                raise ValueError(f"{self.instruction_type.value.upper()} second argument must be a register")
+            if not isinstance(self.arguments[2], Register):
+                raise ValueError(f"{self.instruction_type.value.upper()} third argument must be a register")
+            subop = _write_subop[self.instruction_type]
+            return f"{InstructionOpcode.WRITE.value}{self.arguments[0].to_binary(bits=16)}{self.arguments[1].to_binary()}{self.arguments[2].to_binary()}{subop:04b}"
+
         if self.instruction_type == MemoryOperation.PUSH:
             if len(self.arguments) != 1:
                 raise ValueError("PUSH requires one argument")

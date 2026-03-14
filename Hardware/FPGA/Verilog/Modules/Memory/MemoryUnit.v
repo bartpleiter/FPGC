@@ -283,35 +283,35 @@ MicrosCounter micros_counter (
 
 // ---- Address map ----
 localparam
-    ADDR_UART_TX         = 32'h7000000, // UART tx
-    ADDR_UART_RX         = 32'h7000001, // UART rx
-    ADDR_TIMER1_VALUE    = 32'h7000002, // Timer 1 value
-    ADDR_TIMER1_START    = 32'h7000003, // Timer 1 start
-    ADDR_TIMER2_VALUE    = 32'h7000004, // Timer 2 value
-    ADDR_TIMER2_START    = 32'h7000005, // Timer 2 start
-    ADDR_TIMER3_VALUE    = 32'h7000006, // Timer 3 value
-    ADDR_TIMER3_START    = 32'h7000007, // Timer 3 start
-    ADDR_SPI0_DATA       = 32'h7000008, // SPI0 data (Flash1)
-    ADDR_SPI0_CS         = 32'h7000009, // SPI0 CS
-    ADDR_SPI1_DATA       = 32'h700000A, // SPI1 data (Flash2)
-    ADDR_SPI1_CS         = 32'h700000B, // SPI1 CS
-    ADDR_SPI2_DATA       = 32'h700000C, // SPI2 data (USB H1)
-    ADDR_SPI2_CS         = 32'h700000D, // SPI2 CS
-    ADDR_SPI2_NINT       = 32'h700000E, // SPI2 NINT
-    ADDR_SPI3_DATA       = 32'h700000F, // SPI3 data (USB H2)
-    ADDR_SPI3_CS         = 32'h7000010, // SPI3 CS
-    ADDR_SPI3_NINT       = 32'h7000011, // SPI3 NINT
-    ADDR_SPI4_DATA       = 32'h7000012, // SPI4 data (Ethernet)
-    ADDR_SPI4_CS         = 32'h7000013, // SPI4 CS
-    ADDR_SPI4_NINT       = 32'h7000014, // SPI4 NINT
-    ADDR_SPI5_DATA       = 32'h7000015, // SPI5 data (SD)
-    ADDR_SPI5_CS         = 32'h7000016, // SPI5 CS
-    ADDR_GPIO_MODE       = 32'h7000017, // GPIO mode
-    ADDR_GPIO_STATE      = 32'h7000018, // GPIO state
-    ADDR_BOOT_MODE       = 32'h7000019, // Boot mode
-    ADDR_MICROS          = 32'h700001A, // Micros
-    ADDR_LED_USER        = 32'h700001B, // User LED control
-    ADDR_OOB             = 32'h700001C; // All addresses >= this are out of bounds
+    ADDR_UART_TX         = 32'h1C000000, // UART tx
+    ADDR_UART_RX         = 32'h1C000004, // UART rx
+    ADDR_TIMER1_VALUE    = 32'h1C000008, // Timer 1 value
+    ADDR_TIMER1_START    = 32'h1C00000C, // Timer 1 start
+    ADDR_TIMER2_VALUE    = 32'h1C000010, // Timer 2 value
+    ADDR_TIMER2_START    = 32'h1C000014, // Timer 2 start
+    ADDR_TIMER3_VALUE    = 32'h1C000018, // Timer 3 value
+    ADDR_TIMER3_START    = 32'h1C00001C, // Timer 3 start
+    ADDR_SPI0_DATA       = 32'h1C000020, // SPI0 data (Flash1)
+    ADDR_SPI0_CS         = 32'h1C000024, // SPI0 CS
+    ADDR_SPI1_DATA       = 32'h1C000028, // SPI1 data (Flash2)
+    ADDR_SPI1_CS         = 32'h1C00002C, // SPI1 CS
+    ADDR_SPI2_DATA       = 32'h1C000030, // SPI2 data (USB H1)
+    ADDR_SPI2_CS         = 32'h1C000034, // SPI2 CS
+    ADDR_SPI2_NINT       = 32'h1C000038, // SPI2 NINT
+    ADDR_SPI3_DATA       = 32'h1C00003C, // SPI3 data (USB H2)
+    ADDR_SPI3_CS         = 32'h1C000040, // SPI3 CS
+    ADDR_SPI3_NINT       = 32'h1C000044, // SPI3 NINT
+    ADDR_SPI4_DATA       = 32'h1C000048, // SPI4 data (Ethernet)
+    ADDR_SPI4_CS         = 32'h1C00004C, // SPI4 CS
+    ADDR_SPI4_NINT       = 32'h1C000050, // SPI4 NINT
+    ADDR_SPI5_DATA       = 32'h1C000054, // SPI5 data (SD)
+    ADDR_SPI5_CS         = 32'h1C000058, // SPI5 CS
+    ADDR_GPIO_MODE       = 32'h1C00005C, // GPIO mode
+    ADDR_GPIO_STATE      = 32'h1C000060, // GPIO state
+    ADDR_BOOT_MODE       = 32'h1C000064, // Boot mode
+    ADDR_MICROS          = 32'h1C000068, // Micros
+    ADDR_LED_USER        = 32'h1C00006C, // User LED control
+    ADDR_OOB             = 32'h1C000070; // All addresses >= this are out of bounds
 
 // ---- State encoding ----
 localparam

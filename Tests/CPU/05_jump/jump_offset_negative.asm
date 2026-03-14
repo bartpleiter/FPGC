@@ -4,7 +4,7 @@ Main:
     add r1 1 r1
     add r1 1 r1
     beq r1 r2 Done
-    jumpo -3
+    jumpo -12
     load 1 r15 ; should not be reached
     halt
 Done:

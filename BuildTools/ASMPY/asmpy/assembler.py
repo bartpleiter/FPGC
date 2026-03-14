@@ -201,7 +201,7 @@ class Assembler:
             pending_labels = []
 
             line_addresses[idx] = current_address
-            current_address += line_word_sizes.get(idx, 1)
+            current_address += line_word_sizes.get(idx, 1) * 4
 
         if pending_labels:
             raise ValueError(
@@ -329,10 +329,13 @@ class Assembler:
                     )
 
     def _create_label_address_mappings(self) -> None:
-        """Creates a mapping from label to address using the label line mapping."""
+        """Creates a mapping from label to address using the label line mapping.
+
+        Each instruction occupies 4 bytes, so the address is index × 4 + offset.
+        """
         for label, instruction in self._label_line_mappings.items():
             address = (
-                self._assembly_lines.index(instruction) + self.offset_address.value
+                self._assembly_lines.index(instruction) * 4 + self.offset_address.value
             )
             self._label_address_mappings[label] = address
 
@@ -340,12 +343,18 @@ class Assembler:
         """Replace labels with their addresses in the assembly lines.
 
         For branch instructions, the label is converted to a relative offset
-        (target_address - current_address). For other instructions (like jump),
+        (target_address - current_address). For jump instructions with label
+        targets, the instruction is converted to jumpo (relative offset) to
+        avoid 27-bit overflow with byte addresses. For other instructions,
         the absolute address is used.
+
+        Each instruction occupies 4 bytes, so current_address = index × 4 + offset.
         """
+        jump_rewrites: list[tuple[int, int, InstructionAssemblyLine]] = []
+
         for idx, line in enumerate(self._assembly_lines):
             if isinstance(line, InstructionAssemblyLine):
-                current_address = idx + self.offset_address.value
+                current_address = idx * 4 + self.offset_address.value
                 is_branch = isinstance(line.instruction_type, BranchOperation)
 
                 for arg in line.arguments:
@@ -354,9 +363,20 @@ class Assembler:
                         if is_branch:
                             # Branch instructions use relative offsets
                             arg.target_address = target_address - current_address
+                        elif line.instruction_type == JumpOperation.JUMP:
+                            # Convert label-based jump to jumpo (relative)
+                            relative_offset = target_address - current_address
+                            jump_rewrites.append((idx, relative_offset, line))
                         else:
-                            # Jump instructions use absolute addresses
+                            # Other instructions use absolute addresses
                             arg.target_address = target_address
+
+        # Rewrite label-based jumps to jumpo with relative offset
+        for idx, offset, old_line in jump_rewrites:
+            self._assembly_lines[idx] = self._instruction_from_line(
+                old_line,
+                code_str=f"jumpo {offset}",
+            )
 
     def _process_labels(self) -> None:
         """Process labels in the assembly lines."""

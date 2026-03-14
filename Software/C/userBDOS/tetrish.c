@@ -814,6 +814,59 @@ void print_int_pad(int val, int width)
   sys_print_str(buf + i);
 }
 
+// Print integer compactly: if it fits in 'width' chars, print normally.
+// Otherwise use E notation: "X.YEZ" (5 chars) padded to width.
+void print_int_compact(int val, int width)
+{
+  int ndigits;
+  int temp;
+  int sig;
+  int exp;
+  int pad;
+
+  if (val <= 0)
+  {
+    print_int_pad(val, width);
+    return;
+  }
+
+  // Count digits
+  ndigits = 0;
+  temp = val;
+  while (temp > 0)
+  {
+    ndigits = ndigits + 1;
+    temp = temp / 10;
+  }
+
+  if (ndigits <= width)
+  {
+    print_int_pad(val, width);
+    return;
+  }
+
+  // E notation: reduce to 2 significant digits
+  exp = ndigits - 1;
+  sig = val;
+  while (sig >= 100)
+  {
+    sig = sig / 10;
+  }
+
+  // Pad to fill width (5 chars for "X.YEZ")
+  pad = width - 5;
+  while (pad > 0)
+  {
+    sys_print_char(' ');
+    pad = pad - 1;
+  }
+  sys_print_char('0' + (sig / 10));
+  sys_print_char('.');
+  sys_print_char('0' + (sig % 10));
+  sys_print_char('E');
+  sys_print_char('0' + exp);
+}
+
 // Print a Q16.16 fixed-point value as 5 chars: " X.XX" or "-X.XX"
 void print_q16(int val)
 {
@@ -910,7 +963,7 @@ void draw_status()
     for (w = 0; w < NUM_WORKERS; w++)
     {
       sys_term_set_cursor(score_col[w], 11);
-      print_int_pad(worker_cur_score[w], 6);
+      print_int_compact(worker_cur_score[w], 6);
     }
 
     // Rows 13-18: Gene values per worker with short names
@@ -944,7 +997,7 @@ void draw_status()
     }
     sys_term_set_cursor(0, 22);
     sys_print_str("Round HiScore ");
-    print_int_pad(round_hi, 6);
+    print_int_compact(round_hi, 6);
   }
   else if (current_page == 1)
   {
@@ -955,7 +1008,7 @@ void draw_status()
 
     sys_term_set_cursor(0, 13);
     sys_print_str("HiScore      ");
-    print_int_pad(best_ever_score, 6);
+    print_int_compact(best_ever_score, 6);
 
     sys_term_set_cursor(0, 15);
     sys_print_str("Best Genes:");

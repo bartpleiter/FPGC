@@ -7,7 +7,7 @@ Main:
     load 42 r1          ; Test data for address 0
     load 99 r2          ; Test data for address 1024  
     load 0 r3           ; Base address 0 (cache index 0)
-    load32 1024 r4      ; Address 1024 (same cache index 0, different tag)
+    load32 4096 r4      ; Address 4096 (same cache index 0, different tag in byte addressing)
     
     ; Step 1: Write to address 0, creating a dirty cache line
     write 0 r3 r1       ; Write 42 to address 0 (cache index 0)

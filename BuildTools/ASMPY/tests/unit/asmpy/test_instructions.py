@@ -98,6 +98,50 @@ def test_push_pop():
     assert pop.to_binary_string().startswith("1010")
 
 
+def test_subword_read_encoding():
+    """Test that readb/readbu/readh/readhu encode the correct sub-opcode in bits [7:4]."""
+    # read 0 r1 r2 => opcode=1110, imm16=0, areg=r1(0001), subop=0000, dreg=r2(0010)
+    read_word = make_line("read 0 r1 r2").to_binary_string()[:32]
+    assert read_word[24:28] == "0000"  # bits [7:4] = 0000
+
+    # readb 0 r1 r2 => subop=0001
+    readb = make_line("readb 0 r1 r2").to_binary_string()[:32]
+    assert readb[:4] == "1110"  # opcode = READ
+    assert readb[24:28] == "0001"  # bits [7:4] = 0001
+
+    # readbu 0 r1 r2 => subop=0101
+    readbu = make_line("readbu 0 r1 r2").to_binary_string()[:32]
+    assert readbu[:4] == "1110"
+    assert readbu[24:28] == "0101"  # bits [7:4] = 0101
+
+    # readh 0 r1 r2 => subop=0010
+    readh = make_line("readh 0 r1 r2").to_binary_string()[:32]
+    assert readh[:4] == "1110"
+    assert readh[24:28] == "0010"  # bits [7:4] = 0010
+
+    # readhu 0 r1 r2 => subop=0110
+    readhu = make_line("readhu 0 r1 r2").to_binary_string()[:32]
+    assert readhu[:4] == "1110"
+    assert readhu[24:28] == "0110"  # bits [7:4] = 0110
+
+
+def test_subword_write_encoding():
+    """Test that writeb/writeh encode the correct sub-opcode in bits [3:0]."""
+    # write 0 r1 r2 => opcode=1101, imm16=0, areg=r1, breg=r2, subop=0000
+    write_word = make_line("write 0 r1 r2").to_binary_string()[:32]
+    assert write_word[28:32] == "0000"  # bits [3:0] = 0000
+
+    # writeb 0 r1 r2 => subop=0001
+    writeb = make_line("writeb 0 r1 r2").to_binary_string()[:32]
+    assert writeb[:4] == "1101"  # opcode = WRITE
+    assert writeb[28:32] == "0001"  # bits [3:0] = 0001
+
+    # writeh 0 r1 r2 => subop=0010
+    writeh = make_line("writeh 0 r1 r2").to_binary_string()[:32]
+    assert writeh[:4] == "1101"
+    assert writeh[28:32] == "0010"  # bits [3:0] = 0010
+
+
 def test_add_with_negative_constant():
     """Test that instruction (ADD) with negative constant encodes correctly (two's complement)."""
     # Arrange & Act

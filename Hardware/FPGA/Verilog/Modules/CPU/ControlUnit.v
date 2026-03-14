@@ -6,6 +6,10 @@ module ControlUnit (
     input wire  [3:0]   instr_op,
     input wire  [3:0]   alu_op,
 
+    // Sub-opcode fields for byte-addressable memory operations
+    input wire  [3:0]   read_subop,   // bits [7:4] of READ instruction
+    input wire  [3:0]   write_subop,  // bits [3:0] of WRITE instruction
+
     output reg          alu_use_const,
     output reg          alu_use_constu,
     output reg          push,
@@ -21,7 +25,11 @@ module ControlUnit (
     output reg          reti,
     output reg          get_int_id,
     output reg          get_pc,
-    output reg          clear_cache
+    output reg          clear_cache,
+
+    // Memory size control for byte-addressable operations
+    output reg  [1:0]   mem_size,         // 00=word, 01=byte, 10=halfword
+    output reg          mem_sign_extend   // 1=sign-extend, 0=zero-extend (reads only)
 );
 
 // Instruction Opcodes
@@ -63,6 +71,8 @@ begin
     halt            = 1'b0;
     reti            = 1'b0;
     clear_cache      = 1'b0;
+    mem_size        = 2'b00;
+    mem_sign_extend = 1'b0;
 
     // Set values based on opcode
     case (instr_op)
@@ -75,11 +85,17 @@ begin
         begin
             mem_read = 1'b1;
             dreg_we = 1'b1;
+            // read_subop[1:0]: 00=word, 01=byte, 10=half
+            // read_subop[2]: 0=signed, 1=unsigned
+            mem_size = read_subop[1:0];
+            mem_sign_extend = ~read_subop[2];
         end
 
         OP_WRITE:
         begin
             mem_write = 1'b1;
+            // write_subop[1:0]: 00=word, 01=byte, 10=half
+            mem_size = write_subop[1:0];
         end
 
         // Write interrupt ID to dreg

@@ -6,11 +6,11 @@ Main:
     load 1 r1 ; r1=1
     load 2 r2 ; r2=2
     add r1 r2 r5 ; r5=3
-    beq r3 r5 2
+    beq r3 r5 8
     halt
 
     multu r2 r2 r6 ; r6=4
-    beq r4 r6 2
+    beq r4 r6 8
     halt
     add r1 r6 r6 ; r6=5
     multu r6 r2 r6 ; r6=10
@@ -28,7 +28,7 @@ Main:
     load 9 r6 ; r6=9
     pop r6
     add r6 2 r6 ; r6=6
-    bge r6 r3 2
+    bge r6 r3 8
     halt
     or r6 r0 r15 ; expected=6
 

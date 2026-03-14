@@ -32,6 +32,12 @@ def test_all_instruction_binaries():
         # Memory
         "read 0 r1 r2",
         "write 1 r3 r4",
+        "readb 0 r1 r2",
+        "readbu 0 r1 r2",
+        "readh 0 r1 r2",
+        "readhu 0 r1 r2",
+        "writeb 0 r1 r2",
+        "writeh 0 r1 r2",
         "push r5",
         "pop r6",
         # Arithmetic (single)
@@ -225,13 +231,13 @@ def test_branch_backward_with_label():
         # Last instruction is branch with negative offset
         bne_binary = binary_lines[2]
         assert bne_binary.startswith("0110")  # Branch prefix
-        # Offset is -2 which in 16-bit two's complement is 0xFFFE
+        # Offset is -8 bytes (2 instructions × 4 bytes/instr) which in 16-bit two's complement is 0xFFF8
         # The offset is encoded in bits [31:16] after the opcode
         offset_bits = bne_binary[4:20]  # 16 bits for offset
         offset_value = int(offset_bits, 2)
         # Convert from unsigned to signed
         if offset_value >= 0x8000:
             offset_value -= 0x10000
-        assert offset_value == -2
+        assert offset_value == -8
     finally:
         os.remove(out_path)

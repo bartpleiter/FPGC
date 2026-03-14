@@ -250,7 +250,7 @@ class CPUTestRunner:
 
     def _assemble_code_to_rom(self, path: str) -> None:
         """Assemble code for ROM execution with ROM address offset."""
-        self._assemble_code(path, self.config.ROM_LIST_PATH, "ROM code", "0x7800000")
+        self._assemble_code(path, self.config.ROM_LIST_PATH, "ROM code", "0x1E000000")
 
     def _assemble_code_to_ram(self, path: str) -> None:
         """Assemble code for RAM execution."""

@@ -42,7 +42,7 @@ source .venv/bin/activate
 
 # Compile ROM code
 echo "Compiling ROM code"
-if asmpy Software/ASM/Simulation/sim_rom.asm Hardware/FPGA/Verilog/Simulation/MemoryLists/rom.list -o 0x7800000
+if asmpy Software/ASM/Simulation/sim_rom.asm Hardware/FPGA/Verilog/Simulation/MemoryLists/rom.list -o 0x1E000000
 then
     echo "ROM code compiled successfully"
 else

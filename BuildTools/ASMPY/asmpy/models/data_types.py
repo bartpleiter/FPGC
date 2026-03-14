@@ -66,6 +66,12 @@ class MemoryOperation(StringParsableEnum):
 
     READ = "read"
     WRITE = "write"
+    READB = "readb"
+    READBU = "readbu"
+    READH = "readh"
+    READHU = "readhu"
+    WRITEB = "writeb"
+    WRITEH = "writeh"
     PUSH = "push"
     POP = "pop"
 
