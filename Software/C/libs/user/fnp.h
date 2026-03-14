@@ -31,10 +31,16 @@
 // General message
 #define FNP_TYPE_MESSAGE    0x30
 
-// Cluster demo types
+// Cluster demo types (Mandelbrot)
 #define FNP_TYPE_CLUSTER_PARAMS  0x40
 #define FNP_TYPE_CLUSTER_ASSIGN  0x41
 #define FNP_TYPE_CLUSTER_RESULT  0x42
+
+// Cluster demo types (Tetris GA)
+#define FNP_TYPE_TETRIS_PARAMS   0x50
+#define FNP_TYPE_TETRIS_ASSIGN   0x51
+#define FNP_TYPE_TETRIS_BOARD    0x52
+#define FNP_TYPE_TETRIS_RESULT   0x53
 
 // ---- FNP flags ----
 #define FNP_FLAG_MORE_DATA    0x01
