@@ -6,6 +6,7 @@
 
 #define USER_SYSCALL
 #define USER_FNP
+#define USER_PLOT
 #include "libs/user/user.h"
 
 // ---- Screen constants ----
@@ -23,7 +24,7 @@ unsigned int *fb = (unsigned int *)PIXEL_FB_ADDR;
 // ---- GA constants ----
 #define NUM_WORKERS     4
 #define NUM_GENES       6
-#define ISLAND_SIZE     10
+#define ISLAND_SIZE     20
 #define TOTAL_CHROMOS   (NUM_WORKERS * ISLAND_SIZE)  // 40
 #define ELITE_ISLAND    3   // Worker 3 (device 5) is elite
 
@@ -85,6 +86,30 @@ int current_page;
 // All-time best tracking
 int best_ever_score;
 int best_ever_genes[NUM_GENES];
+
+// Log ring buffer (structured: type + value per entry)
+#define LOG_LINES 13
+#define LOG_TYPE_HISCORE   1
+#define LOG_TYPE_GEN_DONE  2
+#define LOG_TYPE_UPDATING  3
+#define LOG_TYPE_MUTATIONS 4
+#define LOG_TYPE_GEN_START 5
+int log_type[LOG_LINES];
+int log_value[LOG_LINES];
+int log_head;
+int log_used;
+int log_dirty;
+
+// Mutation counter (reset per evolution cycle)
+int mutation_count;
+
+// Generation history for graphs (ring buffer)
+#define HIST_MAX 256
+int hist_mutations[HIST_MAX];
+int hist_avg_score[HIST_MAX];
+int hist_top_score[HIST_MAX];
+int hist_count;
+int graphs_dirty;
 
 // ---- Network ----
 char frame_buf[FNP_FRAME_BUF_SIZE];
@@ -297,6 +322,7 @@ void evolve_island(int island_idx)
       if (ga_rng_next() % 100 < 10)
       {
         chromo_genes[child_idx * NUM_GENES + g] = ga_random_weight();
+        mutation_count = mutation_count + 1;
       }
     }
 
@@ -318,6 +344,7 @@ void evolve_island(int island_idx)
       {
         chromo_genes[idx * NUM_GENES + g] = ga_random_weight();
         chromo_evaluated[idx] = 0;
+        mutation_count = mutation_count + 1;
       }
     }
   }
@@ -844,6 +871,15 @@ void print_gene_name_full(int g)
   else if (g == 5) sys_print_str("Bumpiness");
 }
 
+void log_add(int type, int value)
+{
+  log_type[log_head] = type;
+  log_value[log_head] = value;
+  log_head = (log_head + 1) % LOG_LINES;
+  if (log_used < LOG_LINES) log_used = log_used + 1;
+  log_dirty = 1;
+}
+
 void draw_status()
 {
   int w;
@@ -862,6 +898,7 @@ void draw_status()
       {
         best_ever_genes[g] = chromo_genes[i * NUM_GENES + g];
       }
+      log_add(LOG_TYPE_HISCORE, best_ever_score);
     }
   }
 
@@ -896,7 +933,7 @@ void draw_status()
     sys_print_str("/");
     print_int(TOTAL_CHROMOS);
 
-    // Row 21: Round high score
+    // Row 22: Round high score
     round_hi = 0;
     for (i = 0; i < TOTAL_CHROMOS; i++)
     {
@@ -905,7 +942,7 @@ void draw_status()
         round_hi = chromo_score[i];
       }
     }
-    sys_term_set_cursor(0, 21);
+    sys_term_set_cursor(0, 22);
     sys_print_str("Round HiScore ");
     print_int_pad(round_hi, 6);
   }
@@ -932,36 +969,136 @@ void draw_status()
   }
   else if (current_page == 2)
   {
-    sys_term_set_cursor(0, 11);
-    sys_print_str("(Log - coming soon)");
+    if (log_dirty)
+    {
+      int li;
+      int start_idx;
+      int idx;
+
+      log_dirty = 0;
+
+      // Clear log area to prevent leftover characters
+      for (li = 0; li < LOG_LINES; li++)
+      {
+        sys_term_set_cursor(0, 11 + li);
+        sys_print_str("                                        ");
+      }
+
+      if (log_used < LOG_LINES)
+      {
+        start_idx = 0;
+      }
+      else
+      {
+        start_idx = log_head;
+      }
+
+      for (li = 0; li < log_used; li++)
+      {
+        idx = (start_idx + li) % LOG_LINES;
+        sys_term_set_cursor(0, 11 + li);
+
+        if (log_type[idx] == LOG_TYPE_HISCORE)
+        {
+          sys_print_str("New HiScore: ");
+          print_int(log_value[idx]);
+        }
+        else if (log_type[idx] == LOG_TYPE_GEN_DONE)
+        {
+          sys_print_str("Gen ");
+          print_int(log_value[idx]);
+          sys_print_str(" is finished");
+        }
+        else if (log_type[idx] == LOG_TYPE_UPDATING)
+        {
+          sys_print_str("Updating population");
+        }
+        else if (log_type[idx] == LOG_TYPE_MUTATIONS)
+        {
+          print_int(log_value[idx]);
+          sys_print_str(" Mutations occurred");
+        }
+        else if (log_type[idx] == LOG_TYPE_GEN_START)
+        {
+          sys_print_str("Started gen ");
+          print_int(log_value[idx]);
+        }
+      }
+    }
   }
   else if (current_page == 3)
   {
-    sys_term_set_cursor(0, 11);
-    sys_print_str("(Graphs - coming soon)");
+    if (graphs_dirty)
+    {
+      int y_max_mut;
+      int y_max_avg;
+      int y_max_top;
+      int gi;
+
+      graphs_dirty = 0;
+
+      if (hist_count > 1)
+      {
+        // Find Y ranges (separate for each metric)
+        y_max_mut = 1;
+        y_max_avg = 1;
+        y_max_top = 1;
+        for (gi = 0; gi < hist_count; gi++)
+        {
+          if (hist_mutations[gi] > y_max_mut) y_max_mut = hist_mutations[gi];
+          if (hist_avg_score[gi] > y_max_avg) y_max_avg = hist_avg_score[gi];
+          if (hist_top_score[gi] > y_max_top) y_max_top = hist_top_score[gi];
+        }
+
+        // Plot 1: Mutations (left below boards)
+        plot_init(5, 116, 100, 120);
+        plot_clear(0x00);
+        plot_axes(0, y_max_mut, hist_count, 0xB6, 0x49);
+        plot_line(hist_mutations, hist_count, 0, y_max_mut, 0xFC);
+        plot_text(30, 117, "MUTATIONS", 0xFF);
+
+        // Plot 2: Avg Score (center below boards)
+        plot_init(110, 116, 100, 120);
+        plot_clear(0x00);
+        plot_axes(0, y_max_avg, hist_count, 0xB6, 0x49);
+        plot_line(hist_avg_score, hist_count, 0, y_max_avg, 0x1C);
+        plot_text(135, 117, "AVG SCORE", 0xFF);
+
+        // Plot 3: Top Score (right below boards)
+        plot_init(215, 116, 100, 120);
+        plot_clear(0x00);
+        plot_axes(0, y_max_top, hist_count, 0xB6, 0x49);
+        plot_line(hist_top_score, hist_count, 0, y_max_top, 0xE0);
+        plot_text(240, 117, "TOP SCORE", 0xFF);
+      }
+      else
+      {
+        sys_term_set_cursor(2, 18);
+        sys_print_str("Waiting for data...");
+      }
+    }
   }
 
-  // Row 24: Page navigation indicator
-  sys_term_set_cursor(14, 24);
+  // Page navigation indicator (top-left, beside boards)
+  sys_term_set_cursor(0, 0);
   if (current_page > 0)
   {
-    sys_print_str("< ");
+    sys_print_char('<');
   }
   else
   {
-    sys_print_str("  ");
+    sys_print_char(' ');
   }
-  sys_print_str("Page ");
   sys_print_char('1' + current_page);
   sys_print_char('/');
   sys_print_char('0' + NUM_PAGES);
   if (current_page < NUM_PAGES - 1)
   {
-    sys_print_str(" >");
+    sys_print_char('>');
   }
   else
   {
-    sys_print_str("  ");
+    sys_print_char(' ');
   }
 }
 
@@ -1038,6 +1175,12 @@ int main()
   ga_running = 1;
   current_page = 0;
   best_ever_score = 0;
+  log_head = 0;
+  log_used = 0;
+  log_dirty = 1;
+  mutation_count = 0;
+  hist_count = 0;
+  graphs_dirty = 1;
   {
     int gi;
     for (gi = 0; gi < NUM_GENES; gi++) best_ever_genes[gi] = 0;
@@ -1079,6 +1222,11 @@ int main()
         generation = 1;
         gen_seed = 42;
         best_ever_score = 0;
+        log_head = 0;
+        log_used = 0;
+        log_dirty = 1;
+        hist_count = 0;
+        graphs_dirty = 1;
         init_population();
         dispatch_generation();
       }
@@ -1087,6 +1235,16 @@ int main()
         if (current_page > 0)
         {
           current_page = current_page - 1;
+          log_dirty = 1;
+          graphs_dirty = 1;
+          // Clear plot area if leaving graphs page
+          if (current_page + 1 == 3)
+          {
+            int cy;
+            unsigned int *pfb;
+            pfb = (unsigned int *)0x7B00000;
+            for (cy = 116 * 320; cy < 236 * 320; cy++) pfb[cy] = 0;
+          }
           sys_term_clear();
           draw_status();
         }
@@ -1096,6 +1254,16 @@ int main()
         if (current_page < NUM_PAGES - 1)
         {
           current_page = current_page + 1;
+          log_dirty = 1;
+          graphs_dirty = 1;
+          // Clear plot area if leaving graphs page
+          if (current_page - 1 == 3)
+          {
+            int cy;
+            unsigned int *pfb;
+            pfb = (unsigned int *)0x7B00000;
+            for (cy = 116 * 320; cy < 236 * 320; cy++) pfb[cy] = 0;
+          }
           sys_term_clear();
           draw_status();
         }
@@ -1123,11 +1291,48 @@ int main()
       // Send deferred assignments AFTER ACKs have been sent
       dispatch_pending_assigns();
 
-      // Check if all results are in
       if (total_results >= TOTAL_CHROMOS)
       {
+        // Record generation history before evolving
+        if (hist_count < HIST_MAX)
+        {
+          int hi;
+          int htotal;
+          int hcount;
+          int htop;
+
+          htotal = 0;
+          hcount = 0;
+          htop = 0;
+          for (hi = 0; hi < TOTAL_CHROMOS; hi++)
+          {
+            if (chromo_evaluated[hi])
+            {
+              htotal = htotal + chromo_score[hi];
+              hcount = hcount + 1;
+              if (chromo_score[hi] > htop) htop = chromo_score[hi];
+            }
+          }
+          hist_avg_score[hist_count] = (hcount > 0) ? htotal / hcount : 0;
+          hist_top_score[hist_count] = htop;
+        }
+
+        log_add(LOG_TYPE_GEN_DONE, generation);
+        log_add(LOG_TYPE_UPDATING, 0);
+        mutation_count = 0;
         // Evolve and start next generation
         evolve_generation();
+        log_add(LOG_TYPE_MUTATIONS, mutation_count);
+        log_add(LOG_TYPE_GEN_START, generation);
+
+        // Record mutation count in history
+        if (hist_count < HIST_MAX)
+        {
+          hist_mutations[hist_count] = mutation_count;
+          hist_count = hist_count + 1;
+          graphs_dirty = 1;
+        }
+
         dispatch_generation();
         got_data = 1; // Force redraw
       }

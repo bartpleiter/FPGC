@@ -24,6 +24,10 @@
 #include "libs/common/fixed64.h"
 #endif
 
+#ifdef USER_PLOT
+#include "libs/user/gfx/plot.h"
+#endif
+
 // Implementation files
 #ifdef USER_SYSCALL
 #include "libs/user/syscall.c"
@@ -35,6 +39,10 @@
 
 #ifdef USER_FIXED64
 #include "libs/common/fixed64.c"
+#endif
+
+#ifdef USER_PLOT
+#include "libs/user/gfx/plot.c"
 #endif
 
 #endif // USER_H
