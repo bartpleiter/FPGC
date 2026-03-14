@@ -70,11 +70,21 @@ unsigned int ga_rng_state;
 // ---- Display constants ----
 #define CELL_SIZE     5
 // 4 boards: each 50px wide (10 cols × 5px), 100px tall (20 rows × 5px)
-// Spacing: 10px left margin, 15px between boards
-// X positions: 10, 75, 140, 205
-// Y position: 10 (top of boards)
-#define BOARD_Y       10
-int board_x[4] = {10, 75, 140, 205};
+// Centered horizontally, board centers aligned to terminal char grid
+#define BOARD_Y       7
+int board_x[4] = {39, 103, 167, 231};
+
+// Terminal column positions for display under each board
+int score_col[4] = {5, 13, 21, 29};
+int gene_col[4] = {6, 14, 22, 30};
+
+// Page navigation
+int current_page;
+#define NUM_PAGES 4
+
+// All-time best tracking
+int best_ever_score;
+int best_ever_genes[NUM_GENES];
 
 // ---- Network ----
 char frame_buf[FNP_FRAME_BUF_SIZE];
@@ -777,58 +787,180 @@ void print_int_pad(int val, int width)
   sys_print_str(buf + i);
 }
 
+// Print a Q16.16 fixed-point value as 5 chars: " X.XX" or "-X.XX"
+void print_q16(int val)
+{
+  int neg;
+  unsigned int abs_val;
+  int int_part;
+  int frac;
+
+  neg = 0;
+  if (val < 0)
+  {
+    neg = 1;
+    abs_val = (unsigned int)(0 - val);
+  }
+  else
+  {
+    abs_val = (unsigned int)val;
+  }
+
+  int_part = abs_val >> 16;
+  frac = ((abs_val & 0xFFFF) * 100) >> 16;
+
+  if (neg)
+  {
+    sys_print_char('-');
+  }
+  else
+  {
+    sys_print_char(' ');
+  }
+
+  sys_print_char('0' + int_part);
+  sys_print_char('.');
+  sys_print_char('0' + (frac / 10));
+  sys_print_char('0' + (frac % 10));
+}
+
+void print_gene_name_short(int g)
+{
+  if (g == 0) sys_print_str("Lines");
+  else if (g == 1) sys_print_str("dHght");
+  else if (g == 2) sys_print_str("Holes");
+  else if (g == 3) sys_print_str("Wells");
+  else if (g == 4) sys_print_str("HoleD");
+  else if (g == 5) sys_print_str("Bumpy");
+}
+
+void print_gene_name_full(int g)
+{
+  if (g == 0) sys_print_str("Lines Cleared");
+  else if (g == 1) sys_print_str("Delta Height");
+  else if (g == 2) sys_print_str("Holes");
+  else if (g == 3) sys_print_str("Big Wells");
+  else if (g == 4) sys_print_str("Max Hole Dist");
+  else if (g == 5) sys_print_str("Bumpiness");
+}
+
 void draw_status()
 {
   int w;
-  int best_score;
-  int avg_score;
-  int total;
-  int count;
+  int g;
+  int *genes;
+  int round_hi;
   int i;
 
-  // Find best and average score across all evaluated chromosomes
-  best_score = 0;
-  total = 0;
-  count = 0;
+  // Update all-time best tracking
   for (i = 0; i < TOTAL_CHROMOS; i++)
   {
-    if (chromo_evaluated[i])
+    if (chromo_evaluated[i] && chromo_score[i] > best_ever_score)
     {
-      if (chromo_score[i] > best_score) best_score = chromo_score[i];
-      total = total + chromo_score[i];
-      count = count + 1;
+      best_ever_score = chromo_score[i];
+      for (g = 0; g < NUM_GENES; g++)
+      {
+        best_ever_genes[g] = chromo_genes[i * NUM_GENES + g];
+      }
     }
   }
-  avg_score = (count > 0) ? total / count : 0;
 
-  // Position cursor below the boards (row 14 = roughly 112px / 8px per char row)
-  sys_term_set_cursor(0, 14);
-
-  sys_print_str("Gen ");
-  print_int_pad(generation, 3);
-  sys_print_str("  Done ");
-  print_int_pad(total_results, 2);
-  sys_print_str("/");
-  print_int(TOTAL_CHROMOS);
-  sys_print_str("  Best ");
-  print_int_pad(best_score, 6);
-  sys_print_str("  Avg ");
-  print_int_pad(avg_score, 6);
-
-  // Per-worker line
-  sys_term_set_cursor(0, 16);
-  for (w = 0; w < NUM_WORKERS; w++)
+  if (current_page == 0)
   {
-    if (w == ELITE_ISLAND)
+    // Row 11: Scores under each board with label
+    sys_term_set_cursor(0, 11);
+    sys_print_str("Score");
+    for (w = 0; w < NUM_WORKERS; w++)
     {
-      sys_print_str("E:");
+      sys_term_set_cursor(score_col[w], 11);
+      print_int_pad(worker_cur_score[w], 6);
     }
-    else
+
+    // Rows 13-18: Gene values per worker with short names
+    for (g = 0; g < NUM_GENES; g++)
     {
-      sys_print_char('0' + w + 1);
-      sys_print_str(":");
+      sys_term_set_cursor(0, 13 + g);
+      print_gene_name_short(g);
+      for (w = 0; w < NUM_WORKERS; w++)
+      {
+        genes = chromo_gene_ptr(worker_chromo[w]);
+        sys_term_set_cursor(gene_col[w], 13 + g);
+        print_q16(genes[g]);
+      }
     }
-    print_int_pad(worker_cur_score[w], 5);
+
+    // Row 20: Games progress
+    sys_term_set_cursor(0, 20);
+    sys_print_str("Games ");
+    print_int_pad(total_results, 2);
+    sys_print_str("/");
+    print_int(TOTAL_CHROMOS);
+
+    // Row 21: Round high score
+    round_hi = 0;
+    for (i = 0; i < TOTAL_CHROMOS; i++)
+    {
+      if (chromo_evaluated[i] && chromo_score[i] > round_hi)
+      {
+        round_hi = chromo_score[i];
+      }
+    }
+    sys_term_set_cursor(0, 21);
+    sys_print_str("Round HiScore ");
+    print_int_pad(round_hi, 6);
+  }
+  else if (current_page == 1)
+  {
+    // GA Overview page
+    sys_term_set_cursor(0, 11);
+    sys_print_str("Generation   ");
+    print_int_pad(generation, 4);
+
+    sys_term_set_cursor(0, 13);
+    sys_print_str("HiScore      ");
+    print_int_pad(best_ever_score, 6);
+
+    sys_term_set_cursor(0, 15);
+    sys_print_str("Best Genes:");
+    for (g = 0; g < NUM_GENES; g++)
+    {
+      sys_term_set_cursor(2, 16 + g);
+      print_gene_name_full(g);
+      sys_term_set_cursor(18, 16 + g);
+      print_q16(best_ever_genes[g]);
+    }
+  }
+  else if (current_page == 2)
+  {
+    sys_term_set_cursor(0, 11);
+    sys_print_str("(Log - coming soon)");
+  }
+  else if (current_page == 3)
+  {
+    sys_term_set_cursor(0, 11);
+    sys_print_str("(Graphs - coming soon)");
+  }
+
+  // Row 24: Page navigation indicator
+  sys_term_set_cursor(14, 24);
+  if (current_page > 0)
+  {
+    sys_print_str("< ");
+  }
+  else
+  {
+    sys_print_str("  ");
+  }
+  sys_print_str("Page ");
+  sys_print_char('1' + current_page);
+  sys_print_char('/');
+  sys_print_char('0' + NUM_PAGES);
+  if (current_page < NUM_PAGES - 1)
+  {
+    sys_print_str(" >");
+  }
+  else
+  {
     sys_print_str("  ");
   }
 }
@@ -904,6 +1036,12 @@ int main()
   generation = 1;
   gen_seed = 42;
   ga_running = 1;
+  current_page = 0;
+  best_ever_score = 0;
+  {
+    int gi;
+    for (gi = 0; gi < NUM_GENES; gi++) best_ever_genes[gi] = 0;
+  }
 
   init_population();
   dispatch_generation();
@@ -940,8 +1078,27 @@ int main()
         ga_rng_seed(12345);
         generation = 1;
         gen_seed = 42;
+        best_ever_score = 0;
         init_population();
         dispatch_generation();
+      }
+      else if (key == KEY_LEFT)
+      {
+        if (current_page > 0)
+        {
+          current_page = current_page - 1;
+          sys_term_clear();
+          draw_status();
+        }
+      }
+      else if (key == KEY_RIGHT)
+      {
+        if (current_page < NUM_PAGES - 1)
+        {
+          current_page = current_page + 1;
+          sys_term_clear();
+          draw_status();
+        }
       }
     }
 
