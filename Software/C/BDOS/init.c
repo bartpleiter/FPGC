@@ -17,6 +17,9 @@ void bdos_init_gpu()
 
   palette_table = (unsigned int *)&DATA_PALETTE_DEFAULT;
   gpu_load_palette_table(palette_table + 3); // +3 to skip function prologue
+
+  // Set default RRRGGGBB pixel palette
+  gpu_reset_pixel_palette();
 }
 
 void bdos_init_usb_keyboard()

@@ -161,11 +161,11 @@ void print_prefix(int *continues, int depth)
     if (continues[i])
     {
       print_char(CH_VERT);
-      print_str("   ");
+      print_char(' ');
     }
     else
     {
-      print_str("    ");
+      print_str("  ");
     }
   }
 }
@@ -177,15 +177,11 @@ void print_connector(int is_last)
   {
     print_char(CH_CORNER);
     print_char(CH_HORIZ);
-    print_char(CH_HORIZ);
-    print_char(' ');
   }
   else
   {
     print_char(CH_TEE);
     print_char(CH_HORIZ);
-    print_char(CH_HORIZ);
-    print_char(' ');
   }
 }
 

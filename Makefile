@@ -253,6 +253,7 @@ compile-userbdos: $(B32CC_OUTPUT)
 	@echo "Binary copied to Files/BRFS-init/bin/$(file)"
 
 compile-userbdos-all: $(B32CC_OUTPUT)
+	@rm -rf Files/BRFS-init/bin
 	@mkdir -p Files/BRFS-init/bin
 	@echo "Compiling all userBDOS programs..."
 	@FAILED=0; TOTAL=0; \

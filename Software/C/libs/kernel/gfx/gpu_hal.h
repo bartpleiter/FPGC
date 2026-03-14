@@ -31,5 +31,7 @@ void gpu_set_bg_palette(unsigned int palette_index);
 void gpu_write_window_tile(unsigned int x, unsigned int y, unsigned int tile_index, unsigned int palette_index);
 void gpu_write_bg_tile(unsigned int x, unsigned int y, unsigned int tile_index, unsigned int palette_index);
 void gpu_write_pixel_data(unsigned int x, unsigned int y, unsigned int color);
+void gpu_set_pixel_palette(unsigned int index, unsigned int rgb24);
+void gpu_reset_pixel_palette();
 
 #endif // GPU_HAL_H

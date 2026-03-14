@@ -206,3 +206,35 @@ void gpu_write_pixel_data(unsigned int x, unsigned int y, unsigned int color)
   unsigned int index = (y * 320) + x;
   pixel_plane[index] = color;
 }
+
+// Set a single pixel palette entry.
+void gpu_set_pixel_palette(unsigned int index, unsigned int rgb24)
+{
+  unsigned int *addr = (unsigned int *)(GPU_PIXEL_PALETTE_ADDR + index);
+  *addr = rgb24;
+}
+
+// Reset all 256 pixel palette entries to default RRRGGGBB mapping.
+void gpu_reset_pixel_palette()
+{
+  int i;
+  for (i = 0; i < 256; i++)
+  {
+    int r3;
+    int g3;
+    int b2;
+    int r;
+    int g;
+    int b;
+
+    r3 = (i >> 5) & 7;
+    g3 = (i >> 2) & 7;
+    b2 = i & 3;
+
+    r = (r3 << 5) | (r3 << 2) | (r3 >> 1);
+    g = (g3 << 5) | (g3 << 2) | (g3 >> 1);
+    b = (b2 << 6) | (b2 << 4) | (b2 << 2) | b2;
+
+    gpu_set_pixel_palette(i, (r << 16) | (g << 8) | b);
+  }
+}
