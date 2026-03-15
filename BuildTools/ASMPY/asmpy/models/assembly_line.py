@@ -681,6 +681,8 @@ class DataAssemblyLine(AssemblyLine):
         # Handle .dsw (string spaced) - each character becomes a separate word
         if self.data_instruction_type == DataInstructionType.STRING_SPACED:
             self._parse_string_values(rest_of_line)
+        elif self.data_instruction_type == DataInstructionType.STRING_MERGED:
+            self._parse_string_values(rest_of_line)
         else:
             # Original behavior for .dw and other data types
             data_instruction_values = rest_of_line.split()
@@ -750,6 +752,26 @@ class DataAssemblyLine(AssemblyLine):
                 i += 1
 
     def expand(self) -> list["AssemblyLine"]:
+        # For STRING_MERGED (.dsb), pack characters into 32-bit words (4 bytes per word, little-endian)
+        if self.data_instruction_type == DataInstructionType.STRING_MERGED:
+            expanded_lines: list[AssemblyLine] = []
+            values = [v.value & 0xFF for v in self.data_instruction_values]
+            # Pad to multiple of 4
+            while len(values) % 4 != 0:
+                values.append(0)
+            for i in range(0, len(values), 4):
+                packed = values[i] | (values[i+1] << 8) | (values[i+2] << 16) | (values[i+3] << 24)
+                expanded_lines.append(
+                    DataAssemblyLine(
+                        code_str=f"{DataInstructionType.WORD.value} {packed}",
+                        comment=self.comment,
+                        original=self.original,
+                        source_line_number=self.source_line_number,
+                        source_file_name=self.source_file_name,
+                    )
+                )
+            return expanded_lines
+
         expanded_lines: list[AssemblyLine] = []
         for value in self.data_instruction_values:
             expanded_lines.append(
@@ -767,6 +789,7 @@ class DataAssemblyLine(AssemblyLine):
         if self.data_instruction_type not in (
             DataInstructionType.WORD,
             DataInstructionType.STRING_SPACED,
+            DataInstructionType.STRING_MERGED,
         ):
             raise NotImplementedError(
                 "Only word and string spaced data instructions are currently supported"

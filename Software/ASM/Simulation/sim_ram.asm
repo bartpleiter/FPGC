@@ -2,7 +2,7 @@
 ; Setup stack and return function before jumping to Main of C program
 Main:
   load32 0 r14            ; initialize base pointer address
-  load32 0x77FFFF r13     ; initialize main stack address
+  load32 0x1DFFFFC r13     ; initialize main stack address
   addr2reg Return_UART r1 ; get address of return function
   or r0 r1 r15            ; copy return addr to r15
   jump Label_main         ; jump to main of C program
@@ -13,7 +13,7 @@ Main:
 ; Return value should be in r1
 ; Send it over UART and halt afterwards
 Return_UART:
-  load32 0x7000000 r2 ; r1 = 0x7000000 | UART tx
+  load32 0x1C000000 r2 ; r1 = 0x7000000 | UART tx
   write 0 r2 r1       ; write r2 over UART
   halt                ; halt
 
@@ -144,7 +144,7 @@ Int:
   push r14
   push r15
 
-  load32 0x7FFFFF r13     ; initialize int stack address
+  load32 0x1FFFFFC r13     ; initialize int stack address
   load32 0 r14            ; initialize base pointer address
   addr2reg Return_Interrupt r1 ; get address of return function
   or r0 r1 r15            ; copy return addr to r15

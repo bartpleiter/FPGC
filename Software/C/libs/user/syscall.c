@@ -14,11 +14,11 @@ int syscall(int num, int a1, int a2, int a3)
   int retval = 0;
   asm(
     "push r15                ; save caller's return address"
-    "load 3 r11              ; r11 = 3 (syscall vector address)"
+    "load 12 r11             ; r11 = 12 (syscall vector byte address)"
     "savpc r15               ; r15 = PC of this instruction"
-    "add r15 3 r15           ; r15 = return point (after jumpr)"
+    "add r15 12 r15          ; r15 = return point (after jumpr)"
     "jumpr 0 r11             ; jump to BDOS syscall handler"
-    "write -1 r14 r1         ; store return value in retval"
+    "write -4 r14 r1         ; store return value in retval"
     "pop r15                 ; restore caller's return address"
   );
   return retval;

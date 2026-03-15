@@ -1,6 +1,6 @@
 // bench.c — FPGCbench for BDOS
 // Ports the bare-metal benchmark suite to run as a userBDOS program.
-// Uses the hardware microsecond counter (memory-mapped at 0x700001A) for
+// Uses the hardware microsecond counter (memory-mapped at 0x1C000068) for
 // timing instead of the 60 Hz FRAME_DRAWN interrupt.
 
 #define USER_SYSCALL
@@ -131,7 +131,7 @@ int loopBench()
     "push r4"
     "push r5"
 
-    "load32 0x700001A r2       ; r2 = micros register address"
+    "load32 0x1C000068 r2       ; r2 = micros register address"
     "read 0 r2 r3              ; r3 = start micros"
     "load32 5000000 r5         ; r5 = duration in microseconds (5 s)"
     "add r3 r5 r5              ; r5 = end micros (start + duration)"
@@ -145,7 +145,7 @@ int loopBench()
         "jump Label_ASM_Loop   ; loop"
 
     "Label_ASM_Done:"
-        "write -1 r14 r4       ; set return value"
+        "write -4 r14 r4       ; set return value"
 
     "pop r5"
     "pop r4"

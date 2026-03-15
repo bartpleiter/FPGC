@@ -16,7 +16,7 @@ Main:
         jump SDRAM_Write_Loop
 
 
-    load32 0x7B00000 r4 ; VRAMpx base address and counter
+    load32 0x1EC00000 r4 ; VRAMpx base address and counter
     load32 pixels_to_write r5 ; 320*240 pixels
     
     add r4 r5 r5 ; VRAMpx end address

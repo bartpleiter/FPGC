@@ -140,12 +140,12 @@ int mandelbrot_pixel()
 
     // Fall through: reached max_iter (in set)
     "Label_mbrot_asm_set:"
-    "write -1 r14 r0     ; retval = 0"
+    "write -4 r14 r0     ; retval = 0"
     "jump Label_mbrot_asm_done"
 
     "Label_mbrot_asm_escaped:"
     "add r5 1 r1         ; r1 = iter + 1"
-    "write -1 r14 r1     ; retval = iter + 1"
+    "write -4 r14 r1     ; retval = iter + 1"
 
     "Label_mbrot_asm_done:"
   );

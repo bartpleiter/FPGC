@@ -10,7 +10,7 @@
 // ---- Screen constants ----
 #define SCREEN_WIDTH  320
 #define SCREEN_HEIGHT 240
-#define PIXEL_FB_ADDR 0x7B00000
+#define PIXEL_FB_ADDR 0x1EC00000
 
 unsigned int *fb = (unsigned int *)PIXEL_FB_ADDR;
 

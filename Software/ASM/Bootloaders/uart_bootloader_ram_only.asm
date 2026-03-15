@@ -1,15 +1,15 @@
-; UART Bootloader to be run from RAM at offset address 0x3FF000
+; UART Bootloader to be run from RAM at offset address 0xFFC000
 ; Requires special header to halt at address 0
 ; Also requires all registers to be 0 before execution
 ; Halts at PC0, after which it waits for UART RX interrupts to receive data and write to RAM
 ; Works by writing the program to a higher RAM address, then copying it to address 0 and clearing the cache to start execution
 ; First, 4 bytes are received to determine the size of the program to be copied, after which the length is sent back to confirm
-; Then, the program is received byte by byte and written per word to RAM starting at address 0x400000
+; Then, the program is received byte by byte and written per word to RAM starting at address 0x1000000
 ; Finally, a 'd' is sent to confirm the program has been received and execution is started by
 ;  copying RAM at 0x400000 to 0, clearing the cache, registers and returning from the interrupt
 
 ; Certain registers are used in this program:
-; r15: length of program to be received (in words)
+; r15: length of program to be received (in words, converted to bytes after receipt)
 ; r14: current RAM address to write to (in bytes)
 ; r13: current word being received
 ; r12: byte shift counter
@@ -27,20 +27,20 @@ Main:
 ReceiveLength:
 
     ; Receive the byte from UART
-    load32 0x7000000 r3 ; UART tx address
-    read 1 r3 r1        ; Read data from UART (tx + 1 = rx)
+    load32 0x1C000000 r3 ; UART tx address
+    read 4 r3 r1        ; Read data from UART (tx + 4 = rx)
 
     ; Check bitshift
     load 0 r2
-    bne r2 r12 2
+    bne r2 r12 8
         shiftl r1 24 r1 ; First byte, shift to highest byte
 
     load 1 r2
-    bne r2 r12 2
+    bne r2 r12 8
         shiftl r1 16 r1 ; Second byte, shift to second highest byte
     
     load 2 r2
-    bne r2 r12 2
+    bne r2 r12 8
         shiftl r1 8 r1 ; Third byte, shift to second lowest byte
 
     ; Fourth byte, no shift needed
@@ -50,7 +50,7 @@ ReceiveLength:
 
     ; Check if 4 bytes received
     load 4 r2
-    beq r12 r2 2
+    beq r12 r2 8
         reti ; Not done yet, wait for next byte
 
     ; Note: sending back the length is disabled to make simulation easier
@@ -66,6 +66,7 @@ ReceiveLength:
 
     load 1 r10 ; Set length received flag
     load 0 r12 ; Reset byte shift counter
+    shiftl r15 2 r15 ; Convert word count to byte count
 
     reti ; Return from interrupt, wait for next byte
 
@@ -73,20 +74,20 @@ ReceiveLength:
 ReceiveProgram:
 
     ; Receive the byte from UART
-    load32 0x7000000 r3 ; UART tx address
-    read 1 r3 r1        ; Read data from UART (tx + 1 = rx)
+    load32 0x1C000000 r3 ; UART tx address
+    read 4 r3 r1        ; Read data from UART (tx + 4 = rx)
 
     ; Check bitshift
     load 0 r2
-    bne r2 r12 2
+    bne r2 r12 8
         shiftl r1 24 r1 ; First byte, shift to highest byte
 
     load 1 r2
-    bne r2 r12 2
+    bne r2 r12 8
         shiftl r1 16 r1 ; Second byte, shift to second highest byte
     
     load 2 r2
-    bne r2 r12 2
+    bne r2 r12 8
         shiftl r1 8 r1 ; Third byte, shift to second lowest byte
 
     ; Fourth byte, no shift needed
@@ -96,20 +97,20 @@ ReceiveProgram:
 
     ; Check if 4 bytes received
     load 4 r2
-    beq r12 r2 2
+    beq r12 r2 8
         reti ; Not done yet, wait for next byte
 
     ; Word received, write to RAM
     load32 0x000000 r2 ; RAM base address
     add r2 r14 r2 ; Get current RAM address
     write 0 r2 r13 ; Write word to RAM
-    add r14 1 r14 ; Increment RAM address
+    add r14 4 r14 ; Increment RAM address
 
     load 0 r13 ; Reset current word
     load 0 r12 ; Reset byte shift counter
 
     ; Check if entire program received
-    beq r14 r15 2
+    beq r14 r15 8
         reti ; Not done yet, wait for next byte
 
     ; Entire program received, send 'd' to confirm
@@ -118,7 +119,7 @@ ReceiveProgram:
 
     ; CopyProgramToStartAddress:
     ;     ; Copy program to start of RAM (address 0)
-    ;     load32 0x400000 r1 ; RAM base address offset (16MiB)
+    ;     load32 0x1000000 r1 ; RAM base address offset (16MiB)
     ;     load 0 r2 ; Start at beginning of RAM
     ;     load 0 r3 ; Counter
 
@@ -155,11 +156,11 @@ Int:
     ; Check interrupt ID to be 1 (UART RX)
     readintid r1
     load 1 r2
-    beq r1 r2 2
+    beq r1 r2 8
         reti ; Not UART RX interrupt, return
 
     ; Check if length of program is received
-    beq r2 r10 2
+    beq r2 r10 8
         jump ReceiveLength ; Length not received yet, receive it first
     
     ; Length received, receive program

@@ -132,7 +132,7 @@ void interrupt()
       bdos_slot_saved_pc[bdos_active_slot] = *(volatile unsigned int*)MEM_IO_PC_BACKUP;
       asm(
         "addr2reg Label_bdos_save_and_switch r1"
-        "load32 0x7C00000 r2"
+        "load32 0x1F000000 r2"
         "write 0 r2 r1"
       );
     }
@@ -142,7 +142,7 @@ void interrupt()
       bdos_slot_saved_pc[bdos_active_slot] = *(volatile unsigned int*)MEM_IO_PC_BACKUP;
       asm(
         "addr2reg Label_bdos_save_and_switch r1"
-        "load32 0x7C00000 r2"
+        "load32 0x1F000000 r2"
         "write 0 r2 r1"
       );
     }

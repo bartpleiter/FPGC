@@ -4,10 +4,10 @@
 // Window layer: 40x25 tiles, each tile 8x8 pixels = 320x200 pixels
 
 // Memory addresses for GPU VRAM
-#define GFX_PATTERN_TABLE_ADDR 0x7900000  // 256 patterns × 4 words each
-#define GFX_PALETTE_TABLE_ADDR 0x7900400  // 32 palettes × 1 word each (offset 1024)
-#define GFX_WINDOW_TILE_ADDR   0x7A01000  // Window tile table (offset 4096)
-#define GFX_WINDOW_COLOR_ADDR  0x7A01800  // Window color table (offset 6144)
+#define GFX_PATTERN_TABLE_ADDR 0x1E400000  // 256 patterns × 4 words each
+#define GFX_PALETTE_TABLE_ADDR 0x1E401000  // 32 palettes × 1 word each (offset 1024)
+#define GFX_WINDOW_TILE_ADDR   0x1E804000  // Window tile table (offset 4096)
+#define GFX_WINDOW_COLOR_ADDR  0x1E806000  // Window color table (offset 6144)
 
 // Terminal dimensions
 #define GFX_COLS 40
@@ -57,7 +57,7 @@ void GFX_copy_palette_table(unsigned int* palette_table)
 void GFX_debug_uart_putchar(unsigned int c)
 {
     // Send character over UART (memory-mapped I/O)
-    unsigned int* uart_tx_addr = (unsigned int*)0x7000000; // UART TX address
+    unsigned int* uart_tx_addr = (unsigned int*)0x1C000000; // UART TX address
     *uart_tx_addr = c;
 }
 

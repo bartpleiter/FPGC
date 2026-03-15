@@ -1,12 +1,12 @@
 ; Simple program that fills VRAMPX with a counter, and increments the value each frame
 ;  creating a moving pattern from right to left.
 Main:
-    load32 0x7B00000 r11 ; VRAMPX base address
+    load32 0x1EC00000 r11 ; VRAMPX base address
     load32 76800 r4 ; Number of pixels (320*240)
     add r11 r4 r11 ; Stop address
     load 0 r2 ; Pixel value
     Start:
-        load32 0x7B00000 r1 ; Start address
+        load32 0x1EC00000 r1 ; Start address
         Loop:
             write 0 r1 r2 ; Write pixel value
             add r1 1 r1 ; Next pixel

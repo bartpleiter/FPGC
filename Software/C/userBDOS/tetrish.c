@@ -12,7 +12,7 @@
 // ---- Screen constants ----
 #define SCREEN_WIDTH  320
 #define SCREEN_HEIGHT 240
-#define PIXEL_FB_ADDR 0x7B00000
+#define PIXEL_FB_ADDR 0x1EC00000
 
 unsigned int *fb = (unsigned int *)PIXEL_FB_ADDR;
 
@@ -1295,7 +1295,7 @@ int main()
           {
             int cy;
             unsigned int *pfb;
-            pfb = (unsigned int *)0x7B00000;
+            pfb = (unsigned int *)0x1EC00000;
             for (cy = 116 * 320; cy < 236 * 320; cy++) pfb[cy] = 0;
           }
           sys_term_clear();
@@ -1314,7 +1314,7 @@ int main()
           {
             int cy;
             unsigned int *pfb;
-            pfb = (unsigned int *)0x7B00000;
+            pfb = (unsigned int *)0x1EC00000;
             for (cy = 116 * 320; cy < 236 * 320; cy++) pfb[cy] = 0;
           }
           sys_term_clear();

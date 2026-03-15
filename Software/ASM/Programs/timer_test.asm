@@ -1,7 +1,7 @@
 ; Simple program to test timer1
 Main:
 
-    load32 0x7000000 r1 ; MU base address
+    load32 0x1C000000 r1 ; MU base address
     load 0 r15 ; Clear timer1 interrupt trigger value
 
     load32 5000 r2 ; Load timer1 value (in ms)

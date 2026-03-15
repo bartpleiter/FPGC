@@ -363,6 +363,7 @@ STATIC
 void GenNumLabel(int Label);
 STATIC
 void GenZeroData(unsigned Size, int bss);
+void GenFlushPack(void);
 STATIC
 void GenIntData(int Size, int Val);
 STATIC
@@ -2330,6 +2331,7 @@ int exprUnary(int tok, int* gotUnary, int commaSeparator, int argOfSizeOf)
       {
         GenZeroData(chsz, 0);
 
+        GenFlushPack();
         puts2(RoDataHeaderFooter[1]);
         if (CurHeaderFooter)
           puts2(CurHeaderFooter[0]);
@@ -7258,6 +7260,7 @@ int ParseDecl(int tok, unsigned structInfo[4], int cast, int label)
             GenZeroData(sz, bss);
           }
 
+          GenFlushPack();
           puts2(CurHeaderFooter[1]);
           if (oldHeaderFooter)
             puts2(oldHeaderFooter[0]);

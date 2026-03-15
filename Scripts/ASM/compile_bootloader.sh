@@ -7,7 +7,7 @@ source .venv/bin/activate
 
 # Compile UART bootloader for RAM
 echo "Compiling UART bootloader for RAM"
-if asmpy Software/ASM/Bootloaders/uart_bootloader_ram_only.asm Hardware/FPGA/Verilog/Simulation/MemoryLists/ram.list -h -o 0x3FF000
+if asmpy Software/ASM/Bootloaders/uart_bootloader_ram_only.asm Hardware/FPGA/Verilog/Simulation/MemoryLists/ram.list -h -o 0xFFC000
 then
     echo "UART bootloader code compiled successfully"
 else
@@ -44,7 +44,7 @@ echo ""
 
 # Compile the resulting ROM bootloader code
 echo "Compiling complete ROM bootloader"
-if asmpy Software/ASM/Bootloaders/uart_bootloader_rom_ram.asm Hardware/FPGA/Verilog/Simulation/MemoryLists/rom.list -o 0x7800000
+if asmpy Software/ASM/Bootloaders/uart_bootloader_rom_ram.asm Hardware/FPGA/Verilog/Simulation/MemoryLists/rom.list -o 0x1E000000
 then
     echo "Complete ROM bootloader code compiled successfully"
 else
