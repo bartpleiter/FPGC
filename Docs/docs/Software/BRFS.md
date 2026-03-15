@@ -1,6 +1,6 @@
 # Filesystem (BRFS)
 
-BRFS (Bart's RAM File System) is a FAT-based filesystem designed for the FPGC that uses RAM as a cache with SPI Flash (currently, but in the future SD card might also be supported) as persistent storage. It provides hierarchical directory support with a simple design optimized for the word-addressable B32P3 architecture.
+BRFS (Bart's RAM File System) is a FAT-based filesystem designed for the FPGC that uses RAM as a cache with SPI Flash (currently, but in the future SD card might also be supported) as persistent storage. It provides hierarchical directory support with a simple design optimized for the B32P3 architecture.
 
 ## Overview
 
@@ -10,8 +10,8 @@ BRFS has the following characteristics:
 - **RAM-cached operation** - The entire filesystem is loaded into RAM for fast access since the FPGC has plenty of RAM
 - **SPI Flash persistence** - Data is persisted to SPI Flash for non-volatile storage (explicitly only via `brfs_sync` function)
 - **Hierarchical directories** - Supports nested directories
-- **Word-aligned storage** - All data stored as 32-bit words (native to B32P3)
-- **Compressed filenames** - Max 16-character filenames packed into 4 words
+- **Word-aligned storage** - All data stored as 32-bit words internally (native to B32P3)
+- **Compressed filenames** - Max 16-character filenames packed into 4 words (Note that this only made sense back when the CPU was word-addressable, now it is just normal)
 
 ## Architecture
 
@@ -42,7 +42,7 @@ The superblock (16 words) contains filesystem metadata:
 |-------|--------------|-------------|
 | `total_blocks` | 1 | Total number of blocks in filesystem |
 | `words_per_block` | 1 | Words per block (e.g., 256 = 1KB) |
-| `label` | 10 | Volume label (1 char per word) |
+| `label` | 10 | Volume label (1 char per word, null-terminated) |
 | `brfs_version` | 1 | BRFS version number |
 | `reserved` | 3 | Reserved for future use |
 

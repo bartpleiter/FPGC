@@ -12,11 +12,11 @@ A quick-reference summary of the FPGC's hardware and software specifications.
 | Registers | 16 (r0 hardwired to zero) |
 | Hardware stack | 256 entries |
 | Instruction width | 32 bits, 16 opcodes |
-| Address space | 32-bit word-addressable (27-bit jump range) |
+| Address space | 32-bit byte-addressable |
 | ALU | Add, sub, logic, shift, multiply, divide, fixed-point multiply/divide |
 | L1I cache | 128 lines × 8 words, direct-mapped, next-line prefetch |
 | L1D cache | 128 lines × 8 words, direct-mapped, write-back with dirty bit |
-| Interrupts | 8 hardware interrupts, vectored through address 1 |
+| Interrupts | 8 hardware interrupts, vectored through address 4 |
 
 ## GPU (FSX)
 
@@ -33,8 +33,8 @@ A quick-reference summary of the FPGC's hardware and software specifications.
 
 | Component | Type | Size | Access |
 |---|---|---|---|
-| SDRAM | 2× W9825G6KH-6 | 64 MiB (16 MiW) | Via L1 caches, 256-bit burst |
-| ROM | FPGA block RAM | 1 KiW (4 KiB) | Single-cycle |
+| SDRAM | 2× W9825G6KH-6 | 64 MiB | Via L1 caches, 256-bit burst |
+| ROM | FPGA block RAM | 4 KiB (1 KiW) | Single-cycle |
 | VRAM | FPGA block RAM | ~100 KiB | Dual-port, GPU + CPU |
 | SRAM | IS61LV5128AL | 512 KB | Pixel framebuffer |
 | SPI Flash | 2× W25Q128 | 32 MiB total | FPGA config + filesystem |

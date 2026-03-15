@@ -27,7 +27,7 @@ The UART bootloader needs to run from RAM, as it needs the UART RX interrupt han
 1. Halt at address 0, as this keeps the program counter at 0. All bootloader code runs from interrupts
 2. The host needs to send 4 bytes from most significant to least significant byte, representing the length of the code in words to be sent. This length is stored in a register
 3. After the length has been received, bootloader sends back the same 4 bytes as an acknowledgment/verification
-4. The host then sends the code in the same order (most significant to least significant word), while the bootloader stores the code in RAM starting from address 0. Note that this works because UART bootloader fits in l1i cache, so the halt at address 0 is not overwritten until a ccache instruction is used
+4. The host then sends the code in the same order (most significant to least significant byte of each word), while the bootloader stores the code in RAM starting from address 0. Note that this works because UART bootloader fits in l1i cache, so the halt at address 0 is not overwritten until a ccache instruction is used
 5. After the code has been received, the bootloader sends a single 'd' character as an acknowledgment
 6. The bootloader resets all registers, clears the cache, and returns from the interrupt, which jumps to address 0 and starts executing the received code
 

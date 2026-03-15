@@ -118,7 +118,7 @@ void bdos_fs_boot_init()
 
   term_puts("Initializing BRFS\n");
 
-  result = brfs_init(BDOS_FS_FLASH_ID, (unsigned int *)MEM_BRFS_START, MEM_BRFS_SIZE);
+  result = brfs_init(BDOS_FS_FLASH_ID, (unsigned int *)MEM_BRFS_START, MEM_BRFS_SIZE / sizeof(unsigned int));
   if (result != BRFS_OK)
   {
     bdos_panic("Failed to initialize BRFS subsystem");

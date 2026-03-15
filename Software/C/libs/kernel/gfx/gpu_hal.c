@@ -210,7 +210,7 @@ void gpu_write_pixel_data(unsigned int x, unsigned int y, unsigned int color)
 // Set a single pixel palette entry.
 void gpu_set_pixel_palette(unsigned int index, unsigned int rgb24)
 {
-  unsigned int *addr = (unsigned int *)(GPU_PIXEL_PALETTE_ADDR + index);
+  unsigned int *addr = (unsigned int *)(GPU_PIXEL_PALETTE_ADDR + index * sizeof(unsigned int));
   *addr = rgb24;
 }
 

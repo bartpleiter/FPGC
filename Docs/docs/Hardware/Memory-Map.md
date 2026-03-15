@@ -1,6 +1,9 @@
 # Memory Map
 
-The FPGC maps all CPU-accessible memory and I/O into a flat address space. The map is designed with a few goals: addresses are discontinuous to simplify hardware comparisons (no wide AND gates), SDRAM starts at address 0 to make software compilation easier, and everything fits within 27 bits (max address `0x7FFFFFF`), matching the 27-bit jump constant in the ISA.
+The FPGC maps all CPU-accessible memory and I/O into a flat byte-addressed space. The map is designed with a few goals: addresses are discontinuous to simplify hardware comparisons (no wide AND gates), SDRAM starts at address 0 to make software compilation easier, and I/O and ROM addresses are placed in the upper region of the 29-bit address space.
+
+!!! note
+    The reason why ROM is placed in the upper region of the 29 bit address space while the constant in `jump` is only 27 bits is because for a very long time the CPU was only word-addressable. Since this has been changed to byte-addressable, I had to make to choise to either update the memory map entirely or just keep the ROM at where it is and have the assembler use `jumpo` instead. I chose the latter, but a better solution would have been to move all the single cycle memory addresses into the end of the SDRAM region (which is already way larger than the 64 MiB of data it needs to contain)
 
 ## CPU Memory Map
 
@@ -10,7 +13,7 @@ Only SDRAM and ROM can be used as instruction memory. All other regions are data
 
 | Address | End | Description |
 |---|---|---|
-| `0x0000000` | `0x6FFFFFF` | Up to 112 MiW of main memory |
+| `0x0000000` | `0x3FFFFFF` | 64 MiB of main memory |
 
 Accessed through L1I and L1D caches. Most reads complete in 1 cycle on a cache hit. See [CPU Memory System](CPU/Memory.md) for cache details.
 
@@ -18,34 +21,34 @@ Accessed through L1I and L1D caches. Most reads complete in 1 cycle on a cache h
 
 | Address | Peripheral | Access |
 |---|---|---|
-| `0x7000000` | UART TX (USB) | Write |
-| `0x7000001` | UART RX (USB) | Read |
-| `0x7000002` | Timer 1 value | Write |
-| `0x7000003` | Timer 1 trigger | Write |
-| `0x7000004` | Timer 2 value | Write |
-| `0x7000005` | Timer 2 trigger | Write |
-| `0x7000006` | Timer 3 value | Write |
-| `0x7000007` | Timer 3 trigger | Write |
-| `0x7000008` | SPI0 data (Flash 1) | R/W |
-| `0x7000009` | SPI0 chip select | R/W |
-| `0x700000A` | SPI1 data (Flash 2) | R/W |
-| `0x700000B` | SPI1 chip select | R/W |
-| `0x700000C` | SPI2 data (USB Host 1) | R/W |
-| `0x700000D` | SPI2 chip select | R/W |
-| `0x700000E` | SPI2 interrupt pin | Read |
-| `0x700000F` | SPI3 data (USB Host 2) | R/W |
-| `0x7000010` | SPI3 chip select | R/W |
-| `0x7000011` | SPI3 interrupt pin | Read |
-| `0x7000012` | SPI4 data (Ethernet) | R/W |
-| `0x7000013` | SPI4 chip select | R/W |
-| `0x7000014` | SPI4 interrupt pin | Read |
-| `0x7000015` | SPI5 data (SD Card) | R/W |
-| `0x7000016` | SPI5 chip select | R/W |
-| `0x7000017` | GPIO mode | Not yet implemented |
-| `0x7000018` | GPIO state | Not yet implemented |
-| `0x7000019` | Boot mode | Read |
-| `0x700001A` | Microsecond counter | Read |
-| `0x700001B` | User LED | Write |
+| `0x1C000000` | UART TX (USB) | Write |
+| `0x1C000004` | UART RX (USB) | Read |
+| `0x1C000008` | Timer 1 value | Write |
+| `0x1C00000C` | Timer 1 trigger | Write |
+| `0x1C000010` | Timer 2 value | Write |
+| `0x1C000014` | Timer 2 trigger | Write |
+| `0x1C000018` | Timer 3 value | Write |
+| `0x1C00001C` | Timer 3 trigger | Write |
+| `0x1C000020` | SPI0 data (Flash 1) | R/W |
+| `0x1C000024` | SPI0 chip select | R/W |
+| `0x1C000028` | SPI1 data (Flash 2) | R/W |
+| `0x1C00002C` | SPI1 chip select | R/W |
+| `0x1C000030` | SPI2 data (USB Host 1) | R/W |
+| `0x1C000034` | SPI2 chip select | R/W |
+| `0x1C000038` | SPI2 interrupt pin | Read |
+| `0x1C00003C` | SPI3 data (USB Host 2) | R/W |
+| `0x1C000040` | SPI3 chip select | R/W |
+| `0x1C000044` | SPI3 interrupt pin | Read |
+| `0x1C000048` | SPI4 data (Ethernet) | R/W |
+| `0x1C00004C` | SPI4 chip select | R/W |
+| `0x1C000050` | SPI4 interrupt pin | Read |
+| `0x1C000054` | SPI5 data (SD Card) | R/W |
+| `0x1C000058` | SPI5 chip select | R/W |
+| `0x1C00005C` | GPIO mode | Not yet implemented |
+| `0x1C000060` | GPIO state | Not yet implemented |
+| `0x1C000064` | Boot mode | Read |
+| `0x1C000068` | Microsecond counter | Read |
+| `0x1C00006C` | User LED | Write |
 
 All I/O accesses go through the [Memory Unit](Memory-Unit.md), which stalls the CPU pipeline until complete.
 
@@ -55,10 +58,10 @@ These are implemented in on-chip block RAM (BRAM) or external SRAM and are acces
 
 | Address | End | Region | Description |
 |---|---|---|---|
-| `0x7800000` | `0x78003FF` | ROM | 1 KiW boot ROM. Initial PC value. |
-| `0x7900000` | `0x790041F` | VRAM32 | Tile patterns and palette table |
-| `0x7A00000` | `0x7A02001` | VRAM8 | Tile maps, color tables, scroll parameters |
-| `0x7B00000` | `0x7B12BFF` | VRAMpixel | 320x240 pixel framebuffer (external SRAM) |
+| `0x1E000000` | `0x1E000FFF` | ROM | 4 KiB (1 KiW) boot ROM. Initial PC value. |
+| `0x1E400000` | `0x1E40107C` | VRAM32 | Tile patterns and palette table |
+| `0x1E800000` | `0x1E808004` | VRAM8 | Tile maps, color tables, scroll parameters |
+| `0x1EC00000` | `0x1EC4AFFC` | VRAMpixel | 320x240 pixel framebuffer (external SRAM) |
 
 See [GPU](GPU.md) for details on the VRAM contents and how the GPU reads them.
 
@@ -68,8 +71,8 @@ These registers are handled inside the CPU core itself, not through the Memory U
 
 | Address | Name | R/W | Description |
 |---|---|---|---|
-| `0x7C00000` | PC Backup | R/W | Saved program counter from last interrupt. Read to get the resume address; write to redirect execution on `reti`. |
-| `0x7C00001` | HW Stack Pointer | R/W | 8-bit hardware stack pointer (0-255). Read to check stack depth; write to restore or reset it. |
+| `0x1F000000` | PC Backup | R/W | Saved program counter from last interrupt. Read to get the resume address; write to redirect execution on `reti`. |
+| `0x1F000004` | HW Stack Pointer | R/W | 8-bit hardware stack pointer (0-255). Read to check stack depth; write to restore or reset it. |
 
 ## GPU Memory Map
 

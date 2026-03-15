@@ -4,17 +4,17 @@ The B32P3 accesses memory through a two-level hierarchy: fast on-chip caches bac
 
 ## Memory Hierarchy Overview
 
-The CPU sees a flat 27-bit address space. Different address ranges route to different hardware:
+The CPU sees a flat byte-addressed space. Different address ranges route to different hardware:
 
 | Address Range | Target | Access Path | Typical Latency |
 |---|---|---|---|
-| `0x0000000` - `0x6FFFFFF` | SDRAM (64 MiW) | L1I/L1D cache | 1 cycle (hit) |
-| `0x7000000` - `0x700001B` | I/O peripherals | Memory Unit | Variable (SPI, UART) |
-| `0x7800000` - `0x78003FF` | ROM (1 KiW) | Direct BRAM | 1 cycle |
-| `0x7900000` - `0x790041F` | VRAM32 | Direct BRAM | 1 cycle |
-| `0x7A00000` - `0x7A02001` | VRAM8 | Direct BRAM | 1 cycle |
-| `0x7B00000` - `0x7B12BFF` | VRAMpixel | External SRAM + FIFO | 1 cycle (writes buffered) |
-| `0x7C00000` - `0x7C00001` | CPU internal I/O | Direct registers | Immediate |
+| `0x0000000` - `0x3FFFFFF` | SDRAM (64 MiB) | L1I/L1D cache | 1 cycle (hit) |
+| `0x1C000000` - `0x1C00006F` | I/O peripherals | Memory Unit | Variable (SPI, UART) |
+| `0x1E000000` - `0x1E000FFF` | ROM (4 KiB) | Direct BRAM | 1 cycle |
+| `0x1E400000` - `0x1E40107C` | VRAM32 | Direct BRAM | 1 cycle |
+| `0x1E800000` - `0x1E808004` | VRAM8 | Direct BRAM | 1 cycle |
+| `0x1EC00000` - `0x1EC4AFFC` | VRAMpixel | External SRAM + FIFO | 1 cycle (writes buffered) |
+| `0x1F000000` - `0x1F000004` | CPU internal I/O | Direct registers | Immediate |
 
 SDRAM reads and instruction fetches go through L1 caches. Everything else bypasses the caches entirely.
 
@@ -32,15 +32,16 @@ Each cache has 128 lines. A single cache line is 271 bits wide:
 | Tag | [14:1] | 14-bit tag for address matching |
 | Valid | [0] | 1 if the line contains valid data |
 
-The 24-bit SDRAM word address is split as follows:
+The 26-bit SDRAM byte address is split as follows:
 
 ```text
-[23:10]  14-bit tag
-[9:3]     7-bit index  (selects 1 of 128 cache lines)
-[2:0]     3-bit offset (selects 1 of 8 words within the line)
+[25:12]  14-bit tag
+[11:5]    7-bit index  (selects 1 of 128 cache lines)
+[4:2]     3-bit word offset (selects 1 of 8 words within the line)
+[1:0]     2-bit byte offset (selects byte within the word)
 ```
 
-This gives a direct-mapped cache with 128 lines of 8 words each, covering 1024 words of data per cache. The 14-bit tag supports the full 64 MiW SDRAM address space.
+This gives a direct-mapped cache with 128 lines of 8 words each, covering 1024 words (4 KiB) of data per cache. The 14-bit tag supports the full 64 MiB SDRAM address space.
 
 ### Storage
 
@@ -112,7 +113,7 @@ Write-allocate means we always bring the full cache line into the cache before m
 
 ### L1I Prefetching
 
-After servicing an L1I miss, the controller queues a prefetch for the next cache line (`address + 8`). This exploits the fact that instruction fetches are usually sequential, so the next line will likely be needed soon.
+After servicing an L1I miss, the controller queues a prefetch for the next cache line (`address + 32`). This exploits the fact that instruction fetches are usually sequential, so the next line will likely be needed soon.
 
 Prefetches only execute during true idle time. If any real CPU request arrives while a prefetch is in progress, the prefetch is immediately cancelled. This ensures prefetching never delays real work.
 

@@ -204,8 +204,8 @@ static void fnp_handle_file_start(char *data, int data_len, int seq)
   uart_puts("[FNP] FILE_START: ");
   uart_puts(path_buf);
   uart_puts(" (");
-  uart_putint(file_size);
-  uart_puts(" words)\n");
+  uart_putint(file_size * 4);
+  uart_puts(" bytes)\n");
 
   // Create or truncate the file
   if (brfs_exists(path_buf))
@@ -318,7 +318,7 @@ static void fnp_handle_file_end(char *data, int data_len, int seq)
   uart_putint(fnp_transfer_received);
   uart_puts("/");
   uart_putint(fnp_transfer_size);
-  uart_puts(" words, checksum ");
+  uart_puts(" packed words, checksum ");
   uart_puthex(fnp_transfer_checksum, 1);
   uart_puts(" vs ");
   uart_puthex(expected_checksum, 1);

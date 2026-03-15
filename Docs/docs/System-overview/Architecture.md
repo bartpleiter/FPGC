@@ -9,9 +9,9 @@ The FPGC is built from three main hardware modules (CPU, GPU, Memory Unit) shari
 
 ### CPU (B32P3)
 
-The B32P3 is a 32-bit RISC processor with a 5-stage pipeline running at 100 MHz. It has 16 registers, a 256-entry hardware stack, and a word-addressable address space. Instructions are fixed-width 32-bit, with 16 opcodes covering arithmetic, memory access, control flow, and system operations.
+The B32P3 is a 32-bit RISC processor with a 5-stage pipeline running at 100 MHz. It has 16 registers, a 256-entry hardware stack, and a byte-addressable address space. Instructions are fixed-width 32-bit, with 16 opcodes covering arithmetic, memory access (including sub-word byte and halfword operations), control flow, and system operations.
 
-The CPU fetches instructions from either ROM (first 1 KiW) or SDRAM (through the L1I cache). Data reads and writes go through the L1D cache for SDRAM, or directly to VRAM, ROM, and I/O peripherals. Both caches are direct-mapped with 128 lines of 8 words each, managed by a write-back cache controller.
+The CPU fetches instructions from either ROM (first 4 KiB) or SDRAM (through the L1I cache). Data reads and writes go through the L1D cache for SDRAM, or directly to VRAM, ROM, and I/O peripherals. Both caches are direct-mapped with 128 lines of 8 words each, managed by a write-back cache controller.
 
 See [CPU](../Hardware/CPU/CPU.md) for the full ISA and pipeline details.
 
@@ -39,7 +39,7 @@ See [Memory Unit](../Hardware/Memory-Unit.md) for peripheral details, and [Memor
 | Component | Size | Purpose |
 |---|---|---|
 | SDRAM | 64 MiB (2× W9825G6KH-6) | Main memory for code and data |
-| ROM | 1 KiW (4 KiB) | Bootloader |
+| ROM | 4 KiB (1 KiW) | Bootloader |
 | VRAM | ~100 KiB (FPGA block RAM) | Tile maps, palettes, pattern tables |
 | SRAM | 512 KB (IS61LV5128AL) | Pixel framebuffer |
 | SPI Flash | 2× 16 MiB (W25Q128) | Persistent storage (FPGA config + filesystem) |

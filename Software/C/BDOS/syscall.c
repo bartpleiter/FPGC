@@ -104,7 +104,7 @@ int bdos_syscall_dispatch(int num, int a1, int a2, int a3)
     case SYSCALL_SET_PALETTE:
     {
       // a1 = palette index (0-31), a2 = palette value (bg<<8 | fg)
-      unsigned int *palette_addr = (unsigned int *)(GPU_PALETTE_TABLE_ADDR + (unsigned int)a1);
+      unsigned int *palette_addr = (unsigned int *)(GPU_PALETTE_TABLE_ADDR + (unsigned int)a1 * sizeof(unsigned int));
       *palette_addr = (unsigned int)a2;
       return 0;
     }
@@ -136,7 +136,7 @@ int bdos_syscall_dispatch(int num, int a1, int a2, int a3)
     case SYSCALL_SET_PIXEL_PALETTE:
     {
       // a1 = palette index (0-255), a2 = 24-bit RGB color (0x00RRGGBB)
-      unsigned int *pixel_palette_addr = (unsigned int *)(GPU_PIXEL_PALETTE_ADDR + (unsigned int)a1);
+      unsigned int *pixel_palette_addr = (unsigned int *)(GPU_PIXEL_PALETTE_ADDR + (unsigned int)a1 * sizeof(unsigned int));
       *pixel_palette_addr = (unsigned int)a2;
       return 0;
     }

@@ -81,20 +81,20 @@ For games that need per-pixel control (like Doom), the BGW renderer doesn't cut 
 
 ### Pixel Format
 
-Each pixel is an 8-bit index into a **programmable 256-entry color palette**. The framebuffer lives in external SRAM at CPU addresses `0x7B00000` through `0x7B12BFF`. Pixels are stored linearly:
+Each pixel is an 8-bit index into a **programmable 256-entry color palette**. The framebuffer lives in external SRAM at CPU addresses `0x1EC00000` through `0x1EC4AFFC`. Each pixel occupies one word (32-bit) in the CPU address space, even though only 8 bits are used. Pixels are stored linearly:
 
 ```
-address = 0x7B00000 + (y × 320) + x
+address = 0x1EC00000 + (y × 320 + x) × 4
 ```
 
 ### Color Palette
 
 The pixel plane has a dedicated 256×24-bit color palette stored in on-chip dual-port BRAM. Each framebuffer pixel value (0–255) is used as an index into this palette to produce a 24-bit RGB color for display.
 
-The palette is memory-mapped at CPU addresses `0x7B20000` through `0x7B200FF`:
+The palette is memory-mapped at CPU addresses `0x1EC80000` through `0x1EC803FC`:
 
 ```
-palette_address = 0x7B20000 + index    (index 0–255)
+palette_address = 0x1EC80000 + index × 4    (index 0–255)
 ```
 
 Each entry holds a 24-bit RGB value in the format `0x00RRGGBB`. The GPU reads the palette at the pixel clock rate (25 MHz) with a registered output, adding one pixel clock cycle of latency. Sync signals (blank, hsync, vsync) are delayed by a matching register stage to keep everything aligned.
