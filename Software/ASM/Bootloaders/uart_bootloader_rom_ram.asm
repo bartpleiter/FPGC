@@ -220,6 +220,7 @@ Main:
                 bles r4 r0 8         ; If length <= 0 (signed), exit loop
                     jump SPIreadCopyLoop
 
+        load 1 r3
         write 0x24 r1 r3    ; CS high
         
         ;jump BootRAM ; Not needed as long as the next section is BootRAM
