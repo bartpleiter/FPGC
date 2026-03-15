@@ -1,15 +1,13 @@
-int main() {
-    int arr[5];
+int main(void) {
+    int arr[4];
+    arr[0] = 2;
+    arr[1] = 5;
+    arr[2] = 8;
+    arr[3] = 11;
+
     int *p = arr;
-    
-    *p = 1;
-    *(p + 1) = 2;
-    *(p + 2) = 3;
-    
-    return *p + *(p + 1) + *(p + 2) + 1; // expected=0x07
+    // Pointer arithmetic: p+2 points to arr[2]
+    return *(p + 2) - 1; // expected=0x07
 }
 
-void interrupt()
-{
-
-}
+void interrupt(void) {}

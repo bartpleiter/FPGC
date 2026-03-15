@@ -46,6 +46,7 @@ BuildTools/QBE/*.o
 BuildTools/QBE/b32p3/*.o
 BuildTools/cproc/output
 BuildTools/cproc/*.o
+Tests/B32CC/tmp
 Tests/C/tmp
 Tests/tmp
 Files/BRFS-init

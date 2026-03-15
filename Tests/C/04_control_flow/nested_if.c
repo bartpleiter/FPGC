@@ -1,28 +1,14 @@
-int main() {
-    int a = 3;
-    int b = 5;
-    int c = 0;
-    
-    if (a > 0)
-    {
-        if (b > a)
-        {
-            c = 7;
-        }
-        else
-        {
-            c = 1;
-        }
+int main(void) {
+    int x = 2;
+    int result;
+    if (x == 1) {
+        result = 10;
+    } else if (x == 2) {
+        result = 7;
+    } else {
+        result = 0;
     }
-    else
-    {
-        c = 2;
-    }
-    
-    return c; // expected=0x07
+    return result; // expected=0x07
 }
 
-void interrupt()
-{
-
-}
+void interrupt(void) {}

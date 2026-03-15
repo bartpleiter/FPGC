@@ -511,9 +511,9 @@ b32p3_emitfn(Fn *fn, FILE *f)
 			}
 			assert(isreg(b->jmp.arg));
 			fprintf(f,
-				"  %s %s r0 2\n"
+				"  %s %s r0 8\n"
 				"  jump .L%d\n",
-				neg ? "bne" : "beq",
+				neg ? "beq" : "bne",
 				rname[b->jmp.arg.val],
 				id0+b->s2->id
 			);

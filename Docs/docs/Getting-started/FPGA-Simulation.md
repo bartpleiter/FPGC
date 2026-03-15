@@ -108,10 +108,10 @@ Run it with `make test-cpu-single file=my_test.asm`.
 
 ## Writing a Compiler Test
 
-Create a C file in `Tests/C/`:
+Create a C file in `Tests/B32CC/`:
 
 ```c
-// Tests/C/my_test.c
+// Tests/B32CC/my_test.c
 int main() {
     int x = 6;
     int y = 7;

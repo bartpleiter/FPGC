@@ -2,7 +2,7 @@
 B32CC Compiler Test Suite
 
 This script automatically tests the B32CC C compiler by:
-1. Compiling all .c files in Tests/C/ to assembly
+1. Compiling all .c files in Tests/B32CC/ to assembly
 2. Assembling the code and preparing it for Verilog simulation
 3. Running the Verilog simulation
 4. Extracting the UART output from the simulation
@@ -58,8 +58,8 @@ logger.setLevel(logging.INFO)
 class B32CCTestConfig:
     """Configuration constants for B32CC tests."""
 
-    TESTS_DIRECTORY: str = "Tests/C"
-    TMP_DIRECTORY: str = "Tests/C/tmp"
+    TESTS_DIRECTORY: str = "Tests/B32CC"
+    TMP_DIRECTORY: str = "Tests/B32CC/tmp"
     ROM_LIST_PATH: str = "Hardware/FPGA/Verilog/Simulation/MemoryLists/rom.list"
     RAM_LIST_PATH: str = "Hardware/FPGA/Verilog/Simulation/MemoryLists/ram.list"
     SDRAM_INIT_LIST_PATH: str = (

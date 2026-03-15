@@ -158,7 +158,7 @@ The compiler rebuilds automatically when `smlrc.c` or `cgb32p3.inc` changes.
 make test-b32cc
 ```
 
-Compiles all C tests in `Tests/C/`, simulates, and verifies results.
+Compiles all C tests in `Tests/B32CC/`, simulates, and verifies results.
 
 **Single test:**
 
@@ -179,7 +179,7 @@ Workflow: compile C to assembly, copy to `Software/ASM/Simulation/sim_ram.asm`, 
 **Add a C test:**
 
 ```c
-// Tests/C/my_test.c
+// Tests/B32CC/my_test.c
 int main() {
     int result = 42;
     return result; // expected=0x2A

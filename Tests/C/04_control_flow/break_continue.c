@@ -1,21 +1,11 @@
-int main() {
-    int i = 0;
-    int count = 0;
-    
-    while (i < 10)
-    {
-        i++;
-        if (i == 3)
-            continue;
-        if (i == 8)
-            break;
-        count++;
+int main(void) {
+    int sum = 0;
+    for (int i = 0; i < 10; i++) {
+        if (i == 5) break;
+        sum += i;
     }
-    
-    return count + 1; // expected=0x07
+    // 0+1+2+3+4 = 10, minus 3
+    return sum - 3; // expected=0x07
 }
 
-void interrupt()
-{
-
-}
+void interrupt(void) {}

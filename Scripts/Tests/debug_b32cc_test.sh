@@ -10,7 +10,7 @@ if [ -z "$1" ]; then
     echo "Example: $0 04_control_flow/if_statements.c"
     echo ""
     echo "Available tests:"
-    find Tests/C -name "*.c" -type f | grep -v "old_tests" | grep -v "tmp" | sed 's|Tests/C/||' | sort
+    find Tests/B32CC -name "*.c" -type f | grep -v "old_tests" | grep -v "tmp" | sed 's|Tests/B32CC/||' | sort
     exit 1
 fi
 
@@ -19,8 +19,8 @@ TEST_FILE="$1"
 TEST_NAME=$(echo "${TEST_FILE%.c}" | tr '/' '_')
 
 # Paths
-TEST_PATH="Tests/C/${TEST_FILE}"
-TMP_DIR="Tests/C/tmp"
+TEST_PATH="Tests/B32CC/${TEST_FILE}"
+TMP_DIR="Tests/B32CC/tmp"
 ASM_OUTPUT="${TMP_DIR}/${TEST_NAME}.asm"
 SIM_RAM="Software/ASM/Simulation/sim_ram.asm"
 SIM_ROM="Software/ASM/Simulation/sim_rom.asm"

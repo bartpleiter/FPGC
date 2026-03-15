@@ -1,11 +1,8 @@
-int glob = 0;
+int counter = 3;
 
-int main() {
-    glob = 7;
-    return glob; // expected=0x07
+int main(void) {
+    counter = counter + 4;
+    return counter; // expected=0x07
 }
 
-void interrupt()
-{
-
-}
+void interrupt(void) {}

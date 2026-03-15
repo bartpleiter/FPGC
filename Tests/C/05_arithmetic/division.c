@@ -1,11 +1,7 @@
-int main() {
+int main(void) {
     int a = 21;
     int b = 3;
-    int c = a / b;
-    return c; // expected=0x07
+    return a / b; // expected=0x07
 }
 
-void interrupt()
-{
-
-}
+void interrupt(void) {}

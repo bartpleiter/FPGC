@@ -213,7 +213,7 @@ The project includes custom implementations of essential C standard library func
 **Test File Format:**
 
 ```c
-// Test file: Tests/C/XX_category/test_name.c
+// Test file: Tests/B32CC/XX_category/test_name.c
 #define COMMON_STDLIB  // Include needed libraries
 #include "libs/common/common.h"
 

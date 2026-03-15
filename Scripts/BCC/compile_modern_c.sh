@@ -2,11 +2,21 @@
 # Script to compile C code using the modern toolchain:
 #   cproc (C frontend) → QBE (backend) → ASMPY (assembler) → binary
 #
-# For single-file compilation (no linking):
-#   ./compile_modern_c.sh <source.c> [output.bin] [-h] [-i]
+# Supports mixed .c and .asm inputs. Assembly files (like crt0 startup code)
+# pass through to the linker directly; C files go through cproc → QBE first.
 #
-# For multi-file compilation (with linking):
-#   ./compile_modern_c.sh <source1.c> <source2.c> ... [--output output.bin] [-h] [-i]
+# Usage:
+#   # Bare metal program (with crt0 startup):
+#   ./compile_modern_c.sh Software/ASM/crt0/crt0_baremetal.asm program.c -h -o output.bin
+#
+#   # UserBDOS program (position-independent):
+#   ./compile_modern_c.sh Software/ASM/crt0/crt0_userbdos.asm program.c -h -i -o output.bin
+#
+#   # BDOS kernel (with syscall vector):
+#   ./compile_modern_c.sh Software/ASM/crt0/crt0_bdos.asm src1.c src2.c -h -s -o output.bin
+#
+#   # Raw C (no startup, e.g. for testing):
+#   ./compile_modern_c.sh program.c -o output.bin
 
 set -e
 
@@ -17,8 +27,9 @@ QBE="BuildTools/QBE/output/qbe"
 # Parse arguments
 HEADER_FLAG=""
 INDEPENDENT_FLAG=""
+SYSCALL_FLAG=""
 OUTPUT=""
-C_FILES=()
+INPUT_FILES=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -30,24 +41,28 @@ while [[ $# -gt 0 ]]; do
             INDEPENDENT_FLAG="-i"
             shift
             ;;
+        -s|--syscall)
+            SYSCALL_FLAG="-s"
+            shift
+            ;;
         -o|--output)
             OUTPUT="$2"
             shift 2
             ;;
-        *.c)
-            C_FILES+=("$1")
+        *.c|*.asm)
+            INPUT_FILES+=("$1")
             shift
             ;;
         *)
             echo "Unknown argument: $1"
-            echo "Usage: $0 <source.c> [source2.c ...] [-o output.bin] [-h] [-i]"
+            echo "Usage: $0 [crt0.asm] <source.c> [source2.c ...] [-o output.bin] [-h] [-i] [-s]"
             exit 1
             ;;
     esac
 done
 
-if [ ${#C_FILES[@]} -eq 0 ]; then
-    echo "Usage: $0 <source.c> [source2.c ...] [-o output.bin] [-h] [-i]"
+if [ ${#INPUT_FILES[@]} -eq 0 ]; then
+    echo "Usage: $0 [crt0.asm] <source.c> [source2.c ...] [-o output.bin] [-h] [-i] [-s]"
     exit 1
 fi
 
@@ -72,13 +87,20 @@ TMPDIR=$(mktemp -d)
 trap "rm -rf $TMPDIR" EXIT
 
 ASM_FILES=()
-echo "=== Compiling C sources ==="
-for c_file in "${C_FILES[@]}"; do
-    base=$(basename "${c_file%.c}")
-    asm_file="$TMPDIR/${base}.asm"
-    echo "  $c_file → $asm_file"
-
-    "$CPROC" -t b32p3 "$c_file" 2>/dev/null | "$QBE" > "$asm_file"
+echo "=== Compiling sources ==="
+for input_file in "${INPUT_FILES[@]}"; do
+    base=$(basename "${input_file%.*}")
+    if [[ "$input_file" == *.asm ]]; then
+        # Assembly file — copy directly to temp dir (preserves link order)
+        asm_file="$TMPDIR/${base}.asm"
+        cp "$input_file" "$asm_file"
+        echo "  $input_file (assembly, pass-through)"
+    elif [[ "$input_file" == *.c ]]; then
+        # C file — compile through cproc → QBE
+        asm_file="$TMPDIR/${base}.asm"
+        echo "  $input_file → $asm_file"
+        "$CPROC" -t b32p3 "$input_file" 2>/dev/null | "$QBE" > "$asm_file"
+    fi
     ASM_FILES+=("$asm_file")
 done
 
@@ -91,12 +113,14 @@ if [ ${#ASM_FILES[@]} -eq 1 ]; then
     ASMPY_FLAGS=""
     [ -n "$HEADER_FLAG" ] && ASMPY_FLAGS="$ASMPY_FLAGS -h"
     [ -n "$INDEPENDENT_FLAG" ] && ASMPY_FLAGS="$ASMPY_FLAGS -i"
+    [ -n "$SYSCALL_FLAG" ] && ASMPY_FLAGS="$ASMPY_FLAGS -s"
     asmpy "${ASM_FILES[0]}" "$LIST_OUTPUT" $ASMPY_FLAGS
 else
     # Multi-file: link then assemble
     LINKER_FLAGS=""
     [ -n "$HEADER_FLAG" ] && LINKER_FLAGS="$LINKER_FLAGS -H"
     [ -n "$INDEPENDENT_FLAG" ] && LINKER_FLAGS="$LINKER_FLAGS -i"
+    [ -n "$SYSCALL_FLAG" ] && LINKER_FLAGS="$LINKER_FLAGS -s"
     python -m asmpy.linker "${ASM_FILES[@]}" "$LIST_OUTPUT" $LINKER_FLAGS
 fi
 

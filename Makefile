@@ -33,15 +33,21 @@ CPROC_OUTPUT = $(CPROC_DIR)/output/cproc-qbe
 .PHONY: docs-serve docs-deploy
 .PHONY: sim-cpu sim-sdram sim-bootloader
 .PHONY: test-cpu test-cpu-single debug-cpu quartus-timing
+.PHONY: test-c test-c-single
 .PHONY: compile-asm compile-bootloader compile-c-baremetal compile-bdos
 .PHONY: compile-userbdos compile-userbdos-all
+.PHONY: compile-c-baremetal-b32cc compile-bdos-b32cc
+.PHONY: compile-userbdos-b32cc compile-userbdos-all-b32cc
 .PHONY: run-uart run-asm-uart run-c-baremetal-uart run-bdos
+.PHONY: run-c-baremetal-uart-b32cc run-bdos-b32cc
 .PHONY: flash-c-baremetal-spi flash-bdos
+.PHONY: flash-c-baremetal-spi-b32cc flash-bdos-b32cc
 .PHONY: b32cc test-b32cc test-b32cc-single debug-b32cc clean-b32cc
 .PHONY: qbe clean-qbe
 .PHONY: cproc clean-cproc
 .PHONY: check
-.PHONY: fnp-upload-text fnp-upload-userbdos fnp-keyboard fnp-detect-iface fnp-sync-files fnp-run
+.PHONY: fnp-upload-text fnp-upload-userbdos fnp-upload-userbdos-b32cc
+.PHONY: fnp-keyboard fnp-detect-iface fnp-sync-files fnp-run
 .PHONY: convert-w3d-textures
 
 # -----------------------------------------------------------------------------
@@ -137,29 +143,48 @@ test-b32cc: $(B32CC_OUTPUT)
 	./Scripts/Tests/run_b32cc_tests.sh
 
 test-b32cc-single: $(B32CC_OUTPUT)
-	@mkdir -p Tests/C/tmp
+	@mkdir -p Tests/B32CC/tmp
 	@if [ -z "$(file)" ]; then \
 		echo "Usage: make test-b32cc-single file=<test_file>"; \
 		echo "Example: make test-b32cc-single file=04_control_flow/if_statements.c"; \
 		echo "Available tests:"; \
-		find Tests/C -name "*.c" -type f | grep -v "old_tests" | grep -v "tmp" | sed 's|Tests/C/||' | sort; \
+		find Tests/B32CC -name "*.c" -type f | grep -v "old_tests" | grep -v "tmp" | sed 's|Tests/B32CC/||' | sort; \
 		exit 1; \
 	fi
 	./Scripts/Tests/run_b32cc_tests.sh $(file)
 
 debug-b32cc: $(B32CC_OUTPUT)
-	@mkdir -p Tests/C/tmp
+	@mkdir -p Tests/B32CC/tmp
 	@if [ -z "$(file)" ]; then \
 		echo "Usage: make debug-b32cc file=<test_file>"; \
 		echo "Example: make debug-b32cc file=04_control_flow/if_statements.c"; \
 		echo "Available tests:"; \
-		find Tests/C -name "*.c" -type f | grep -v "old_tests" | grep -v "tmp" | sed 's|Tests/C/||' | sort; \
+		find Tests/B32CC -name "*.c" -type f | grep -v "old_tests" | grep -v "tmp" | sed 's|Tests/B32CC/||' | sort; \
 		exit 1; \
 	fi
 	./Scripts/Tests/debug_b32cc_test.sh $(file)
 
 clean-b32cc:
 	rm -f $(B32CC_OUTPUT)
+
+# =============================================================================
+# Modern C Test Suite (cproc + QBE)
+# =============================================================================
+
+test-c: $(QBE_OUTPUT) $(CPROC_OUTPUT)
+	@mkdir -p Tests/tmp
+	./Scripts/Tests/run_c_tests.sh
+
+test-c-single: $(QBE_OUTPUT) $(CPROC_OUTPUT)
+	@mkdir -p Tests/C/tmp
+	@if [ -z "$(file)" ]; then \
+		echo "Usage: make test-c-single file=<test_file>"; \
+		echo "Example: make test-c-single file=01_return/return_constant.c"; \
+		echo "Available tests:"; \
+		find Tests/C -name "*.c" -type f | grep -v "tmp" | sed 's|Tests/C/||' | sort; \
+		exit 1; \
+	fi
+	./Scripts/Tests/run_c_tests.sh $(file)
 
 # =============================================================================
 # QBE (Backend Compiler for B32P3)
@@ -264,7 +289,9 @@ compile-asm:
 compile-bootloader:
 	./Scripts/ASM/compile_bootloader.sh
 
-compile-c-baremetal: $(B32CC_OUTPUT)
+# --- Modern C (cproc + QBE) ---
+
+compile-c-baremetal: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	@if [ -z "$(file)" ]; then \
 		echo "Usage: make compile-c-baremetal file=<c_filename_in_bareMetal_dir_without_extension>"; \
 		echo "Example: make compile-c-baremetal file=hello_world"; \
@@ -272,15 +299,73 @@ compile-c-baremetal: $(B32CC_OUTPUT)
 		find Software/C/bareMetal -name "*.c" -type f | grep -v "tmp" | sed 's|Software/C/bareMetal/||' | sed 's|.c||' | sort; \
 		exit 1; \
 	fi
-	./Scripts/BCC/compile_bare_metal_c.sh $(file)
+	@mkdir -p Software/ASM/Output
+	./Scripts/BCC/compile_modern_c.sh Software/ASM/crt0/crt0_baremetal.asm Software/C/bareMetal/$(file).c -h -o Software/ASM/Output/code.bin
 
-compile-bdos:
-	./Scripts/BCC/compile_bdos.sh
+compile-bdos: $(QBE_OUTPUT) $(CPROC_OUTPUT)
+	@mkdir -p Software/ASM/Output
+	./Scripts/BCC/compile_modern_c.sh Software/ASM/crt0/crt0_bdos.asm Software/C/BDOS/main.c -h -s -o Software/ASM/Output/code.bin
 
-compile-userbdos: $(B32CC_OUTPUT)
+compile-userbdos: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	@if [ -z "$(file)" ]; then \
 		echo "Usage: make compile-userbdos file=<c_filename_in_userBDOS_dir_without_extension>"; \
 		echo "Example: make compile-userbdos file=snake"; \
+		echo "Available programs:"; \
+		find Software/C/userBDOS -name "*.c" -type f | sed 's|Software/C/userBDOS/||' | sed 's|.c||' | sort; \
+		exit 1; \
+	fi
+	@mkdir -p Software/ASM/Output
+	./Scripts/BCC/compile_modern_c.sh Software/ASM/crt0/crt0_userbdos.asm Software/C/userBDOS/$(file).c -h -i -o Software/ASM/Output/code.bin
+	@mkdir -p Files/BRFS-init/bin
+	@cp Software/ASM/Output/code.bin Files/BRFS-init/bin/$(file)
+	@echo "Binary copied to Files/BRFS-init/bin/$(file)"
+
+compile-userbdos-all: $(QBE_OUTPUT) $(CPROC_OUTPUT)
+	@rm -rf Files/BRFS-init/bin
+	@mkdir -p Files/BRFS-init/bin
+	@echo "Compiling all userBDOS programs (modern C)..."
+	@FAILED=0; TOTAL=0; \
+	for src in Software/C/userBDOS/*.c; do \
+		name=$$(basename "$$src" .c); \
+		TOTAL=$$((TOTAL + 1)); \
+		echo ""; \
+		echo "=== [$$TOTAL] Compiling $$name ==="; \
+		if ./Scripts/BCC/compile_modern_c.sh Software/ASM/crt0/crt0_userbdos.asm "$$src" -h -i -o Software/ASM/Output/code.bin > /dev/null 2>&1; then \
+			cp Software/ASM/Output/code.bin Files/BRFS-init/bin/$$name; \
+			echo "  -> Files/BRFS-init/bin/$$name"; \
+		else \
+			echo "  FAILED: $$name"; \
+			FAILED=$$((FAILED + 1)); \
+		fi; \
+	done; \
+	echo ""; \
+	echo "============================================================"; \
+	echo "Compiled $$((TOTAL - FAILED))/$$TOTAL programs to Files/BRFS-init/bin/"; \
+	if [ $$FAILED -gt 0 ]; then \
+		echo "WARNING: $$FAILED program(s) failed to compile"; \
+		exit 1; \
+	fi; \
+	echo "============================================================"
+
+# --- B32CC (legacy) ---
+
+compile-c-baremetal-b32cc: $(B32CC_OUTPUT)
+	@if [ -z "$(file)" ]; then \
+		echo "Usage: make compile-c-baremetal-b32cc file=<c_filename_in_bareMetal_dir_without_extension>"; \
+		echo "Example: make compile-c-baremetal-b32cc file=hello_world"; \
+		echo "Available programs:"; \
+		find Software/C/bareMetal -name "*.c" -type f | grep -v "tmp" | sed 's|Software/C/bareMetal/||' | sed 's|.c||' | sort; \
+		exit 1; \
+	fi
+	./Scripts/BCC/compile_bare_metal_c.sh $(file)
+
+compile-bdos-b32cc:
+	./Scripts/BCC/compile_bdos.sh
+
+compile-userbdos-b32cc: $(B32CC_OUTPUT)
+	@if [ -z "$(file)" ]; then \
+		echo "Usage: make compile-userbdos-b32cc file=<c_filename_in_userBDOS_dir_without_extension>"; \
+		echo "Example: make compile-userbdos-b32cc file=snake"; \
 		echo "Available programs:"; \
 		find Software/C/userBDOS -name "*.c" -type f | sed 's|Software/C/userBDOS/||' | sed 's|.c||' | sort; \
 		exit 1; \
@@ -290,10 +375,10 @@ compile-userbdos: $(B32CC_OUTPUT)
 	@cp Software/ASM/Output/code.bin Files/BRFS-init/bin/$(file)
 	@echo "Binary copied to Files/BRFS-init/bin/$(file)"
 
-compile-userbdos-all: $(B32CC_OUTPUT)
+compile-userbdos-all-b32cc: $(B32CC_OUTPUT)
 	@rm -rf Files/BRFS-init/bin
 	@mkdir -p Files/BRFS-init/bin
-	@echo "Compiling all userBDOS programs..."
+	@echo "Compiling all userBDOS programs (B32CC)..."
 	@FAILED=0; TOTAL=0; \
 	for src in Software/C/userBDOS/*.c; do \
 		name=$$(basename "$$src" .c); \
@@ -326,11 +411,13 @@ run-uart:
 
 run-asm-uart: compile-asm run-uart
 
+# --- Modern C (cproc + QBE) ---
+
 run-c-baremetal-uart: compile-c-baremetal run-uart
 
 run-bdos: compile-bdos run-uart
 
-flash-c-baremetal-spi: $(B32CC_OUTPUT)
+flash-c-baremetal-spi: compile-c-baremetal $(B32CC_OUTPUT)
 	@if [ -z "$(file)" ]; then \
 		echo "Usage: make flash-c-baremetal-spi file=<c_filename_in_bareMetal_dir_without_extension>"; \
 		echo "Example: make flash-c-baremetal-spi file=libtests/test_term"; \
@@ -338,9 +425,33 @@ flash-c-baremetal-spi: $(B32CC_OUTPUT)
 		find Software/C/bareMetal -name "*.c" -type f | grep -v "tmp" | grep -v "flash_writer" | sed 's|Software/C/bareMetal/||' | sed 's|.c||' | sort; \
 		exit 1; \
 	fi
-	./Scripts/Programmer/flash_spi.sh $(file)
+	@echo "Converting binary to flash_binary.c..."
+	@source .venv/bin/activate && python3 Scripts/Programmer/bin2flash.py Software/ASM/Output/code.bin Software/C/bareMetal/flash_writer/flash_binary.c && deactivate
+	@echo "Compiling flash_writer (B32CC)..."
+	./Scripts/BCC/compile_bare_metal_c.sh flash_writer/flash_writer
+	@echo "Running flash_writer on FPGC via UART..."
+	./Scripts/Programmer/UART/run_uart.sh
 
 flash-bdos: compile-bdos
+	./Scripts/Programmer/flash_bdos.sh
+
+# --- B32CC (legacy) ---
+
+run-c-baremetal-uart-b32cc: compile-c-baremetal-b32cc run-uart
+
+run-bdos-b32cc: compile-bdos-b32cc run-uart
+
+flash-c-baremetal-spi-b32cc: $(B32CC_OUTPUT)
+	@if [ -z "$(file)" ]; then \
+		echo "Usage: make flash-c-baremetal-spi-b32cc file=<c_filename_in_bareMetal_dir_without_extension>"; \
+		echo "Example: make flash-c-baremetal-spi-b32cc file=libtests/test_term"; \
+		echo "Available programs:"; \
+		find Software/C/bareMetal -name "*.c" -type f | grep -v "tmp" | grep -v "flash_writer" | sed 's|Software/C/bareMetal/||' | sed 's|.c||' | sort; \
+		exit 1; \
+	fi
+	./Scripts/Programmer/flash_spi.sh $(file)
+
+flash-bdos-b32cc: compile-bdos-b32cc
 	./Scripts/Programmer/flash_bdos.sh
 
 # =============================================================================
@@ -383,10 +494,24 @@ fnp-upload-text:
 	fi
 	FNP_TARGET_MAC="$(FNP_MAC)" ./Scripts/Programmer/Network/fnp_upload_text.sh $(file) $(dest)
 
-fnp-upload-userbdos: $(B32CC_OUTPUT)
+fnp-upload-userbdos: compile-userbdos
 	@if [ -z "$(file)" ]; then \
-		echo "Usage: make fnp-upload-userbdos file=<name> [flags=<B32CC flags>] [dev=1-5]"; \
+		echo "Usage: make fnp-upload-userbdos file=<name> [dev=1-5]"; \
 		echo "Example: make fnp-upload-userbdos file=hello dev=3"; \
+		echo "Available programs:"; \
+		find Software/C/userBDOS -name "*.c" -type f 2>/dev/null | grep -v "tmp" | sed 's|Software/C/userBDOS/||' | sed 's|.c||' | sort; \
+		exit 1; \
+	fi
+	@echo "Uploading to FPGC: /bin/$(file)"
+	@source .venv/bin/activate && \
+		python3 Scripts/Programmer/Network/fnp_tool.py --mac $(FNP_MAC) upload Software/ASM/Output/code.bin /bin/$(file) && \
+		deactivate
+	@echo "Done! Program uploaded to /bin/$(file)"
+
+fnp-upload-userbdos-b32cc: $(B32CC_OUTPUT)
+	@if [ -z "$(file)" ]; then \
+		echo "Usage: make fnp-upload-userbdos-b32cc file=<name> [flags=<B32CC flags>] [dev=1-5]"; \
+		echo "Example: make fnp-upload-userbdos-b32cc file=hello dev=3"; \
 		echo "Available programs:"; \
 		find Software/C/userBDOS -name "*.c" -type f 2>/dev/null | grep -v "tmp" | sed 's|Software/C/userBDOS/||' | sed 's|.c||' | sort; \
 		exit 1; \
@@ -478,6 +603,11 @@ help:
 	@echo "  cproc               - Build the cproc C frontend for B32P3"
 	@echo "  clean-cproc         - Clean cproc build artifacts"
 	@echo ""
+	@echo "--- Modern C Test Suite ---"
+	@echo "  test-c              - Run all modern C compiler tests (parallel)"
+	@echo "  test-c-single       - Run a single modern C test"
+	@echo "                        Usage: make test-c-single file=<test_file>"
+	@echo ""
 	@echo "--- Documentation ---"
 	@echo "  docs-serve          - Run documentation website locally"
 	@echo "  docs-deploy         - Deploy documentation website"
@@ -498,22 +628,34 @@ help:
 	@echo "--- Compilation ---"
 	@echo "  compile-asm         - Compile ASM file"
 	@echo "                        Usage: make compile-asm file=<filename>"
-	@echo "  compile-c-baremetal - Compile bare-metal C file"
+	@echo "  compile-c-baremetal - Compile bare-metal C file (modern C: cproc + QBE)"
 	@echo "                        Usage: make compile-c-baremetal file=<filename>"
 	@echo "  compile-bootloader  - Compile bootloader"
-	@echo "  compile-bdos        - Compile BDOS"
-	@echo "  compile-userbdos    - Compile a single userBDOS program to Files/BRFS-init/bin/"
+	@echo "  compile-bdos        - Compile BDOS (modern C: cproc + QBE)"
+	@echo "  compile-userbdos    - Compile a single userBDOS program (modern C: cproc + QBE)"
 	@echo "                        Usage: make compile-userbdos file=<filename>"
-	@echo "  compile-userbdos-all - Compile ALL userBDOS programs to Files/BRFS-init/bin/"
+	@echo "  compile-userbdos-all - Compile ALL userBDOS programs (modern C: cproc + QBE)"
+	@echo ""
+	@echo "  B32CC (legacy) variants:"
+	@echo "  compile-c-baremetal-b32cc - Compile bare-metal C file with B32CC"
+	@echo "  compile-bdos-b32cc        - Compile BDOS with B32CC"
+	@echo "  compile-userbdos-b32cc    - Compile userBDOS program with B32CC"
+	@echo "  compile-userbdos-all-b32cc - Compile ALL userBDOS with B32CC"
 	@echo ""
 	@echo "--- Hardware Programming ---"
 	@echo "  run-uart              - Run compiled ASM binary via UART"
 	@echo "  run-asm-uart          - Compile and run ASM binary via UART"
-	@echo "  run-c-baremetal-uart  - Compile and run C binary via UART"
-	@echo "  run-bdos              - Compile and run BDOS binary via UART"
-	@echo "  flash-c-baremetal-spi - Flash C binary to SPI flash (persistent)"
+	@echo "  run-c-baremetal-uart  - Compile (modern C) and run C binary via UART"
+	@echo "  run-bdos              - Compile (modern C) and run BDOS binary via UART"
+	@echo "  flash-c-baremetal-spi - Flash C binary to SPI flash (modern C + B32CC flash_writer)"
 	@echo "                          Usage: make flash-c-baremetal-spi file=<filename>"
-	@echo "  flash-bdos            - Flash BDOS binary to SPI flash (persistent)"
+	@echo "  flash-bdos            - Flash BDOS binary to SPI flash (modern C)"
+	@echo ""
+	@echo "  B32CC (legacy) variants:"
+	@echo "  run-c-baremetal-uart-b32cc  - Compile (B32CC) and run C binary via UART"
+	@echo "  run-bdos-b32cc              - Compile (B32CC) and run BDOS via UART"
+	@echo "  flash-c-baremetal-spi-b32cc - Flash C binary (B32CC) to SPI flash"
+	@echo "  flash-bdos-b32cc            - Flash BDOS (B32CC) to SPI flash"
 	@echo ""
 	@echo "--- FNP (Network Programming) ---"
 	@echo "  All FNP commands accept dev=1-5 to select target device (default: 1)"
@@ -522,8 +664,9 @@ help:
 	@echo "  fnp-detect-iface      - Print auto-detected Ethernet interface"
 	@echo "  fnp-upload-text       - Upload a text file to the FPGC"
 	@echo "                          Usage: make fnp-upload-text file=<local> dest=<fpgc_path> [dev=N]"
-	@echo "  fnp-upload-userbdos   - Compile and upload a userBDOS C program to /bin"
+	@echo "  fnp-upload-userbdos   - Compile (modern C) and upload userBDOS program to /bin"
 	@echo "                          Usage: make fnp-upload-userbdos file=<name> [dev=N]"
+	@echo "  fnp-upload-userbdos-b32cc - Compile (B32CC) and upload userBDOS program to /bin"
 	@echo "  fnp-keyboard          - Interactive keyboard streaming to FPGC"
 	@echo "                          Usage: make fnp-keyboard [dev=N]"
 	@echo "  fnp-sync-files        - Sync Files/BRFS-init/ to FPGC root filesystem"
