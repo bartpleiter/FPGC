@@ -203,11 +203,11 @@ emitf(char *s, Ins *i, Fn *fn, FILE *f)
 				fprintf(f, "0 %s", rname[r.val]);
 				break;
 			case RCon:
+				/* Global addresses should be pre-loaded
+				 * into r12 by emitins() before we get here */
 				pc = &fn->con[r.val];
 				assert(pc->type == CAddr);
-				/* For global addresses, need addr2reg pattern */
-				fprintf(f, "0 r12 ; addr ");
-				emitaddr(pc, f);
+				fprintf(f, "0 r12");
 				break;
 			case RSlot:
 				offset = slot(r, fn);
@@ -264,6 +264,27 @@ fixmem(Ref *pr, Fn *fn, FILE *f)
 }
 
 static void
+fixaddr(Ref *pr, Fn *fn, FILE *f)
+{
+	/* If a memory operand is a global address (CAddr constant),
+	 * emit addr2reg to load the address into r12 first,
+	 * then replace the operand with r12. */
+	Ref r;
+	Con *c;
+
+	r = *pr;
+	if (rtype(r) == RCon) {
+		c = &fn->con[r.val];
+		if (c->type == CAddr) {
+			fprintf(f, "  addr2reg ");
+			emitaddr(c, f);
+			fprintf(f, " r12\n");
+			*pr = TMP(R12);
+		}
+	}
+}
+
+static void
 emitins(Ins *i, Fn *fn, FILE *f)
 {
 	int o;
@@ -273,10 +294,13 @@ emitins(Ins *i, Fn *fn, FILE *f)
 
 	switch (i->op) {
 	default:
-		if (isload(i->op))
+		if (isload(i->op)) {
+			fixaddr(&i->arg[0], fn, f);
 			fixmem(&i->arg[0], fn, f);
-		else if (isstore(i->op))
+		} else if (isstore(i->op)) {
+			fixaddr(&i->arg[1], fn, f);
 			fixmem(&i->arg[1], fn, f);
+		}
 	Table:
 		for (o=0;; o++) {
 			if (omap[o].op == NOp)

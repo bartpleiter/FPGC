@@ -18,6 +18,12 @@ QBE_DIR = BuildTools/QBE
 QBE_OUTPUT = $(QBE_DIR)/output/qbe
 
 # -----------------------------------------------------------------------------
+# cproc (C Frontend) Variables
+# -----------------------------------------------------------------------------
+CPROC_DIR = BuildTools/cproc
+CPROC_OUTPUT = $(CPROC_DIR)/output/cproc-qbe
+
+# -----------------------------------------------------------------------------
 # Phony Targets
 # -----------------------------------------------------------------------------
 .PHONY: all clean help
@@ -33,6 +39,7 @@ QBE_OUTPUT = $(QBE_DIR)/output/qbe
 .PHONY: flash-c-baremetal-spi flash-bdos
 .PHONY: b32cc test-b32cc test-b32cc-single debug-b32cc clean-b32cc
 .PHONY: qbe clean-qbe
+.PHONY: cproc clean-cproc
 .PHONY: check
 .PHONY: fnp-upload-text fnp-upload-userbdos fnp-keyboard fnp-detect-iface fnp-sync-files fnp-run
 .PHONY: convert-w3d-textures
@@ -40,7 +47,7 @@ QBE_OUTPUT = $(QBE_DIR)/output/qbe
 # -----------------------------------------------------------------------------
 # Default Target
 # -----------------------------------------------------------------------------
-all: venv b32cc qbe asmpy-install check
+all: venv b32cc qbe cproc asmpy-install check
 
 # =============================================================================
 # Python Development Environment (General)
@@ -165,6 +172,18 @@ $(QBE_OUTPUT):
 
 clean-qbe:
 	$(MAKE) -C $(QBE_DIR) clean
+
+# =============================================================================
+# cproc (C Frontend for B32P3)
+# =============================================================================
+
+cproc: $(CPROC_OUTPUT)
+
+$(CPROC_OUTPUT):
+	$(MAKE) -C $(CPROC_DIR)
+
+clean-cproc:
+	$(MAKE) -C $(CPROC_DIR) clean
 
 # =============================================================================
 # Documentation
@@ -410,6 +429,7 @@ clean:
 	-rm -rf .coverage
 	-rm -f $(B32CC_OUTPUT)
 	-$(MAKE) -C $(QBE_DIR) clean
+	-$(MAKE) -C $(CPROC_DIR) clean
 	-find . -type d -name __pycache__ -exec rm -r {} \+ 2>/dev/null; true
 	@echo "Cleanup complete!"
 
@@ -453,6 +473,10 @@ help:
 	@echo "--- QBE (Backend Compiler) ---"
 	@echo "  qbe                 - Build the QBE backend compiler for B32P3"
 	@echo "  clean-qbe           - Clean QBE build artifacts"
+	@echo ""
+	@echo "--- cproc (C Frontend) ---"
+	@echo "  cproc               - Build the cproc C frontend for B32P3"
+	@echo "  clean-cproc         - Clean cproc build artifacts"
 	@echo ""
 	@echo "--- Documentation ---"
 	@echo "  docs-serve          - Run documentation website locally"
