@@ -61,6 +61,17 @@ class AssemblyLine(ABC):
         """Parse the line into an appropriate AssemblyLine subclass."""
         original = source_line.line
 
+        # Strip C-style block comments (/* ... */)
+        stripped = original.strip()
+        if stripped.startswith("/*"):
+            return CommentAssemblyLine(
+                "",
+                stripped,
+                original,
+                source_line.source_line_number,
+                source_line.source_file_name,
+            )
+
         # Split on semicolons for comments, but respect quoted strings.
         # A semicolon inside double quotes is part of the string, not a comment.
         code_str = ""
@@ -95,8 +106,16 @@ class AssemblyLine(ABC):
                 source_line.source_line_number,
                 source_line.source_file_name,
             )
-        elif code_str.startswith("."):
-            return DirectiveAssemblyLine(
+        elif code_str.startswith((".balign", ".p2align")):
+            return AlignDirectiveLine(
+                code_str,
+                comment,
+                original,
+                source_line.source_line_number,
+                source_line.source_file_name,
+            )
+        elif code_str.startswith((".globl ", ".global ")):
+            return GlobalDirectiveLine(
                 code_str,
                 comment,
                 original,
@@ -105,6 +124,14 @@ class AssemblyLine(ABC):
             )
         elif code_str.endswith(":"):
             return LabelAssemblyLine(
+                code_str,
+                comment,
+                original,
+                source_line.source_line_number,
+                source_line.source_file_name,
+            )
+        elif code_str.startswith("."):
+            return DirectiveAssemblyLine(
                 code_str,
                 comment,
                 original,
@@ -151,6 +178,9 @@ class DirectiveAssemblyLine(AssemblyLine):
             )
 
         self.directive = DirectiveType.from_str(parts[0])
+        # .text is an alias for .code
+        if self.directive == DirectiveType.CODE_TEXT:
+            self.directive = DirectiveType.CODE_DATA
 
     def expand(self) -> list["AssemblyLine"]:
         # Directives are already atomic
@@ -161,6 +191,48 @@ class DirectiveAssemblyLine(AssemblyLine):
 
     def __repr__(self):
         return f"{self.directive}"
+
+
+class AlignDirectiveLine(AssemblyLine):
+    """Class to represent an alignment directive (.balign N)"""
+
+    def _parse_code(self):
+        parts = self.code_str.split()
+        if len(parts) != 2:
+            raise ValueError(
+                f"Expected alignment value for .balign: {self.code_str}"
+            )
+        self.alignment = int(parts[1])
+
+    def expand(self) -> list["AssemblyLine"]:
+        return [self]
+
+    def to_binary_string(self) -> str:
+        raise NotImplementedError("Alignment directives do not have a binary representation")
+
+    def __repr__(self):
+        return f".balign {self.alignment}"
+
+
+class GlobalDirectiveLine(AssemblyLine):
+    """Class to represent a global symbol directive (.globl/.global NAME)"""
+
+    def _parse_code(self):
+        parts = self.code_str.split()
+        if len(parts) != 2:
+            raise ValueError(
+                f"Expected symbol name for .globl/.global: {self.code_str}"
+            )
+        self.symbol_name = parts[1]
+
+    def expand(self) -> list["AssemblyLine"]:
+        return [self]
+
+    def to_binary_string(self) -> str:
+        raise NotImplementedError("Global directives do not have a binary representation")
+
+    def __repr__(self):
+        return f".globl {self.symbol_name}"
 
 
 class LabelAssemblyLine(AssemblyLine):
@@ -685,6 +757,9 @@ class DataAssemblyLine(AssemblyLine):
 
     def _parse_code(self) -> None:
         self.data_instruction_values: list[Number] = []
+        self.elf_bytes: list[int] | None = None
+        self.label_ref: Label | None = None
+        self.label_ref_offset: int = 0
         data_instruction_type_str = self.code_str.split()[0]
 
         self.data_instruction_type = DataInstructionType.from_str(
@@ -694,8 +769,21 @@ class DataAssemblyLine(AssemblyLine):
         # Get everything after the instruction type
         rest_of_line = self.code_str[len(data_instruction_type_str) :].strip()
 
-        # Handle .dsw (string spaced) - each character becomes a separate word
-        if self.data_instruction_type == DataInstructionType.STRING_SPACED:
+        if self.data_instruction_type == DataInstructionType.ELF_INT:
+            self._parse_elf_int(rest_of_line)
+        elif self.data_instruction_type == DataInstructionType.ELF_BYTE:
+            v = self._parse_int_value(rest_of_line) & 0xFF
+            self.elf_bytes = [v]
+        elif self.data_instruction_type == DataInstructionType.ELF_SHORT:
+            v = self._parse_int_value(rest_of_line) & 0xFFFF
+            self.elf_bytes = [v & 0xFF, (v >> 8) & 0xFF]
+        elif self.data_instruction_type == DataInstructionType.ELF_ASCII:
+            self._parse_string_values(rest_of_line)
+            self.elf_bytes = [v.value & 0xFF for v in self.data_instruction_values]
+            self.data_instruction_values = []
+        elif self.data_instruction_type == DataInstructionType.ELF_FILL:
+            self._parse_elf_fill(rest_of_line)
+        elif self.data_instruction_type == DataInstructionType.STRING_SPACED:
             self._parse_string_values(rest_of_line)
         elif self.data_instruction_type == DataInstructionType.STRING_MERGED:
             self._parse_string_values(rest_of_line)
@@ -704,6 +792,58 @@ class DataAssemblyLine(AssemblyLine):
             data_instruction_values = rest_of_line.split()
             for value in data_instruction_values:
                 self.data_instruction_values.append(Number._from_str(value))
+
+    @staticmethod
+    def _parse_int_value(s: str) -> int:
+        """Parse a numeric value from a string (decimal, hex, or binary)."""
+        s = s.strip()
+        if s.startswith(("0x", "0X")):
+            return int(s, 16)
+        elif s.startswith(("0b", "0B")):
+            return int(s, 2)
+        else:
+            return int(s)
+
+    def _parse_elf_int(self, rest_of_line: str) -> None:
+        """Parse .int VALUE or .int SYMBOL+OFFSET."""
+        rest_of_line = rest_of_line.strip()
+        # Check if it's a label reference (not starting with digit, minus, or 0x/0b)
+        if rest_of_line and not rest_of_line[0].isdigit() and rest_of_line[0] != '-':
+            # Parse SYMBOL+OFFSET or SYMBOL-OFFSET or just SYMBOL
+            if '+' in rest_of_line:
+                parts = rest_of_line.split('+', 1)
+                self.label_ref = Label(parts[0].strip())
+                self.label_ref_offset = int(parts[1].strip())
+            elif '-' in rest_of_line and not rest_of_line.startswith('-'):
+                parts = rest_of_line.split('-', 1)
+                self.label_ref = Label(parts[0].strip())
+                self.label_ref_offset = -int(parts[1].strip())
+            else:
+                self.label_ref = Label(rest_of_line)
+                self.label_ref_offset = 0
+            self.elf_bytes = None  # resolved later
+        else:
+            v = self._parse_int_value(rest_of_line) & 0xFFFFFFFF
+            self.elf_bytes = [v & 0xFF, (v >> 8) & 0xFF, (v >> 16) & 0xFF, (v >> 24) & 0xFF]
+
+    def _parse_elf_fill(self, rest_of_line: str) -> None:
+        """Parse .fill N,S,V (repeat N, size S, value V)."""
+        parts = rest_of_line.split(',')
+        if len(parts) == 3:
+            n = int(parts[0].strip())
+            s = int(parts[1].strip())
+            v = int(parts[2].strip())
+        elif len(parts) == 2:
+            n = int(parts[0].strip())
+            s = int(parts[1].strip())
+            v = 0
+        elif len(parts) == 1:
+            n = int(parts[0].strip())
+            s = 1
+            v = 0
+        else:
+            raise ValueError(f"Invalid .fill syntax: {rest_of_line}")
+        self.elf_bytes = [v & 0xFF] * (n * s)
 
     def _parse_string_values(self, rest_of_line: str) -> None:
         """Parse a string literal and convert each character to a Number."""
@@ -767,7 +907,22 @@ class DataAssemblyLine(AssemblyLine):
                 self.data_instruction_values.append(Number(ord(string_content[i])))
                 i += 1
 
+    def _is_elf_type(self) -> bool:
+        """Check if this is an ELF-style data instruction that needs byte packing."""
+        return self.data_instruction_type in (
+            DataInstructionType.ELF_INT,
+            DataInstructionType.ELF_BYTE,
+            DataInstructionType.ELF_SHORT,
+            DataInstructionType.ELF_ASCII,
+            DataInstructionType.ELF_FILL,
+        )
+
     def expand(self) -> list["AssemblyLine"]:
+        # ELF-style data lines are not expanded individually;
+        # byte packing is handled by the assembler's _pack_elf_data step
+        if self._is_elf_type():
+            return [self]
+
         # For STRING_MERGED (.dsb), pack characters into 32-bit words (4 bytes per word, little-endian)
         expanded_lines: list[AssemblyLine] = []
         if self.data_instruction_type == DataInstructionType.STRING_MERGED:
@@ -812,7 +967,7 @@ class DataAssemblyLine(AssemblyLine):
             DataInstructionType.STRING_MERGED,
         ):
             raise NotImplementedError(
-                "Only word and string spaced data instructions are currently supported"
+                f"Cannot convert {self.data_instruction_type} to binary directly"
             )
 
         if len(self.data_instruction_values) != 1:
@@ -826,6 +981,8 @@ class DataAssemblyLine(AssemblyLine):
         )
 
     def __repr__(self):
+        if self.label_ref:
+            return f"{self.data_instruction_type} {self.label_ref}+{self.label_ref_offset} ({self.directive})"
         return f"{self.data_instruction_type} {self.data_instruction_values} ({self.directive})"
 
 

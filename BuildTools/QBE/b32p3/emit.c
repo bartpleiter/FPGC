@@ -433,7 +433,8 @@ b32p3_emitfn(Fn *fn, FILE *f)
 	Ins *i;
 
 	/* emit function label */
-	fprintf(f, "\n; function %s\n", fn->name);
+	fprintf(f, "\n.text\n");
+	fprintf(f, "; function %s\n", fn->name);
 	if (fn->lnk.export)
 		fprintf(f, ".global %s\n", fn->name);
 	fprintf(f, "%s:\n", fn->name);

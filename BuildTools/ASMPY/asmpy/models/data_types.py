@@ -39,6 +39,13 @@ class DataInstructionType(StringParsableEnum):
     DOUBLE_SPACED = ".ddw"
     STRING_SPACED = ".dsw"
 
+    # ELF-style data directives (emitted by QBE/gas-style toolchains)
+    ELF_INT = ".int"
+    ELF_BYTE = ".byte"
+    ELF_SHORT = ".short"
+    ELF_ASCII = ".ascii"
+    ELF_FILL = ".fill"
+
 
 class DirectiveType(StringParsableEnum):
     """Types of assembly directives."""
@@ -47,6 +54,7 @@ class DirectiveType(StringParsableEnum):
     READ_ONLY_DATA = ".rdata"
     UNINITIALIZED_DATA = ".bss"
     CODE_DATA = ".code"
+    CODE_TEXT = ".text"
 
 
 class ControlOperation(StringParsableEnum):
@@ -264,20 +272,54 @@ class Register:
 
 
 class Label:
-    """Class to represent a label in assembly code."""
+    """Class to represent a label in assembly code.
+
+    Supports SYMBOL+OFFSET and SYMBOL-OFFSET syntax.
+    The base_label is the symbol name used for label lookup,
+    and offset is added to the resolved address.
+    """
 
     def __init__(self, label: str, target_address: int | None = None) -> None:
-        self.label = label
+        # Parse SYMBOL+OFFSET or SYMBOL-OFFSET
+        self.offset = 0
+        if '+' in label:
+            parts = label.split('+', 1)
+            self.label = parts[0]
+            self.offset = int(parts[1])
+        elif '-' in label and not label.startswith('-'):
+            parts = label.split('-', 1)
+            self.label = parts[0]
+            self.offset = -int(parts[1])
+        else:
+            self.label = label
         self.target_address = target_address
 
+    @property
+    def base_label(self) -> "Label":
+        """Return a Label with just the base name (no offset) for lookup."""
+        return Label.__new_base(self.label)
+
+    @staticmethod
+    def __new_base(name: str) -> "Label":
+        """Create a Label with just a name, no offset parsing."""
+        lbl = object.__new__(Label)
+        lbl.label = name
+        lbl.offset = 0
+        lbl.target_address = None
+        return lbl
+
     def __str__(self):
+        if self.offset > 0:
+            return f"{self.label}+{self.offset}"
+        elif self.offset < 0:
+            return f"{self.label}{self.offset}"
         return self.label
 
     def __repr__(self) -> str:
         target_address_str = (
             f" -> {self.target_address}" if self.target_address else " -> ?"
         )
-        return f"Label {self.label}{target_address_str}"
+        return f"Label {self}{target_address_str}"
 
     def __eq__(self, value: object) -> bool:
         if not isinstance(value, Label):

@@ -1,12 +1,16 @@
 import logging
 from asmpy.models.assembly_line import (
+    AlignDirectiveLine,
     AssemblyLine,
     CommentAssemblyLine,
+    DataAssemblyLine,
     DirectiveAssemblyLine,
+    GlobalDirectiveLine,
     InstructionAssemblyLine,
     LabelAssemblyLine,
 )
 from asmpy.models.data_types import (
+    DataInstructionType,
     Label,
     ProgramType,
     Number,
@@ -98,11 +102,11 @@ class Assembler:
         ]
 
     def _remove_directive_lines(self) -> None:
-        """Remove directive only assembly lines."""
+        """Remove directive, alignment, and global symbol lines."""
         self._assembly_lines = [
             line
             for line in self._assembly_lines
-            if not isinstance(line, DirectiveAssemblyLine)
+            if not isinstance(line, (DirectiveAssemblyLine, AlignDirectiveLine, GlobalDirectiveLine))
         ]
 
     def _remove_label_lines(self) -> None:
@@ -129,6 +133,87 @@ class Assembler:
                 continue
 
             self._assembly_lines.extend(line.expand())
+
+    def _flush_byte_buffer(
+        self,
+        byte_buffer: list[int],
+        result: list[AssemblyLine],
+        template_line: AssemblyLine | None = None,
+    ) -> None:
+        """Flush accumulated bytes as packed .dw words."""
+        if not byte_buffer:
+            return
+        # Pad to multiple of 4 bytes
+        while len(byte_buffer) % 4 != 0:
+            byte_buffer.append(0)
+        for i in range(0, len(byte_buffer), 4):
+            packed = (
+                byte_buffer[i]
+                | (byte_buffer[i + 1] << 8)
+                | (byte_buffer[i + 2] << 16)
+                | (byte_buffer[i + 3] << 24)
+            )
+            line = DataAssemblyLine(
+                code_str=f".dw {packed}",
+                comment="",
+                original=template_line.original if template_line else "",
+                source_line_number=template_line.source_line_number if template_line else 0,
+                source_file_name=template_line.source_file_name if template_line else "",
+            )
+            line.directive = template_line.directive if template_line else None
+            result.append(line)
+        byte_buffer.clear()
+
+    def _make_label_ref_dw(self, elf_line: DataAssemblyLine) -> DataAssemblyLine:
+        """Create a .dw line that carries a label reference for later resolution."""
+        line = DataAssemblyLine(
+            code_str=".dw 0",
+            comment="",
+            original=elf_line.original,
+            source_line_number=elf_line.source_line_number,
+            source_file_name=elf_line.source_file_name,
+        )
+        line.directive = elf_line.directive
+        line.label_ref = elf_line.label_ref
+        line.label_ref_offset = elf_line.label_ref_offset
+        return line
+
+    def _pack_elf_data(self) -> None:
+        """Convert ELF-style byte-level data directives into word-level .dw data.
+
+        Consecutive byte-level data (.byte, .short, .int numeric, .ascii, .fill)
+        is accumulated into a byte buffer and flushed as packed .dw words when a
+        non-data boundary (label, directive, instruction, alignment) is encountered.
+
+        Label references (.int SYMBOL+OFFSET) flush the buffer and emit a special
+        .dw line with a label reference for later resolution.
+        """
+        result: list[AssemblyLine] = []
+        byte_buffer: list[int] = []
+        template_line: AssemblyLine | None = None
+
+        for line in self._assembly_lines:
+            if isinstance(line, DataAssemblyLine) and line._is_elf_type():
+                if line.label_ref is not None:
+                    # Label reference: flush pending bytes, then emit label-ref .dw
+                    self._flush_byte_buffer(byte_buffer, result, template_line)
+                    result.append(self._make_label_ref_dw(line))
+                elif line.elf_bytes is not None:
+                    byte_buffer.extend(line.elf_bytes)
+                    if template_line is None:
+                        template_line = line
+                else:
+                    # Should not happen
+                    result.append(line)
+            else:
+                # Non-ELF line: flush any pending bytes
+                self._flush_byte_buffer(byte_buffer, result, template_line)
+                template_line = None
+                result.append(line)
+
+        # Flush any remaining bytes
+        self._flush_byte_buffer(byte_buffer, result, template_line)
+        self._assembly_lines = result
 
     @staticmethod
     def _split_signed_16bit_chunks(value: int) -> list[int]:
@@ -233,7 +318,7 @@ class Assembler:
                 label_argument = line.arguments[0]
                 assert isinstance(label_argument, Label)
                 current_address = line_addresses[idx]
-                target_address = label_addresses[label_argument]
+                target_address = label_addresses[label_argument] + label_argument.offset
                 offset = target_address - current_address
                 updated_sizes[idx] = 1 + len(self._split_signed_16bit_chunks(offset))
 
@@ -263,7 +348,7 @@ class Assembler:
                 and len(line.arguments) == 1
                 and isinstance(line.arguments[0], Label)
             ):
-                target_address = label_addresses[line.arguments[0]]
+                target_address = label_addresses[line.arguments[0]] + line.arguments[0].offset
                 current_address = line_addresses[idx]
                 offset = target_address - current_address
                 if not self._fits_signed_27bit(offset):
@@ -284,7 +369,7 @@ class Assembler:
                 assert isinstance(label_argument, Label)
                 assert isinstance(register_argument, Register)
 
-                target_address = label_addresses[label_argument]
+                target_address = label_addresses[label_argument] + label_argument.offset
                 current_address = line_addresses[idx]
                 offset = target_address - current_address
 
@@ -346,21 +431,33 @@ class Assembler:
         (target_address - current_address). For jump instructions with label
         targets, the instruction is converted to jumpo (relative offset) to
         avoid 27-bit overflow with byte addresses. For other instructions,
-        the absolute address is used.
+        the absolute address is used. For data lines with label references,
+        the label is resolved and the data value is set.
 
         Each instruction occupies 4 bytes, so current_address = index × 4 + offset.
         """
         jump_rewrites: list[tuple[int, int, InstructionAssemblyLine]] = []
 
         for idx, line in enumerate(self._assembly_lines):
-            if isinstance(line, InstructionAssemblyLine):
+            if isinstance(line, DataAssemblyLine) and line.label_ref is not None:
+                # Resolve data label reference (label_ref uses base_label for lookup)
+                base = line.label_ref.base_label
+                if base not in self._label_address_mappings:
+                    raise ValueError(
+                        f"Undefined label in data: {line.label_ref.label}"
+                    )
+                target_address = self._label_address_mappings[base]
+                resolved_value = target_address + line.label_ref_offset
+                line.data_instruction_values = [Number(resolved_value & 0xFFFFFFFF)]
+                line.label_ref = None  # Mark as resolved
+            elif isinstance(line, InstructionAssemblyLine):
                 current_address = idx * 4 + self.offset_address.value
                 is_branch = isinstance(line.instruction_type, BranchOperation)
                 is_header = line.source_file_name == "header"
 
                 for arg in line.arguments:
                     if isinstance(arg, Label):
-                        target_address = self._label_address_mappings[arg]
+                        target_address = self._label_address_mappings[arg] + arg.offset
                         if is_branch:
                             # Branch instructions use relative offsets
                             arg.target_address = target_address - current_address
@@ -465,6 +562,7 @@ class Assembler:
             self._add_header_instructions()
 
         self._expand_instructions()
+        self._pack_elf_data()
         self._assign_directives()
         self._reorder_lines_based_on_directive()
         self._remove_directive_lines()
