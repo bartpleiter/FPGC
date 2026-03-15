@@ -219,7 +219,9 @@ selcall(Fn *fn, Ins *i0, Ins *i1, Insl **ilp)
 	}
 	stk = (stk + 3) & ~3; /* align to 4 */
 	if (stk)
-		emit(Osalloc, Kw, R, getcon(-stk, fn), R);
+		stk += 8; /* reserve space for callee's FP+RA save area */
+	if (stk)
+		emit(Osalloc, Kl, R, getcon(-stk, fn), R);
 
 	if (!req(i1->arg[1], R)) {
 		/* aggregate return: allocate space, pass pointer in R1 */
@@ -255,7 +257,7 @@ selcall(Fn *fn, Ins *i0, Ins *i1, Insl **ilp)
 		return;
 
 	/* populate the stack */
-	off = 0;
+	off = 8; /* skip callee's FP+RA save area */
 	r = newtmp("abi", Kw, fn);
 	for (i=i0, c=ca; i<i1; i++, c++) {
 		if (i->op == Oargv || !(c->class & Cstk))
@@ -265,7 +267,7 @@ selcall(Fn *fn, Ins *i0, Ins *i1, Insl **ilp)
 		emit(Oadd, Kw, r1, r, getcon(off, fn));
 		off += 4;
 	}
-	emit(Osalloc, Kw, r, getcon(stk, fn), R);
+	emit(Osalloc, Kl, r, getcon(stk, fn), R);
 }
 
 static Params

@@ -89,17 +89,13 @@ static struct {
 	{ Ostoreh, Kw, "writeh %M1 %0" },
 	{ Ostorew, Kw, "write %M1 %0" },
 	{ Ostorel, Ki, "write %M1 %0" },  /* 32-bit target: storel = storew */
-	{ Oloadsb, Ki, "readbs %M0 %=" },
 	{ Oloadub, Ki, "readb %M0 %=" },
-	{ Oloadsh, Ki, "readhs %M0 %=" },
 	{ Oloaduh, Ki, "readh %M0 %=" },
 	{ Oloadsw, Ki, "read %M0 %=" },
 	{ Oloaduw, Ki, "read %M0 %=" },
 	{ Oload,   Kw, "read %M0 %=" },
 	{ Oload,   Kl, "read %M0 %=" },   /* pointers are 32-bit */
-	{ Oextsb,  Ki, "readbs 0 %0 %=" }, /* sign-extend byte via readbs */
 	{ Oextub,  Ki, "and %0 0xFF %=" },
-	{ Oextsh,  Ki, "readhs 0 %0 %=" },
 	{ Oextuh,  Ki, "and %0 0xFFFF %=" },
 	{ Oextsw,  Ki, "or r0 %0 %=" },   /* no-op on 32-bit */
 	{ Oextuw,  Ki, "or r0 %0 %=" },   /* no-op on 32-bit */
@@ -235,7 +231,7 @@ loadcon(Con *c, int r, FILE *f)
 	case CBits:
 		n = c->bits.i;
 		n = (int32_t)n; /* truncate to 32-bit */
-		if (n >= -32768 && n < 32768) {
+		if (n >= 0 && n <= 0xFFFF) {
 			fprintf(f, "  load %d %s\n", (int)n, rn);
 		} else {
 			fprintf(f, "  load32 %d %s\n", (int)n, rn);
@@ -312,6 +308,38 @@ emitins(Ins *i, Fn *fn, FILE *f)
 				break;
 		}
 		emitf(omap[o].asm_str, i, fn, f);
+		break;
+	/* Signed byte/halfword loads: B32P3 only has zero-extending
+	 * readb/readh, so we sign-extend via shift left + arithmetic
+	 * shift right. */
+	case Oloadsb:
+		fixaddr(&i->arg[0], fn, f);
+		fixmem(&i->arg[0], fn, f);
+		emitf("readb %M0 %=", i, fn, f);
+		rn = rname[i->to.val];
+		fprintf(f, "  shiftl %s 24 %s\n", rn, rn);
+		fprintf(f, "  shiftrs %s 24 %s\n", rn, rn);
+		break;
+	case Oloadsh:
+		fixaddr(&i->arg[0], fn, f);
+		fixmem(&i->arg[0], fn, f);
+		emitf("readh %M0 %=", i, fn, f);
+		rn = rname[i->to.val];
+		fprintf(f, "  shiftl %s 16 %s\n", rn, rn);
+		fprintf(f, "  shiftrs %s 16 %s\n", rn, rn);
+		break;
+	/* Sign-extend byte/halfword in register */
+	case Oextsb:
+		assert(isreg(i->arg[0]));
+		rn = rname[i->to.val];
+		fprintf(f, "  shiftl %s 24 %s\n", rname[i->arg[0].val], rn);
+		fprintf(f, "  shiftrs %s 24 %s\n", rn, rn);
+		break;
+	case Oextsh:
+		assert(isreg(i->arg[0]));
+		rn = rname[i->to.val];
+		fprintf(f, "  shiftl %s 16 %s\n", rname[i->arg[0].val], rn);
+		fprintf(f, "  shiftrs %s 16 %s\n", rn, rn);
 		break;
 	case Ocopy:
 		if (req(i->to, i->arg[0]))
@@ -457,7 +485,7 @@ b32p3_emitfn(Fn *fn, FILE *f)
 		fprintf(f, "  sub r13 %d r13\n", frame);
 
 	/* save callee-save registers */
-	off = 8; /* after FP and RA save area */
+	off = 4; /* start right below spill slots */
 	for (pr=b32p3_rclob; *pr>=0; pr++) {
 		if (fn->reg & BIT(*pr)) {
 			fprintf(f, "  write -%d r14 %s\n",
@@ -479,7 +507,7 @@ b32p3_emitfn(Fn *fn, FILE *f)
 			break;
 		case Jret0:
 			/* epilogue: restore callee-saves, FP, RA, return */
-			off = 8;
+			off = 4;
 			for (pr=b32p3_rclob; *pr>=0; pr++) {
 				if (fn->reg & BIT(*pr)) {
 					fprintf(f, "  read -%d r14 %s\n",
