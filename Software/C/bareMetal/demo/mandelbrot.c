@@ -46,7 +46,7 @@ unsigned int colors[NUM_COLORS] = {
 #define INITIAL_SCALE      196608   // 3.0 in 16.16 (width of view)
 
 // Direct memory access to pixel framebuffer for faster rendering
-#define PIXEL_FB_ADDR 0x7B00000
+#define PIXEL_FB_ADDR 0x1EC00000
 
 // Render at half resolution and double the pixels for speed
 #define RENDER_WIDTH  320

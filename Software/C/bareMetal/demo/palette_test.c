@@ -19,10 +19,10 @@
 // ---- Display parameters ----
 #define SCREEN_WIDTH  320
 #define SCREEN_HEIGHT 240
-#define PIXEL_FB_ADDR 0x7B00000
+#define PIXEL_FB_ADDR 0x1EC00000
 
 // ---- Pixel Palette address ----
-#define PALETTE_ADDR  0x7B20000
+#define PALETTE_ADDR  0x1EC80000
 
 // Write one 24-bit RGB palette entry
 void set_palette(int index, int rgb24)

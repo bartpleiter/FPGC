@@ -121,7 +121,7 @@ int loopBench()
 
 
     "Label_ASM_Done:"
-        "write -1 r14 r4 ; set return value"
+        "write -16 r14 r4 ; set return value"
     
         "pop r4"
     "pop r3"

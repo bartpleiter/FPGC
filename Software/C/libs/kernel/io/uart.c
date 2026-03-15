@@ -5,8 +5,8 @@
 #include "libs/kernel/io/uart.h"
 
 // Hardware register addresses
-#define UART_TX_ADDR 0x7000000
-#define UART_RX_ADDR 0x7000001
+#define UART_TX_ADDR 0x1C000000
+#define UART_RX_ADDR 0x1C000004
 
 // ---- RX Ring Buffer ----
 // Ring buffer structure

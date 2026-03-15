@@ -96,8 +96,14 @@ The following table provides a complete overview of all B32P3 instructions suppo
 | `reti` | - | - | - | Return from interrupt |
 | `readintid` | R | - | - | Store interrupt ID from CPU to Arg1 |
 | `ccache` | - | - | - | Clear L1 instruction/data cache |
-| `read` | C16 | R | R | Read from addr in Arg2 with 16-bit signed offset from Arg1, write to Arg3 |
-| `write` | C16 | R | R | Write to addr in Arg2 with 16-bit signed offset from Arg1, data from Arg3 |
+| `read` | C16 | R | R | Read word from addr in Arg2 with 16-bit signed byte offset from Arg1, write to Arg3 |
+| `readb` | C16 | R | R | Read byte (sign-extended) from addr in Arg2 with byte offset from Arg1, write to Arg3 |
+| `readbu` | C16 | R | R | Read byte (zero-extended) from addr in Arg2 with byte offset from Arg1, write to Arg3 |
+| `readh` | C16 | R | R | Read halfword (sign-extended) from addr in Arg2 with byte offset from Arg1, write to Arg3 |
+| `readhu` | C16 | R | R | Read halfword (zero-extended) from addr in Arg2 with byte offset from Arg1, write to Arg3 |
+| `write` | C16 | R | R | Write word to addr in Arg2 with 16-bit signed byte offset from Arg1, data from Arg3 |
+| `writeb` | C16 | R | R | Write byte to addr in Arg2 with byte offset from Arg1, low 8 bits of Arg3 |
+| `writeh` | C16 | R | R | Write halfword to addr in Arg2 with byte offset from Arg1, low 16 bits of Arg3 |
 | `push` | R | - | - | Push Arg1 to stack |
 | `pop` | R | - | - | Pop from stack to Arg1 |
 | `add` | R | R/C16 | R | Compute Arg1 + Arg2, write result to Arg3 |
@@ -173,10 +179,10 @@ Multiple data entries can be defined in a single directive by separating them wi
 | `.dw` | 32-bit word data | `.dw 0x12345678 42 -1` |
 | `.dbb` | Bytes merged into 32-bit words | `.dbb 0x12 0x34 0x56 0x78` |
 | `.ddb` | 16-bit values merged into 32-bit words | `.ddb 0x1234 0x5678` |
-| `.dsb` | String merged into 32-bit words | `.dsb "Hello World"` |
+| `.dsb` | String packed into 32-bit words (4 chars per word, big-endian) | `.dsb \"Hello World\"` |
 | `.dbw` | Bytes as separate 32-bit words | `.dbw 0x12 0x34` |
 | `.ddw` | 16-bit values as separate 32-bit words | `.ddw 0x1234 0x5678` |
-| `.dsw` | String as separate 32-bit words | `.dsw "Hi"` |
+| `.dsw` | String as separate 32-bit words (1 char per word) | `.dsw \"Hi\"` |
 
 ### Section Directives
 

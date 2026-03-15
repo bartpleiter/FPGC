@@ -7,7 +7,7 @@ streaming to an FPGC device over raw Ethernet frames using the FNP
 protocol (EtherType 0xB4B4).
 
 Usage:
-  python fnp_tool.py [<interface>] upload [-t] <local_file> <fpgc_path>
+  python fnp_tool.py [<interface>] upload <local_file> <fpgc_path>
   python fnp_tool.py [<interface>] sync-files <local_dir>
   python fnp_tool.py [<interface>] key <text>
   python fnp_tool.py [<interface>] keycode <hex_code>
@@ -17,9 +17,8 @@ Usage:
 
 If <interface> is omitted, the tool auto-detects a USB Ethernet adapter.
 
-The -t / --text flag on upload treats the file as text: each byte is
-stored as a full 32-bit word (one character per word) matching how the
-FPGC's word-addressable memory represents strings.
+Files are uploaded in binary mode: bytes are packed 4-per-word
+(big-endian), matching the FPGC's byte-addressable memory layout.
 
 Requires raw socket capability. Either run as root, or grant it with:
   sudo setcap cap_net_raw+ep $(which python3)
@@ -150,8 +149,7 @@ def detect_interface() -> str:
         return fallback[0]
 
     print(
-        "Error: could not auto-detect Ethernet interface.\n"
-        "Available interfaces:",
+        "Error: could not auto-detect Ethernet interface.\nAvailable interfaces:",
         file=sys.stderr,
     )
     result2 = subprocess.run(
@@ -311,14 +309,13 @@ class FNPConnection:
     # ---- Public API ----
 
     def upload_file(
-        self, local_path: str, fpgc_path: str, text_mode: bool = False
+        self, local_path: str, fpgc_path: str
     ) -> bool:
         """
         Upload a file to the FPGC using the FNP file transfer protocol.
 
-        In binary mode (default): file bytes are packed 4-per-word (big-endian).
-        In text mode (-t): each byte becomes one 32-bit word (one char per word),
-        matching B32P3's word-addressable char representation.
+        File bytes are packed 4-per-word (big-endian) for the FPGC's
+        byte-addressable memory layout.
         """
         # Read file
         with open(local_path, "rb") as f:
@@ -326,25 +323,14 @@ class FNPConnection:
 
         file_size_bytes = len(file_bytes)
 
-        if text_mode:
-            # Text mode: each byte becomes a 32-bit big-endian word
-            # e.g. byte 0x48 ('H') -> word 0x00000048
-            word_count = len(file_bytes)
-            packed = b""
-            for b in file_bytes:
-                packed += struct.pack("!I", b)
-            file_bytes = packed
-            mode_str = "text"
-        else:
-            # Binary mode: pack 4 bytes per word, pad to multiple of 4
-            pad_len = (4 - (file_size_bytes % 4)) % 4
-            file_bytes += b"\x00" * pad_len
-            word_count = len(file_bytes) // 4
-            mode_str = "binary"
+        # Pack 4 bytes per word, pad to multiple of 4
+        pad_len = (4 - (file_size_bytes % 4)) % 4
+        file_bytes += b"\x00" * pad_len
+        word_count = len(file_bytes) // 4
 
         print(
-            f"Uploading {local_path} ({file_size_bytes} bytes, {word_count} words, "
-            f"{mode_str} mode) -> {fpgc_path}"
+            f"Uploading {local_path} ({file_size_bytes} bytes, {word_count} words) "
+            f"-> {fpgc_path}"
         )
 
         # Compute checksum over packed words
@@ -430,31 +416,13 @@ class FNPConnection:
         time.sleep(delay)
         return True
 
-    # File extensions considered text. Everything else is treated as binary.
-    TEXT_EXTENSIONS = {".c", ".h", ".asm", ".txt", ".md", ".log"}
-
-    @staticmethod
-    def _is_text_file(path: pathlib.Path) -> bool:
-        """Determine if a file should be uploaded in text mode.
-
-        Only files with known text extensions are treated as text.
-        Everything else (including files without an extension) is binary.
-        """
-        ext = path.suffix.lower()
-        return ext in FNPConnection.TEXT_EXTENSIONS
-
-    def sync_files(
-        self, local_dir: str, delay: float = 0.5
-    ) -> bool:
+    def sync_files(self, local_dir: str, delay: float = 0.5) -> bool:
         """
         Sync a local directory tree to the FPGC root filesystem.
 
         1. Sends 'cd /' via keycodes to go to root.
         2. Creates all directories via 'mkdir' shell commands.
-        3. Uploads all files via FNP file transfer.
-
-        Text files (detected by extension) are uploaded one-char-per-word.
-        Binary files (e.g. compiled programs in /bin) are uploaded packed.
+        3. Uploads all files via FNP file transfer (4 bytes packed per word).
         """
         base = pathlib.Path(local_dir)
         if not base.is_dir():
@@ -463,7 +431,7 @@ class FNPConnection:
 
         # Collect directories and files (sorted for deterministic order)
         dirs: list[str] = []
-        files: list[tuple[pathlib.Path, str, bool]] = []  # (local, fpgc, text?)
+        files: list[tuple[pathlib.Path, str]] = []  # (local, fpgc)
 
         for item in sorted(base.rglob("*")):
             rel = item.relative_to(base)
@@ -471,8 +439,7 @@ class FNPConnection:
             if item.is_dir():
                 dirs.append(fpgc_path)
             elif item.is_file():
-                text = self._is_text_file(item)
-                files.append((item, fpgc_path, text))
+                files.append((item, fpgc_path))
 
         print(f"Syncing {local_dir} -> FPGC root")
         print(f"  {len(dirs)} directories, {len(files)} files")
@@ -490,8 +457,7 @@ class FNPConnection:
             print(f"[2/3] Creating {len(dirs)} directories...")
             for d in dirs:
                 if not self.send_shell_command(f"mkdir {d}", delay=delay):
-                    print(f"  Warning: mkdir {d} may have failed",
-                          file=sys.stderr)
+                    print(f"  Warning: mkdir {d} may have failed", file=sys.stderr)
                     # Continue anyway — directory might already exist
         else:
             print("[2/3] No directories to create.")
@@ -499,14 +465,10 @@ class FNPConnection:
         # Step 3: Upload files
         if files:
             print(f"[3/3] Uploading {len(files)} files...")
-            for i, (local_path, fpgc_path, text_mode) in enumerate(files, 1):
-                mode_str = "text" if text_mode else "binary"
-                print(f"\n--- File {i}/{len(files)}: "
-                      f"{fpgc_path} ({mode_str}) ---")
-                if not self.upload_file(str(local_path), fpgc_path,
-                                        text_mode=text_mode):
-                    print(f"  Failed to upload {fpgc_path}",
-                          file=sys.stderr)
+            for i, (local_path, fpgc_path) in enumerate(files, 1):
+                print(f"\n--- File {i}/{len(files)}: {fpgc_path} ---")
+                if not self.upload_file(str(local_path), fpgc_path):
+                    print(f"  Failed to upload {fpgc_path}", file=sys.stderr)
                     return False
         else:
             print("[3/3] No files to upload.")
@@ -565,9 +527,7 @@ class FNPConnection:
                         continue
 
                     # Check if buffer could still become a match
-                    prefix_match = any(
-                        seq.startswith(buf) for seq in ESCAPE_SEQ_MAP
-                    )
+                    prefix_match = any(seq.startswith(buf) for seq in ESCAPE_SEQ_MAP)
                     if prefix_match:
                         continue  # Wait for more bytes
 
@@ -607,7 +567,7 @@ class FNPConnection:
 def print_usage():
     print(__doc__)
     print("Commands:")
-    print("  upload [-t] <local_file> <fpgc_path>   Upload a file")
+    print("  upload <local_file> <fpgc_path>         Upload a file")
     print("  sync-files [--delay S] <local_dir>      Sync directory tree to FPGC root")
     print("  key <text>                              Send text as keycodes")
     print("  keycode <hex_code>                      Send a single HID keycode")
@@ -617,13 +577,11 @@ def print_usage():
     print()
     print("Options:")
     print("  --mac XX:XX:XX:XX:XX:XX   FPGC MAC address (default: 02:B4:B4:00:00:01)")
-    print("  -t, --text                Upload as text (one char per word)")
     print()
     print("If <interface> is omitted, auto-detects a USB Ethernet adapter.")
     print()
     print("Examples:")
     print("  python fnp_tool.py upload firmware.bin /user/firmware.bin")
-    print("  python fnp_tool.py upload -t readme.txt /user/readme.txt")
     print("  python fnp_tool.py keyboard")
     print("  python fnp_tool.py eth0 key 'hello world'")
     print("  python fnp_tool.py eth0 keycode 0x0041")
@@ -638,8 +596,15 @@ def parse_mac(mac_str: str) -> bytes:
 
 
 # Known FNP commands (used for auto-detect logic)
-FNP_COMMANDS = {"upload", "sync-files", "key", "keycode", "keyboard", "abort",
-                "detect-iface"}
+FNP_COMMANDS = {
+    "upload",
+    "sync-files",
+    "key",
+    "keycode",
+    "keyboard",
+    "abort",
+    "detect-iface",
+}
 
 
 def main():
@@ -688,29 +653,19 @@ def main():
 
     try:
         if cmd == "upload":
-            # Parse -t/--text flag
-            upload_args = list(cmd_args)
-            text_mode = False
-            if "-t" in upload_args:
-                text_mode = True
-                upload_args.remove("-t")
-            if "--text" in upload_args:
-                text_mode = True
-                upload_args.remove("--text")
-
-            if len(upload_args) < 2:
+            if len(cmd_args) < 2:
                 print(
-                    "Usage: fnp_tool.py [<iface>] upload [-t] <local_file> <fpgc_path>"
+                    "Usage: fnp_tool.py [<iface>] upload <local_file> <fpgc_path>"
                 )
                 sys.exit(1)
-            local_file = upload_args[0]
-            fpgc_path = upload_args[1]
+            local_file = cmd_args[0]
+            fpgc_path = cmd_args[1]
 
             if not os.path.isfile(local_file):
                 print(f"Error: file not found: {local_file}", file=sys.stderr)
                 sys.exit(1)
 
-            success = conn.upload_file(local_file, fpgc_path, text_mode=text_mode)
+            success = conn.upload_file(local_file, fpgc_path)
             sys.exit(0 if success else 1)
 
         elif cmd == "sync-files":
@@ -719,21 +674,16 @@ def main():
             if "--delay" in sync_args:
                 idx = sync_args.index("--delay")
                 if idx + 1 >= len(sync_args):
-                    print("Error: --delay requires a value",
-                          file=sys.stderr)
+                    print("Error: --delay requires a value", file=sys.stderr)
                     sys.exit(1)
                 delay = float(sync_args[idx + 1])
-                sync_args = sync_args[:idx] + sync_args[idx + 2:]
+                sync_args = sync_args[:idx] + sync_args[idx + 2 :]
             if len(sync_args) < 1:
-                print(
-                    "Usage: fnp_tool.py [<iface>] sync-files "
-                    "[--delay S] <local_dir>"
-                )
+                print("Usage: fnp_tool.py [<iface>] sync-files [--delay S] <local_dir>")
                 sys.exit(1)
             local_dir = sync_args[0]
             if not os.path.isdir(local_dir):
-                print(f"Error: not a directory: {local_dir}",
-                      file=sys.stderr)
+                print(f"Error: not a directory: {local_dir}", file=sys.stderr)
                 sys.exit(1)
             success = conn.sync_files(local_dir, delay=delay)
             sys.exit(0 if success else 1)

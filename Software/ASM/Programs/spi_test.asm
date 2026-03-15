@@ -1,7 +1,7 @@
 ; Simple program to test some SPI functionality
 Main:
 
-    load32 0x7000000 r1 ; MU base address
+    load32 0x1C000000 r1 ; MU base address
     load 0x9F r2 ; Read ID command
     load 1 r3 ; Value one
     

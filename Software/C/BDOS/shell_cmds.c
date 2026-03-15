@@ -514,14 +514,22 @@ int bdos_shell_cmd_cat(int argc, char** argv)
 
     for (i = 0; i < words_read; i++)
     {
-      c = (char)(chunk[i] & 0xFF);
-      if (c == '\n' || c == '\r' || c == '\t' || (c >= 32 && c <= 126))
+      int b;
+      for (b = 3; b >= 0; b--)
       {
-        term_putchar(c);
-      }
-      else
-      {
-        term_putchar('.');
+        c = (char)((chunk[i] >> (b * 8)) & 0xFF);
+        if (c == '\0')
+        {
+          break;
+        }
+        if (c == '\n' || c == '\r' || c == '\t' || (c >= 32 && c <= 126))
+        {
+          term_putchar(c);
+        }
+        else
+        {
+          term_putchar('.');
+        }
       }
     }
 
@@ -598,44 +606,83 @@ int bdos_shell_cmd_write(int argc, char** argv)
   }
 
   write_index = 0;
-  for (i = 2; i < argc; i++)
   {
-    if (i > 2)
+    int byte_count;
+    unsigned int current_word;
+    int byte_pos;
+
+    byte_count = 0;
+    current_word = 0;
+    byte_pos = 0;
+
+    for (i = 2; i < argc; i++)
     {
+      if (i > 2)
+      {
+        current_word = (current_word << 8) | (unsigned int)' ';
+        byte_pos++;
+        byte_count++;
+        if (byte_pos == 4)
+        {
+          if (write_index >= BDOS_SHELL_INPUT_MAX)
+          {
+            term_puts("error: text too long\n");
+            brfs_close(fd);
+            return 0;
+          }
+          words[write_index++] = current_word;
+          current_word = 0;
+          byte_pos = 0;
+        }
+      }
+
+      for (j = 0; argv[i][j] != '\0'; j++)
+      {
+        current_word = (current_word << 8) | (unsigned int)(unsigned char)argv[i][j];
+        byte_pos++;
+        byte_count++;
+        if (byte_pos == 4)
+        {
+          if (write_index >= BDOS_SHELL_INPUT_MAX)
+          {
+            term_puts("error: text too long\n");
+            brfs_close(fd);
+            return 0;
+          }
+          words[write_index++] = current_word;
+          current_word = 0;
+          byte_pos = 0;
+        }
+      }
+    }
+
+    // Flush remaining bytes (pad with zeros in the low positions)
+    if (byte_pos > 0)
+    {
+      current_word = current_word << (8 * (4 - byte_pos));
       if (write_index >= BDOS_SHELL_INPUT_MAX)
       {
         term_puts("error: text too long\n");
         brfs_close(fd);
         return 0;
       }
-      words[write_index++] = (unsigned int)' ';
+      words[write_index++] = current_word;
     }
 
-    for (j = 0; argv[i][j] != '\0'; j++)
+    result = brfs_write(fd, words, (unsigned int)write_index);
+    if (result < 0)
     {
-      if (write_index >= BDOS_SHELL_INPUT_MAX)
-      {
-        term_puts("error: text too long\n");
-        brfs_close(fd);
-        return 0;
-      }
-      words[write_index++] = (unsigned int)(unsigned char)argv[i][j];
+      bdos_shell_print_fs_error("write", result);
+      brfs_close(fd);
+      return 0;
     }
-  }
 
-  result = brfs_write(fd, words, (unsigned int)write_index);
-  if (result < 0)
-  {
-    bdos_shell_print_fs_error("write", result);
     brfs_close(fd);
-    return 0;
+
+    term_puts("wrote ");
+    term_putint(byte_count);
+    term_puts(" bytes\n");
   }
-
-  brfs_close(fd);
-
-  term_puts("wrote ");
-  term_putint(write_index);
-  term_puts(" words\n");
   return 0;
 }
 
@@ -1000,11 +1047,11 @@ int bdos_shell_cmd_df(int argc, char** argv)
   bdos_shell_print_hline((unsigned int)line_len);
 
   bdos_shell_print_field_prefix("Total:", value_col);
-  bdos_shell_print_kiw(total_words);
+  bdos_shell_print_kib(total_words);
   term_putchar('\n');
 
   bdos_shell_print_field_prefix("Used:", value_col);
-  bdos_shell_print_kiw(used_words);
+  bdos_shell_print_kib(used_words);
   term_puts(" (");
   term_putint((int)usage_percent);
   term_puts("%)\n");
@@ -1018,8 +1065,8 @@ int bdos_shell_cmd_df(int argc, char** argv)
   term_puts(" used\n");
 
   bdos_shell_print_field_prefix("Block size:", value_col);
-  term_putint((int)words_per_block);
-  term_puts(" W\n");
+  term_putint((int)(words_per_block * 4));
+  term_puts(" B\n");
 
   return 0;
 }

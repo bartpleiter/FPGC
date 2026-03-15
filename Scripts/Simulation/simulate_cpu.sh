@@ -42,7 +42,7 @@ source .venv/bin/activate
 
 # Compile ROM code
 echo "Compiling ROM code"
-if asmpy Software/ASM/Simulation/sim_rom.asm Hardware/FPGA/Verilog/Simulation/MemoryLists/rom.list -o 0x7800000
+if asmpy Software/ASM/Simulation/sim_rom.asm Hardware/FPGA/Verilog/Simulation/MemoryLists/rom.list -o 0x1E000000
 then
     echo "ROM code compiled successfully"
 else
@@ -93,7 +93,7 @@ if [ "$COMPILE_UART" = true ]; then
         # Convert to 8 bit lines for UART data
         bash Scripts/Simulation/convert_to_8_bit.sh Hardware/FPGA/Verilog/Simulation/MemoryLists/uartprog.list Hardware/FPGA/Verilog/Simulation/MemoryLists/uartprog_8bit.list
         
-        # Copy word 8-11 to the beginning of the file to start with the file size for the bootloader
+        # Copy bytes 8-11 (the file size word) to the beginning of the file for the bootloader
         temp_file=$(mktemp)
         sed -n '9,12p' Hardware/FPGA/Verilog/Simulation/MemoryLists/uartprog_8bit.list > "$temp_file"
         cat Hardware/FPGA/Verilog/Simulation/MemoryLists/uartprog_8bit.list >> "$temp_file"

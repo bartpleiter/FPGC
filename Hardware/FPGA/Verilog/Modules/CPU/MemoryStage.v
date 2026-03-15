@@ -15,8 +15,8 @@
  * Write addresses are set in MEM stage to match write-enable timing.
  */
 module MemoryStage #(
-    parameter CPU_IO_PC_BACKUP    = 32'h7C00000,
-    parameter CPU_IO_HW_STACK_PTR = 32'h7C00001
+    parameter CPU_IO_PC_BACKUP    = 32'h1F000000,
+    parameter CPU_IO_HW_STACK_PTR = 32'h1F000004
 ) (
     input  wire         clk,
     input  wire         reset,
@@ -40,6 +40,10 @@ module MemoryStage #(
     input  wire [31:0]  ex_mem_breg_data,
     input  wire [31:0]  ex_mem_pc,
     input  wire         ex_mem_clear_cache,
+
+    // ---- Memory size control for byte-addressable operations ----
+    input  wire [1:0]   ex_mem_mem_size,        // 00=word, 01=byte, 10=halfword
+    input  wire         ex_mem_mem_sign_extend,  // 1=sign-extend, 0=zero-extend
 
     // ---- CPU-internal I/O read sources ----
     input  wire [31:0]  pc_backup,
@@ -84,6 +88,7 @@ module MemoryStage #(
     output wire [31:0]  l1d_cache_controller_data,
     output wire         l1d_cache_controller_we,
     output wire         l1d_cache_controller_start,
+    output wire [3:0]   l1d_cache_controller_byte_enable,
 
     // ---- Memory Unit (I/O) ----
     input  wire         mu_done,
@@ -143,27 +148,28 @@ assign ex_mem_addr_calc = ex_addr_captured ? ex_mem_addr_calc_reg : ex_mem_addr_
 
 // ---- EX-STAGE ADDRESS DECODE ----
 // BRAM addresses must be set in EX stage because BRAM has 1-cycle read latency.
-wire ex_sel_rom    = ex_mem_addr_calc >= 32'h7800000 && ex_mem_addr_calc < 32'h7900000;
-wire ex_sel_vram32 = ex_mem_addr_calc >= 32'h7900000 && ex_mem_addr_calc < 32'h7A00000;
-wire ex_sel_vram8  = ex_mem_addr_calc >= 32'h7A00000 && ex_mem_addr_calc < 32'h7B00000;
-wire ex_sel_vrampx_pixel  = ex_mem_addr_calc >= 32'h7B00000 && ex_mem_addr_calc < 32'h7B20000;
-wire ex_sel_palette       = ex_mem_addr_calc >= 32'h7B20000 && ex_mem_addr_calc < 32'h7B20100;
+wire ex_sel_rom    = ex_mem_addr_calc >= 32'h1E000000 && ex_mem_addr_calc < 32'h1E400000;
+wire ex_sel_vram32 = ex_mem_addr_calc >= 32'h1E400000 && ex_mem_addr_calc < 32'h1E800000;
+wire ex_sel_vram8  = ex_mem_addr_calc >= 32'h1E800000 && ex_mem_addr_calc < 32'h1EC00000;
+wire ex_sel_vrampx_pixel  = ex_mem_addr_calc >= 32'h1EC00000 && ex_mem_addr_calc < 32'h1EC80000;
+wire ex_sel_palette       = ex_mem_addr_calc >= 32'h1EC80000 && ex_mem_addr_calc < 32'h1EC80400;
 wire ex_sel_vrampx        = ex_sel_vrampx_pixel || ex_sel_palette;
 
 // EX-stage local address calculations for BRAM (ROM and VRAM)
-wire [31:0] ex_local_addr_rom    = ex_mem_addr_calc - 32'h7800000;
-wire [31:0] ex_local_addr_vram32 = ex_mem_addr_calc - 32'h7900000;
-wire [31:0] ex_local_addr_vram8  = ex_mem_addr_calc - 32'h7A00000;
-wire [31:0] ex_local_addr_vrampx = ex_mem_addr_calc - 32'h7B00000;
+// Byte address → word address for word-addressed BRAM ports
+wire [31:0] ex_local_addr_rom    = (ex_mem_addr_calc - 32'h1E000000) >> 2;
+wire [31:0] ex_local_addr_vram32 = (ex_mem_addr_calc - 32'h1E400000) >> 2;
+wire [31:0] ex_local_addr_vram8  = (ex_mem_addr_calc - 32'h1E800000) >> 2;
+wire [31:0] ex_local_addr_vrampx = (ex_mem_addr_calc - 32'h1EC00000) >> 2;
 
 // ---- MEM-STAGE ADDRESS DECODE ----
-assign mem_sel_sdram = ex_mem_mem_addr >= 32'h0000000 && ex_mem_mem_addr < 32'h7000000;
-wire   mem_sel_io     = ex_mem_mem_addr >= 32'h7000000 && ex_mem_mem_addr < 32'h7800000;
-wire   mem_sel_rom    = ex_mem_mem_addr >= 32'h7800000 && ex_mem_mem_addr < 32'h7900000;
-wire   mem_sel_vram32 = ex_mem_mem_addr >= 32'h7900000 && ex_mem_mem_addr < 32'h7A00000;
-wire   mem_sel_vram8  = ex_mem_mem_addr >= 32'h7A00000 && ex_mem_mem_addr < 32'h7B00000;
-wire   mem_sel_vrampx_pixel = ex_mem_mem_addr >= 32'h7B00000 && ex_mem_mem_addr < 32'h7B20000;
-wire   mem_sel_palette      = ex_mem_mem_addr >= 32'h7B20000 && ex_mem_mem_addr < 32'h7B20100;
+assign mem_sel_sdram = ex_mem_mem_addr >= 32'h00000000 && ex_mem_mem_addr < 32'h1C000000;
+wire   mem_sel_io     = ex_mem_mem_addr >= 32'h1C000000 && ex_mem_mem_addr < 32'h1E000000;
+wire   mem_sel_rom    = ex_mem_mem_addr >= 32'h1E000000 && ex_mem_mem_addr < 32'h1E400000;
+wire   mem_sel_vram32 = ex_mem_mem_addr >= 32'h1E400000 && ex_mem_mem_addr < 32'h1E800000;
+wire   mem_sel_vram8  = ex_mem_mem_addr >= 32'h1E800000 && ex_mem_mem_addr < 32'h1EC00000;
+wire   mem_sel_vrampx_pixel = ex_mem_mem_addr >= 32'h1EC00000 && ex_mem_mem_addr < 32'h1EC80000;
+wire   mem_sel_palette      = ex_mem_mem_addr >= 32'h1EC80000 && ex_mem_mem_addr < 32'h1EC80400;
 wire   mem_sel_vrampx       = mem_sel_vrampx_pixel || mem_sel_palette;
 
 // ---- CPU-INTERNAL I/O ----
@@ -173,10 +179,11 @@ wire [31:0] cpu_io_read_data = (ex_mem_mem_addr == CPU_IO_PC_BACKUP) ? pc_backup
                                {24'd0, stack_ptr_out};
 
 // ---- LOCAL ADDRESS (MEM stage) ----
-wire [31:0] mem_local_addr = mem_sel_rom    ? ex_mem_mem_addr - 32'h7800000 :
-                             mem_sel_vram32 ? ex_mem_mem_addr - 32'h7900000 :
-                             mem_sel_vram8  ? ex_mem_mem_addr - 32'h7A00000 :
-                             mem_sel_vrampx ? ex_mem_mem_addr - 32'h7B00000 :
+// For word-addressed BRAM ports, convert byte address to word address
+wire [31:0] mem_local_addr = mem_sel_rom    ? (ex_mem_mem_addr - 32'h1E000000) >> 2 :
+                             mem_sel_vram32 ? (ex_mem_mem_addr - 32'h1E400000) >> 2 :
+                             mem_sel_vram8  ? (ex_mem_mem_addr - 32'h1E800000) >> 2 :
+                             mem_sel_vrampx ? (ex_mem_mem_addr - 32'h1EC00000) >> 2 :
                              ex_mem_mem_addr;
 
 // ---- ROM DATA PORT ----
@@ -213,11 +220,12 @@ assign palette_wdata = ex_mem_breg_data[23:0];
 assign vrampx_stall = ex_mem_valid && ex_mem_mem_write && mem_sel_vrampx_pixel && vramPX_fifo_full;
 
 // ---- L1D CACHE INTERFACE ----
-assign l1d_pipe_addr = ex_mem_mem_addr[9:3];
+// Byte-addressable: bits [11:5] = cache index (7 bits), bits [25:12] = tag (14 bits), bits [4:2] = word offset
+assign l1d_pipe_addr = ex_mem_mem_addr[11:5];
 
 // L1D cache hit detection
-wire [13:0] l1d_tag = ex_mem_mem_addr[23:10];
-wire [2:0]  l1d_offset = ex_mem_mem_addr[2:0];
+wire [13:0] l1d_tag = ex_mem_mem_addr[25:12];
+wire [2:0]  l1d_offset = ex_mem_mem_addr[4:2];
 wire l1d_cache_valid = l1d_pipe_q[0];
 wire [13:0] l1d_cache_tag = l1d_pipe_q[14:1];
 wire l1d_hit = mem_sel_sdram && l1d_cache_valid && (l1d_tag == l1d_cache_tag);
@@ -233,8 +241,14 @@ reg [31:0] l1d_prev_pc = 32'hFFFFFFFF;
 wire l1d_is_sdram_op = ex_mem_valid && (ex_mem_mem_read || ex_mem_mem_write) && mem_sel_sdram;
 wire l1d_new_instr = (ex_mem_pc != l1d_prev_pc);
 
-// Need to wait for cache read on first cycle of new SDRAM operation
-wire l1d_need_cache_wait = l1d_is_sdram_op && !l1d_cache_read_done;
+// Need to wait for cache read on first cycle of new SDRAM operation.
+// Include l1d_new_instr to handle back-to-back SDRAM operations: when the
+// previous op completes and a new one enters MEM on the same cycle,
+// l1d_cache_read_done is still 1 from the previous op (non-blocking reset
+// hasn't taken effect yet), so without this check the DPRAM read latency
+// wait would be incorrectly skipped, returning stale data from the wrong
+// cache line.
+wire l1d_need_cache_wait = l1d_is_sdram_op && (!l1d_cache_read_done || l1d_new_instr);
 
 always @(posedge clk)
 begin
@@ -326,11 +340,25 @@ begin
     end
 end
 
+// ---- SUB-WORD WRITE: BYTE-ENABLE AND DATA SHIFTING ----
+// Generate byte_enable mask from mem_size and byte_offset (for writes)
+wire [1:0] write_byte_offset = ex_mem_mem_addr[1:0];
+wire [3:0] byte_enable = (ex_mem_mem_size == 2'b00) ? 4'b1111 :                           // write word
+                          (ex_mem_mem_size == 2'b01) ? (4'b0001 << write_byte_offset) :    // writeb
+                          (ex_mem_mem_size == 2'b10) ? (write_byte_offset[1] ? 4'b1100 : 4'b0011) : // writeh
+                          4'b1111;
+
+// Replicate sub-word data to all byte lanes (byte_enable selects which actually written)
+wire [31:0] write_data_shifted = (ex_mem_mem_size == 2'b01) ? {4{ex_mem_breg_data[7:0]}} :   // Replicate byte
+                                 (ex_mem_mem_size == 2'b10) ? {2{ex_mem_breg_data[15:0]}} :  // Replicate halfword
+                                 ex_mem_breg_data;                                            // Full word
+
 // L1D cache controller port assignments
 assign l1d_cache_controller_addr  = ex_mem_mem_addr;
-assign l1d_cache_controller_data  = ex_mem_breg_data;
+assign l1d_cache_controller_data  = write_data_shifted;
 assign l1d_cache_controller_we    = ex_mem_mem_write && mem_sel_sdram;
 assign l1d_cache_controller_start = l1d_start_reg;
+assign l1d_cache_controller_byte_enable = byte_enable;
 
 // ---- MEMORY UNIT (I/O) STATE MACHINE ----
 // Ensures we only start the MU once per operation and wait for completion
@@ -405,13 +433,32 @@ assign cc_stall = ex_mem_valid && ex_mem_clear_cache && !clear_cache_finished;
 // ---- MEMORY READ DATA MUX ----
 // For SDRAM: use l1d_result_reg if we had a cache miss (request_finished),
 // otherwise use direct cache data for hits.
-assign mem_read_data = mem_sel_cpu_io ? cpu_io_read_data :
-                       mem_sel_rom    ? rom_mem_q :
-                       mem_sel_vram32 ? vram32_q :
-                       mem_sel_vram8  ? {24'd0, vram8_q} :
-                       mem_sel_vrampx ? {24'd0, vramPX_q} :
-                       mem_sel_io     ? mu_q :
-                       mem_sel_sdram  ? (l1d_request_finished ? l1d_result_reg : l1d_cache_data) :
-                       32'hDEADBEEF;
+wire [31:0] raw_read_data = mem_sel_cpu_io ? cpu_io_read_data :
+                            mem_sel_rom    ? rom_mem_q :
+                            mem_sel_vram32 ? vram32_q :
+                            mem_sel_vram8  ? {24'd0, vram8_q} :
+                            mem_sel_vrampx ? {24'd0, vramPX_q} :
+                            mem_sel_io     ? mu_q :
+                            mem_sel_sdram  ? (l1d_request_finished ? l1d_result_reg : l1d_cache_data) :
+                            32'hDEADBEEF;
+
+// ---- SUB-WORD READ EXTRACTION ----
+// Extract byte or halfword from the raw 32-bit word based on byte offset
+wire [1:0] byte_offset = ex_mem_mem_addr[1:0];
+
+wire [7:0] selected_byte = (byte_offset == 2'd0) ? raw_read_data[7:0] :
+                            (byte_offset == 2'd1) ? raw_read_data[15:8] :
+                            (byte_offset == 2'd2) ? raw_read_data[23:16] :
+                                                    raw_read_data[31:24];
+
+wire [15:0] selected_half = byte_offset[1] ? raw_read_data[31:16] : raw_read_data[15:0];
+
+// Final read data with sign/zero extension based on mem_size
+assign mem_read_data = (ex_mem_mem_size == 2'b00) ? raw_read_data :
+                       (ex_mem_mem_size == 2'b01 &&  ex_mem_mem_sign_extend) ? {{24{selected_byte[7]}}, selected_byte} :
+                       (ex_mem_mem_size == 2'b01 && !ex_mem_mem_sign_extend) ? {24'd0, selected_byte} :
+                       (ex_mem_mem_size == 2'b10 &&  ex_mem_mem_sign_extend) ? {{16{selected_half[15]}}, selected_half} :
+                       (ex_mem_mem_size == 2'b10 && !ex_mem_mem_sign_extend) ? {16'd0, selected_half} :
+                       raw_read_data;
 
 endmodule

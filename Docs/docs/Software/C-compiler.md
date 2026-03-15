@@ -9,7 +9,6 @@ B32CC supports most of the C language common between C89 and C99. Its features c
 - Single-pass compilation
 - B32P3 assembly output
 - Inline assembly support
-- Optimized for FPGC's word-addressable architecture
 - Self-hosting capable
 
 ## Limitations
@@ -47,15 +46,9 @@ void interrupt() {
 
 ## Architecture & Memory Model
 
-### Word-Addressable Memory
+### Byte-Addressable Memory
 
-The B32P3 architecture uses **word-addressable memory**, where each address refers to a 32-bit word, not a byte. This has important implications:
-
-- All data types occupy full 32-bit words in memory
-- `char` is stored as a 32-bit word and therefore could contain the same value as an `int` (assuming I correctly removed truncation from B32CC). This means that using for example `short` makes no sense and can better be written as `int` to avoid confusion.
-- `int` and pointers are native 32-bit words
-- Pointer arithmetic is in terms of words, not bytes
-- Arrays and structs are word-aligned
+The B32P3 architecture used to be **word-addressable memory**, where each address refers to a 32-bit word. This has now been changed to the common **byte-addressable memory** model, and the updates to B32CC have been updated again to support the original byte-addressable memory that it was adapted from.
 
 ### Register Usage & Calling Convention
 
@@ -222,7 +215,7 @@ B32CC can compile itself to run natively on the FPGC under BDOS. When compiled w
 - **`-user-bdos` mode**: Defaults to on when running on the FPGC, since the native compiler only targets userBDOS programs.
 - **Command-line arguments**: Retrieved via `sys_shell_argc()` / `sys_shell_argv()` syscalls instead of traditional `main(argc, argv)`.
 
-Surprisingly, the C compiler was able to run on the word-addressable, no-linker, no-MMU architecture of the FPGC with only minor adjustments.
+Surprisingly, the C compiler was able to run on the no-linker, no-MMU architecture of the FPGC with only minor adjustments.
 
 The output can be further assembled using the `asm` user program and then executed directly all on the FPGC.
 

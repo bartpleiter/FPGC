@@ -33,6 +33,6 @@ if [ -n "$FNP_TARGET_MAC" ]; then
     MAC_FLAG="--mac $FNP_TARGET_MAC"
 fi
 
-python3 "$FNP_TOOL" $MAC_FLAG upload -t "$LOCAL_FILE" "$FPGC_PATH"
+python3 "$FNP_TOOL" $MAC_FLAG upload "$LOCAL_FILE" "$FPGC_PATH"
 
 deactivate

@@ -6,11 +6,11 @@
 
 // ---- Memory Functions ----
 
-// Copy n words from src to dest.
+// Copy n bytes from src to dest.
 void *memcpy(void *dest, const void *src, size_t n)
 {
-  unsigned int *d = (unsigned int *)dest;
-  const unsigned int *s = (const unsigned int *)src;
+  unsigned char *d = (unsigned char *)dest;
+  const unsigned char *s = (const unsigned char *)src;
   size_t i;
 
   for (i = 0; i < n; i++)
@@ -21,10 +21,10 @@ void *memcpy(void *dest, const void *src, size_t n)
   return dest;
 }
 
-// Fill n words at s with value c.
+// Fill n bytes at s with value c.
 void *memset(void *s, int c, size_t n)
 {
-  unsigned int *p = (unsigned int *)s;
+  unsigned char *p = (unsigned char *)s;
   size_t i;
 
   for (i = 0; i < n; i++)
@@ -35,11 +35,11 @@ void *memset(void *s, int c, size_t n)
   return s;
 }
 
-// Copy n words from src to dest, handling overlap.
+// Copy n bytes from src to dest, handling overlap.
 void *memmove(void *dest, const void *src, size_t n)
 {
-  unsigned int *d = (unsigned int *)dest;
-  const unsigned int *s = (const unsigned int *)src;
+  unsigned char *d = (unsigned char *)dest;
+  const unsigned char *s = (const unsigned char *)src;
   size_t i;
 
   if (d < s)
@@ -59,11 +59,11 @@ void *memmove(void *dest, const void *src, size_t n)
   return dest;
 }
 
-// Compare n words from s1 and s2.
+// Compare n bytes from s1 and s2.
 int memcmp(const void *s1, const void *s2, size_t n)
 {
-  const unsigned int *p1 = (const unsigned int *)s1;
-  const unsigned int *p2 = (const unsigned int *)s2;
+  const unsigned char *p1 = (const unsigned char *)s1;
+  const unsigned char *p2 = (const unsigned char *)s2;
   size_t i;
 
   for (i = 0; i < n; i++)

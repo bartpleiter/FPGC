@@ -223,31 +223,32 @@ void draw_vertical_line(int x, int y_start, int y_end, int color)
   "push r2"
   "push r9"
 
-  "load32 0x7B00000 r9  ; r9 = framebuffer addr"
+  "load32 0x1EC00000 r9  ; r9 = framebuffer addr"
+  "shiftl r4 2 r4        ; r4 = x * 4 (byte offset)"
   "add r9 r4 r4         ; r4 = first pixel in line"
 
-  "multu r5 320 r9      ; r9 = start with line offset"
+  "multu r5 1280 r9      ; r9 = start with line offset"
   "add r9 r4 r5         ; r5 = fb addr of start"
   
-  "multu r6 320 r9      ; r9 = end with line offset"
+  "multu r6 1280 r9      ; r9 = end with line offset"
   "add r9 r4 r6         ; r6 = fb addr of start"
 
   "load 239 r2          ; r2 = y endloop"
-  "multu r2 320 r9      ; r9 = start line offset"
+  "multu r2 1280 r9      ; r9 = start line offset"
   "add r9 r4 r2         ; r2 = fb addr of final pixel"
 
   "; draw until start"
   "load 0b00011011 r1 ; ceiling color"
   "RAYFX_drawVlineLoopCeiling:"
   "  write 0 r4 r1     ; write ceiling pixel"
-  "  add r4 320 r4     ; go to next line pixel"
+  "  add r4 1280 r4     ; go to next line pixel"
 
   "  blt r4 r5 RAYFX_drawVlineLoopCeiling ; keep looping until reached start"
 
   "; draw until end"
   "RAYFX_drawVlineLoopWall:"
   "  write 0 r4 r7     ; write color pixel"
-  "  add r4 320 r4     ; go to next line pixel"
+  "  add r4 1280 r4     ; go to next line pixel"
 
   "  blt r4 r6 RAYFX_drawVlineLoopWall ; keep looping until reached end"
 
@@ -256,7 +257,7 @@ void draw_vertical_line(int x, int y_start, int y_end, int color)
   "load 0b11011010 r1 ; floor color"
   "RAYFX_drawVlineLoopFloor:"
   "  write 0 r4 r1     ; write floor pixel"
-  "  add r4 320 r4     ; go to next line pixel"
+  "  add r4 1280 r4     ; go to next line pixel"
 
   "  blt r4 r2 RAYFX_drawVlineLoopFloor ; keep looping until reached end of screen"
 

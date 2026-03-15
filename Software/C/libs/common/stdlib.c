@@ -37,14 +37,14 @@ int atoi(const char *nptr)
 }
 
 // Convert unsigned integer to string in the selected base.
-int *utoa(unsigned int value, int *buf, int base, int uppercase)
+char *utoa(unsigned int value, char *buf, int base, int uppercase)
 {
   static const char digits_lower[] = "0123456789abcdef";
   static const char digits_upper[] = "0123456789ABCDEF";
   const char *digits = uppercase ? digits_upper : digits_lower;
-  int *p = buf;
-  int *first = buf;
-  int tmp;
+  char *p = buf;
+  char *first = buf;
+  char tmp;
 
   do
   {
@@ -66,9 +66,9 @@ int *utoa(unsigned int value, int *buf, int base, int uppercase)
 }
 
 // Convert signed integer to string in the selected base.
-int *itoa(int value, int *buf, int base)
+char *itoa(int value, char *buf, int base)
 {
-  int *p = buf;
+  char *p = buf;
 
   if (value < 0 && base == 10)
   {

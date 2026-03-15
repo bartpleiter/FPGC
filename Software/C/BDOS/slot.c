@@ -84,7 +84,7 @@ unsigned int bdos_slot_entry_addr(int slot)
 
 unsigned int bdos_slot_stack_addr(int slot)
 {
-  return bdos_slot_entry_addr(slot) + MEM_SLOT_SIZE - 1;
+  return bdos_slot_entry_addr(slot) + MEM_SLOT_SIZE - 4;
 }
 
 // ---- Program execution globals ----
@@ -121,23 +121,23 @@ void bdos_save_and_switch()
   // to get the user's REAL register values before saving.
   asm(
     "read 0 r14 r14"
-    "add r13 7 r13"
+    "add r13 28 r13"
     "push r1"
     "addr2reg Label_bdos_suspend_temp_regs r1"
-    "write 1 r1 r2"
-    "write 2 r1 r3"
-    "write 3 r1 r4"
-    "write 4 r1 r5"
-    "write 5 r1 r6"
-    "write 6 r1 r7"
-    "write 7 r1 r8"
-    "write 8 r1 r9"
-    "write 9 r1 r10"
-    "write 10 r1 r11"
-    "write 11 r1 r12"
-    "write 12 r1 r13"
-    "write 13 r1 r14"
-    "write 14 r1 r15"
+    "write 4 r1 r2"
+    "write 8 r1 r3"
+    "write 12 r1 r4"
+    "write 16 r1 r5"
+    "write 20 r1 r6"
+    "write 24 r1 r7"
+    "write 28 r1 r8"
+    "write 32 r1 r9"
+    "write 36 r1 r10"
+    "write 40 r1 r11"
+    "write 44 r1 r12"
+    "write 48 r1 r13"
+    "write 52 r1 r14"
+    "write 56 r1 r15"
     "pop r2"
     "write 0 r1 r2"
     "addr2reg Label_bdos_loop_saved_sp r1"
@@ -153,7 +153,7 @@ void bdos_save_and_switch()
   {
     // Kill: discard everything, just clear the HW stack
     asm(
-      "load32 0x7C00001 r1"
+      "load32 0x1F000004 r1"
       "write 0 r1 r0"
     );
     bdos_slot_free(slot);
@@ -200,7 +200,7 @@ void bdos_save_and_switch()
 
   // Discard trampoline entries by resetting HW stack pointer
   asm(
-    "load32 0x7C00001 r1"
+    "load32 0x1F000004 r1"
     "write 0 r1 r0"
   );
 
@@ -291,10 +291,10 @@ int bdos_exec_program(char* resolved_path)
     return -1;
   }
 
-  if ((unsigned int)file_size > MEM_SLOT_SIZE)
+  if ((unsigned int)file_size > MEM_SLOT_SIZE / 4)
   {
     term_puts("error: binary too large for slot (max ");
-    term_putint((int)MEM_SLOT_SIZE);
+    term_putint((int)(MEM_SLOT_SIZE / 4));
     term_puts(" words)\n");
     brfs_close(fd);
     bdos_slot_free(slot);
@@ -464,6 +464,7 @@ void bdos_resume_program(int slot)
     "addr2reg Label_bdos_slot_saved_hw_sp r1"
     "addr2reg Label_bdos_active_slot r2"
     "read 0 r2 r2"
+    "shiftl r2 2 r2"
     "add r1 r2 r1"
     "read 0 r1 r3"
 
@@ -471,14 +472,15 @@ void bdos_resume_program(int slot)
     "shiftl r2 8 r4"
     "add r1 r4 r1"
 
-    "; r1 = base addr, r3 = user_sp (count), r4 = index (starts at user_sp-1)"
+    "; r1 = base addr, r3 = user_sp (count), r4 = byte index (starts at (user_sp-1)*4)"
     "sub r3 1 r4"
+    "shiftl r4 2 r4"
     "bdos_resume_push_user_loop:"
-    "beq r3 r0 7"
+    "beq r3 r0 28"
     "add r1 r4 r5"
     "read 0 r5 r5"
     "push r5"
-    "sub r4 1 r4"
+    "sub r4 4 r4"
     "sub r3 1 r3"
     "jump bdos_resume_push_user_loop"
     "bdos_resume_push_user_done:"
@@ -490,39 +492,39 @@ void bdos_resume_program(int slot)
     "addr2reg Label_bdos_suspend_temp_regs r1"
     "read 0 r1 r2"
     "push r2"
-    "read 1 r1 r2"
-    "push r2"
-    "read 2 r1 r2"
-    "push r2"
-    "read 3 r1 r2"
-    "push r2"
     "read 4 r1 r2"
-    "push r2"
-    "read 5 r1 r2"
-    "push r2"
-    "read 6 r1 r2"
-    "push r2"
-    "read 7 r1 r2"
     "push r2"
     "read 8 r1 r2"
     "push r2"
-    "read 9 r1 r2"
-    "push r2"
-    "read 10 r1 r2"
-    "push r2"
-    "read 11 r1 r2"
-    "push r2"
     "read 12 r1 r2"
     "push r2"
-    "read 13 r1 r2"
+    "read 16 r1 r2"
     "push r2"
-    "read 14 r1 r2"
+    "read 20 r1 r2"
+    "push r2"
+    "read 24 r1 r2"
+    "push r2"
+    "read 28 r1 r2"
+    "push r2"
+    "read 32 r1 r2"
+    "push r2"
+    "read 36 r1 r2"
+    "push r2"
+    "read 40 r1 r2"
+    "push r2"
+    "read 44 r1 r2"
+    "push r2"
+    "read 48 r1 r2"
+    "push r2"
+    "read 52 r1 r2"
+    "push r2"
+    "read 56 r1 r2"
     "push r2"
 
     "; Set IO_PC_BACKUP to saved user PC"
     "addr2reg Label_bdos_run_entry r1"
     "read 0 r1 r1"
-    "load32 0x7C00000 r2"
+    "load32 0x1F000000 r2"
     "write 0 r2 r1"
 
     "; Jump to Return_Interrupt: pops r15..r1, reti -> user program"

@@ -2,7 +2,7 @@
 
 The Memory Unit (MU) is the bridge between the CPU and all slow I/O peripherals. It presents a simple start/done interface to the pipeline: the CPU sends an address and optional write data, the MU talks to the appropriate peripheral, and signals completion when the result is ready. The pipeline stalls for the entire duration.
 
-High-performance memories (SDRAM, ROM, VRAM) bypass the Memory Unit entirely and connect directly to the CPU pipeline. The MU only handles the I/O address range (`0x7000000` - `0x77FFFFF`).
+High-performance memories (SDRAM, ROM, VRAM) bypass the Memory Unit entirely and connect directly to the CPU pipeline. The MU only handles the I/O address range (`0x1C000000` - `0x1DFFFFFF`).
 
 ## Architecture
 
@@ -26,16 +26,16 @@ Each I/O access takes at least 2 cycles (dispatch + completion). SPI transfers t
 
 A single UART channel connected via USB (CH340C on the PCB). Used for programming, debugging, and serial console.
 
-- **TX** (`0x7000000`): Write a byte. The MU waits for transmission to complete. 1 Mbaud, 8N1 format.
-- **RX** (`0x7000001`): Read the most recently received byte. Single-cycle read. An interrupt (`uart_irq`) fires when new data arrives.
+- **TX** (`0x1C000000`): Write a byte. The MU waits for transmission to complete. 1 Mbaud, 8N1 format.
+- **RX** (`0x1C000004`): Read the most recently received byte. Single-cycle read. An interrupt (`uart_irq`) fires when new data arrives.
 
 ### Timers
 
 Three identical one-shot countdown timers. Each timer has two registers: a value register and a trigger register. Write the desired delay (in milliseconds) to the value register, then write anything to the trigger register to start the countdown. When the timer expires, it generates an interrupt.
 
-- **Timer 1**: `0x7000002` (value), `0x7000003` (trigger)
-- **Timer 2**: `0x7000004` (value), `0x7000005` (trigger)
-- **Timer 3**: `0x7000006` (value), `0x7000007` (trigger)
+- **Timer 1**: `0x1C000008` (value), `0x1C00000C` (trigger)
+- **Timer 2**: `0x1C000010` (value), `0x1C000014` (trigger)
+- **Timer 3**: `0x1C000018` (value), `0x1C00001C` (trigger)
 
 ### SPI Masters
 
@@ -43,24 +43,24 @@ Six independent SPI master controllers, each with a data register and a chip-sel
 
 | SPI | Data | CS | Device | Clock Speed |
 |---|---|---|---|---|
-| SPI0 | `0x7000008` | `0x7000009` | Flash 1 (128 Mbit) | 25 MHz |
-| SPI1 | `0x700000A` | `0x700000B` | Flash 2 (128 Mbit) | 25 MHz |
-| SPI2 | `0x700000C` | `0x700000D` | USB Host 1 (CH376) | 12.5 MHz |
-| SPI3 | `0x700000F` | `0x7000010` | USB Host 2 (CH376) | 12.5 MHz |
-| SPI4 | `0x7000012` | `0x7000013` | Ethernet (ENC28J60) | 12.5 MHz |
-| SPI5 | `0x7000015` | `0x7000016` | SD Card | 25 MHz |
+| SPI0 | `0x1C000020` | `0x1C000024` | Flash 1 (128 Mbit) | 25 MHz |
+| SPI1 | `0x1C000028` | `0x1C00002C` | Flash 2 (128 Mbit) | 25 MHz |
+| SPI2 | `0x1C000030` | `0x1C000034` | USB Host 1 (CH376) | 12.5 MHz |
+| SPI3 | `0x1C00003C` | `0x1C000040` | USB Host 2 (CH376) | 12.5 MHz |
+| SPI4 | `0x1C000048` | `0x1C00004C` | Ethernet (ENC28J60) | 12.5 MHz |
+| SPI5 | `0x1C000054` | `0x1C000058` | SD Card | 25 MHz |
 
-SPI2, SPI3, and SPI4 also have interrupt pin registers (`0x700000E`, `0x7000011`, `0x7000014`) that read the active-low interrupt output from the connected device.
+SPI2, SPI3, and SPI4 also have interrupt pin registers (`0x1C000038`, `0x1C000044`, `0x1C000050`) that read the active-low interrupt output from the connected device.
 
 ### Special Registers
 
-- **Boot mode** (`0x7000019`): Read-only. Returns the position of a hardware DIP switch, used by the bootloader to select boot source (UART or SPI Flash).
-- **Microsecond counter** (`0x700001A`): Read-only. A free-running 32-bit counter that increments every microsecond. Overflows after about 71.5 minutes. Use subtraction-based comparisons to handle overflow correctly.
-- **User LED** (`0x700001B`): Write-only. Controls a status LED on the PCB.
+- **Boot mode** (`0x1C000064`): Read-only. Returns the position of a hardware DIP switch, used by the bootloader to select boot source (UART or SPI Flash).
+- **Microsecond counter** (`0x1C000068`): Read-only. A free-running 32-bit counter that increments every microsecond. Overflows after about 71.5 minutes. Use subtraction-based comparisons to handle overflow correctly.
+- **User LED** (`0x1C00006C`): Write-only. Controls a status LED on the PCB.
 
 ### GPIO
 
-GPIO mode (`0x7000017`) and state (`0x7000018`) registers are declared in the address map but not yet implemented. Reads return 0.
+GPIO mode (`0x1C00005C`) and state (`0x1C000060`) registers are declared in the address map but not yet implemented. Reads return 0.
 
 ## Design Philosophy
 

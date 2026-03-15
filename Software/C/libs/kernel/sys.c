@@ -4,8 +4,8 @@
 
 #include "libs/kernel/sys.h"
 
-#define BOOT_MODE_ADDR 0x7000019
-#define USER_LED_ADDR 0x700001B
+#define BOOT_MODE_ADDR 0x1C000064
+#define USER_LED_ADDR 0x1C00006C
 
 // Return the current interrupt identifier.
 int get_int_id()
@@ -13,7 +13,7 @@ int get_int_id()
   int retval = 0;
   asm(
       "readintid r11      ; r11 = interrupt ID"
-      "write -1 r14 r11   ; Write to stack for return");
+      "write -4 r14 r11   ; Write to stack for return");
   return retval;
 }
 

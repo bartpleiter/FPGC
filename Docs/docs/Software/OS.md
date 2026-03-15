@@ -7,34 +7,34 @@ BDOS (Bart's Drive Operating System) is the custom operating system for the FPGC
 
 ## Memory Layout
 
-BDOS organizes the FPGC's 16 MiW (64 MiB) SDRAM into four regions:
+BDOS organizes the FPGC's 64 MiB SDRAM into four regions:
 
 | Address Range | Size | Description |
 |---------------|------|-------------|
-| `0x000000` – `0x0FFFFF` | 1 MiW (4 MiB) | Kernel code, data, and stacks |
-| `0x100000` – `0x7FFFFF` | 7 MiW (28 MiB) | Kernel heap (dynamic allocation) |
-| `0x800000` – `0xBFFFFF` | 4 MiW (16 MiB) | User program slots |
-| `0xC00000` – `0xFFFFFF` | 4 MiW (16 MiB) | BRFS filesystem cache |
+| `0x000000` – `0x3FFFFF` | 4 MiB | Kernel code, data, and stacks |
+| `0x400000` – `0x1FFFFFF` | 28 MiB | Kernel heap (dynamic allocation) |
+| `0x2000000` – `0x2FFFFFF` | 16 MiB | User program slots |
+| `0x3000000` – `0x3FFFFFF` | 16 MiB | BRFS filesystem cache |
 
 ### Kernel Region (0x000000)
 
 Contains the BDOS binary (code + data). Three stacks grow downward from the top:
 
-- **Main stack**: top at `0x0F7FFF`
-- **Syscall stack**: top at `0x0FBFFF`
-- **Interrupt stack**: top at `0x0FFFFF`
+- **Main stack**: top at `0x3DFFFC`
+- **Syscall stack**: top at `0x3EFFFC`
+- **Interrupt stack**: top at `0x3FFFFC`
 
-### User Program Region (0x800000)
+### User Program Region (0x2000000)
 
-Divided into 8 slots of 512 KiW (2 MiB) each. Programs (when compiled using the B32CC `-user-bdos` flag and assembled with ASMPY `-h -i`) are loaded into slots and execute with their stack at the top of their allocated slot. This should allow up to 8 concurrent user programs, although that would require a scheduler to manage them, which has yet to be implemented. Programs with lots of data should use the heap for dynamic allocation, and load data from BRFS into the heap at runtime.
+Divided into 8 slots of 2 MiB each. Programs (when compiled using the B32CC `-user-bdos` flag and assembled with ASMPY `-h -i`) are loaded into slots and execute with their stack at the top of their allocated slot. This should allow up to 8 concurrent user programs, although that would require a scheduler to manage them, which has yet to be implemented. Programs with lots of data should use the heap for dynamic allocation, and load data from BRFS into the heap at runtime.
 
 | Slot | Address Range | Stack Top |
 |------|---------------|-----------|
-| 0 | `0x800000` – `0x87FFFF` | `0x87FFFF` |
-| 1 | `0x880000` – `0x8FFFFF` | `0x8FFFFF` |
-| 2 | `0x900000` – `0x97FFFF` | `0x97FFFF` |
+| 0 | `0x2000000` – `0x21FFFFF` | `0x21FFFFC` |
+| 1 | `0x2200000` – `0x23FFFFF` | `0x23FFFFC` |
+| 2 | `0x2400000` – `0x25FFFFF` | `0x25FFFFC` |
 | ... | ... | ... |
-| 7 | `0xB80000` – `0xBFFFFF` | `0xBFFFFF` |
+| 7 | `0x2E00000` – `0x2FFFFFF` | `0x2FFFFFC` |
 
 ## Shell
 
@@ -88,7 +88,7 @@ Before execution, the shell stores `argc` and `argv` in kernel globals so the pr
 
 ## Heap
 
-The kernel heap region (`0x100000`–`0x7FFFFF`, 7 MiW) is managed by a simple bump allocator. User programs allocate memory via the `HEAP_ALLOC` syscall. All allocations are freed together when the program exits, is killed, or encounters an error — there is no individual `free()`.
+The kernel heap region (`0x400000`–`0x1FFFFFF`, 28 MiB) is managed by a simple bump allocator. User programs allocate memory via the `HEAP_ALLOC` syscall. All allocations are freed together when the program exits, is killed, or encounters an error — there is no individual `free()`.
 
 This design is intentional: the bump allocator is very fast and simple, and the per-program cleanup ensures no memory leaks across program invocations. Programs that need to "reallocate" a buffer simply allocate a new, larger block and copy the data over; the old block is wasted but freed on exit.
 
@@ -98,11 +98,11 @@ User programs communicate with BDOS through a software syscall mechanism, as the
 
 ### Mechanism
 
-The ASMPY assembler header places a `jump Syscall` instruction at absolute address 3 (as part of the header, enabled with the `-s` flag). User programs invoke a syscall by jumping to this address with arguments in registers. The flow is:
+The ASMPY assembler header places a `jump Syscall` instruction at absolute address 12 (byte offset `0xC`, as part of the header, enabled with the `-s` flag). User programs invoke a syscall by jumping to this address with arguments in registers. The flow is:
 
 1. User calls `syscall(num, a1, a2, a3)`, B32CC places arguments in `r4` to `r7`
-2. The inline assembly saves `r15`, loads address 3 into a temp register, sets the return address via `savpc`/`add`, and jumps
-3. Address 3 contains `jump Syscall`, redirecting into the kernel's assembly trampoline
+2. The inline assembly saves `r15`, loads address 12 into a temp register, sets the return address via `savpc`/`add`, and jumps
+3. Address 12 contains `jump Syscall`, redirecting into the kernel's assembly trampoline
 4. The trampoline saves all registers (except `r1`) to the hardware stack, switches to the kernel syscall stack, and calls the C dispatcher
 5. The C dispatcher handles the request, returns a result in `r1`
 6. The trampoline restores registers and returns to the user program
@@ -126,7 +126,7 @@ The ASMPY assembler header places a `jump Syscall` instruction at absolute addre
 | 9 | `FS_STAT` | `a1` = path, `a2` = entry_buf | 0 on success | Get file/directory metadata |
 | 10 | `FS_DELETE` | `a1` = path | 0 on success | Delete a file or directory |
 | 11 | `FS_CREATE` | `a1` = path | 0 on success | Create an empty file |
-| 12 | `FS_FILESIZE` | `a1` = fd | size in words | Get the size of an open file |
+| 12 | `FS_FILESIZE` | `a1` = fd | file size in words | Get the size of an open file |
 | 13 | `SHELL_ARGC` | — | argc | Get argument count for current program |
 | 14 | `SHELL_ARGV` | — | pointer to argv[] | Get argument vector for current program |
 | 15 | `SHELL_GETCWD` | — | pointer to cwd string | Get the shell's current working directory |
@@ -167,13 +167,13 @@ int main()
 }
 ```
 
-The convenience wrappers (`sys_print_char`, `sys_print_str`, etc.) call the low-level `syscall()` function, which contains the inline assembly that performs the jump to address 3.
+The convenience wrappers (`sys_print_char`, `sys_print_str`, etc.) call the low-level `syscall()` function, which contains the inline assembly that performs the jump to address 12.
 
 ## Interrupt Handling
 
-BDOS owns all hardware interrupts. The interrupt vector at address 1 points to BDOS's interrupt handler, which:
+BDOS owns all hardware interrupts. The interrupt vector at address 4 points to BDOS's interrupt handler, which:
 
-- Saves all registers to a dedicated interrupt stack (`0x0FFFFF`)
+- Saves all registers to a dedicated interrupt stack (`0x3FFFFC`)
 - Reads the interrupt ID via INTID
 - Dispatches to the appropriate handler
 - Restores registers and returns via `reti`

@@ -49,8 +49,6 @@ FPGC devices use MAC prefix `02:B4:B4:00:00:xx` where `xx` identifies the device
 2. Sender sends FILE_DATA chunks sequentially (max 256 words each), waiting for ACK after each.
 3. Sender sends FILE_END with checksum. Receiver verifies and ACKs.
 
-Binary files are packed into 32-bit words (big-endian: first byte in bits 31–24). Text files are converted on the host PC side to contain one ASCII character per word.
-
 ### Reliability
 
 All messages with REQUIRES_ACK set follow: send -> wait 100ms for ACK/NACK -> retry up to 2 times (3 total attempts). ACK-pacing naturally limits throughput to what the FPGC can handle.

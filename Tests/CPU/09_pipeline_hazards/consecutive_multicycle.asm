@@ -15,10 +15,10 @@ Main:
     add r10 r11 r12     ; r12 = 25
     
     write 0 r0 r1
-    write 1024 r0 r2
+    write 4096 r0 r2
     
     read 0 r0 r5        ; r5 = 1
-    read 1024 r0 r6     ; r6 = 2
+    read 4096 r0 r6     ; r6 = 2
 
     add r5 r6 r13       ; r13 = 3
     add r12 r13 r15     ; expected=28

@@ -65,20 +65,20 @@ int bdos_shell_u32_to_str(unsigned int value, char* out)
   return len;
 }
 
-unsigned int bdos_shell_words_to_kiw_1dp(unsigned int words)
+unsigned int bdos_shell_words_to_kib_1dp(unsigned int words)
 {
-  return (words * 10) / 1024;
+  return (words * 4 * 10) / 1024;
 }
 
-void bdos_shell_print_kiw(unsigned int words)
+void bdos_shell_print_kib(unsigned int words)
 {
-  unsigned int kiw_1dp;
+  unsigned int kib_1dp;
 
-  kiw_1dp = bdos_shell_words_to_kiw_1dp(words);
-  term_putint((int)(kiw_1dp / 10));
+  kib_1dp = bdos_shell_words_to_kib_1dp(words);
+  term_putint((int)(kib_1dp / 10));
   term_putchar('.');
-  term_putint((int)(kiw_1dp % 10));
-  term_puts(" KiW");
+  term_putint((int)(kib_1dp % 10));
+  term_puts(" KiB");
 }
 
 void bdos_shell_print_hline(unsigned int length)
@@ -105,30 +105,33 @@ void bdos_shell_print_field_prefix(char* name, int value_col)
   }
 }
 
-// Format a word count as human-readable size string.
+// Format a word count as human-readable byte size string.
 int bdos_shell_format_word_size(unsigned int words, char* out)
 {
   int len;
-  unsigned int kiw_1dp;
+  unsigned int bytes;
+  unsigned int kib_1dp;
 
-  if (words >= 1024)
+  bytes = words * 4;
+
+  if (bytes >= 1024)
   {
-    kiw_1dp = bdos_shell_words_to_kiw_1dp(words);
+    kib_1dp = (bytes * 10) / 1024;
     len = 0;
-    len += bdos_shell_u32_to_str(kiw_1dp / 10, out + len);
+    len += bdos_shell_u32_to_str(kib_1dp / 10, out + len);
     out[len++] = '.';
-    out[len++] = (char)('0' + (kiw_1dp % 10));
+    out[len++] = (char)('0' + (kib_1dp % 10));
     out[len++] = ' ';
     out[len++] = 'K';
     out[len++] = 'i';
-    out[len++] = 'W';
+    out[len++] = 'B';
     out[len] = '\0';
     return len;
   }
 
-  len = bdos_shell_u32_to_str(words, out);
+  len = bdos_shell_u32_to_str(bytes, out);
   out[len++] = ' ';
-  out[len++] = 'W';
+  out[len++] = 'B';
   out[len] = '\0';
   return len;
 }

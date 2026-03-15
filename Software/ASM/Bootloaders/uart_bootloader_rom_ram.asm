@@ -36,68 +36,68 @@ Main:
     ;jump SplashScreen ; Skip init vram in simulation
 
     ClearVRAM32:
-        load32 0x7900000 r1     ; VRAM32 address
+        load32 0x1E400000 r1    ; VRAM32 address
         load 0 r2               ; r2 = 0, counter
         load32 0x420 r3         ; r3 = loop end
 
         ClearVRAM32Loop:
             write 0 r1 r0        ; write 0 to VRAM
-            add r1 1 r1          ; increase address
+            add r1 4 r1          ; increase address
             add r2 1 r2          ; increase counter
 
-            beq r3 r2 2          ; keep looping until all words are cleared
+            beq r3 r2 8          ; keep looping until all words are cleared
                 jump ClearVRAM32Loop
 
     ClearVRAM8:
-        load32 0x7A00000 r1     ; VRAM8 address
+        load32 0x1E800000 r1    ; VRAM8 address
         load 0 r2               ; r2 = 0, counter
         load32 0x2002 r3        ; r3 = loop end
 
         ClearVRAM8Loop:
             write 0 r1 r0        ; write 0 to VRAM
-            add r1 1 r1          ; increase address
+            add r1 4 r1          ; increase address
             add r2 1 r2          ; increase counter
 
-            beq r3 r2 2          ; keep looping until all words are cleared
+            beq r3 r2 8          ; keep looping until all words are cleared
                 jump ClearVRAM8Loop
 
     ClearVRAMPX:
-        load32 0x7B00000 r1     ; VRAMPX address
+        load32 0x1EC00000 r1    ; VRAMPX address
         load 0 r2               ; r2 = 0, counter
         load32 0x12C00 r3       ; r3 = loop end
 
         ClearVRAMPXLoop:
             write 0 r1 r0        ; write 0 to VRAM
-            add r1 1 r1          ; increase address
+            add r1 4 r1          ; increase address
             add r2 1 r2          ; increase counter
 
-            beq r3 r2 2          ; keep looping until all words are cleared
+            beq r3 r2 8          ; keep looping until all words are cleared
                 jump ClearVRAMPXLoop
 
 
     SplashScreen:
         ; set palette table
-        load32 0x7900000 r1     ; VRAM32 address
+        load32 0x1E400000 r1    ; VRAM32 address
         load 0b10010 r2         ; blue/green as main color, others black
-        write 0x400 r1 r2         ; 0x400 for palette[0] address
+        write 0x1000 r1 r2       ; 0x1000 for palette[0] address
 
         ; copy pattern table
         addr2reg LOGOTABLE r2   ; r2 = data source
-        add r1 256 r3           ; r1 = loop end
+        add r1 1024 r3          ; r1 = loop end
 
         CopyPatternLoop:
             ; copy data to VRAM      
             read 0 r2 r4
             write 0 r1 r4
-            add r2 1 r2         ; increase source address
-            add r1 1 r1         ; increase dest address
+            add r2 4 r2         ; increase source address
+            add r1 4 r1         ; increase dest address
 
-            beq r3 r1 2         ; keep looping until all words are copied
+            beq r3 r1 8         ; keep looping until all words are copied
                 jump CopyPatternLoop
 
 
         ; copy window tile table
-        load32 0x7A0119D r1     ; window tile address + 0x19D offset
+        load32 0x1E804674 r1    ; window tile address + 0x4674 offset
         addr2reg TILETABLE r2   ; r2 = data source
         load 0 r6               ; r6 = loop counter
         load 96 r3              ; r1 = loop end
@@ -107,120 +107,121 @@ Main:
             ; copy data to VRAM      
             read 0 r2 r4
             write 0 r1 r4
-            add r2 1 r2         ; increase source address
-            add r1 1 r1         ; increase dest address
+            add r2 4 r2         ; increase source address
+            add r1 4 r1         ; increase dest address
             sub r5 1 r5         ; decrease tiles/row counter
             add r6 1 r6         ; increase total tiles copied counter
 
-            bne r5 r0 3
+            bne r5 r0 12
                 load 16 r5          ; reset tiles/row counter
-                add r1 24 r1        ; skip to next row
+                add r1 96 r1        ; skip to next row
 
-            beq r3 r6 2         ; keep looping until all tiles are copied
+            beq r3 r6 8         ; keep looping until all tiles are copied
                 jump CopyTileLoop
 
 
     CheckBootMode:
-        load32 0x7000000 r1 ; MU address
-        read 0x19 r1 r2     ; Boot mode
-        bne r2 r0 2         ; On low, jump to copy UART bootloader
+        load32 0x1C000000 r1 ; MU address
+        read 0x64 r1 r2     ; Boot mode
+        bne r2 r0 8         ; On low, jump to copy UART bootloader
             jump CopyUARTbootloader
         jump SPIflashBootloader ; For testing, always jump to UART bootloader
     
 
     CopyUARTbootloader:
         addr2reg UART_Bootloader_RAM_code r2
-        read 2 r2 r1 ; Read third word, should be the program length
+        read 8 r2 r1 ; Read third word, should be the program length
         load 0 r3  ; Loop counter
-        load32 0x3FF000 r5 ; Dest address start
+        load32 0xFFC000 r5 ; Dest address start
 
         ; First write the first two words to address 0 for the halt and interrupt address
         read 0 r2 r4 ; Read first word (should be halt)
         write 0 r0 r4 ; Write word to RAM
-        read 1 r2 r4 ; Read second word (should be interrupt address)
-        write 1 r0 r4 ; Write word to RAM
+        read 4 r2 r4 ; Read second word (should be interrupt address)
+        write 4 r0 r4 ; Write word to RAM
 
         CopyUARTcodeLoop:
             read 0 r2 r4 ; Read word from UART_Bootloader_RAM_code
             write 0 r5 r4 ; Write word to RAM
             add r3 1 r3 ; Increment counter
-            add r5 1 r5 ; Increment dest address
-            add r2 1 r2 ; Increment source address
-            beq r1 r3 2 ; If done, exit loop
+            add r5 4 r5 ; Increment dest address
+            add r2 4 r2 ; Increment source address
+            beq r1 r3 8 ; If done, exit loop
                 jump CopyUARTcodeLoop
 
     jump BootRAM
 
 
     SPIflashBootloader:
-        ; SPI flash 1 CS offset:    09
-        ; SPI flash 1 data offset : 08
-        load32 0x7000000 r1       ; IO base address
+        ; SPI flash 1 CS offset:    0x24
+        ; SPI flash 1 data offset : 0x20
+        load32 0x1C000000 r1      ; IO base address
 
         ReadSPIprogramLength:
-            write 0x9 r1 r0       ; CS low
+            write 0x24 r1 r0      ; CS low
 
             ; Read 4 bytes from SPI flash
             load 0x3 r2         ; Read command
             load 8 r3           ; Address of program length
-            write 0x8 r1 r2     ; Send command
-            write 0x8 r1 r0     ; Send address byte 1
-            write 0x8 r1 r0     ; Send address byte 2
-            write 0x8 r1 r3     ; Send address byte 3
-            write 0x8 r1 r0     ; Dummy byte to read
-            read 0x8 r1 r4      ; Read byte 1
+            write 0x20 r1 r2    ; Send command
+            write 0x20 r1 r0    ; Send address byte 1
+            write 0x20 r1 r0    ; Send address byte 2
+            write 0x20 r1 r3    ; Send address byte 3
+            write 0x20 r1 r0    ; Dummy byte to read
+            read 0x20 r1 r4     ; Read byte 1
             shiftl r4 24 r4     ; Shift to correct position
-            write 0x8 r1 r0     ; Dummy byte to read
-            read 0x8 r1 r5      ; Read byte 2
+            write 0x20 r1 r0    ; Dummy byte to read
+            read 0x20 r1 r5     ; Read byte 2
             shiftl r5 16 r5     ; Shift to correct position
             add r4 r5 r4        ; Combine
-            write 0x8 r1 r0     ; Dummy byte to read
-            read 0x8 r1 r5      ; Read byte 3
+            write 0x20 r1 r0    ; Dummy byte to read
+            read 0x20 r1 r5     ; Read byte 3
             shiftl r5 8 r5      ; Shift to correct position
             add r4 r5 r4        ; Combine
-            write 0x8 r1 r0     ; Dummy byte to read
-            read 0x8 r1 r5      ; Read byte 4
+            write 0x20 r1 r0    ; Dummy byte to read
+            read 0x20 r1 r5     ; Read byte 4
             add r4 r5 r4        ; Combine
 
             load 1 r3
-            write 0x9 r1 r3     ; CS high
+            write 0x24 r1 r3    ; CS high
             ; r4 now contains the program length
             nop
             nop
 
         CopySPIprogramToRAM:
             load 0 r3           ; RAM address
-            write 0x9 r1 r0     ; CS low
+            write 0x24 r1 r0    ; CS low
 
             load 0x3 r2         ; Read command
-            write 0x8 r1 r2     ; Send command
-            write 0x8 r1 r0     ; Send address byte 1
-            write 0x8 r1 r0     ; Send address byte 2
-            write 0x8 r1 r0     ; Send address byte 3
+            write 0x20 r1 r2    ; Send command
+            write 0x20 r1 r0    ; Send address byte 1
+            write 0x20 r1 r0    ; Send address byte 2
+            write 0x20 r1 r0    ; Send address byte 3
 
             SPIreadCopyLoop:
-                write 0x8 r1 r0     ; Dummy byte to read
-                read 0x8 r1 r5      ; Read byte
+                write 0x20 r1 r0    ; Dummy byte to read
+                read 0x20 r1 r5     ; Read byte
                 shiftl r5 24 r5     ; Shift to correct position
-                write 0x8 r1 r0     ; Dummy byte to read
-                read 0x8 r1 r6      ; Read byte
+                write 0x20 r1 r0    ; Dummy byte to read
+                read 0x20 r1 r6     ; Read byte
                 shiftl r6 16 r6     ; Shift to correct position
                 add r5 r6 r5        ; Combine
-                write 0x8 r1 r0     ; Dummy byte to read
-                read 0x8 r1 r6      ; Read byte
+                write 0x20 r1 r0    ; Dummy byte to read
+                read 0x20 r1 r6     ; Read byte
                 shiftl r6 8 r6      ; Shift to correct position
                 add r5 r6 r5        ; Combine
-                write 0x8 r1 r0     ; Dummy byte to read
-                read 0x8 r1 r6      ; Read byte
+                write 0x20 r1 r0    ; Dummy byte to read
+                read 0x20 r1 r6     ; Read byte
                 add r5 r6 r5        ; Combine
 
                 write 0 r3 r5        ; Write to RAM
-                add r3 1 r3          ; Increment RAM address
+                add r3 4 r3          ; Increment RAM address
                 sub r4 1 r4          ; Decrement program length
-                bles r4 r0 2         ; If length <= 0 (signed), exit loop
+                bles r4 r0 8         ; If length <= 0 (signed), exit loop
                     jump SPIreadCopyLoop
 
-        write 0x9 r1 r3     ; CS high
+        load 1 r3
+        write 0x24 r1 r3    ; CS high
         
         ;jump BootRAM ; Not needed as long as the next section is BootRAM
 

@@ -4,7 +4,7 @@ The B32P3 is a 32-bit RISC CPU designed from scratch for the FPGC. It's the thir
 
 ## Architecture Overview
 
-The CPU has 16 general-purpose 32-bit registers (r0 is hardwired to zero), a 256-entry hardware stack, and a 32-bit word-addressable address space. It runs at a single clock frequency of 100 MHz with no clock gating or dynamic frequency scaling.
+The CPU has 16 general-purpose 32-bit registers (r0 is hardwired to zero), a 256-entry hardware stack, and a byte-addressable address space. It runs at a single clock frequency of 100 MHz with no clock gating or dynamic frequency scaling.
 
 The pipeline has five stages:
 
@@ -26,8 +26,8 @@ The ISA has 16 instructions, all 32 bits wide. There are no variable-length inst
          |31|30|29|28|27|26|25|24|23|22|21|20|19|18|17|16|15|14|13|12|11|10|09|08|07|06|05|04|03|02|01|00|
 ----------------------------------------------------------------------------------------------------------
  HALT      1  1  1  1| 1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1  1
- READ      1  1  1  0||----------------16 BIT CONSTANT---------------||--A REG---| x  x  x  x |--D REG---|
- WRITE     1  1  0  1||----------------16 BIT CONSTANT---------------||--A REG---||--B REG---| x  x  x  x
+ READ      1  1  1  0||----------------16 BIT CONSTANT---------------||--A REG---||-RD SUBOP-||--D REG---|
+ WRITE     1  1  0  1||----------------16 BIT CONSTANT---------------||--A REG---||--B REG---||-WR SUBOP|
  INTID     1  1  0  0| x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x |--D REG---|
  PUSH      1  0  1  1| x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x |--B REG---| x  x  x  x
  POP       1  0  1  0| x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x |--D REG---|
@@ -47,13 +47,37 @@ The instruction set is split into four categories:
 
 **Control flow:** HALT, JUMP, JUMPR, BRANCH, SAVPC, RETI
 
-**Memory access:** READ (load), WRITE (store), PUSH, POP
+**Memory access:** READ (load word/halfword/byte), WRITE (store word/halfword/byte), PUSH, POP
 
 **Arithmetic/Logic (single-cycle):** ARITH and ARITHC use the combinational ALU. ARITHC takes a 16-bit immediate instead of a second register.
 
 **Arithmetic/Logic (multi-cycle):** ARITHM and ARITHMC use the multi-cycle ALU for multiplication, division, and modulo. Division takes about 32 cycles.
 
 **Miscellaneous:** INTID (get interrupt ID), CCACHE (clear all caches)
+
+### READ/WRITE Sub-Opcodes
+
+The READ and WRITE instructions support sub-word access through a 4-bit sub-opcode field. When the sub-opcode is `0000`, the instruction performs a standard 32-bit word operation (backward compatible). Other encodings select byte or halfword access:
+
+**READ sub-opcode (bits [7:4]):**
+
+| Sub-opcode | Mnemonic | Description |
+|------------|----------|-------------|
+| `0000` | `read` | Load 32-bit word |
+| `0001` | `readb` | Load byte, sign-extend to 32 bits |
+| `0101` | `readbu` | Load byte, zero-extend to 32 bits |
+| `0010` | `readh` | Load halfword, sign-extend to 32 bits |
+| `0110` | `readhu` | Load halfword, zero-extend to 32 bits |
+
+**WRITE sub-opcode (bits [3:0]):**
+
+| Sub-opcode | Mnemonic | Description |
+|------------|----------|-------------|
+| `0000` | `write` | Store 32-bit word |
+| `0001` | `writeb` | Store byte (low 8 bits of register) |
+| `0010` | `writeh` | Store halfword (low 16 bits of register) |
+
+Word loads/stores require 4-byte alignment, halfword loads/stores require 2-byte alignment, and byte loads/stores have no alignment requirement. Unaligned accesses silently ignore the low bits (the hardware does not raise an exception).
 
 ### ALU Operations (Single-Cycle)
 
@@ -121,21 +145,21 @@ The FP64 operations (`1000`–`1101`) use the FP64 coprocessor described below. 
 
 The CPU has a 256-entry hardware stack with dedicated PUSH and POP instructions. The stack is used primarily for saving/restoring registers during function calls and interrupt handlers. The stack pointer wraps around at 256, so pushing beyond that will overwrite old entries silently.
 
-The stack pointer is readable and writable as a CPU-internal I/O register at `0x7C00001`, which is useful for context switching or debugging.
+The stack pointer is readable and writable as a CPU-internal I/O register at `0x1F000004`, which is useful for context switching or debugging.
 
 ## Memory Map
 
-All memory and I/O is mapped into a flat 27-bit address space. The CPU starts execution at the ROM address (`0x7800000`).
+All memory and I/O is mapped into a flat byte-addressed space. The CPU starts execution at the ROM address (`0x1E000000`).
 
 | Address Range | Region | Size | Description |
 |---|---|---|---|
-| `0x0000000` - `0x6FFFFFF` | SDRAM | 112 MiW | Main working memory, accessed through L1I/L1D caches |
-| `0x7000000` - `0x700001B` | I/O | 28 words | UART, SPI, Timers, GPIO, etc. |
-| `0x7800000` - `0x78003FF` | ROM | 1 KiW | Boot ROM (also the initial PC value) |
-| `0x7900000` - `0x790041F` | VRAM32 | 32-bit entries | Tile patterns and palettes |
-| `0x7A00000` - `0x7A02001` | VRAM8 | 8-bit entries | Tile maps, scroll registers |
-| `0x7B00000` - `0x7B12BFF` | VRAMpixel | 8-bit entries | 320x240 pixel framebuffer (external SRAM) |
-| `0x7C00000` - `0x7C00001` | CPU Internal I/O | 2 words | PC Backup (`0x00`), Stack Pointer (`0x01`) |
+| `0x0000000` - `0x03FFFFFF` | SDRAM | 64 MiB | Main working memory, accessed through L1I/L1D caches |
+| `0x1C000000` - `0x1C00006F` | I/O | 28 registers | UART, SPI, Timers, GPIO, etc. |
+| `0x1E000000` - `0x1E000FFF` | ROM | 4 KiB (1 KiW) | Boot ROM (also the initial PC value) |
+| `0x1E400000` - `0x1E40107C` | VRAM32 | 32-bit entries | Tile patterns and palettes |
+| `0x1E800000` - `0x1E808004` | VRAM8 | 8-bit entries | Tile maps, scroll registers |
+| `0x1EC00000` - `0x1EC4AFFC` | VRAMpixel | 8-bit entries | 320x240 pixel framebuffer (external SRAM) |
+| `0x1F000000` - `0x1F000004` | CPU Internal I/O | 2 registers | PC Backup (`0x00`), Stack Pointer (`0x04`) |
 
 SDRAM is the main working memory. It's accessed through L1 instruction (L1I) and data (L1D) caches, so most reads complete in a single cycle on cache hits. Only SDRAM and ROM can be used as instruction memory.
 
@@ -148,9 +172,9 @@ I/O devices are accessed through the Memory Unit, which is a separate module tha
 The CPU supports 8 interrupt lines, priority-encoded (lower index = higher priority). Interrupts are edge-triggered with CDC synchronization.
 
 When an interrupt fires:
-1. The current PC is saved to `PC_backup` (readable/writable at `0x7C00000`)
+1. The current PC is saved to `PC_backup` (readable/writable at `0x1F000000`)
 2. Interrupts are disabled (no nesting)
-3. PC jumps to address `0x0000001` (the interrupt handler)
+3. PC jumps to address `0x0000004` (the interrupt handler, i.e., the second instruction)
 
 The handler uses INTID to determine which interrupt fired, handles it, then executes RETI to restore the PC and re-enable interrupts.
 

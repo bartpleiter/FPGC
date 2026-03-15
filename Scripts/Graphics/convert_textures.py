@@ -20,8 +20,9 @@ import sys
 try:
     from PIL import Image
 except ImportError:
-    print("Error: Pillow is required.  Install with:  pip install Pillow",
-          file=sys.stderr)
+    print(
+        "Error: Pillow is required.  Install with:  pip install Pillow", file=sys.stderr
+    )
     sys.exit(1)
 
 TEX_SIZE = 64
@@ -47,10 +48,17 @@ def convert_image(path: str) -> list[int]:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Convert PNG textures to FPGC R3G3B2 format")
-    parser.add_argument("images", nargs="+", help="Input image files (64×64 recommended)")
-    parser.add_argument("-o", "--output", default="textures.dat",
-                        help="Output binary file (default: textures.dat)")
+        description="Convert PNG textures to FPGC R3G3B2 format"
+    )
+    parser.add_argument(
+        "images", nargs="+", help="Input image files (64×64 recommended)"
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        default="textures.dat",
+        help="Output binary file (default: textures.dat)",
+    )
     args = parser.parse_args()
 
     all_pixels = []

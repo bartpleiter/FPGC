@@ -113,7 +113,7 @@ void clear_framebuffer()
 {
   unsigned int *fb;
   int i;
-  fb = (unsigned int *)0x7B00000;
+  fb = (unsigned int *)0x1EC00000;
   for (i = 0; i < 76800; i++)
   {
     fb[i] = 0;
@@ -126,7 +126,7 @@ void draw_border()
   unsigned int *fb;
   int x;
   int y;
-  fb = (unsigned int *)0x7B00000;
+  fb = (unsigned int *)0x1EC00000;
 
   // Top border
   for (y = 0; y < VIEW_Y; y++)
@@ -312,10 +312,10 @@ void draw_textured_column(int x, int drawStart, int drawEnd, int side)
   "addr2reg Label_g_colTop r1"
   "read 0 r1 r1                ; r1 = viewport top fb addr for this column"
 
-  "multu r5 320 r2"
+  "multu r5 1280 r2"
   "add r2 r1 r5                ; r5 = fb addr of wall start"
 
-  "multu r6 320 r2"
+  "multu r6 1280 r2"
   "add r2 r1 r6                ; r6 = fb addr of wall end"
 
   "addr2reg Label_g_colBot r8"
@@ -326,7 +326,7 @@ void draw_textured_column(int x, int drawStart, int drawEnd, int side)
   "W3D_T_ceil:"
   "  bge r1 r5 W3D_T_wall"
   "  write 0 r1 r3"
-  "  add r1 320 r1"
+  "  add r1 1280 r1"
   "  jump W3D_T_ceil"
 
   "; -- textured wall: branch on side --"
@@ -338,13 +338,13 @@ void draw_textured_column(int x, int drawStart, int drawEnd, int side)
   "W3D_T_dark:"
   "  shiftr r9 16 r3           ; texY = texPos >> 16"
   "  and r3 r12 r3             ; texY &= 63"
-  "  shiftl r3 6 r3            ; texY *= 64"
+  "  shiftl r3 8 r3            ; texY *= 64"
   "  add r3 r11 r3             ; addr = texBase + texY * 64"
   "  read 0 r3 r3              ; color = texture pixel"
   "  shiftr r3 1 r3            ; color >>= 1"
   "  and r3 r4 r3              ; color &= 0x6D"
   "  write 0 r1 r3             ; write to framebuffer"
-  "  add r1 320 r1             ; next row"
+  "  add r1 1280 r1             ; next row"
   "  add r9 r10 r9             ; texPos += texStep"
   "  blt r1 r6 W3D_T_dark"
   "  jump W3D_T_floor"
@@ -353,11 +353,11 @@ void draw_textured_column(int x, int drawStart, int drawEnd, int side)
   "W3D_T_bright:"
   "  shiftr r9 16 r3           ; texY = texPos >> 16"
   "  and r3 r12 r3             ; texY &= 63"
-  "  shiftl r3 6 r3            ; texY *= 64"
+  "  shiftl r3 8 r3            ; texY *= 64"
   "  add r3 r11 r3             ; addr = texBase + texY * 64"
   "  read 0 r3 r3              ; color = texture pixel"
   "  write 0 r1 r3             ; write to framebuffer"
-  "  add r1 320 r1             ; next row"
+  "  add r1 1280 r1             ; next row"
   "  add r9 r10 r9             ; texPos += texStep"
   "  blt r1 r6 W3D_T_bright"
 
@@ -367,7 +367,7 @@ void draw_textured_column(int x, int drawStart, int drawEnd, int side)
   "W3D_T_floor_loop:"
   "  bge r1 r8 W3D_T_done"
   "  write 0 r1 r3"
-  "  add r1 320 r1"
+  "  add r1 1280 r1"
   "  jump W3D_T_floor_loop"
 
   "W3D_T_done:"
@@ -392,7 +392,7 @@ void render_frame()
   unsigned int colTopAddr;
 
   // Precompute viewport top-left fb address
-  colTopAddr = 0x7B00000 + VIEW_X + VIEW_Y * SCREEN_W;
+  colTopAddr = 0x1EC00000 + (VIEW_X + VIEW_Y * SCREEN_W) * 4;
 
   for (x = 0; x < VIEW_W; x++)
   {
@@ -524,8 +524,8 @@ void render_frame()
     g_texBase = (int)(textures + texIndex * TEX_PIXELS + texX);
     g_texStep = texStep;
     g_texPos = texPos;
-    g_colTop = colTopAddr + x;
-    g_colBot = g_colTop + (VIEW_H - 1) * SCREEN_W;
+    g_colTop = colTopAddr + x * 4;
+    g_colBot = g_colTop + (VIEW_H - 1) * SCREEN_W * 4;
 
     draw_textured_column(screenX, drawStart, drawEnd, side);
   }

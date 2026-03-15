@@ -5,7 +5,7 @@
 #include "libs/user/gfx/plot.h"
 
 // ---- Pixel framebuffer ----
-#define PLOT_FB_ADDR   0x7B00000
+#define PLOT_FB_ADDR   0x1EC00000
 #define PLOT_FB_WIDTH  320
 #define PLOT_FB_HEIGHT 240
 

@@ -5,12 +5,12 @@
 #include "libs/kernel/io/timer.h"
 
 // Hardware register addresses
-#define TIMER0_VAL 0x7000002
-#define TIMER0_CTRL 0x7000003
-#define TIMER1_VAL 0x7000004
-#define TIMER1_CTRL 0x7000005
-#define TIMER2_VAL 0x7000006
-#define TIMER2_CTRL 0x7000007
+#define TIMER0_VAL 0x1C000008
+#define TIMER0_CTRL 0x1C00000C
+#define TIMER1_VAL 0x1C000010
+#define TIMER1_CTRL 0x1C000014
+#define TIMER2_VAL 0x1C000018
+#define TIMER2_CTRL 0x1C00001C
 
 // Timer state structure
 typedef struct

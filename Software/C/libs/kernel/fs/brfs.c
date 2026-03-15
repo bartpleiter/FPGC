@@ -458,7 +458,7 @@ static void brfs_init_directory_block(unsigned int *block_addr, unsigned int dir
   max_entries = sb->words_per_block / BRFS_DIR_ENTRY_SIZE;
 
   // Zero the entire block
-  memset(block_addr, 0, sb->words_per_block);
+  memset(block_addr, 0, sb->words_per_block * sizeof(unsigned int));
 
   // Create "." entry
   brfs_create_dir_entry(&entry, ".", dir_fat_idx,
@@ -571,7 +571,7 @@ int brfs_format(unsigned int total_blocks, unsigned int words_per_block,
 
   // Initialize FAT - all blocks free
   fat = brfs_get_fat();
-  memset(fat, 0, total_blocks);
+  memset(fat, 0, total_blocks * sizeof(unsigned int));
 
   // Full format: zero all data blocks
   if (full_format)
@@ -590,7 +590,7 @@ int brfs_format(unsigned int total_blocks, unsigned int words_per_block,
         words_in_sector = data_words - sector_offset;
       }
 
-      memset(root_block + sector_offset, 0, words_in_sector);
+      memset(root_block + sector_offset, 0, words_in_sector * sizeof(unsigned int));
       brfs_report_progress("format-zero", sector + 1, data_sectors);
     }
   }
@@ -996,7 +996,7 @@ int brfs_create_file(const char *path)
 
   // Initialize file block to zeros
   sb = (struct brfs_superblock *)brfs_get_superblock();
-  memset(brfs_get_data_block(free_block), 0, sb->words_per_block);
+  memset(brfs_get_data_block(free_block), 0, sb->words_per_block * sizeof(unsigned int));
 
   // Mark blocks dirty
   brfs_mark_block_dirty(dir_fat_idx);
@@ -1261,7 +1261,7 @@ int brfs_read(int fd, unsigned int *buffer, unsigned int length)
 
     // Copy data from block
     data_block = brfs_get_data_block(current_fat_idx);
-    memcpy(buffer, data_block + cursor_in_block, words_to_read);
+    memcpy(buffer, data_block + cursor_in_block, words_to_read * sizeof(unsigned int));
 
     // Update state
     buffer += words_to_read;
@@ -1353,7 +1353,7 @@ int brfs_write(int fd, const unsigned int *buffer, unsigned int length)
       }
       fat[last_idx] = next_block;
       fat[next_block] = BRFS_FAT_EOF;
-      memset(brfs_get_data_block(next_block), 0, sb->words_per_block);
+      memset(brfs_get_data_block(next_block), 0, sb->words_per_block * sizeof(unsigned int));
       brfs_mark_block_dirty(next_block);
       current_fat_idx = (unsigned int)next_block;
     }
@@ -1377,7 +1377,7 @@ int brfs_write(int fd, const unsigned int *buffer, unsigned int length)
 
     // Copy data to block
     data_block = brfs_get_data_block(current_fat_idx);
-    memcpy(data_block + cursor_in_block, buffer, words_to_write);
+    memcpy(data_block + cursor_in_block, buffer, words_to_write * sizeof(unsigned int));
 
     // Mark block as dirty
     brfs_mark_block_dirty(current_fat_idx);
@@ -1410,7 +1410,7 @@ int brfs_write(int fd, const unsigned int *buffer, unsigned int length)
         fat[next_block] = BRFS_FAT_EOF;
 
         // Initialize new block
-        memset(brfs_get_data_block(next_block), 0, sb->words_per_block);
+        memset(brfs_get_data_block(next_block), 0, sb->words_per_block * sizeof(unsigned int));
         brfs_mark_block_dirty(next_block);
 
         current_fat_idx = next_block;

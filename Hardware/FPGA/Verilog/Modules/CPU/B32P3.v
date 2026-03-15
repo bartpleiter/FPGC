@@ -26,8 +26,8 @@
  * - Interrupts are only valid on an address before ROM
  */
 module B32P3 #(
-    parameter ROM_ADDRESS = 32'h7800000,
-    parameter INTERRUPT_JUMP_ADDR = 32'd1,
+    parameter ROM_ADDRESS = 32'h1E000000,
+    parameter INTERRUPT_JUMP_ADDR = 32'd4,
     parameter NUM_INTERRUPTS = 8
 ) (
     // ---- System interface ----
@@ -86,6 +86,7 @@ module B32P3 #(
     output wire [31:0]  l1d_cache_controller_data,
     output wire         l1d_cache_controller_we,
     output wire         l1d_cache_controller_start,
+    output wire [3:0]   l1d_cache_controller_byte_enable,
     input  wire         l1d_cache_controller_done,
     input  wire [31:0]  l1d_cache_controller_result,
 
@@ -104,9 +105,9 @@ module B32P3 #(
     input wire [NUM_INTERRUPTS-1:0] interrupts
 );
 
-// CPU-internal I/O register addresses
-localparam CPU_IO_PC_BACKUP    = 32'h7C00000;  // Read/write interrupt return PC
-localparam CPU_IO_HW_STACK_PTR = 32'h7C00001;  // Read/write hardware stack pointer
+// CPU-internal I/O register addresses (byte-addressed)
+localparam CPU_IO_PC_BACKUP    = 32'h1F000000;  // Read/write interrupt return PC
+localparam CPU_IO_HW_STACK_PTR = 32'h1F000004;  // Read/write hardware stack pointer
 
 // ---- INTERRUPT CONTROLLER ----
 // Interrupt enable/disable flag (disabled during interrupt handling)
@@ -258,6 +259,8 @@ reg        id_ex_get_int_id = 1'b0;
 reg        id_ex_get_pc = 1'b0;
 reg        id_ex_clear_cache = 1'b0;
 reg        id_ex_arithm = 1'b0;
+reg [1:0]  id_ex_mem_size = 2'b00;
+reg        id_ex_mem_sign_extend = 1'b0;
 
 // ---- EX/MEM PIPELINE REGISTER ----
 reg [31:0] ex_mem_pc = 32'd0;
@@ -293,6 +296,10 @@ reg [31:0] ex_mem_const16 = 32'd0;
 reg [26:0] ex_mem_const27 = 27'd0;
 reg [31:0] ex_mem_areg_data = 32'd0;
 
+// Memory size control for byte-addressable operations
+reg [1:0]  ex_mem_mem_size = 2'b00;
+reg        ex_mem_mem_sign_extend = 1'b0;
+
 // ---- MEM/WB PIPELINE REGISTER ----
 reg        mem_wb_valid = 1'b0;
 
@@ -323,6 +330,8 @@ wire [3:0]  id_breg;
 wire [3:0]  id_dreg;
 wire        id_oe;
 wire        id_sig;
+wire [3:0]  id_read_subop;
+wire [3:0]  id_write_subop;
 
 InstructionDecoder instr_decoder (
     .instr       (if_id_instr),
@@ -337,7 +346,9 @@ InstructionDecoder instr_decoder (
     .breg        (id_breg),
     .dreg        (id_dreg),
     .oe          (id_oe),
-    .sig         (id_sig)
+    .sig         (id_sig),
+    .read_subop  (id_read_subop),
+    .write_subop (id_write_subop)
 );
 
 // ---- CONTROL UNIT ----
@@ -357,10 +368,14 @@ wire id_reti;
 wire id_get_int_id;
 wire id_get_pc;
 wire id_clear_cache;
+wire [1:0] id_mem_size;
+wire       id_mem_sign_extend;
 
 ControlUnit control_unit (
     .instr_op       (id_instr_op),
     .alu_op         (id_alu_op),
+    .read_subop     (id_read_subop),
+    .write_subop    (id_write_subop),
     .alu_use_const  (id_alu_use_const),
     .alu_use_constu (id_alu_use_constu),
     .push           (id_push),
@@ -376,7 +391,9 @@ ControlUnit control_unit (
     .reti           (id_reti),
     .get_int_id     (id_get_int_id),
     .get_pc         (id_get_pc),
-    .clear_cache    (id_clear_cache)
+    .clear_cache    (id_clear_cache),
+    .mem_size       (id_mem_size),
+    .mem_sign_extend(id_mem_sign_extend)
 );
 
 // ---- REGISTER FILE ----
@@ -723,10 +740,9 @@ assign stack_ptr_in = ex_mem_breg_data[7:0];
 // conservatively assert the hazard — this is safe (at most 1 extra stall cycle)
 // since cache_line_hazard only lasts 1 cycle anyway.
 wire [31:0] ex_hazard_base = ex_stall_saved_a_valid ? ex_stall_saved_a : ex_areg_data;
-wire [9:0]  ex_hazard_addr_low = ex_hazard_base[9:0] + id_ex_const16[9:0];
-wire [6:0]  ex_hazard_cache_line = ex_hazard_addr_low[9:3];
-wire        ex_hazard_is_sdram = (ex_hazard_base[31:27] == 5'd0) &&
-                                  (ex_hazard_base[26:24] != 3'b111);
+wire [11:0] ex_hazard_addr_low = ex_hazard_base[11:0] + id_ex_const16[11:0];
+wire [6:0]  ex_hazard_cache_line = ex_hazard_addr_low[11:5];
+wire        ex_hazard_is_sdram = (ex_hazard_base < 32'h1C000000);
 wire        ex_hazard_forward_active = (forward_a != 2'b00);
 
 PipelineController pipeline_controller (
@@ -811,6 +827,8 @@ begin
         id_ex_get_pc <= 1'b0;
         id_ex_clear_cache <= 1'b0;
         id_ex_arithm <= 1'b0;
+        id_ex_mem_size <= 2'b00;
+        id_ex_mem_sign_extend <= 1'b0;
     end else if (!pipeline_stall)
     begin
         id_ex_pc <= if_id_pc;
@@ -842,6 +860,8 @@ begin
         id_ex_get_pc <= id_get_pc && if_id_valid;
         id_ex_clear_cache <= id_clear_cache && if_id_valid;
         id_ex_arithm <= id_arithm && if_id_valid;
+        id_ex_mem_size <= id_mem_size;
+        id_ex_mem_sign_extend <= id_mem_sign_extend;
     end else if (!ex_pipeline_stall)
     begin
         // EX consumed the instruction but we're stalled (load-use or pop-use hazard)
@@ -892,6 +912,9 @@ MemoryStage #(
     .ex_mem_breg_data           (ex_mem_breg_data),
     .ex_mem_pc                  (ex_mem_pc),
     .ex_mem_clear_cache         (ex_mem_clear_cache),
+    // Memory size control
+    .ex_mem_mem_size            (ex_mem_mem_size),
+    .ex_mem_mem_sign_extend     (ex_mem_mem_sign_extend),
     // CPU-internal I/O read sources
     .pc_backup                  (pc_backup),
     .stack_ptr_out              (stack_ptr_out),
@@ -928,6 +951,7 @@ MemoryStage #(
     .l1d_cache_controller_data  (l1d_cache_controller_data),
     .l1d_cache_controller_we    (l1d_cache_controller_we),
     .l1d_cache_controller_start (l1d_cache_controller_start),
+    .l1d_cache_controller_byte_enable(l1d_cache_controller_byte_enable),
     // Memory Unit (I/O)
     .mu_done                    (mu_done),
     .mu_q                       (mu_q),
@@ -991,6 +1015,8 @@ begin
         ex_mem_const16 <= 32'd0;
         ex_mem_const27 <= 27'd0;
         ex_mem_areg_data <= 32'd0;
+        ex_mem_mem_size <= 2'b00;
+        ex_mem_mem_sign_extend <= 1'b0;
     end else if (!ex_pipeline_stall)
     begin
         ex_mem_pc <= id_ex_pc;
@@ -1016,6 +1042,9 @@ begin
         ex_mem_const16 <= id_ex_const16;
         ex_mem_const27 <= id_ex_const27;
         ex_mem_areg_data <= ex_alu_a;
+        // Memory size control
+        ex_mem_mem_size <= id_ex_mem_size;
+        ex_mem_mem_sign_extend <= id_ex_mem_sign_extend;
     end else if (cache_line_hazard && !backend_pipeline_stall)
     begin
         // Cache line hazard: MEM should advance, insert bubble into MEM stage

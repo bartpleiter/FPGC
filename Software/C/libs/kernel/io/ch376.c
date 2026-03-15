@@ -29,9 +29,9 @@ int ch376_get_top_nint()
 {
   int retval = 0;
   asm(
-      "load32 0x700000E r11 ; r11 = nint of top CH376"
+      "load32 0x1C000038 r11 ; r11 = nint of top CH376"
       "read 0 r11 r11       ; Read nint pin state"
-      "write -1 r14 r11     ; Write to stack for return");
+      "write -4 r14 r11     ; Write to stack for return");
   return retval;
 }
 
@@ -40,9 +40,9 @@ int ch376_get_bottom_nint()
 {
   int retval = 0;
   asm(
-      "load32 0x7000011 r11 ; r11 = nint of bottom CH376"
+      "load32 0x1C000044 r11 ; r11 = nint of bottom CH376"
       "read 0 r11 r11       ; Read nint pin state"
-      "write -1 r14 r11     ; Write to stack for return");
+      "write -4 r14 r11     ; Write to stack for return");
   return retval;
 }
 

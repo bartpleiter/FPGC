@@ -27,7 +27,7 @@ void GenInit()
   // initialization of target-specific code generator
   // Assembler is responsible to move all non-.code parts away from the code
   SizeOfWord = 4;
-  WordAddressable = 1; // B32P3 uses word-addressable memory (each address = 1 word)
+  WordAddressable = 0; // B32P3 now uses byte-addressable memory
   OutputFormat = FormatSegmented;
   CodeHeaderFooter[0] = ".code";
   DataHeaderFooter[0] = ".data";
@@ -53,7 +53,7 @@ void GenInitFinalize()
         "; Setup stack and return function before jumping to Main of C program\n"
         "Main:\n"
         "  load32 0 r14            ; initialize base pointer address\n"
-        "  load32 0xF7FFF r13      ; initialize main BDOS stack address\n"
+        "  load32 0x3DFFFC r13      ; initialize main BDOS stack address\n"
         "  addr2reg Return_UART r1 ; get address of return function\n"
         "  or r0 r1 r15            ; copy return addr to r15\n"
         "  jump Label_main         ; jump to main of C program\n"
@@ -64,7 +64,7 @@ void GenInitFinalize()
         "; Return value should be in r1\n"
         "; Send it over UART and halt afterwards\n"
         "Return_UART:\n"
-        "  load32 0x7000000 r2 ; r1 = 0x7000000 | UART tx\n"
+        "  load32 0x1C000000 r2 ; r1 = 0x1C000000 | UART tx\n"
         "  write 0 r2 r1       ; write r2 over UART\n"
         "  halt                ; halt\n"
         "\n");
@@ -94,7 +94,7 @@ void GenInitFinalize()
         "; Setup stack and return function before jumping to Main of C program\n"
         "Main:\n"
         "  load32 0 r14            ; initialize base pointer address\n"
-        "  load32 0x77FFFF r13     ; initialize main stack address\n"
+        "  load32 0x1DFFFFC r13    ; initialize main stack address\n"
         "  addr2reg Return_UART r1 ; get address of return function\n"
         "  or r0 r1 r15            ; copy return addr to r15\n"
         "  jump Label_main         ; jump to main of C program\n"
@@ -105,7 +105,7 @@ void GenInitFinalize()
         "; Return value should be in r1\n"
         "; Send it over UART and halt afterwards\n"
         "Return_UART:\n"
-        "  load32 0x7000000 r2 ; r1 = 0x7000000 | UART tx\n"
+        "  load32 0x1C000000 r2 ; r1 = 0x1C000000 | UART tx\n"
         "  write 0 r2 r1       ; write r2 over UART\n"
         "  halt                ; halt\n"
         "\n");
@@ -124,13 +124,35 @@ void GenWordAlignment(int bss)
   // B32P3 doesn't need explicit alignment directives for words
 }
 
+// Byte packing buffer for sub-word initialized data in byte-addressable mode
+static unsigned GenPackBuf;
+static int GenPackBufBytes;
+
+STATIC
+void GenFlushPack(void)
+{
+  if (GenPackBufBytes > 0)
+  {
+    printf2("  .dw %u\n", GenPackBuf);
+    GenPackBuf = 0;
+    GenPackBufBytes = 0;
+  }
+}
+
+STATIC
+void GenPackByte(unsigned val)
+{
+  GenPackBuf |= (val & 0xFFu) << (GenPackBufBytes * 8);
+  GenPackBufBytes++;
+  if (GenPackBufBytes >= 4)
+    GenFlushPack();
+}
+
 STATIC
 void GenLabel(char* Label, int Static)
 {
+  GenFlushPack();
   {
-    // Optional: if in the future linker support is added, below can be used
-    // if (!Static && GenExterns)
-    //   printf2("  .globl %s\n", Label);
     printf2("Label_%s:\n", Label);
   }
 }
@@ -149,6 +171,7 @@ void GenPrintLabel(char* Label)
 STATIC
 void GenNumLabel(int Label)
 {
+  GenFlushPack();
   printf2("Label_L%d:\n", Label);
 }
 
@@ -161,9 +184,35 @@ void GenPrintNumLabel(int label)
 STATIC
 void GenZeroData(unsigned Size, int bss)
 {
-  // B32P3: Generate zero words for uninitialized data
-  // In word-addressable mode, Size is already in words, not bytes
-  unsigned words = WordAddressable ? Size : (Size + 3) / 4;
+  if (!WordAddressable)
+  {
+    // Fill remaining pack buffer with zeros
+    while (GenPackBufBytes > 0 && Size > 0)
+    {
+      GenPackByte(0);
+      Size--;
+    }
+    // Emit full zero words
+    unsigned fullWords = Size / 4;
+    if (fullWords > 0)
+    {
+      unsigned i;
+      printf2("  .dw");
+      for (i = 0; i < fullWords; i++)
+        printf2(" 0");
+      printf2("\n");
+    }
+    // Buffer remaining bytes
+    unsigned remaining = Size % 4;
+    while (remaining > 0)
+    {
+      GenPackByte(0);
+      remaining--;
+    }
+    return;
+  }
+  // Word-addressable mode: Size is in words
+  unsigned words = Size;
   unsigned i;
   if (words > 0)
   {
@@ -180,23 +229,48 @@ STATIC
 void GenIntData(int Size, int Val)
 {
   Val = truncInt(Val);
-  if (Size == 1 || Size == 2 || Size == 4)
+  if (WordAddressable)
   {
-    // B32P3: All data stored as 32-bit words
-    printf2("  .dw %d\n", Val);
+    if (Size == 1 || Size == 2 || Size == 4)
+      printf2("  .dw %d\n", Val);
+  }
+  else
+  {
+    if (Size == 1)
+    {
+      GenPackByte((unsigned)Val);
+    }
+    else if (Size == 2)
+    {
+      GenPackByte((unsigned)Val & 0xFF);
+      GenPackByte(((unsigned)Val >> 8) & 0xFF);
+    }
+    else if (Size == 4)
+    {
+      GenFlushPack();
+      printf2("  .dw %d\n", Val);
+    }
   }
 }
 
 STATIC
 void GenStartAsciiString()
 {
-  printf2("  .dsw "); // Each character gets its own 32-bit word (word-addressable)
+  if (WordAddressable)
+    printf2("  .dsw ");
+  else
+  {
+    GenFlushPack();
+    printf2("  .dsb ");
+  }
 }
 
 STATIC
 void GenAddrData(int Size, char* Label, int ofs)
 {
   ofs = truncInt(ofs);
+  if (!WordAddressable)
+    GenFlushPack();
   // B32P3: All data stored as 32-bit words, no need to check size
   printf2("  .dw ");
   GenPrintLabel(Label);
@@ -268,6 +342,14 @@ void GenRecordFxnSize(char* startLabelName, int endLabelNo)
 #define B32InstrFsthi   0x30
 #define B32InstrFstlo   0x31
 
+// Sub-word memory instructions (byte-addressable mode)
+#define B32InstrReadB   0x32
+#define B32InstrReadBu  0x33
+#define B32InstrReadH   0x34
+#define B32InstrReadHu  0x35
+#define B32InstrWriteB  0x36
+#define B32InstrWriteH  0x37
+
 STATIC
 void GenPrintInstr(int instr, int val)
 {
@@ -325,6 +407,12 @@ void GenPrintInstr(int instr, int val)
   case B32InstrFld     : p = "fld"; break;
   case B32InstrFsthi   : p = "fsthi"; break;
   case B32InstrFstlo   : p = "fstlo"; break;
+  case B32InstrReadB   : p = "readb"; break;
+  case B32InstrReadBu  : p = "readbu"; break;
+  case B32InstrReadH   : p = "readh"; break;
+  case B32InstrReadHu  : p = "readhu"; break;
+  case B32InstrWriteB  : p = "writeb"; break;
+  case B32InstrWriteH  : p = "writeh"; break;
   }
 
   printf2("  %s ", p);
@@ -638,12 +726,13 @@ int GenLeaf;
 STATIC
 void GenWriteFrameSize()
 {
-  // In word-addressable mode, RA + FP take 2 words (addresses), not 8 bytes
-  unsigned size = 2/*RA + FP*/ - CurFxnMinLocalOfs;
+  unsigned raFpSize = WordAddressable ? 2 : 2 * SizeOfWord;
+  unsigned raOfs = WordAddressable ? 1 : SizeOfWord;
+  unsigned size = raFpSize - CurFxnMinLocalOfs;
   printf2("  sub r13 %10u r13\n", size); // Adjust stack pointer
-  printf2("  write %10u r13 r14\n", size - 2); // Save frame pointer
-  printf2("  add r13 %10u r14\n", size - 2); // Set up new frame pointer
-  printf2("  %cwrite 1 r14 r15\n", GenLeaf ? ';' : ' '); // Save return address if not leaf (offset 1, not 4)
+  printf2("  write %10u r13 r14\n", size - raFpSize); // Save frame pointer
+  printf2("  add r13 %10u r14\n", size - raFpSize); // Set up new frame pointer
+  printf2("  %cwrite %d r14 r15\n", GenLeaf ? ';' : ' ', raOfs); // Save return address if not leaf
 }
 
 STATIC
@@ -666,25 +755,22 @@ void GenFxnProlog()
     if (regCnt > 4)
       regCnt = 4;
     // Save argument registers to stack for local access
-    // In word-addressable mode, each parameter is at offset i (not 4 * i)
+    int argStride = WordAddressable ? 1 : SizeOfWord;
     for (i = 0; i < regCnt; i++)
       GenPrintInstr3Operands(B32InstrWrite, 0,
-                             B32OpConst, i,
+                             B32OpConst, i * argStride,
                              B32OpRegSp, 0,
                              B32OpRegA0 + i, 0);
     
     // Pop stack-based arguments (beyond the first 4) from hardware stack to memory
-    // Arguments are pushed right-to-left, so last arg is pushed first, first extra arg pushed last
-    // Therefore, first pop gets arg 5 (index 4), second pop gets arg 6 (index 5), etc.
     if (cnt > 4)
     {
-      // Pop from hardware stack and write to memory at sp+4, sp+5, etc.
       for (i = 4; i < cnt; i++)
       {
         GenPrintInstr1Operand(B32InstrPop, 0,
                               TEMP_REG_A, 0);
         GenPrintInstr3Operands(B32InstrWrite, 0,
-                               B32OpConst, i,
+                               B32OpConst, i * argStride,
                                B32OpRegSp, 0,
                                TEMP_REG_A, 0);
       }
@@ -713,10 +799,12 @@ void GenFxnEpilog()
 {
   GenUpdateFrameSize();
 
-  // In word-addressable mode, RA is at offset 1 (not 4)
+  unsigned raFpSize = WordAddressable ? 2 : 2 * SizeOfWord;
+  unsigned raOfs = WordAddressable ? 1 : SizeOfWord;
+
   if (!GenLeaf)
     GenPrintInstr3Operands(B32InstrRead, 0,
-                           B32OpConst, 1,
+                           B32OpConst, raOfs,
                            B32OpRegFp, 0,
                            B32OpRegRa, 0);
 
@@ -725,10 +813,9 @@ void GenFxnEpilog()
                          B32OpRegFp, 0,
                          B32OpRegFp, 0);
 
-  // In word-addressable mode, RA + FP take 2 words (not 8 bytes)
   GenPrintInstr3Operands(B32InstrAdd, 0,
                          B32OpRegSp, 0,
-                         B32OpConst, 2/*RA + FP*/ - CurFxnMinLocalOfs,
+                         B32OpConst, raFpSize - CurFxnMinLocalOfs,
                          B32OpRegSp, 0);
 
   GenPrintInstr2Operands(B32InstrJumpr, 0,
@@ -823,42 +910,86 @@ void GenPostIdentAccess()
 STATIC
 void GenReadIdent(int regDst, int opSz, int label)
 {
+  int instr = B32InstrRead;
+  if (!WordAddressable)
+  {
+    switch (opSz)
+    {
+    case -1: instr = B32InstrReadB; break;
+    case 1: instr = B32InstrReadBu; break;
+    case -2: instr = B32InstrReadH; break;
+    case 2: instr = B32InstrReadHu; break;
+    }
+  }
   GenPreIdentAccess(label);
   // B32P3: Read from address in TEMP_REG_A
-  GenPrintInstr3Operands(B32InstrRead, 0,
+  GenPrintInstr3Operands(instr, 0,
                          B32OpConst, 0,
                          TEMP_REG_A, 0,
                          regDst, 0);
   GenPostIdentAccess();
-  GenExtendRegIfNeeded(regDst, opSz);
+  if (WordAddressable)
+    GenExtendRegIfNeeded(regDst, opSz);
 }
 
 STATIC
 void GenReadLocal(int regDst, int opSz, int ofs)
 {
-  GenPrintInstr3Operands(B32InstrRead, 0,
+  int instr = B32InstrRead;
+  if (!WordAddressable)
+  {
+    switch (opSz)
+    {
+    case -1: instr = B32InstrReadB; break;
+    case 1: instr = B32InstrReadBu; break;
+    case -2: instr = B32InstrReadH; break;
+    case 2: instr = B32InstrReadHu; break;
+    }
+  }
+  GenPrintInstr3Operands(instr, 0,
                          B32OpConst, ofs,
                          B32OpRegFp, 0,
                          regDst, 0);
-  GenExtendRegIfNeeded(regDst, opSz);
+  if (WordAddressable)
+    GenExtendRegIfNeeded(regDst, opSz);
 }
 
 STATIC
 void GenReadIndirect(int regDst, int regSrc, int opSz)
 {
-  GenPrintInstr3Operands(B32InstrRead, 0,
+  int instr = B32InstrRead;
+  if (!WordAddressable)
+  {
+    switch (opSz)
+    {
+    case -1: instr = B32InstrReadB; break;
+    case 1: instr = B32InstrReadBu; break;
+    case -2: instr = B32InstrReadH; break;
+    case 2: instr = B32InstrReadHu; break;
+    }
+  }
+  GenPrintInstr3Operands(instr, 0,
                          B32OpConst, 0,
                          regSrc, 0,
                          regDst, 0);
-  GenExtendRegIfNeeded(regDst, opSz);
+  if (WordAddressable)
+    GenExtendRegIfNeeded(regDst, opSz);
 }
 
 STATIC
 void GenWriteIdent(int regSrc, int opSz, int label)
 {
-  // B32P3: All writes are word-sized
+  int instr = B32InstrWrite;
+  if (!WordAddressable)
+  {
+    switch (opSz)
+    {
+    case -1: case 1: instr = B32InstrWriteB; break;
+    case -2: case 2: instr = B32InstrWriteH; break;
+    }
+  }
   GenPreIdentAccess(label);
-  GenPrintInstr3Operands(B32InstrWrite, 0,
+  GenPrintInstr3Operands(instr, 0,
                          B32OpConst, 0,
                          TEMP_REG_A, 0,
                          regSrc, 0);
@@ -868,8 +999,16 @@ void GenWriteIdent(int regSrc, int opSz, int label)
 STATIC
 void GenWriteLocal(int regSrc, int opSz, int ofs)
 {
-  // B32P3: All writes are word-sized
-  GenPrintInstr3Operands(B32InstrWrite, 0,
+  int instr = B32InstrWrite;
+  if (!WordAddressable)
+  {
+    switch (opSz)
+    {
+    case -1: case 1: instr = B32InstrWriteB; break;
+    case -2: case 2: instr = B32InstrWriteH; break;
+    }
+  }
+  GenPrintInstr3Operands(instr, 0,
                          B32OpConst, ofs,
                          B32OpRegFp, 0,
                          regSrc, 0);
@@ -878,8 +1017,16 @@ void GenWriteLocal(int regSrc, int opSz, int ofs)
 STATIC
 void GenWriteIndirect(int regDst, int regSrc, int opSz)
 {
-  // B32P3: All writes are word-sized
-  GenPrintInstr3Operands(B32InstrWrite, 0,
+  int instr = B32InstrWrite;
+  if (!WordAddressable)
+  {
+    switch (opSz)
+    {
+    case -1: case 1: instr = B32InstrWriteB; break;
+    case -2: case 2: instr = B32InstrWriteH; break;
+    }
+  }
+  GenPrintInstr3Operands(instr, 0,
                          B32OpConst, 0,
                          regDst, 0,
                          regSrc, 0);
@@ -1739,14 +1886,15 @@ void GenExpr0()
       if (gotUnary)
         GenPushReg();
       gotUnary = 0;
-      // In word-addressable mode, v is count of args, max 4 args in registers
-      // Note: Stack space for callee to save arguments is allocated at case ')'
-      // Do NOT allocate stack space here as it would cause a stack leak in nested calls
-      paramOfs = v - 1;
-      if (maxCallDepth == 1 && paramOfs >= 0 && paramOfs <= 3)
+      // v is arg byte count when byte-addressable, arg word count when word-addressable
       {
-        // Work directly in A0-A3 instead of working in V0 and avoid copying V0 to A0-A3
-        GenWreg = B32OpRegA0 + paramOfs;
+        int argCount = WordAddressable ? v : v / SizeOfWord;
+        paramOfs = argCount - 1;
+        if (maxCallDepth == 1 && paramOfs >= 0 && paramOfs <= 3)
+        {
+          // Work directly in A0-A3 instead of working in V0 and avoid copying V0 to A0-A3
+          GenWreg = B32OpRegA0 + paramOfs;
+        }
       }
       break;
 
@@ -1775,55 +1923,55 @@ void GenExpr0()
 
     case ')':
       GenLeaf = 0;
-      if (maxCallDepth != 1)
       {
-        // Pop arguments from hardware stack (pushed in reverse order)
-        // Args were pushed right-to-left, so we pop into A0, A1, A2, A3 in that order
-        if (v >= 1)
-          GenPrintInstr1Operand(B32InstrPop, 0, B32OpRegA0, 0);
-        if (v >= 2)
-          GenPrintInstr1Operand(B32InstrPop, 0, B32OpRegA1, 0);
-        if (v >= 3)
-          GenPrintInstr1Operand(B32InstrPop, 0, B32OpRegA2, 0);
-        if (v >= 4)
-          GenPrintInstr1Operand(B32InstrPop, 0, B32OpRegA3, 0);
-        // Allocate stack space for callee to save arguments
-        GenGrowStack(v > 4 ? v : 4);
+        int argCount = WordAddressable ? v : v / SizeOfWord;
+        int minStackSpace = WordAddressable ? 4 : 4 * SizeOfWord;
+        int savpcSkip = WordAddressable ? 3 : 3 * SizeOfWord;
+        if (maxCallDepth != 1)
+        {
+          // Pop arguments from hardware stack (pushed in reverse order)
+          if (argCount >= 1)
+            GenPrintInstr1Operand(B32InstrPop, 0, B32OpRegA0, 0);
+          if (argCount >= 2)
+            GenPrintInstr1Operand(B32InstrPop, 0, B32OpRegA1, 0);
+          if (argCount >= 3)
+            GenPrintInstr1Operand(B32InstrPop, 0, B32OpRegA2, 0);
+          if (argCount >= 4)
+            GenPrintInstr1Operand(B32InstrPop, 0, B32OpRegA3, 0);
+          // Allocate stack space for callee to save arguments
+          GenGrowStack(v > minStackSpace ? v : minStackSpace);
+        }
+        else
+        {
+          GenGrowStack(v > minStackSpace ? v : minStackSpace);
+        }
+        if (stack[i - 1][0] == tokIdent)
+        {
+          GenPrintInstr1Operand(B32InstrSavpc, 0,
+                                B32OpRegRa, 0);
+          GenPrintInstr3Operands(B32InstrAdd, 0,
+                               B32OpRegRa, 0,
+                               B32OpConst, savpcSkip,
+                               B32OpRegRa, 0);
+          GenPrintInstr1Operand(B32InstrJump, 0,
+                                B32OpLabel, stack[i - 1][1]);
+        }
+        else
+        {
+          GenPrintInstr1Operand(B32InstrSavpc, 0,
+                                B32OpRegRa, 0);
+          GenPrintInstr3Operands(B32InstrAdd, 0,
+                               B32OpRegRa, 0,
+                               B32OpConst, savpcSkip,
+                               B32OpRegRa, 0);
+          GenPrintInstr2Operands(B32InstrJumpr, 0,
+                                B32OpConst, 0,
+                                GenWreg, 0);
+        }
+        if (v < minStackSpace)
+          v = minStackSpace;
+        GenGrowStack(-v);
       }
-      else
-      {
-        // Allocate at least 4 words, or v words if more than 4 arguments
-        GenGrowStack(v > 4 ? v : 4);
-      }
-      if (stack[i - 1][0] == tokIdent)
-      {
-        // B32P3: Save return address (PC + offset) and jump to function
-        GenPrintInstr1Operand(B32InstrSavpc, 0,
-                              B32OpRegRa, 0);
-        GenPrintInstr3Operands(B32InstrAdd, 0,
-                             B32OpRegRa, 0,
-                             B32OpConst, 3,
-                             B32OpRegRa, 0);
-        GenPrintInstr1Operand(B32InstrJump, 0,
-                              B32OpLabel, stack[i - 1][1]);
-      }
-      else
-      {
-        // B32P3: Save return address (PC + offset) and jump to register
-        GenPrintInstr1Operand(B32InstrSavpc, 0,
-                              B32OpRegRa, 0);
-        GenPrintInstr3Operands(B32InstrAdd, 0,
-                             B32OpRegRa, 0,
-                             B32OpConst, 3,
-                             B32OpRegRa, 0);
-        GenPrintInstr2Operands(B32InstrJumpr, 0,
-                              B32OpConst, 0,
-                              GenWreg, 0);
-      }
-      // In word-addressable mode, always allocate at least 4 words for args
-      if (v < 4)
-        v = 4;
-      GenGrowStack(-v);
       break;
 
     case tokUnaryStar:
@@ -2407,16 +2555,32 @@ void GenFin()
 
     GenNumLabel(StructCpyLabel);
 
-    puts2("  or r0 r6 r2\n"
-          "  or r0 r6 r3");
-    GenNumLabel(lbl);
-    puts2("  read 0 r5 r6\n"
-          "  add r5 1 r5\n"
-          "  sub r4 1 r4\n"
-          "  write 0 r3 r6\n"
-          "  add r3 1 r3");
-    
-    printf2("  beq r4 r0 2\n");
+    if (WordAddressable)
+    {
+      puts2("  or r0 r6 r2\n"
+            "  or r0 r6 r3");
+      GenNumLabel(lbl);
+      puts2("  read 0 r5 r6\n"
+            "  add r5 1 r5\n"
+            "  sub r4 1 r4\n"
+            "  write 0 r3 r6\n"
+            "  add r3 1 r3");
+      
+      printf2("  beq r4 r0 2\n");
+    }
+    else
+    {
+      puts2("  or r0 r6 r2\n"
+            "  or r0 r6 r3");
+      GenNumLabel(lbl);
+      puts2("  read 0 r5 r6\n"
+            "  add r5 4 r5\n"
+            "  sub r4 4 r4\n"
+            "  write 0 r3 r6\n"
+            "  add r3 4 r3");
+      
+      printf2("  beq r4 r0 8\n");
+    }
     printf2("  jump ");GenPrintNumLabel(lbl);
 
     puts2("");
@@ -2458,7 +2622,7 @@ void GenFin()
         "  push r14\n"
         "  push r15\n"
         "\n"
-        "  load32 0xFFFFF r13      ; initialize BDOS int stack address\n"
+        "  load32 0x3FFFFC r13      ; initialize BDOS int stack address\n"
         "  load32 0 r14            ; initialize base pointer address\n"
         "  addr2reg Return_Interrupt r1 ; get address of return function\n"
         "  or r0 r1 r15            ; copy return addr to r15\n"
@@ -2510,8 +2674,8 @@ void GenFin()
         "  push r14\n"
         "  push r15\n"
         "\n"
-        "  load32 0xFBFFF r13      ; initialize kernel syscall stack address\n"
-        "  sub r13 4 r13           ; allocate arg save area for C callee\n"
+        "  load32 0x3EFFFC r13      ; initialize kernel syscall stack address\n"
+        "  sub r13 16 r13          ; allocate arg save area for C callee\n"
         "  load32 0 r14            ; initialize base pointer address\n"
         "  addr2reg Return_Syscall r11 ; use r11 (temp) to avoid clobbering r4-r7 (args)\n"
         "  or r0 r11 r15           ; copy return addr to r15\n"
@@ -2581,7 +2745,7 @@ void GenFin()
         "  push r14\n"
         "  push r15\n"
         "\n"
-        "  load32 0x7FFFFF r13     ; initialize int stack address\n"
+        "  load32 0x1FFFFFC r13    ; initialize int stack address\n"
         "  load32 0 r14            ; initialize base pointer address\n"
         "  addr2reg Return_Interrupt r1 ; get address of return function\n"
         "  or r0 r1 r15            ; copy return addr to r15\n"

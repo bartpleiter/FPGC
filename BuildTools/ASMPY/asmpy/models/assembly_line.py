@@ -69,11 +69,11 @@ class AssemblyLine(ABC):
         for i, ch in enumerate(original):
             if ch == '"':
                 # Check for escaped quote: only toggle if previous char is not backslash
-                if i == 0 or original[i - 1] != '\\':
+                if i == 0 or original[i - 1] != "\\":
                     in_quotes = not in_quotes
-            elif ch == ';' and not in_quotes:
+            elif ch == ";" and not in_quotes:
                 code_str = original[:i].strip()
-                comment = original[i + 1:].strip()
+                comment = original[i + 1 :].strip()
                 break
         else:
             code_str = original.strip()
@@ -317,27 +317,63 @@ class InstructionAssemblyLine(AssemblyLine):
         raise ValueError("Invalid control operation")
 
     def _memory_operation_to_binary(self) -> str:
-        if self.instruction_type == MemoryOperation.READ:
-            if len(self.arguments) != 3:
-                raise ValueError("READ requires three arguments")
-            if not isinstance(self.arguments[0], Number):
-                raise ValueError("READ first argument must be a number")
-            if not isinstance(self.arguments[1], Register):
-                raise ValueError("READ second argument must be a register")
-            if not isinstance(self.arguments[2], Register):
-                raise ValueError("READ third argument must be a register")
-            return f"{InstructionOpcode.READ.value}{self.arguments[0].to_binary(bits=16)}{self.arguments[1].to_binary()}{0:04b}{self.arguments[2].to_binary()}"
+        # Sub-word read variants: readb, readbu, readh, readhu
+        # Encoding: same as READ (opcode 1110) but bits [7:4] encode the sub-opcode
+        _read_subop = {
+            MemoryOperation.READ: 0b0000,  # word (32-bit)
+            MemoryOperation.READB: 0b0001,  # byte, sign-extend
+            MemoryOperation.READBU: 0b0101,  # byte, zero-extend
+            MemoryOperation.READH: 0b0010,  # halfword, sign-extend
+            MemoryOperation.READHU: 0b0110,  # halfword, zero-extend
+        }
+        # Sub-word write variants: writeb, writeh
+        # Encoding: same as WRITE (opcode 1101) but bits [3:0] encode the sub-opcode
+        _write_subop = {
+            MemoryOperation.WRITE: 0b0000,  # word (32-bit)
+            MemoryOperation.WRITEB: 0b0001,  # byte
+            MemoryOperation.WRITEH: 0b0010,  # halfword
+        }
 
-        if self.instruction_type == MemoryOperation.WRITE:
+        if self.instruction_type in _read_subop:
             if len(self.arguments) != 3:
-                raise ValueError("WRITE requires three arguments")
+                raise ValueError(
+                    f"{self.instruction_type.value.upper()} requires three arguments"
+                )
             if not isinstance(self.arguments[0], Number):
-                raise ValueError("WRITE first argument must be a number")
+                raise ValueError(
+                    f"{self.instruction_type.value.upper()} first argument must be a number"
+                )
             if not isinstance(self.arguments[1], Register):
-                raise ValueError("WRITE second argument must be a register")
+                raise ValueError(
+                    f"{self.instruction_type.value.upper()} second argument must be a register"
+                )
             if not isinstance(self.arguments[2], Register):
-                raise ValueError("WRITE third argument must be a register")
-            return f"{InstructionOpcode.WRITE.value}{self.arguments[0].to_binary(bits=16)}{self.arguments[1].to_binary()}{self.arguments[2].to_binary()}{0:04b}"
+                raise ValueError(
+                    f"{self.instruction_type.value.upper()} third argument must be a register"
+                )
+            subop = _read_subop[self.instruction_type]
+            return f"{InstructionOpcode.READ.value}{self.arguments[0].to_binary(bits=16)}{self.arguments[1].to_binary()}{subop:04b}{self.arguments[2].to_binary()}"
+
+        if self.instruction_type in _write_subop:
+            if len(self.arguments) != 3:
+                raise ValueError(
+                    f"{self.instruction_type.value.upper()} requires three arguments"
+                )
+            if not isinstance(self.arguments[0], Number):
+                raise ValueError(
+                    f"{self.instruction_type.value.upper()} first argument must be a number"
+                )
+            if not isinstance(self.arguments[1], Register):
+                raise ValueError(
+                    f"{self.instruction_type.value.upper()} second argument must be a register"
+                )
+            if not isinstance(self.arguments[2], Register):
+                raise ValueError(
+                    f"{self.instruction_type.value.upper()} third argument must be a register"
+                )
+            subop = _write_subop[self.instruction_type]
+            return f"{InstructionOpcode.WRITE.value}{self.arguments[0].to_binary(bits=16)}{self.arguments[1].to_binary()}{self.arguments[2].to_binary()}{subop:04b}"
+
         if self.instruction_type == MemoryOperation.PUSH:
             if len(self.arguments) != 1:
                 raise ValueError("PUSH requires one argument")
@@ -661,6 +697,8 @@ class DataAssemblyLine(AssemblyLine):
         # Handle .dsw (string spaced) - each character becomes a separate word
         if self.data_instruction_type == DataInstructionType.STRING_SPACED:
             self._parse_string_values(rest_of_line)
+        elif self.data_instruction_type == DataInstructionType.STRING_MERGED:
+            self._parse_string_values(rest_of_line)
         else:
             # Original behavior for .dw and other data types
             data_instruction_values = rest_of_line.split()
@@ -730,7 +768,31 @@ class DataAssemblyLine(AssemblyLine):
                 i += 1
 
     def expand(self) -> list["AssemblyLine"]:
+        # For STRING_MERGED (.dsb), pack characters into 32-bit words (4 bytes per word, little-endian)
         expanded_lines: list[AssemblyLine] = []
+        if self.data_instruction_type == DataInstructionType.STRING_MERGED:
+            values = [v.value & 0xFF for v in self.data_instruction_values]
+            # Pad to multiple of 4
+            while len(values) % 4 != 0:
+                values.append(0)
+            for i in range(0, len(values), 4):
+                packed = (
+                    values[i]
+                    | (values[i + 1] << 8)
+                    | (values[i + 2] << 16)
+                    | (values[i + 3] << 24)
+                )
+                expanded_lines.append(
+                    DataAssemblyLine(
+                        code_str=f"{DataInstructionType.WORD.value} {packed}",
+                        comment=self.comment,
+                        original=self.original,
+                        source_line_number=self.source_line_number,
+                        source_file_name=self.source_file_name,
+                    )
+                )
+            return expanded_lines
+
         for value in self.data_instruction_values:
             expanded_lines.append(
                 DataAssemblyLine(
@@ -747,6 +809,7 @@ class DataAssemblyLine(AssemblyLine):
         if self.data_instruction_type not in (
             DataInstructionType.WORD,
             DataInstructionType.STRING_SPACED,
+            DataInstructionType.STRING_MERGED,
         ):
             raise NotImplementedError(
                 "Only word and string spaced data instructions are currently supported"

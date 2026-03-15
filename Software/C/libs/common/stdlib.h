@@ -11,10 +11,10 @@
 int atoi(const char *nptr);
 
 // Convert unsigned integer to string.
-int *utoa(unsigned int value, int *buf, int base, int uppercase);
+char *utoa(unsigned int value, char *buf, int base, int uppercase);
 
 // Convert signed integer to string.
-int *itoa(int value, int *buf, int base);
+char *itoa(int value, char *buf, int base);
 
 // ---- Utility Functions ----
 

@@ -10,7 +10,7 @@
 // ---- Screen constants ----
 #define SCREEN_WIDTH  320
 #define SCREEN_HEIGHT 240
-#define PIXEL_FB_ADDR 0x7B00000
+#define PIXEL_FB_ADDR 0x1EC00000
 
 unsigned int *fb = (unsigned int *)PIXEL_FB_ADDR;
 
@@ -205,12 +205,12 @@ int mandelbrot_pixel()
     "bne r1 r0 Label_mbrot_asm_loop"
 
     "Label_mbrot_asm_set:"
-    "write -1 r14 r0     ; retval = 0"
+    "write -4 r14 r0     ; retval = 0"
     "jump Label_mbrot_asm_done"
 
     "Label_mbrot_asm_escaped:"
     "add r5 1 r1         ; r1 = iter + 1"
-    "write -1 r14 r1     ; retval = iter + 1"
+    "write -4 r14 r1     ; retval = iter + 1"
 
     "Label_mbrot_asm_done:"
   );

@@ -361,6 +361,7 @@ wire [31:0] l1d_cache_controller_addr;
 wire [31:0] l1d_cache_controller_data;
 wire        l1d_cache_controller_we;
 wire        l1d_cache_controller_start;
+wire [3:0]  l1d_cache_controller_byte_enable;
 wire        l1d_cache_controller_done;
 wire [31:0] l1d_cache_controller_result;
 
@@ -383,6 +384,7 @@ CacheController cache_controller (
     .cpu_EXMEM2_addr(l1d_cache_controller_addr),
     .cpu_EXMEM2_data(l1d_cache_controller_data),
     .cpu_EXMEM2_we(l1d_cache_controller_we),
+    .cpu_EXMEM2_byte_enable(l1d_cache_controller_byte_enable),
     .cpu_EXMEM2_done(l1d_cache_controller_done),
     .cpu_EXMEM2_result(l1d_cache_controller_result),
 
@@ -597,6 +599,7 @@ B32P3 cpu (
     .l1d_cache_controller_data(l1d_cache_controller_data),
     .l1d_cache_controller_we(l1d_cache_controller_we),
     .l1d_cache_controller_start(l1d_cache_controller_start),
+    .l1d_cache_controller_byte_enable(l1d_cache_controller_byte_enable),
     .l1d_cache_controller_done(l1d_cache_controller_done),
     .l1d_cache_controller_result(l1d_cache_controller_result),
 
