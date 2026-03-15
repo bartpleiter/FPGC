@@ -4,8 +4,6 @@ int factorial(int n) {
 }
 
 int main(void) {
-    // 5! = 120, we want 7. Use fib instead.
-    // Actually: factorial(3) = 6, +1 = 7
     return factorial(3) + 1; // expected=0x07
 }
 

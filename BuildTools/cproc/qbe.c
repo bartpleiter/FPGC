@@ -943,6 +943,14 @@ funcexpr(struct func *f, struct expr *e)
 		case BUILTINALLOCA:
 			l = funcexpr(f, e->base);
 			return funcinst(f, IALLOC16, ptrclass, l, NULL);
+		case BUILTINMULTFP:
+			l = funcexpr(f, e->base);
+			r = funcexpr(f, e->base->next);
+			return funcinst(f, IMULTFP, 'w', l, r);
+		case BUILTINDIVFP:
+			l = funcexpr(f, e->base);
+			r = funcexpr(f, e->base->next);
+			return funcinst(f, IDIVFP, 'w', l, r);
 		case BUILTINUNREACHABLE:
 			return NULL;
 		default:

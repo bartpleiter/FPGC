@@ -73,6 +73,8 @@ static struct {
 	{ Osub,    Ki, "sub %0 %1 %=" },
 	{ Oneg,    Ki, "sub r0 %0 %=" },
 	{ Omul,    Ki, "mults %0 %1 %=" },
+	{ Omultfp, Ki, "multfp %0 %1 %=" },
+	{ Odivfp,  Ki, "divfp %0 %1 %=" },
 	{ Odiv,    Ki, "divs %0 %1 %=" },
 	{ Orem,    Ki, "mods %0 %1 %=" },
 	{ Oudiv,   Ki, "divu %0 %1 %=" },

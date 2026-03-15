@@ -262,6 +262,8 @@ enum builtinkind {
 	BUILTINVAEND,
 	BUILTINVALIST,
 	BUILTINVASTART,
+	BUILTINMULTFP,
+	BUILTINDIVFP,
 };
 
 struct decl {

@@ -132,8 +132,8 @@ enum {
 	TMask = 16383, /* for temps hash */
 	BMask = 8191, /* for blocks hash */
 
-	K = 9583425, /* found using tools/lexh.c */
-	M = 23,
+	K = 1511660, /* found using tools/lexh.c */
+	M = 22,
 };
 
 static uchar lexh[1 << (32-M)];

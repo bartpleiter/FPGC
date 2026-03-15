@@ -882,6 +882,17 @@ builtinfunc(struct scope *s, enum builtinkind kind)
 		if (consume(TCOMMA))
 			delexpr(assignexpr(s));
 		break;
+	case BUILTINMULTFP:
+	case BUILTINDIVFP: {
+		struct expr *arg1, *arg2;
+		arg1 = assignexpr(s);
+		expect(TCOMMA, "after first argument");
+		arg2 = assignexpr(s);
+		arg1->next = arg2;
+		e = mkexpr(EXPRBUILTIN, &typeint, arg1);
+		e->u.builtin.kind = kind;
+		break;
+	}
 	default:
 		fatal("internal error; unknown builtin");
 		return NULL;  /* unreachable */
