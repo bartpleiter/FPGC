@@ -241,8 +241,14 @@ reg [31:0] l1d_prev_pc = 32'hFFFFFFFF;
 wire l1d_is_sdram_op = ex_mem_valid && (ex_mem_mem_read || ex_mem_mem_write) && mem_sel_sdram;
 wire l1d_new_instr = (ex_mem_pc != l1d_prev_pc);
 
-// Need to wait for cache read on first cycle of new SDRAM operation
-wire l1d_need_cache_wait = l1d_is_sdram_op && !l1d_cache_read_done;
+// Need to wait for cache read on first cycle of new SDRAM operation.
+// Include l1d_new_instr to handle back-to-back SDRAM operations: when the
+// previous op completes and a new one enters MEM on the same cycle,
+// l1d_cache_read_done is still 1 from the previous op (non-blocking reset
+// hasn't taken effect yet), so without this check the DPRAM read latency
+// wait would be incorrectly skipped, returning stale data from the wrong
+// cache line.
+wire l1d_need_cache_wait = l1d_is_sdram_op && (!l1d_cache_read_done || l1d_new_instr);
 
 always @(posedge clk)
 begin
