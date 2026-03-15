@@ -23,6 +23,10 @@ set -e
 # Tool paths (relative to project root)
 CPROC="BuildTools/cproc/output/cproc-qbe"
 QBE="BuildTools/QBE/output/qbe"
+CPP="cpp"
+
+# Libc include path (relative to project root)
+LIBC_INCLUDE="Software/C/libc/include"
 
 # Parse arguments
 HEADER_FLAG=""
@@ -30,6 +34,8 @@ INDEPENDENT_FLAG=""
 SYSCALL_FLAG=""
 OUTPUT=""
 INPUT_FILES=()
+INCLUDE_DIRS=()
+USE_LIBC=0
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -49,20 +55,32 @@ while [[ $# -gt 0 ]]; do
             OUTPUT="$2"
             shift 2
             ;;
+        -I)
+            INCLUDE_DIRS+=("$2")
+            shift 2
+            ;;
+        -I*)
+            INCLUDE_DIRS+=("${1#-I}")
+            shift
+            ;;
+        --libc)
+            USE_LIBC=1
+            shift
+            ;;
         *.c|*.asm)
             INPUT_FILES+=("$1")
             shift
             ;;
         *)
             echo "Unknown argument: $1"
-            echo "Usage: $0 [crt0.asm] <source.c> [source2.c ...] [-o output.bin] [-h] [-i] [-s]"
+            echo "Usage: $0 [crt0.asm] <source.c> [source2.c ...] [-o output.bin] [-h] [-i] [-s] [--libc] [-I dir]"
             exit 1
             ;;
     esac
 done
 
 if [ ${#INPUT_FILES[@]} -eq 0 ]; then
-    echo "Usage: $0 [crt0.asm] <source.c> [source2.c ...] [-o output.bin] [-h] [-i] [-s]"
+    echo "Usage: $0 [crt0.asm] <source.c> [source2.c ...] [-o output.bin] [-h] [-i] [-s] [--libc] [-I dir]"
     exit 1
 fi
 
@@ -86,6 +104,15 @@ source .venv/bin/activate
 TMPDIR=$(mktemp -d)
 trap "rm -rf $TMPDIR" EXIT
 
+# Build cpp include flags
+CPP_FLAGS="-nostdinc -P"
+if [ "$USE_LIBC" -eq 1 ]; then
+    CPP_FLAGS="$CPP_FLAGS -I$LIBC_INCLUDE"
+fi
+for dir in "${INCLUDE_DIRS[@]}"; do
+    CPP_FLAGS="$CPP_FLAGS -I$dir"
+done
+
 ASM_FILES=()
 echo "=== Compiling sources ==="
 for input_file in "${INPUT_FILES[@]}"; do
@@ -96,10 +123,10 @@ for input_file in "${INPUT_FILES[@]}"; do
         cp "$input_file" "$asm_file"
         echo "  $input_file (assembly, pass-through)"
     elif [[ "$input_file" == *.c ]]; then
-        # C file — compile through cproc → QBE
+        # C file — preprocess through cpp, then compile through cproc → QBE
         asm_file="$TMPDIR/${base}.asm"
         echo "  $input_file → $asm_file"
-        "$CPROC" -t b32p3 "$input_file" 2>/dev/null | "$QBE" > "$asm_file"
+        "$CPP" $CPP_FLAGS "$input_file" | "$CPROC" -t b32p3 | "$QBE" > "$asm_file"
     fi
     ASM_FILES+=("$asm_file")
 done
