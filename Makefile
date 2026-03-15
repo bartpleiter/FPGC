@@ -12,6 +12,12 @@ B32CC_SOURCES = $(B32CC_DIR)/smlrc.c
 B32CC_OUTPUT = $(B32CC_DIR)/output/b32cc
 
 # -----------------------------------------------------------------------------
+# QBE (Backend Compiler) Variables
+# -----------------------------------------------------------------------------
+QBE_DIR = BuildTools/QBE
+QBE_OUTPUT = $(QBE_DIR)/output/qbe
+
+# -----------------------------------------------------------------------------
 # Phony Targets
 # -----------------------------------------------------------------------------
 .PHONY: all clean help
@@ -26,6 +32,7 @@ B32CC_OUTPUT = $(B32CC_DIR)/output/b32cc
 .PHONY: run-uart run-asm-uart run-c-baremetal-uart run-bdos
 .PHONY: flash-c-baremetal-spi flash-bdos
 .PHONY: b32cc test-b32cc test-b32cc-single debug-b32cc clean-b32cc
+.PHONY: qbe clean-qbe
 .PHONY: check
 .PHONY: fnp-upload-text fnp-upload-userbdos fnp-keyboard fnp-detect-iface fnp-sync-files fnp-run
 .PHONY: convert-w3d-textures
@@ -33,7 +40,7 @@ B32CC_OUTPUT = $(B32CC_DIR)/output/b32cc
 # -----------------------------------------------------------------------------
 # Default Target
 # -----------------------------------------------------------------------------
-all: venv b32cc asmpy-install check
+all: venv b32cc qbe asmpy-install check
 
 # =============================================================================
 # Python Development Environment (General)
@@ -146,6 +153,18 @@ debug-b32cc: $(B32CC_OUTPUT)
 
 clean-b32cc:
 	rm -f $(B32CC_OUTPUT)
+
+# =============================================================================
+# QBE (Backend Compiler for B32P3)
+# =============================================================================
+
+qbe: $(QBE_OUTPUT)
+
+$(QBE_OUTPUT):
+	$(MAKE) -C $(QBE_DIR)
+
+clean-qbe:
+	$(MAKE) -C $(QBE_DIR) clean
 
 # =============================================================================
 # Documentation
@@ -390,6 +409,7 @@ clean:
 	-rm -rf .ruff_cache
 	-rm -rf .coverage
 	-rm -f $(B32CC_OUTPUT)
+	-$(MAKE) -C $(QBE_DIR) clean
 	-find . -type d -name __pycache__ -exec rm -r {} \+ 2>/dev/null; true
 	@echo "Cleanup complete!"
 
@@ -429,6 +449,10 @@ help:
 	@echo "  debug-b32cc         - Debug a single test with GTKWave"
 	@echo "                        Usage: make debug-b32cc file=<test_file>"
 	@echo "  clean-b32cc         - Clean B32CC build artifacts"
+	@echo ""
+	@echo "--- QBE (Backend Compiler) ---"
+	@echo "  qbe                 - Build the QBE backend compiler for B32P3"
+	@echo "  clean-qbe           - Clean QBE build artifacts"
 	@echo ""
 	@echo "--- Documentation ---"
 	@echo "  docs-serve          - Run documentation website locally"
