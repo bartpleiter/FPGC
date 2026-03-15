@@ -356,6 +356,7 @@ class Assembler:
             if isinstance(line, InstructionAssemblyLine):
                 current_address = idx * 4 + self.offset_address.value
                 is_branch = isinstance(line.instruction_type, BranchOperation)
+                is_header = line.source_file_name == "header"
 
                 for arg in line.arguments:
                     if isinstance(arg, Label):
@@ -363,12 +364,14 @@ class Assembler:
                         if is_branch:
                             # Branch instructions use relative offsets
                             arg.target_address = target_address - current_address
-                        elif line.instruction_type == JumpOperation.JUMP:
+                        elif line.instruction_type == JumpOperation.JUMP and not is_header:
                             # Convert label-based jump to jumpo (relative)
+                            # Skip header jumps: they are relocated and must stay absolute
                             relative_offset = target_address - current_address
                             jump_rewrites.append((idx, relative_offset, line))
                         else:
                             # Other instructions use absolute addresses
+                            # Header jumps also use absolute addresses (they get relocated)
                             arg.target_address = target_address
 
         # Rewrite label-based jumps to jumpo with relative offset

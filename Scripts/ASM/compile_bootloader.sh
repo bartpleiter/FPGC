@@ -17,7 +17,7 @@ fi
 
 echo ""
 
-# Replace the first word of ram.list with 32 1s (in hex: FFFFFFFF)
+# Replace the first word (4 bytes) of ram.list with all 1s (halt instruction)
 sed -i '1s/.*/11111111111111111111111111111111/' Hardware/FPGA/Verilog/Simulation/MemoryLists/ram.list
 
 # Convert the ram.list into assembly code with .dw 0b format in Software/ASM/Bootloaders/uart_bootloader_ram_compiled.asm using UART_Bootloader_RAM_code: as label
@@ -65,7 +65,7 @@ if [ "$arg" == "--simulate" ]; then
         # Convert to 8 bit lines for UART data
         bash Scripts/Simulation/convert_to_8_bit.sh Hardware/FPGA/Verilog/Simulation/MemoryLists/uartprog.list Hardware/FPGA/Verilog/Simulation/MemoryLists/uartprog_8bit.list
         
-        # Copy word 8-11 to the beginning of the file to start with the file size for the bootloader
+        # Copy bytes 8-11 (the file size word) to the beginning of the file for the bootloader
         temp_file=$(mktemp)
         sed -n '9,12p' Hardware/FPGA/Verilog/Simulation/MemoryLists/uartprog_8bit.list > "$temp_file"
         cat Hardware/FPGA/Verilog/Simulation/MemoryLists/uartprog_8bit.list >> "$temp_file"

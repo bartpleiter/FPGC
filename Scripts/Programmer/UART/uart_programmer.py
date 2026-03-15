@@ -123,7 +123,7 @@ class UARTProgrammer:
         if word_list and len(word_list[-1]) < word_size:
             word_list[-1].extend(bytes(word_size - len(word_list[-1])))
 
-        logging.info(f"Created {len(word_list)} words from data")
+        logging.info(f"Parsed {len(word_list) * 4} bytes ({len(word_list)} words) from data")
         return word_list
 
     def send_program(self, file_path: Path, test_mode: bool = False) -> int:
@@ -156,7 +156,7 @@ class UARTProgrammer:
         file_size_bytes = bytes(word_list[2])
         file_size = int.from_bytes(file_size_bytes, "big")
 
-        logging.info(f"Program size: {file_size} words")
+        logging.info(f"Program size: {file_size * 4} bytes ({file_size} words)")
 
         if file_size < 3:
             raise UARTProgrammerError("Program size too small - needs at least 3 words")

@@ -463,7 +463,7 @@ wire        uart_rx;
 // UART test data transmission
 reg [7:0] uart_test_data [0:65535]; // Buffer for test data (64KB max)
 integer uart_test_data_size = 0;
-integer uart_test_index = -1; // Start before first index (bit ugly solution)
+integer uart_test_index = 0;
 reg uart_test_active = 1'b0;
 reg uart_test_start = 1'b0;
 reg uart_tx_trigger = 1'b0;
@@ -487,31 +487,34 @@ wire uart_tx_active;
     always @(posedge clk)
     begin
         if (reset) begin
-            uart_test_index <= -1;
+            uart_test_index <= 0;
             uart_test_active <= 1'b0;
             uart_tx_trigger <= 1'b0;
         end else begin
-            // Start UART transmission after delay
-            if (clk_counter > 6000 && !uart_test_start) begin
+            // Start UART transmission after delay (must wait for ROM bootloader to finish VRAM clearing,
+            // splash screen, copy UART bootloader to RAM, ccache and jump to address 0.
+            // The full ROM bootloader takes ~782K cycles. Use 850K to be safe.)
+            if (clk_counter > 850000 && !uart_test_start) begin
                 uart_test_start <= 1'b1;
                 uart_test_active <= 1'b1;
             end
             
             // UART transmission state machine
             if (uart_test_active && uart_test_start) begin
-                if (!uart_tx_trigger && !uart_tx_active && uart_test_index < uart_test_data_size) begin
-                    // Start next byte transmission
-                    uart_tx_trigger <= 1'b1;
-                    uart_test_index <= uart_test_index + 1;
-                    if (uart_test_index >= uart_test_data_size -1) begin
+                if (!uart_tx_trigger && !uart_tx_active) begin
+                    if (uart_test_index < uart_test_data_size) begin
+                        // Start next byte transmission
+                        uart_tx_trigger <= 1'b1;
+                        //$display("Sending UART byte %0d: 0x%02x", uart_test_index, uart_test_data[uart_test_index]);
+                    end else begin
+                        // All bytes sent
                         uart_test_active <= 1'b0;
-                        uart_tx_trigger <= 1'b0;
                         $display("UART bootloader test transmission complete at time %t", $time);
                     end
-                    //$display("Sending UART byte %d: 0x%02x", uart_test_index, uart_test_data[uart_test_index]);
                 end else if (uart_tx_trigger && uart_tx_active) begin
-                    // Clear trigger once transmission starts
+                    // Clear trigger once transmission starts, advance to next byte
                     uart_tx_trigger <= 1'b0;
+                    uart_test_index <= uart_test_index + 1;
                 end
             end
         end
@@ -697,7 +700,11 @@ integer clk_counter = 0;
 always @(posedge clk) begin
     clk_counter = clk_counter + 1;
     
+    `ifdef uart_simulation
+    if (clk_counter == 1200000) begin
+    `else
     if (clk_counter == 110000) begin
+    `endif
         $display("Simulation finished.");
         $finish;
     end

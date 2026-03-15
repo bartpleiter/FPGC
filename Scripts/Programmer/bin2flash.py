@@ -67,7 +67,7 @@ def binary_to_flash_c(input_path: Path, output_path: Path) -> int:
 
     output_path.write_text("\n".join(lines))
     logging.info(
-        f"Generated {output_path} with {num_words} words ({num_words * 4} bytes)"
+        f"Generated {output_path} with {num_words * 4} bytes ({num_words} words)"
     )
 
     return num_words
@@ -105,7 +105,7 @@ def main() -> int:
     try:
         num_words = binary_to_flash_c(args.input, args.output)
         print(f"Successfully converted {args.input} to {args.output}")
-        print(f"  Size: {num_words} words ({num_words * 4} bytes)")
+        print(f"  Size: {num_words * 4} bytes ({num_words} words)")
         return 0
     except FileNotFoundError as e:
         logging.error(str(e))
