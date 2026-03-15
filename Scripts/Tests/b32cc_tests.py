@@ -111,7 +111,12 @@ class ResultParsingError(B32CCTestError):
 class B32CCTestRunner:
     """Main class for running B32CC tests with improved error handling and logging."""
 
-    def __init__(self, config: B32CCTestConfig = None, temp_dir: Optional[str] = None, pic_mode: bool = False):
+    def __init__(
+        self,
+        config: B32CCTestConfig = None,
+        temp_dir: Optional[str] = None,
+        pic_mode: bool = False,
+    ):
         """Initialize the test runner with configuration.
 
         Args:
@@ -302,7 +307,9 @@ class B32CCTestRunner:
         # Run asmpy assembler
         hex_flag = "-h" if hex_format else ""
         pic_flag = "-i" if pic else ""
-        assemble_cmd = f"asmpy {source_path} {output_path} {hex_flag} {pic_flag}".strip()
+        assemble_cmd = (
+            f"asmpy {source_path} {output_path} {hex_flag} {pic_flag}".strip()
+        )
         exit_code, output = self._run_command(assemble_cmd, f"Assembling {description}")
 
         if exit_code != 0:
@@ -327,8 +334,11 @@ class B32CCTestRunner:
 
         # Assemble the test code for RAM
         self._assemble_code(
-            asm_path, self.config.RAM_LIST_PATH, "RAM code", hex_format=True,
-            pic=self.pic_mode
+            asm_path,
+            self.config.RAM_LIST_PATH,
+            "RAM code",
+            hex_format=True,
+            pic=self.pic_mode,
         )
 
         # Convert to 256 bit lines for SDRAM memory init file
@@ -637,7 +647,9 @@ class ParallelB32CCTestRunner:
         total = len(tests)
 
         # Prepare arguments for parallel execution
-        test_args = [(test, temp_base_dir, i, self.pic_mode) for i, test in enumerate(tests)]
+        test_args = [
+            (test, temp_base_dir, i, self.pic_mode) for i, test in enumerate(tests)
+        ]
 
         passed_tests: list[str] = []
         failed_tests: list[tuple[str, str]] = []
