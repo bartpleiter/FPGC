@@ -36,12 +36,9 @@ CPROC_OUTPUT = $(CPROC_DIR)/output/cproc-qbe
 .PHONY: test-c test-c-single
 .PHONY: compile-asm compile-bootloader compile-c-baremetal compile-bdos
 .PHONY: compile-userbdos compile-userbdos-all
-.PHONY: compile-c-baremetal-b32cc compile-bdos-b32cc
 .PHONY: compile-userbdos-b32cc compile-userbdos-all-b32cc
 .PHONY: run-uart run-asm-uart run-c-baremetal-uart run-bdos
-.PHONY: run-c-baremetal-uart-b32cc run-bdos-b32cc
 .PHONY: flash-c-baremetal-spi flash-bdos
-.PHONY: flash-c-baremetal-spi-b32cc flash-bdos-b32cc
 .PHONY: b32cc test-b32cc test-b32cc-single debug-b32cc clean-b32cc
 .PHONY: qbe clean-qbe
 .PHONY: cproc clean-cproc
@@ -168,7 +165,7 @@ clean-b32cc:
 	rm -f $(B32CC_OUTPUT)
 
 # =============================================================================
-# Modern C Test Suite (cproc + QBE)
+# C Test Suite (cproc + QBE)
 # =============================================================================
 
 test-c: $(QBE_OUTPUT) $(CPROC_OUTPUT)
@@ -289,8 +286,6 @@ compile-asm:
 compile-bootloader:
 	./Scripts/ASM/compile_bootloader.sh
 
-# --- Modern C (cproc + QBE) ---
-
 compile-c-baremetal: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	@if [ -z "$(file)" ]; then \
 		echo "Usage: make compile-c-baremetal file=<c_filename_in_bareMetal_dir_without_extension>"; \
@@ -392,20 +387,7 @@ compile-userbdos-all: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	fi; \
 	echo "============================================================"
 
-# --- B32CC (legacy) ---
-
-compile-c-baremetal-b32cc: $(B32CC_OUTPUT)
-	@if [ -z "$(file)" ]; then \
-		echo "Usage: make compile-c-baremetal-b32cc file=<c_filename_in_bareMetal_dir_without_extension>"; \
-		echo "Example: make compile-c-baremetal-b32cc file=hello_world"; \
-		echo "Available programs:"; \
-		find Software/C/bareMetal -name "*.c" -type f | grep -v "tmp" | sed 's|Software/C/bareMetal/||' | sed 's|.c||' | sort; \
-		exit 1; \
-	fi
-	./Scripts/BCC/compile_bare_metal_c.sh $(file)
-
-compile-bdos-b32cc:
-	./Scripts/BCC/compile_bdos.sh
+# --- B32CC (legacy — userBDOS only, until self-hosting) ---
 
 compile-userbdos-b32cc: $(B32CC_OUTPUT)
 	@if [ -z "$(file)" ]; then \
@@ -456,13 +438,11 @@ run-uart:
 
 run-asm-uart: compile-asm run-uart
 
-# --- Modern C (cproc + QBE) ---
-
 run-c-baremetal-uart: compile-c-baremetal run-uart
 
 run-bdos: compile-bdos run-uart
 
-flash-c-baremetal-spi: compile-c-baremetal $(B32CC_OUTPUT)
+flash-c-baremetal-spi: compile-c-baremetal $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	@if [ -z "$(file)" ]; then \
 		echo "Usage: make flash-c-baremetal-spi file=<c_filename_in_bareMetal_dir_without_extension>"; \
 		echo "Example: make flash-c-baremetal-spi file=libtests/test_term"; \
@@ -470,33 +450,9 @@ flash-c-baremetal-spi: compile-c-baremetal $(B32CC_OUTPUT)
 		find Software/C/bareMetal -name "*.c" -type f | grep -v "tmp" | grep -v "flash_writer" | sed 's|Software/C/bareMetal/||' | sed 's|.c||' | sort; \
 		exit 1; \
 	fi
-	@echo "Converting binary to flash_binary.c..."
-	@source .venv/bin/activate && python3 Scripts/Programmer/bin2flash.py Software/ASM/Output/code.bin Software/C/bareMetal/flash_writer/flash_binary.c && deactivate
-	@echo "Compiling flash_writer (B32CC)..."
-	./Scripts/BCC/compile_bare_metal_c.sh flash_writer/flash_writer
-	@echo "Running flash_writer on FPGC via UART..."
-	./Scripts/Programmer/UART/run_uart.sh
+	./Scripts/Programmer/flash_spi.sh
 
 flash-bdos: compile-bdos
-	./Scripts/Programmer/flash_bdos.sh
-
-# --- B32CC (legacy) ---
-
-run-c-baremetal-uart-b32cc: compile-c-baremetal-b32cc run-uart
-
-run-bdos-b32cc: compile-bdos-b32cc run-uart
-
-flash-c-baremetal-spi-b32cc: $(B32CC_OUTPUT)
-	@if [ -z "$(file)" ]; then \
-		echo "Usage: make flash-c-baremetal-spi-b32cc file=<c_filename_in_bareMetal_dir_without_extension>"; \
-		echo "Example: make flash-c-baremetal-spi-b32cc file=libtests/test_term"; \
-		echo "Available programs:"; \
-		find Software/C/bareMetal -name "*.c" -type f | grep -v "tmp" | grep -v "flash_writer" | sed 's|Software/C/bareMetal/||' | sed 's|.c||' | sort; \
-		exit 1; \
-	fi
-	./Scripts/Programmer/flash_spi.sh $(file)
-
-flash-bdos-b32cc: compile-bdos-b32cc
 	./Scripts/Programmer/flash_bdos.sh
 
 # =============================================================================
@@ -648,9 +604,9 @@ help:
 	@echo "  cproc               - Build the cproc C frontend for B32P3"
 	@echo "  clean-cproc         - Clean cproc build artifacts"
 	@echo ""
-	@echo "--- Modern C Test Suite ---"
-	@echo "  test-c              - Run all modern C compiler tests (parallel)"
-	@echo "  test-c-single       - Run a single modern C test"
+	@echo "--- C Test Suite ---"
+	@echo "  test-c              - Run all C compiler tests (parallel)"
+	@echo "  test-c-single       - Run a single C test"
 	@echo "                        Usage: make test-c-single file=<test_file>"
 	@echo ""
 	@echo "--- Documentation ---"
@@ -673,34 +629,26 @@ help:
 	@echo "--- Compilation ---"
 	@echo "  compile-asm         - Compile ASM file"
 	@echo "                        Usage: make compile-asm file=<filename>"
-	@echo "  compile-c-baremetal - Compile bare-metal C file (modern C: cproc + QBE)"
+	@echo "  compile-c-baremetal - Compile bare-metal C file"
 	@echo "                        Usage: make compile-c-baremetal file=<filename>"
 	@echo "  compile-bootloader  - Compile bootloader"
-	@echo "  compile-bdos        - Compile BDOS (modern C: cproc + QBE)"
-	@echo "  compile-userbdos    - Compile a single userBDOS program (modern C: cproc + QBE)"
+	@echo "  compile-bdos        - Compile BDOS kernel"
+	@echo "  compile-userbdos    - Compile a single userBDOS program"
 	@echo "                        Usage: make compile-userbdos file=<filename>"
-	@echo "  compile-userbdos-all - Compile ALL userBDOS programs (modern C: cproc + QBE)"
+	@echo "  compile-userbdos-all - Compile ALL userBDOS programs"
 	@echo ""
-	@echo "  B32CC (legacy) variants:"
-	@echo "  compile-c-baremetal-b32cc - Compile bare-metal C file with B32CC"
-	@echo "  compile-bdos-b32cc        - Compile BDOS with B32CC"
+	@echo "  B32CC (legacy — userBDOS only, until self-hosting):"
 	@echo "  compile-userbdos-b32cc    - Compile userBDOS program with B32CC"
 	@echo "  compile-userbdos-all-b32cc - Compile ALL userBDOS with B32CC"
 	@echo ""
 	@echo "--- Hardware Programming ---"
-	@echo "  run-uart              - Run compiled ASM binary via UART"
+	@echo "  run-uart              - Run compiled binary via UART"
 	@echo "  run-asm-uart          - Compile and run ASM binary via UART"
-	@echo "  run-c-baremetal-uart  - Compile (modern C) and run C binary via UART"
-	@echo "  run-bdos              - Compile (modern C) and run BDOS binary via UART"
-	@echo "  flash-c-baremetal-spi - Flash C binary to SPI flash (modern C + B32CC flash_writer)"
+	@echo "  run-c-baremetal-uart  - Compile and run C binary via UART"
+	@echo "  run-bdos              - Compile and run BDOS via UART"
+	@echo "  flash-c-baremetal-spi - Flash C binary to SPI flash"
 	@echo "                          Usage: make flash-c-baremetal-spi file=<filename>"
-	@echo "  flash-bdos            - Flash BDOS binary to SPI flash (modern C)"
-	@echo ""
-	@echo "  B32CC (legacy) variants:"
-	@echo "  run-c-baremetal-uart-b32cc  - Compile (B32CC) and run C binary via UART"
-	@echo "  run-bdos-b32cc              - Compile (B32CC) and run BDOS via UART"
-	@echo "  flash-c-baremetal-spi-b32cc - Flash C binary (B32CC) to SPI flash"
-	@echo "  flash-bdos-b32cc            - Flash BDOS (B32CC) to SPI flash"
+	@echo "  flash-bdos            - Flash BDOS to SPI flash"
 	@echo ""
 	@echo "--- FNP (Network Programming) ---"
 	@echo "  All FNP commands accept dev=1-5 to select target device (default: 1)"
@@ -709,7 +657,7 @@ help:
 	@echo "  fnp-detect-iface      - Print auto-detected Ethernet interface"
 	@echo "  fnp-upload-text       - Upload a text file to the FPGC"
 	@echo "                          Usage: make fnp-upload-text file=<local> dest=<fpgc_path> [dev=N]"
-	@echo "  fnp-upload-userbdos   - Compile (modern C) and upload userBDOS program to /bin"
+	@echo "  fnp-upload-userbdos   - Compile and upload userBDOS program to /bin"
 	@echo "                          Usage: make fnp-upload-userbdos file=<name> [dev=N]"
 	@echo "  fnp-upload-userbdos-b32cc - Compile (B32CC) and upload userBDOS program to /bin"
 	@echo "  fnp-keyboard          - Interactive keyboard streaming to FPGC"

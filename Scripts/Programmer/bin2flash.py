@@ -3,7 +3,7 @@
 Binary to Flash Writer C File Converter
 
 Converts a binary file into a C source file containing the binary data
-as inline assembly .dw directives, suitable for use with the flash_writer program.
+as a const unsigned int array, suitable for use with the flash_writer program.
 """
 
 import argparse
@@ -44,12 +44,11 @@ def binary_to_flash_c(input_path: Path, output_path: Path) -> int:
     lines = [
         f"#define FLASH_PROGRAM_SIZE_WORDS {num_words}",
         "",
-        "void flash_binary()",
-        "{",
-        "  asm(",
+        f"const unsigned int flash_binary[{num_words}] = {{",
     ]
 
-    # Convert each 32-bit word to a .dw directive
+    # Convert each 32-bit word to a hex literal, 8 per line
+    words_on_line = []
     for i in range(num_words):
         offset = i * 4
         # Read 4 bytes and convert to big-endian 32-bit word
@@ -59,10 +58,13 @@ def binary_to_flash_c(input_path: Path, output_path: Path) -> int:
             | (binary_data[offset + 2] << 8)
             | binary_data[offset + 3]
         )
-        lines.append(f'    ".dw 0x{word:08X}"')
+        words_on_line.append(f"0x{word:08X}")
+        if len(words_on_line) == 8 or i == num_words - 1:
+            comma = "," if i < num_words - 1 else ""
+            lines.append("    " + ", ".join(words_on_line) + comma)
+            words_on_line = []
 
-    lines.append("  );")
-    lines.append("}")
+    lines.append("};")
     lines.append("")
 
     output_path.write_text("\n".join(lines))
