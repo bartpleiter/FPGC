@@ -11,6 +11,7 @@
 #include "fpgc.h"
 #include "uart.h"
 #include <stddef.h>
+#include <stdio.h>
 
 /* RX ring buffer */
 static char rx_buffer[UART_RX_BUFFER_SIZE];
@@ -59,6 +60,24 @@ uart_write(const char *buf, unsigned int len)
         return;
     for (i = 0; i < len; i++)
         uart_putchar(buf[i]);
+}
+
+void
+uart_putint(int value)
+{
+    char buffer[12];
+    snprintf(buffer, sizeof(buffer), "%d", value);
+    uart_puts(buffer);
+}
+
+void
+uart_puthex(unsigned int value, int prefix)
+{
+    char buffer[9];
+    if (prefix)
+        uart_puts("0x");
+    snprintf(buffer, sizeof(buffer), "%x", value);
+    uart_puts(buffer);
 }
 
 void

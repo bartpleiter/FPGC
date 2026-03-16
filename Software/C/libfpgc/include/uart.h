@@ -19,6 +19,8 @@ void uart_init(void);
 /* Transmit */
 void uart_putchar(char c);
 void uart_puts(const char *str);
+void uart_putint(int value);
+void uart_puthex(unsigned int value, int prefix);
 void uart_write(const char *buf, unsigned int len);
 
 /* Receive (non-blocking, from ring buffer) */

@@ -302,9 +302,54 @@ compile-c-baremetal: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	@mkdir -p Software/ASM/Output
 	./Scripts/BCC/compile_modern_c.sh Software/ASM/crt0/crt0_baremetal.asm Software/C/bareMetal/$(file).c -h -o Software/ASM/Output/code.bin
 
+BDOS_V3_SOURCES = \
+	Software/ASM/crt0/crt0_bdos.asm \
+	Software/C/libc/sys/hwio.asm \
+	Software/C/libc/sys/_exit.asm \
+	Software/C/libc/string/string.c \
+	Software/C/libc/stdlib/stdlib.c \
+	Software/C/libc/stdlib/malloc.c \
+	Software/C/libc/ctype/ctype.c \
+	Software/C/libc/stdio/stdio.c \
+	Software/C/libc/sys/syscalls.c \
+	Software/C/libfpgc/sys/sys_asm.asm \
+	Software/C/libfpgc/sys/sys.c \
+	Software/C/libfpgc/io/spi.c \
+	Software/C/libfpgc/io/uart.c \
+	Software/C/libfpgc/io/timer.c \
+	Software/C/libfpgc/io/spi_flash.c \
+	Software/C/libfpgc/io/ch376.c \
+	Software/C/libfpgc/io/enc28j60.c \
+	Software/C/libfpgc/gfx/gpu_hal.c \
+	Software/C/libfpgc/gfx/gpu_fb.c \
+	Software/C/libfpgc/gfx/gpu_data_ascii.c \
+	Software/C/libfpgc/term/term.c \
+	Software/C/libfpgc/mem/debug.c \
+	Software/C/libfpgc/fs/brfs.c \
+	Software/C/bdos/slot_asm.asm \
+	Software/C/bdos/main.c \
+	Software/C/bdos/init.c \
+	Software/C/bdos/heap.c \
+	Software/C/bdos/syscall.c \
+	Software/C/bdos/slot.c \
+	Software/C/bdos/hid.c \
+	Software/C/bdos/fs.c \
+	Software/C/bdos/eth.c \
+	Software/C/bdos/shell.c \
+	Software/C/bdos/shell_cmds.c \
+	Software/C/bdos/shell_path.c \
+	Software/C/bdos/shell_util.c \
+	Software/C/bdos/shell_format.c
+
 compile-bdos: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	@mkdir -p Software/ASM/Output
-	./Scripts/BCC/compile_modern_c.sh Software/ASM/crt0/crt0_bdos.asm Software/C/BDOS/main.c -h -s -o Software/ASM/Output/code.bin
+	./Scripts/BCC/compile_modern_c.sh \
+		$(BDOS_V3_SOURCES) \
+		--libc \
+		-I Software/C/libfpgc/include \
+		-I Software/C/bdos/include \
+		-h -s \
+		-o Software/ASM/Output/code.bin
 
 compile-userbdos: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	@if [ -z "$(file)" ]; then \

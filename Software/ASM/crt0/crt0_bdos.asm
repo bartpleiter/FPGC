@@ -51,6 +51,8 @@ Int:
     add r15 12 r15
     jump interrupt              ; call C interrupt()
 
+.global Return_Interrupt
+Return_Interrupt:
     pop r15
     pop r14
     pop r13
