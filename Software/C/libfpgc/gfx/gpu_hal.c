@@ -1,12 +1,3 @@
-/*
- * gpu_hal.c — GPU Hardware Abstraction Layer for B32P3/FPGC.
- *
- * Provides VRAM access through plain pointer casts (not volatile).
- * VRAM writes are simple memory stores — no special I/O protocol needed.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include "fpgc.h"
 #include "gpu_hal.h"
 

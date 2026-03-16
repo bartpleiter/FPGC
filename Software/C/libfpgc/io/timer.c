@@ -1,11 +1,3 @@
-/*
- * timer.c — Hardware timer driver implementation for B32P3/FPGC.
- *
- * Uses hwio_write() for timer register access (volatile store workaround).
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include "fpgc.h"
 #include "timer.h"
 #include <stddef.h>

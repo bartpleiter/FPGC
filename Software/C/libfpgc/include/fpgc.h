@@ -1,14 +1,3 @@
-/*
- * fpgc.h — Main header for the FPGC hardware abstraction library (libfpgc).
- *
- * Defines memory-mapped I/O addresses for all B32P3 peripherals and
- * declares the assembly-level I/O functions (hwio_write, hwio_read).
- *
- * Include this header in any driver that needs hardware access.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef FPGC_H
 #define FPGC_H
 

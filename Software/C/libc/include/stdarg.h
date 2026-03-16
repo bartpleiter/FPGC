@@ -1,10 +1,3 @@
-/*
- * stdarg.h — Variable argument support for B32P3/FPGC
- *
- * Maps to cproc's built-in __builtin_va_* functions.
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef _STDARG_H
 #define _STDARG_H
 

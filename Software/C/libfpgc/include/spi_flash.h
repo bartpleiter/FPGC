@@ -1,11 +1,3 @@
-/*
- * spi_flash.h — SPI Flash memory driver for B32P3/FPGC.
- *
- * Builds on SPI bus driver for flash chip operations.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef FPGC_SPI_FLASH_H
 #define FPGC_SPI_FLASH_H
 

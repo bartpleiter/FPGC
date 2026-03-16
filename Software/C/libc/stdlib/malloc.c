@@ -1,12 +1,3 @@
-/*
- * malloc/free/calloc/realloc for B32P3/FPGC libc.
- *
- * Simple first-fit free list allocator. Not thread-safe (single-threaded on FPGC).
- * Memory is obtained from _sbrk(), which must be provided by the platform.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>

@@ -1,9 +1,3 @@
-/*
- * main.c — BDOS v3 entry point and interrupt handler.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include "bdos.h"
 
 /* Assembly helpers (from slot_asm.asm) */

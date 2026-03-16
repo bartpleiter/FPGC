@@ -1,11 +1,3 @@
-/*
- * gpu_fb.c — GPU Framebuffer drawing library for B32P3/FPGC.
- *
- * Higher-level pixel drawing: lines (Bresenham), rectangles, circles (midpoint), blit.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include "gpu_hal.h"
 #include "gpu_fb.h"
 

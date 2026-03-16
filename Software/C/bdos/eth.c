@@ -1,11 +1,3 @@
-/*
- * eth.c — BDOS v3 FNP (FPGC Network Protocol) module.
- *
- * Implements the FNP protocol on top of the ENC28J60 Ethernet driver.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include "bdos.h"
 
 /* FNP state variables (declared extern in bdos_fnp.h) */

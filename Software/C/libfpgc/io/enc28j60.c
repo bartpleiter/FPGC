@@ -1,12 +1,3 @@
-/*
- * enc28j60.c — ENC28J60 Ethernet Controller driver for B32P3/FPGC.
- *
- * Port of Software/C/libs/kernel/io/enc28j60.c to libfpgc.
- * Pure C — no inline asm, no volatile I/O — all access through SPI library.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include "enc28j60.h"
 #include "spi.h"
 #include "timer.h"

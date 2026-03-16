@@ -1,10 +1,3 @@
-/*
- * Character classification for B32P3/FPGC libc.
- *
- * Simple table-based implementation for ASCII (0-127).
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include <ctype.h>
 
 #define _U  0x01  /* upper */

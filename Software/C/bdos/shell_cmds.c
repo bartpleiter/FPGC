@@ -1,9 +1,3 @@
-/*
- * shell_cmds.c — BDOS v3 shell built-in commands and command dispatcher.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include "bdos.h"
 
 #define BDOS_SHELL_LS_MAX_ENTRIES 32

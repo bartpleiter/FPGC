@@ -1,9 +1,3 @@
-/*
- * debug.c — Memory debug utilities for B32P3/FPGC.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include "uart.h"
 #include "debug.h"
 #include <stdio.h>

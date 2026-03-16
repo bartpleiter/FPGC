@@ -1,13 +1,3 @@
-/*
- * brfs.c — Bart's RAM File System for B32P3/FPGC.
- *
- * Port of Software/C/libs/kernel/fs/brfs.c to libfpgc.
- * Pure C — no inline asm, no volatile I/O.
- * Flash access through spi_flash functions, string ops through libc.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include "brfs.h"
 #include "spi_flash.h"
 #include <string.h>

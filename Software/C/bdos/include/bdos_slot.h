@@ -1,11 +1,3 @@
-/*
- * bdos_slot.h — BDOS process slot manager.
- *
- * Manages 8 user program slots with context switching.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef BDOS_SLOT_H
 #define BDOS_SLOT_H
 

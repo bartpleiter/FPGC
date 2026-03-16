@@ -1,11 +1,3 @@
-/*
- * bdos_fs.h — BDOS filesystem integration module.
- *
- * Wraps BRFS operations with progress display and error handling.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef BDOS_FS_H
 #define BDOS_FS_H
 

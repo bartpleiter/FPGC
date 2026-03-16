@@ -1,10 +1,3 @@
-/*
- * stdint.h — Integer type definitions for B32P3/FPGC (ILP32)
- *
- * B32P3 data model: char=8, short=16, int=32, long=32, pointer=32
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef _STDINT_H
 #define _STDINT_H
 

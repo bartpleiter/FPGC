@@ -1,9 +1,3 @@
-/*
- * shell_format.c — BDOS v3 shell format wizard and startup handler.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include "bdos.h"
 
 #define BDOS_SHELL_FORMAT_LABEL_MAX 10

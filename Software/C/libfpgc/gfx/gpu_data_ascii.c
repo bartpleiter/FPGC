@@ -1,12 +1,3 @@
-/*
- * gpu_data_ascii.c - Default ASCII font and palette data for B32P3/FPGC.
- *
- * 32 color palettes (32 words) + 256 ASCII character patterns (1024 words).
- * Auto-generated from the original inline asm .dw data.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include "gpu_data_ascii.h"
 
 const unsigned int gpu_default_palette[32] = {

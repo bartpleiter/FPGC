@@ -1,14 +1,3 @@
-/*
- * ch376.c — CH376 USB Host Controller driver for B32P3/FPGC.
- *
- * Port of Software/C/libs/kernel/io/ch376.c to libfpgc.
- * Changes from original:
- *   - Inline asm for nINT pin reads replaced with hwio_read()
- *   - Uses libfpgc headers (fpgc.h, spi.h, sys.h, timer.h)
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include "fpgc.h"
 #include "ch376.h"
 #include "spi.h"

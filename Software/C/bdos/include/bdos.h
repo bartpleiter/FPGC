@@ -1,13 +1,3 @@
-/*
- * bdos.h — BDOS v3 kernel master header.
- *
- * Includes all BDOS module headers and library dependencies.
- * This replaces the old orchestrator-based include model with
- * proper separate compilation via the modern C toolchain.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef BDOS_H
 #define BDOS_H
 

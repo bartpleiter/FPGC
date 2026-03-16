@@ -1,11 +1,3 @@
-/*
- * sys.h — System-level utilities for B32P3/FPGC.
- *
- * Interrupt ID reading, boot mode register, user LED, microsecond counter.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef FPGC_SYS_H
 #define FPGC_SYS_H
 

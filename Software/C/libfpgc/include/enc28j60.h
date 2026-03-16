@@ -1,12 +1,3 @@
-/*
- * enc28j60.h — ENC28J60 Ethernet Controller driver for B32P3/FPGC.
- *
- * Provides low-level Ethernet frame send/receive for the Microchip ENC28J60.
- * Communicates via SPI.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef FPGC_ENC28J60_H
 #define FPGC_ENC28J60_H
 

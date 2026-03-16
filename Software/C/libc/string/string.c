@@ -1,12 +1,3 @@
-/*
- * String and memory functions for B32P3/FPGC libc.
- *
- * Algorithms derived from picolibc/newlib (BSD-3-Clause).
- * Simplified for B32P3: no wide char, no locale, size-optimized variants.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>

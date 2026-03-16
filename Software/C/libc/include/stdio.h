@@ -1,13 +1,3 @@
-/*
- * stdio.h — Standard I/O for B32P3/FPGC
- *
- * Provides printf family (formatted output), putchar/puts, and basic FILE I/O.
- * The FILE implementation is minimal — suited for bare-metal/OS with a small
- * number of open files.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef _STDIO_H
 #define _STDIO_H
 

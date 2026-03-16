@@ -1,11 +1,3 @@
-/*
- * gpu_fb.h — GPU Framebuffer drawing library for B32P3/FPGC.
- *
- * Higher-level drawing primitives on the pixel plane.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef FPGC_GPU_FB_H
 #define FPGC_GPU_FB_H
 

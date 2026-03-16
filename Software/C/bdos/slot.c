@@ -1,12 +1,3 @@
-/*
- * slot.c — BDOS v3 program slot management.
- *
- * All inline assembly from the original slot.c has been moved to
- * slot_asm.asm. This file contains the pure C logic.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include "bdos.h"
 
 /* Assembly helpers (from slot_asm.asm) */

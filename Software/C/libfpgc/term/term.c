@@ -1,12 +1,3 @@
-/*
- * term.c — Text terminal implementation for B32P3/FPGC.
- *
- * Terminal on GPU window plane with shadow buffer and scrollback history.
- * Uses snprintf for integer/hex output instead of implicit itoa().
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include "gpu_hal.h"
 #include "term.h"
 #include <stdio.h>

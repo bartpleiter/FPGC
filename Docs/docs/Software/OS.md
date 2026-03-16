@@ -2,6 +2,14 @@
 
 BDOS (Bart's Drive Operating System) is the custom operating system for the FPGC. It provides a shell, filesystem access, hardware drivers (Ethernet, USB/HID input, etc), and most importantly the ability to run user programs while providing system calls. It acts as a single program that is meant to be loaded from SPI flash by the bootloader on startup (depending on the boot switch), and allows the FPGC to be used as a standalone computer without needing to connect it to a host PC.
 
+BDOS is written in C using the [modern C toolchain](C-compiler.md) (cproc + QBE) and consists of 13 C source files, 1 context-switch assembly file, and links against the standard library (`libc`) and hardware abstraction library (`libfpgc`). The full build produces a ~200 KiB binary from 37 source files. It can be compiled and flashed with:
+
+```bash
+make compile-bdos   # Compile only
+make run-bdos       # Compile and send via UART
+make flash-bdos     # Compile and flash to SPI flash
+```
+
 !!! note
     In this documentation and throughout the codebase, BDOS is also sometimes referred to as the kernel.
 
@@ -152,7 +160,7 @@ The syscall ABI allows a maximum of 3 arguments (`a1`–`a3` in `r5`–`r7`), wi
 
 ### User-Side Library
 
-User programs include the user syscall library via the user library orchestrator. Additional optional libraries (FNP networking, fixed-point math) are available via feature flags:
+User programs include the user syscall library. When compiled with B32CC, this is done via the user library orchestrator with feature flags:
 
 ```c
 #define USER_SYSCALL

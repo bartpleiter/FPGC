@@ -1,9 +1,3 @@
-/*
- * heap.c — BDOS v3 heap allocator (simple bump allocator).
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include "bdos.h"
 
 static unsigned int bdos_heap_next = MEM_HEAP_START;

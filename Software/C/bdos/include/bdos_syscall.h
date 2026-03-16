@@ -1,9 +1,3 @@
-/*
- * bdos_syscall.h — BDOS syscall number definitions.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef BDOS_SYSCALL_H
 #define BDOS_SYSCALL_H
 

@@ -1,11 +1,3 @@
-/*
- * hid.c — BDOS v3 Human Interface Device (HID) module.
- *
- * USB keyboard driver and input event pipeline.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include "bdos.h"
 
 #define BDOS_KEY_EVENT_FIFO_SIZE 64

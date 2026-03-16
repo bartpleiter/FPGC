@@ -1,12 +1,3 @@
-/*
- * ch376.h — CH376 USB Host Controller driver for B32P3/FPGC.
- *
- * Provides USB host functionality: device detection, enumeration,
- * HID keyboard input. Communicates via SPI.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef FPGC_CH376_H
 #define FPGC_CH376_H
 

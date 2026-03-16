@@ -1,12 +1,3 @@
-/*
- * bdos_mem_map.h — BDOS kernel memory map constants.
- *
- * Defines memory regions, stack addresses, and I/O register addresses
- * specific to the BDOS kernel. General hardware addresses are in fpgc.h.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef BDOS_MEM_MAP_H
 #define BDOS_MEM_MAP_H
 

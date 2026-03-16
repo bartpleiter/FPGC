@@ -1,11 +1,3 @@
-/*
- * sys.c — System utilities implementation for B32P3/FPGC.
- *
- * get_int_id() is in sys_asm.asm (needs readintid instruction).
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include "fpgc.h"
 #include "sys.h"
 

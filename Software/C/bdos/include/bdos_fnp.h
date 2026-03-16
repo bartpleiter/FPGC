@@ -1,12 +1,3 @@
-/*
- * bdos_fnp.h — BDOS FNP (FPGC Network Protocol) module.
- *
- * Implements file transfer, remote keyboard, and raw Ethernet ring buffer
- * on top of the ENC28J60 Ethernet driver.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef BDOS_FNP_H
 #define BDOS_FNP_H
 

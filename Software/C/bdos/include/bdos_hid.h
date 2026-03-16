@@ -1,11 +1,3 @@
-/*
- * bdos_hid.h — BDOS Human Interface Device module.
- *
- * USB keyboard driver, key event FIFO, and key state bitmap.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef BDOS_HID_H
 #define BDOS_HID_H
 

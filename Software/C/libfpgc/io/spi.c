@@ -1,12 +1,3 @@
-/*
- * spi.c — SPI bus driver implementation for B32P3/FPGC.
- *
- * All 6 SPI buses use memory-mapped data and chip-select registers.
- * I/O goes through hwio_write/hwio_read (from hwio.asm).
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include "fpgc.h"
 #include "spi.h"
 

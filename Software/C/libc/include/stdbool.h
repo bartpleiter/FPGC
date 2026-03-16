@@ -1,8 +1,3 @@
-/*
- * stdbool.h — Boolean type for B32P3/FPGC
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef _STDBOOL_H
 #define _STDBOOL_H
 

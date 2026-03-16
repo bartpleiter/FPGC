@@ -1,9 +1,3 @@
-/*
- * fs.c — BDOS v3 filesystem integration module.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include "bdos.h"
 
 int bdos_fs_ready = 0;

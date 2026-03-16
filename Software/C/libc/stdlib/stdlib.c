@@ -1,12 +1,3 @@
-/*
- * Standard library functions for B32P3/FPGC libc.
- *
- * Provides conversion, math, sorting, and random number functions.
- * malloc/free are in a separate file (malloc.c).
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>

@@ -1,11 +1,3 @@
-/*
- * spi_flash.c — SPI Flash memory driver for B32P3/FPGC.
- *
- * Pure C — all I/O goes through spi_transfer/spi_select/spi_deselect.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include "spi.h"
 #include "spi_flash.h"
 

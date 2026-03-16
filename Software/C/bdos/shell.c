@@ -1,9 +1,3 @@
-/*
- * shell.c — BDOS v3 interactive shell module.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include "bdos.h"
 
 static char bdos_shell_input[BDOS_SHELL_INPUT_MAX];

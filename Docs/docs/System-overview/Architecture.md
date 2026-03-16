@@ -58,7 +58,8 @@ BDOS is the operating system, loaded from SPI Flash. It provides a shell, filesy
 ### Toolchain
 
 - **ASMPY**: Python-based assembler for the B32P3 ISA. See [Assembler](../Software/Assembler.md).
-- **B32CC**: C compiler derived from SmallerC, targeting B32P3 assembly. See [C Compiler](../Software/C-compiler.md).
+- **cproc + QBE**: C11 compiler toolchain with custom B32P3 backends. Primary toolchain for BDOS and bare-metal programs. See [C Compiler](../Software/C-compiler.md).
+- **B32CC** (legacy): C compiler derived from SmallerC, targeting B32P3 assembly. Used for user programs on BDOS. See [C Compiler](../Software/C-compiler.md).
 - **BRFS**: Custom FAT-based filesystem cached in RAM with SPI Flash backing. See [BRFS](../Software/BRFS.md).
 - **FNP**: Custom Layer 2 Ethernet protocol for file transfers and remote keyboard input. See [FNP](../Software/FNP.md).
 

@@ -26,7 +26,8 @@ This is CI-safe and will exit with a non-zero status if any check fails.
 | Verilog (GPU) | - | `make sim-gpu` |
 | Verilog (SDRAM) | - | `make sim-sdram` |
 | ASMPY Assembler | `make test-asmpy` | - |
-| B32CC Compiler | `make test-b32cc` | `make debug-b32cc file=<test>` |
+| C Compiler (cproc+QBE) | `make test-c` | `make test-c-single file=<test>` |
+| B32CC Compiler (legacy) | `make test-b32cc` | `make debug-b32cc file=<test>` |
 | **All checks** | `make check` | - |
 
 ---
@@ -140,7 +141,71 @@ make test-b32cc
 
 ---
 
-## B32CC Compiler
+## C Compiler (cproc + QBE)
+
+The primary C toolchain uses [cproc](https://sr.ht/~mcf/cproc/) (C11 frontend by Michael Forney) and [QBE](https://c9x.me/compile/) (SSA backend by Quentin Carbonneaux), both with custom B32P3 backends. Sources are in `BuildTools/cproc/` and `BuildTools/QBE/`. Tests live in `Tests/C/`.
+
+**Build:**
+
+```bash
+make qbe cproc
+```
+
+Both rebuild automatically when their sources change.
+
+**Run all tests:**
+
+```bash
+make test-c
+```
+
+Compiles all C tests in `Tests/C/`, simulates, and verifies results.
+
+**Single test:**
+
+```bash
+make test-c-single file=01_return/return_constant.c
+```
+
+Faster when iterating on one feature. The file path is relative to `Tests/C/`.
+
+**Add a C test:**
+
+```c
+// Tests/C/01_return/my_test.c
+int main() {
+    int result = 42;
+    return result; // expected=0x2A
+}
+```
+
+Include `// expected=0xXX` for the return value. Run with:
+
+```bash
+make test-c-single file=01_return/my_test.c
+```
+
+**Test categories:**
+
+- `01_*`: return values
+- `02_*`: variables
+- `03_*`: functions
+- `04_*`: control flow
+- `05_*`: arithmetic
+- `06_*`: comparisons
+- `07_*`: logical and bitwise
+- `08_*`: pointers
+- `09_*`: arrays
+- `10_*`: globals
+- `11_*`: structs
+- `12_*`: strings
+- `13_*`: recursion
+- `14_*`: type casts
+- `15_*`: fixed-point
+
+---
+
+## B32CC Compiler (Legacy)
 
 B32CC (based on SmallerC) resides in `BuildTools/B32CC/`.
 

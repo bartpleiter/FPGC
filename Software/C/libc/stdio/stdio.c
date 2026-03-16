@@ -1,16 +1,3 @@
-/*
- * stdio implementation for B32P3/FPGC libc.
- *
- * Provides printf family (vsnprintf core), basic FILE operations,
- * and stdout/stderr/stdin streams.
- *
- * The printf core handles: %d, %i, %u, %x, %X, %o, %c, %s, %p, %%, %ld, %lu, %lx
- * with width, precision, zero-padding, left-align, '+' and ' ' flags.
- * No floating-point (B32P3 has no FPU).
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>

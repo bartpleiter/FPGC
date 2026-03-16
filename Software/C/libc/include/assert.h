@@ -1,8 +1,3 @@
-/*
- * assert.h — Assertion macro for B32P3/FPGC
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifdef NDEBUG
 #define assert(expression) ((void)0)
 #else

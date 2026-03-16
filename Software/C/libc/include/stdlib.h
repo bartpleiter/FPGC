@@ -1,8 +1,3 @@
-/*
- * stdlib.h — Standard library functions for B32P3/FPGC
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef _STDLIB_H
 #define _STDLIB_H
 

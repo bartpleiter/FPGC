@@ -1,9 +1,3 @@
-/*
- * bdos_heap.h — BDOS kernel heap allocator.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef BDOS_HEAP_H
 #define BDOS_HEAP_H
 

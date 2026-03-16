@@ -1,9 +1,3 @@
-/*
- * shell_util.c — BDOS v3 shell output and sorting utilities.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include "bdos.h"
 
 int bdos_shell_require_fs_ready(void)

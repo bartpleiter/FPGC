@@ -1,9 +1,3 @@
-/*
- * gpu_data_ascii.h — Default ASCII font and palette data declarations.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef FPGC_GPU_DATA_ASCII_H
 #define FPGC_GPU_DATA_ASCII_H
 

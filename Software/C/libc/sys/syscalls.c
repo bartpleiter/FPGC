@@ -1,18 +1,3 @@
-/*
- * FPGC B32P3 platform syscall stubs for libc.
- *
- * Provides low-level I/O required by stdio and malloc:
- *   _write, _read, _sbrk, _open, _close, _lseek
- *
- * This is the BARE METAL variant: UART for stdin/stdout/stderr,
- * no filesystem. For BDOS kernel use, these can be swapped out.
- *
- * Uses hwio_write/hwio_read (from hwio.asm) for memory-mapped I/O
- * since cproc does not support volatile stores.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include <stddef.h>
 #include <errno.h>
 

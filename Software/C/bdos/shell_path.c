@@ -1,9 +1,3 @@
-/*
- * shell_path.c — BDOS v3 shell path and parsing utilities.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include "bdos.h"
 
 void bdos_shell_trim_whitespace(char *s)

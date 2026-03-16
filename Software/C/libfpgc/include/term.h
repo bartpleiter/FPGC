@@ -1,11 +1,3 @@
-/*
- * term.h — Text terminal for B32P3/FPGC.
- *
- * Terminal emulation on the GPU window plane with scrollback history.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef FPGC_TERM_H
 #define FPGC_TERM_H
 

@@ -1,13 +1,3 @@
-/*
- * syscall.c — BDOS v3 syscall dispatcher.
- *
- * Called from the assembly entry stub. Arguments arrive via
- * B32P3 calling convention: r4=num, r5=a1, r6=a2, r7=a3.
- * Return value goes in r1.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include "bdos.h"
 
 /* Assembly helper for EXIT syscall (from slot_asm.asm) */

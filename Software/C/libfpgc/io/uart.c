@@ -1,13 +1,3 @@
-/*
- * uart.c — UART serial driver implementation for B32P3/FPGC.
- *
- * TX: Direct write to UART TX register via hwio_write().
- * RX: Interrupt-driven ring buffer. uart_isr_handler() must be called
- *     from the interrupt handler when INTID_UART fires.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include "fpgc.h"
 #include "uart.h"
 #include <stddef.h>

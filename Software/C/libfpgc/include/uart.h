@@ -1,12 +1,3 @@
-/*
- * uart.h — UART serial driver for B32P3/FPGC.
- *
- * TX: Direct unbuffered output via memory-mapped register.
- * RX: Interrupt-driven ring buffer.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef FPGC_UART_H
 #define FPGC_UART_H
 

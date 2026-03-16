@@ -1,8 +1,3 @@
-/*
- * limits.h — Implementation limits for B32P3/FPGC (ILP32)
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef _LIMITS_H
 #define _LIMITS_H
 

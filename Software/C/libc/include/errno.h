@@ -1,8 +1,3 @@
-/*
- * errno.h — Error numbers for B32P3/FPGC
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef _ERRNO_H
 #define _ERRNO_H
 

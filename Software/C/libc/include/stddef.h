@@ -1,10 +1,3 @@
-/*
- * stddef.h — Standard type definitions for B32P3/FPGC
- *
- * Based on picolibc. Provides NULL, size_t, ptrdiff_t, offsetof.
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef _STDDEF_H
 #define _STDDEF_H
 

@@ -1,11 +1,3 @@
-/*
- * timer.h — Hardware timer driver for B32P3/FPGC.
- *
- * Three hardware countdown timers with callback support and blocking delay.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef FPGC_TIMER_H
 #define FPGC_TIMER_H
 

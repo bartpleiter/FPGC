@@ -1,11 +1,3 @@
-/*
- * bdos_shell.h — BDOS interactive shell module.
- *
- * Command line editor, history, built-in commands, and format wizard.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef BDOS_SHELL_H
 #define BDOS_SHELL_H
 

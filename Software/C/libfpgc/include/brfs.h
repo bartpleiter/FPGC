@@ -1,12 +1,3 @@
-/*
- * brfs.h — Bart's RAM File System for B32P3/FPGC.
- *
- * A FAT-based filesystem designed for the FPGC that uses RAM as a cache
- * with SPI Flash as persistent storage.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef FPGC_BRFS_H
 #define FPGC_BRFS_H
 

@@ -1,11 +1,3 @@
-/*
- * gpu_hal.h — GPU Hardware Abstraction Layer for B32P3/FPGC.
- *
- * Low-level VRAM access: patterns, palettes, tiles, pixels.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef FPGC_GPU_HAL_H
 #define FPGC_GPU_HAL_H
 

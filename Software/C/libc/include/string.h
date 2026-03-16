@@ -1,10 +1,3 @@
-/*
- * string.h — String and memory functions for B32P3/FPGC
- *
- * Declares standard string.h functions. Implementations are ported from picolibc.
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef _STRING_H
 #define _STRING_H
 

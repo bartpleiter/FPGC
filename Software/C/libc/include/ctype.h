@@ -1,8 +1,3 @@
-/*
- * ctype.h — Character classification for B32P3/FPGC
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef _CTYPE_H
 #define _CTYPE_H
 

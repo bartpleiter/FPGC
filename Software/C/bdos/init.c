@@ -1,9 +1,3 @@
-/*
- * init.c — BDOS v3 initialization module.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include "bdos.h"
 
 static void bdos_init_gpu(void)

@@ -1,11 +1,3 @@
-/*
- * spi.h — SPI bus driver for B32P3/FPGC.
- *
- * Provides select/deselect/transfer for 6 SPI buses.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #ifndef FPGC_SPI_H
 #define FPGC_SPI_H
 
