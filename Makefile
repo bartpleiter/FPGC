@@ -346,6 +346,25 @@ compile-bdos: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 		-h -s \
 		-o Software/ASM/Output/code.bin
 
+# User library sources linked into every userBDOS program
+USERLIB_SOURCES = \
+	Software/ASM/crt0/crt0_userbdos.asm \
+	Software/C/libc/sys/hwio.asm \
+	Software/C/libc/string/string.c \
+	Software/C/libc/stdlib/stdlib.c \
+	Software/C/libc/stdlib/malloc.c \
+	Software/C/libc/ctype/ctype.c \
+	Software/C/userlib/src/syscall_asm.asm \
+	Software/C/userlib/src/syscall.c \
+	Software/C/userlib/src/time.c \
+	Software/C/userlib/src/fixedmath.c \
+	Software/C/userlib/src/fixed64_asm.asm \
+	Software/C/userlib/src/fixed64.c \
+	Software/C/userlib/src/plot.c \
+	Software/C/userlib/src/fnp.c
+
+USERLIB_FLAGS = --libc -I Software/C/userlib/include -h -i
+
 compile-userbdos: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	@if [ -z "$(file)" ]; then \
 		echo "Usage: make compile-userbdos file=<c_filename_in_userBDOS_dir_without_extension>"; \
@@ -355,7 +374,12 @@ compile-userbdos: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 		exit 1; \
 	fi
 	@mkdir -p Software/ASM/Output
-	./Scripts/BCC/compile_modern_c.sh Software/ASM/crt0/crt0_userbdos.asm Software/C/userBDOS/$(file).c -h -i -o Software/ASM/Output/code.bin
+	./Scripts/BCC/compile_modern_c.sh \
+		$(USERLIB_SOURCES) \
+		Software/C/userBDOS/$(file).c \
+		$(wildcard Software/C/userBDOS/$(file)_asm.asm) \
+		$(USERLIB_FLAGS) \
+		-o Software/ASM/Output/code.bin
 	@mkdir -p Files/BRFS-init/bin
 	@cp Software/ASM/Output/code.bin Files/BRFS-init/bin/$(file)
 	@echo "Binary copied to Files/BRFS-init/bin/$(file)"
@@ -370,7 +394,11 @@ compile-userbdos-all: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 		TOTAL=$$((TOTAL + 1)); \
 		echo ""; \
 		echo "=== [$$TOTAL] Compiling $$name ==="; \
-		if ./Scripts/BCC/compile_modern_c.sh Software/ASM/crt0/crt0_userbdos.asm "$$src" -h -i -o Software/ASM/Output/code.bin > /dev/null 2>&1; then \
+		EXTRA_ASM=""; \
+		if [ -f "Software/C/userBDOS/$${name}_asm.asm" ]; then \
+			EXTRA_ASM="Software/C/userBDOS/$${name}_asm.asm"; \
+		fi; \
+		if ./Scripts/BCC/compile_modern_c.sh $(USERLIB_SOURCES) "$$src" $$EXTRA_ASM $(USERLIB_FLAGS) -o Software/ASM/Output/code.bin > /dev/null 2>&1; then \
 			cp Software/ASM/Output/code.bin Files/BRFS-init/bin/$$name; \
 			echo "  -> Files/BRFS-init/bin/$$name"; \
 		else \

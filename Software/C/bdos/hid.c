@@ -7,6 +7,7 @@
 int bdos_usb_keyboard_spi_id = CH376_SPI_BOTTOM;
 usb_device_info_t bdos_usb_keyboard_device;
 unsigned int bdos_key_state_bitmap = 0;
+static int bdos_usb_main_loop_active = 0;
 
 static hid_keyboard_report_t bdos_prev_kb_report;
 static int bdos_keyboard_event_fifo[BDOS_KEY_EVENT_FIFO_SIZE];
@@ -224,6 +225,10 @@ void bdos_poll_usb_keyboard(int timer_id)
 
   (void)timer_id;
 
+  /* Skip if main loop is doing USB operations to avoid SPI bus collision */
+  if (bdos_usb_main_loop_active)
+    return;
+
   if (bdos_usb_keyboard_device.connected)
   {
     if (ch376_test_connect(bdos_usb_keyboard_spi_id) == CH376_CONN_READY)
@@ -344,6 +349,7 @@ void bdos_usb_keyboard_main_loop(void)
 {
   int status;
 
+  bdos_usb_main_loop_active = 1;
   status = ch376_test_connect(bdos_usb_keyboard_spi_id);
   if (status == CH376_CONN_DISCONNECTED)
   {
@@ -368,4 +374,5 @@ void bdos_usb_keyboard_main_loop(void)
       uart_puts("[BDOS] Failed to enumerate USB keyboard\n");
     }
   }
+  bdos_usb_main_loop_active = 0;
 }

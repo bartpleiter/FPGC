@@ -192,7 +192,7 @@ selcall(Fn *fn, Ins *i0, Ins *i1, Insl **ilp)
 {
 	Ins *i;
 	Class *ca, *c, cr;
-	int cty;
+	int cty, vararg;
 	uint64_t stk, off;
 	Ref r, r1;
 
@@ -205,6 +205,15 @@ selcall(Fn *fn, Ins *i0, Ins *i1, Insl **ilp)
 	}
 
 	cty = argsclass(i0, i1, ca, cr.class & Cptr);
+
+	/* detect vararg call (Oargv present in args) */
+	vararg = 0;
+	for (i=i0; i<i1; i++)
+		if (i->op == Oargv) {
+			vararg = 1;
+			break;
+		}
+
 	stk = 0;
 	for (i=i0, c=ca; i<i1; i++, c++) {
 		if (i->op == Oargv)
@@ -218,8 +227,12 @@ selcall(Fn *fn, Ins *i0, Ins *i1, Insl **ilp)
 			stk += 4;
 	}
 	stk = (stk + 3) & ~3; /* align to 4 */
-	if (stk)
+	if (vararg) {
+		/* reserve 8 (FP+RA) + 16 (r4-r7 save area) = 24 bytes */
+		stk += 24;
+	} else if (stk) {
 		stk += 8; /* reserve space for callee's FP+RA save area */
+	}
 	if (stk)
 		emit(Osalloc, Kl, R, getcon(-stk, fn), R);
 
@@ -257,7 +270,7 @@ selcall(Fn *fn, Ins *i0, Ins *i1, Insl **ilp)
 		return;
 
 	/* populate the stack */
-	off = 8; /* skip callee's FP+RA save area */
+	off = vararg ? 24 : 8; /* skip callee's FP+RA (+ vararg) save area */
 	r = newtmp("abi", Kw, fn);
 	for (i=i0, c=ca; i<i1; i++, c++) {
 		if (i->op == Oargv || !(c->class & Cstk))
@@ -267,7 +280,13 @@ selcall(Fn *fn, Ins *i0, Ins *i1, Insl **ilp)
 		emit(Oadd, Kw, r1, r, getcon(off, fn));
 		off += 4;
 	}
-	emit(Osalloc, Kl, r, getcon(stk, fn), R);
+	if (off == (vararg ? 24 : 8)) {
+		/* no stack args were stored; use R as dest to
+		 * prevent the alloc from being optimized away */
+		emit(Osalloc, Kl, R, getcon(stk, fn), R);
+	} else {
+		emit(Osalloc, Kl, r, getcon(stk, fn), R);
+	}
 }
 
 static Params
@@ -303,9 +322,11 @@ selpar(Fn *fn, Ins *i0, Ins *i1)
 
 	/* incoming frame layout:
 	 * slot -1, -2: saved fp, saved ra (pushed by callee prologue)
-	 * slot -3, -4, ...: stack arguments
+	 * if vararg:
+	 *   slot -3..-6: saved r4-r7 (arg regs, saved by callee prologue)
+	 * then: stack arguments from caller
 	 */
-	s = 2; /* skip saved fp and ra */
+	s = 2 + 4 * fn->vararg; /* skip saved fp/ra and vararg save area */
 	for (i=i0, c=ca; i<i1; i++, c++) {
 		if (i->op == Oparc && !(c->class & Cptr)) {
 			if (c->nreg == 0) {
@@ -354,7 +375,7 @@ selvastart(Fn *fn, Params p, Ref ap)
 
 	rsave = newtmp("abi", Kw, fn);
 	emit(Ostorew, Kw, R, rsave, ap);
-	s = p.stk > 2 + 4 ? p.stk : 2 + p.ngp;
+	s = p.stk > 2 + 4 * fn->vararg ? p.stk : 2 + p.ngp;
 	emit(Oaddr, Kw, rsave, SLOT(-s), R);
 }
 

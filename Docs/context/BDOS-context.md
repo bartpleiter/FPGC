@@ -1,54 +1,84 @@
 # BDOS Context (for AI coding tools)
 
-BDOS is the kernel/OS for FPGC. It is a single-binary C program built from `Software/C/BDOS/main.c` using B32CC in `-bdos` mode.
+BDOS is the kernel/OS for FPGC. It is built from multiple separately-compiled C and assembly source files using the modern toolchain (cproc + QBE + ASMPY linker).
 
 ## Build & Run
 
-- `make compile-bdos` → compiles via `Scripts/BCC/compile_bdos.sh`
+- `make compile-bdos` → compiles all BDOS sources via `Scripts/BCC/compile_modern_c.sh`
 - `make run-bdos` → upload over UART
 - `make flash-bdos` → flash to SPI
 
-Pipeline: `main.c` → B32CC → `.asm` → ASMPY → `.list` → `.bin`
+Pipeline: `crt0_bdos.asm + libc sources + libfpgc sources + bdos sources → cproc → QBE → asm → linker → ASMPY → .list → .bin`
 
 ## Source Files
 
+BDOS is organized as three libraries plus the kernel:
+
+### libc (`Software/C/libc/`)
+
+Standard C library (picolibc-derived). Provides `string.h`, `stdlib.h`, `stdio.h`, `ctype.h`, `stdint.h`, etc. System stubs in `sys/syscalls.c` (UART I/O), `sys/hwio.asm` (memory-mapped I/O helpers), `sys/_exit.asm`.
+
+### libfpgc (`Software/C/libfpgc/`)
+
+Hardware abstraction layer. Headers in `include/`:
+
+| Header | Purpose |
+|--------|---------|
+| `fpgc.h` | Memory map constants, I/O addresses, `hwio_write()`/`hwio_read()` |
+| `sys.h` | `get_int_id()`, `get_boot_mode()`, `set_user_led()`, `get_micros()` |
+| `timer.h` | Timer management (3 hardware timers) |
+| `uart.h` | UART I/O |
+| `spi.h` | SPI bus driver |
+| `spi_flash.h` | SPI Flash driver |
+| `ch376.h` | CH376 USB host driver |
+| `enc28j60.h` | ENC28J60 Ethernet driver |
+| `gpu_hal.h` | GPU hardware abstraction |
+| `gpu_fb.h` | Framebuffer operations |
+| `gpu_data_ascii.h` | ASCII font/palette data |
+| `term.h` | Terminal emulation (25-line display + 200-line scrollback) |
+| `brfs.h` | BRFS filesystem interface |
+| `debug.h` | Debugging utilities |
+
+### BDOS kernel (`Software/C/bdos/`)
+
 | File | Role |
 |------|------|
-| `bdos.h` | Shared defines, globals, library imports, function declarations |
-| `bdos_heap.h` | Heap allocator declarations |
-| `bdos_shell.h` | Shell declarations (argc/argv globals) |
-| `bdos_syscall.h` | Syscall number definitions (0–23) |
-| `mem_map.h` | Memory layout constants (must match `cgb32p3.inc` in B32CC) |
-| `main.c` | Entry point, main loop, interrupt dispatcher, `bdos_panic()` |
-| `init.c` | Hardware init: GPU, terminal, UART, timers, USB keyboard (CH376), Ethernet (ENC28J60) |
-| `heap.c` | Bump allocator for the kernel heap region |
-| `hid.c` | USB keyboard driver, HID report → key event translation, FIFO, key repeat, key state bitmap |
-| `fs.c` | BRFS mount/format/sync wrappers with progress bar rendering |
-| `eth.c` | FNP (FPGC Network Protocol) over ENC28J60: file transfer, remote keycode injection |
-| `syscall.c` | Syscall dispatcher (called from inline assembly trampoline in cgb32p3.inc) |
-| `shell.c` | Interactive line editor with cursor movement, command history (ring buffer of 8) |
-| `shell_cmds.c` | Built-in commands, format wizard, path resolution, user program loader, argv storage |
+| `include/bdos.h` | Master include — pulls in libc, libfpgc, all bdos_* headers |
+| `include/bdos_syscall.h` | Syscall number definitions (0–30) |
+| `include/bdos_mem_map.h` | Memory layout constants |
+| `include/bdos_heap.h` | Heap allocator interface |
+| `include/bdos_slot.h` | Program slot management interface |
+| `include/bdos_hid.h` | HID/keyboard subsystem, key state bitmap constants |
+| `include/bdos_fs.h` | Filesystem integration interface |
+| `include/bdos_fnp.h` | FNP protocol definitions |
+| `include/bdos_shell.h` | Shell interface, argc/argv globals |
+| `main.c` | Entry point, interrupt handler, main loop |
+| `init.c` | Hardware initialization |
+| `syscall.c` | Syscall dispatcher |
+| `heap.c` | Bump allocator for kernel heap |
+| `slot.c` | Program slot management (load, run, suspend, resume, kill) |
+| `slot_asm.asm` | Assembly helpers for context switching and program execution |
+| `hid.c` | USB keyboard driver, HID report translation, FIFO, key state bitmap |
+| `fs.c` | BRFS mount/format/sync wrappers with progress bars |
+| `eth.c` | FNP Ethernet protocol: file transfer, remote keycode injection |
+| `shell.c` | Interactive line editor with cursor movement, command history |
+| `shell_cmds.c` | Built-in commands, program loader |
+| `shell_path.c` | Path resolution |
+| `shell_util.c` | Shell utility functions |
+| `shell_format.c` | Format wizard |
 
-All modules are `#include`d directly into `main.c` (single compilation unit, no linker).
+Each `.c` file is compiled independently by cproc and linked together by the assembly-level linker. No orchestrator pattern — standard `#include <header.h>` with `-I` paths.
 
-## Library Imports
-
-BDOS uses the orchestrator pattern: `bdos.h` defines flags before including orchestrator headers.
-
-**Common** (`libs/common/common.h`): `COMMON_STRING`, `COMMON_STDLIB`, `COMMON_CTYPE`
-
-**Kernel** (`libs/kernel/kernel.h`): `KERNEL_GPU_HAL`, `KERNEL_GPU_FB`, `KERNEL_GPU_DATA_ASCII`, `KERNEL_TERM`, `KERNEL_UART`, `KERNEL_SPI`, `KERNEL_SPI_FLASH`, `KERNEL_BRFS`, `KERNEL_TIMER`, `KERNEL_CH376`, `KERNEL_ENC28J60`
-
-## Memory Map
+## Memory Map (byte addresses)
 
 | Region | Address Range | Size |
 |--------|--------------|------|
-| Kernel code+data | `0x000000`–`0x0FFFFF` | 1 MiW (4 MiB) |
-| Kernel heap | `0x100000`–`0x7FFFFF` | 7 MiW (28 MiB) |
-| User program slots | `0x800000`–`0xBFFFFF` | 4 MiW, 8 × 512 KiW slots |
-| BRFS cache | `0xC00000`–`0xFFFFFF` | 4 MiW (16 MiB) |
+| Kernel code+data | `0x000000`–`0x3FFFFF` | 4 MiB |
+| Kernel heap | `0x400000`–`0x1FFFFFF` | 28 MiB |
+| User program slots | `0x2000000`–`0x2FFFFFF` | 16 MiB, 8 × 2 MiB slots |
+| BRFS cache | `0x3000000`–`0x3FFFFFF` | 16 MiB |
 
-Kernel stacks: main `0x0F7FFF`, syscall `0x0FBFFF`, interrupt `0x0FFFFF`.
+Kernel stacks: main `0x3DFFFC`, syscall `0x3EFFFC`, interrupt `0x3FFFFC`.
 
 ## Boot Flow
 
@@ -136,13 +166,13 @@ User programs invoke syscalls via an assembly trampoline. ABI: `r4` = syscall nu
 | 3 | `KEY_AVAILABLE` | — | 0 or 1 |
 | 4 | `FS_OPEN` | path | fd |
 | 5 | `FS_CLOSE` | fd | 0 on success |
-| 6 | `FS_READ` | fd, buf, count | words read |
-| 7 | `FS_WRITE` | fd, buf, count | words written |
+| 6 | `FS_READ` | fd, buf, count | bytes read |
+| 7 | `FS_WRITE` | fd, buf, count | bytes written |
 | 8 | `FS_SEEK` | fd, offset | 0 on success |
 | 9 | `FS_STAT` | path, entry_buf | 0 on success |
 | 10 | `FS_DELETE` | path | 0 on success |
 | 11 | `FS_CREATE` | path | 0 on success |
-| 12 | `FS_FILESIZE` | fd | size in words |
+| 12 | `FS_FILESIZE` | fd | size in bytes |
 | 13 | `SHELL_ARGC` | — | argc |
 | 14 | `SHELL_ARGV` | — | pointer to argv[] |
 | 15 | `SHELL_GETCWD` | — | pointer to cwd string |
@@ -150,14 +180,19 @@ User programs invoke syscalls via an assembly trampoline. ABI: `r4` = syscall nu
 | 17 | `TERM_CLEAR` | — | 0 |
 | 18 | `TERM_SET_CURSOR` | x, y | 0 |
 | 19 | `TERM_GET_CURSOR` | — | (x<<8)\|y |
-| 20 | `HEAP_ALLOC` | size_words | pointer (or 0) |
+| 20 | `HEAP_ALLOC` | size_bytes | pointer (or 0) |
 | 21 | `DELAY` | milliseconds | 0 |
 | 22 | `SET_PALETTE` | index, value | 0 |
 | 23 | `EXIT` | exit_code | *(does not return)* |
 | 24 | `FS_READDIR` | path, entry_buf, max | entry count (or <0 error) |
 | 25 | `GET_KEY_STATE` | — | key state bitmap |
+| 26 | `SET_PIXEL_PALETTE` | index, rgb24 | 0 |
+| 27 | `NET_SEND` | buf, len | bytes sent |
+| 28 | `NET_RECV` | buf, max_len | bytes received |
+| 29 | `NET_PACKET_COUNT` | — | count |
+| 30 | `NET_GET_MAC` | mac_buf | 0 |
 
-Note: `TERM_PUT_CELL` packs tile and palette into a single argument (`a3`) because the syscall ABI only allows 3 arguments. `TERM_GET_CURSOR` packs x and y into the return value similarly. `SET_PALETTE` writes to `GPU_PALETTE_TABLE_ADDR + index`; value format is `(bg_color << 8) | fg_color` with 8-bit RRRGGGBB colors. `EXIT` terminates the calling program immediately by resetting the HW stack to the trampoline depth and jumping to the BDOS return path — the exit code is reported as the program's return value. `FS_READDIR` fills `entry_buf` with raw `brfs_dir_entry` structs (8 words each: 4×filename, modify_date, flags, fat_idx, filesize) and returns the number of entries. `GET_KEY_STATE` returns the current key state bitmap — see Key State Bitmap section above.
+Note: `TERM_PUT_CELL` packs tile and palette into a single argument (`a3`) because the syscall ABI only allows 3 arguments. `TERM_GET_CURSOR` packs x and y into the return value similarly. `SET_PALETTE` writes to `GPU_PALETTE_TABLE_ADDR + index`; value format is `(bg_color << 8) | fg_color` with 8-bit RRRGGGBB colors. `EXIT` terminates the calling program immediately by resetting the HW stack to the trampoline depth and jumping to the BDOS return path — the exit code is reported as the program's return value. `FS_READDIR` fills `entry_buf` with raw `brfs_dir_entry` structs and returns the number of entries. `GET_KEY_STATE` returns the current key state bitmap — see Key State Bitmap section above. `SET_PIXEL_PALETTE` sets a 320×240 pixel framebuffer palette entry (RGB24). `NET_SEND`/`NET_RECV`/`NET_PACKET_COUNT`/`NET_GET_MAC` provide raw Ethernet frame I/O for user programs (used by FNP protocol library).
 
 ## User Program Execution
 
@@ -166,11 +201,11 @@ Programs are launched by typing their name or path at the shell prompt (like Lin
 1. If name contains `/` or starts with `.`: resolved as a path (absolute or relative to cwd)
 2. Bare names: try `/bin/<name>` first, then fall back to cwd
 
-`bdos_exec_program(path)` handles loading: allocates a slot via `bdos_slot_alloc()`, reads the binary from BRFS into the slot's memory region, flushes icache, runs it via inline assembly trampoline, restores BDOS state on return, then frees the slot.
+`bdos_exec_program(path)` handles loading: allocates a slot via `bdos_slot_alloc()`, reads the binary from BRFS into the slot's memory region, flushes icache, runs it via assembly trampoline (in `slot_asm.asm`), restores BDOS state on return, then frees the slot.
 
 ## Multitasking
 
-BDOS supports preemptive multitasking with up to 8 user programs in separate memory slots. Programs can be suspended, resumed, and killed via hotkeys, with no program cooperation required.
+BDOS supports preemptive multitasking with up to 8 user programs in separate memory slots (2 MiB each). Programs can be suspended, resumed, and killed via hotkeys, with no program cooperation required.
 
 ### CPU I/O Registers
 
@@ -178,8 +213,8 @@ Two memory-mapped I/O registers (handled inside `B32P3.v`, not through MemoryUni
 
 | Register | Address | Description |
 |----------|---------|-------------|
-| `IO_PC_BACKUP` | `0x7C00000` | Interrupt return PC (read/write) |
-| `IO_HW_STACK_PTR` | `0x7C00001` | Hardware stack pointer 0–255 (read/write) |
+| `IO_PC_BACKUP` | `0x1F000000` | Interrupt return PC (read/write) |
+| `IO_HW_STACK_PTR` | `0x1F000004` | Hardware stack pointer 0–255 (read/write) |
 
 Hardware stack: 256 entries (increased from 128 for multitasking).
 
@@ -243,16 +278,24 @@ The shell has modal input for the format wizard (multi-step: blocks → words/bl
 
 ## Coding Guidelines
 
-- Keep C simple: no complex macros, no struct returns, no advanced constructs (B32CC limitations).
-- Preserve single-compilation-unit pattern (`main.c` includes all modules).
+- BDOS is built with the modern C toolchain (cproc + QBE). Full C11 is available.
+- Each source file is compiled independently — use `#include <header.h>` with proper `-I` paths.
+- No inline assembly. Assembly code goes in dedicated `.asm` files (e.g., `slot_asm.asm`, `sys_asm.asm`).
+- All MMIO access goes through `hwio_write()`/`hwio_read()` from `fpgc.h` (cproc has no `volatile`).
 - `TIMER_1` is taken by HID polling; `TIMER_2` by `delay()`. Use `TIMER_0` if a new timer is needed.
 - Keep FIFO API stable — shell and FNP both push events into it.
 - New shell commands: add handler function in `shell_cmds.c`, add dispatch entry in `bdos_shell_execute_line()`.
-- New syscalls: add define in `bdos.h`, add case in `bdos_syscall_dispatch()`.
+- New syscalls: add define in `bdos_syscall.h`, add case in `bdos_syscall_dispatch()` in `syscall.c`.
 
 ## User Programs
 
-User programs live in `Software/C/userBDOS/` and are compiled with `Scripts/BCC/compile_user_bdos.sh <name>`. Notable programs:
+User programs live in `Software/C/userBDOS/` and are compiled with `make compile-userbdos file=<name>`. They use `crt0_userbdos.asm` as startup code and the `userlib` library for syscalls and utilities.
+
+Compilation: `make compile-userbdos file=snake` → `crt0_userbdos.asm + userlib + snake.c → cproc → QBE → asm → linker → ASMPY → bin`
+
+Legacy B32CC user programs are archived in `Software/C/b32cc/userBDOS/` and are being ported to the modern toolchain.
+
+Notable programs:
 
 | Program | Description |
 |---------|-------------|
@@ -260,3 +303,6 @@ User programs live in `Software/C/userBDOS/` and are compiled with `Scripts/BCC/
 | `cmatrix` | Matrix rain effect — green-on-black palette, LFSR RNG, exits on Escape/Q |
 | `snake` | Snake game — event-based input (arrow/WASD), adjustable speed (+/=), LFSR RNG, exits on Escape/Q |
 | `tree` | Directory tree listing — recursive, box-drawing characters, optional path argument, summary line |
+| `w3d` | Wolfenstein 3D raycaster — Q16.16 fixed-point, texture-mapped walls |
+| `mbrot` | Mandelbrot set viewer — FP64 coprocessor, pixel framebuffer, interactive zoom |
+| `bench` | FPGCbench — benchmark suite with microsecond timing |

@@ -1,0 +1,17 @@
+{
+    "configurations": [
+        {
+            "name": "FPGC Modern C",
+            "includePath": [
+                "${workspaceFolder}/Software/C/libc/include",
+                "${workspaceFolder}/Software/C/libfpgc/include",
+                "${workspaceFolder}/Software/C/bdos/include"
+            ],
+            "defines": [],
+            "compilerPath": "",
+            "cStandard": "c11",
+            "intelliSenseMode": "linux-gcc-x86"
+        }
+    ],
+    "version": 4
+}

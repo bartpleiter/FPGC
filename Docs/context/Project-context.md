@@ -7,14 +7,14 @@ This document provides a complete context for understanding the FPGC (FPGA Compu
 FPGC is a complete custom computer system implemented on FPGA hardware, featuring:
 
 - Custom 32-bit RISC CPU (B32P3)
-- Custom C compiler (B32CC)
-- Custom assembler (ASMPY)
+- Modern C toolchain: cproc (C11 frontend) → QBE (optimizing backend) → ASMPY (assembler)
+- Legacy C compiler (B32CC) — still used for B32CC test suite and self-hosting on BDOS
 - GPU with pixel rendering capabilities
 - SDRAM controller with L1 instruction and data caches
-- Custom File System (BRFS).
-- TODO: a custom Operating System (BDOS)
+- Custom File System (BRFS)
+- Operating System (BDOS) — fully functional with shell, filesystem, multitasking, networking
 
-The goal of this project is to create a fully functional computer system from the ground up, including hardware design, CPU architecture, compiler toolchain, and software libraries, with the end goal of running Doom on a custom Operating System (BDOS).
+The goal of this project is to create a fully functional computer system from the ground up, including hardware design, CPU architecture, compiler toolchain, and software libraries, with the end goal of running Doom on BDOS.
 
 ## CPU Architecture (B32P3)
 
@@ -33,37 +33,76 @@ Features:
   - WB:  Write Back
 - Simple hazard detection (load-use only)
 - Data forwarding (EX→EX, MEM→EX)
-- 32 bits, word-addressable only
-- 32 bit address space for 16GiB of addressable memory
-  - 27 bits jump constant for 512MiB of easily jumpable instruction memory
+- 32 bits, byte-addressable (char=1 byte, short=2 bytes, int=4 bytes, pointer=4 bytes)
+- 32 bit address space for 4 GiB of addressable memory
+  - 27 bits jump constant for 512 MiB of easily jumpable instruction memory
+- Hardware byte/halfword/word load/store: `read`/`write` (word), `readb`/`writeb` (byte), `readh`/`writeh` (halfword)
+- No branch prediction (taken branches flush the 5-stage pipeline)
+- No MMU or virtual memory
+- Hardware fixed-point: `multfp`/`divfp` (16.16) on GPRs; FP64 coprocessor (Q32.32) with 8 dedicated 64-bit registers
 
-Memory Map:
-- SDRAM:  0x0000000 - 0x6FFFFFF (112MiW)
-- I/O:    0x7000000 - 0x77FFFFF
-- ROM:    0x7800000 - 0x78003FF (1KiW) - CPU starts here
-- VRAM32: 0x7900000 - 0x790041F
-- VRAM8:  0x7A00000 - 0x7A02001
-- VRAMPX: 0x7B00000 - 0x7B12BFF
+Memory Map (byte addresses):
+- SDRAM:  0x0000000 - 0x3FFFFFF (64 MiB)
+- I/O:    0x1C000000 - 0x1C0000FF
+- ROM:    0x1E000000 - 0x1E000FFF (4 KiB) - CPU starts here
+- VRAM32: 0x1E400000 - 0x1E40107F (pattern + palette tables)
+- VRAM8:  0x1E800000 - 0x1E808007 (tile + color tables)
+- VRAMPX: 0x1EC00000 - 0x1EC4AFFF (320×240 pixel framebuffer)
+- PC/HW:  0x1F000000 - 0x1F000007 (PC backup, HW stack pointer)
 
 ### ISA (Instruction Set Architecture)
 
-All instructions are 32 bits, word-addressable. See ISA.md for full instruction set details.
+All instructions are 32 bits. See ISA.md for full instruction set details.
 All assembly related information in Assembler.md.
 
 ### Registers
 
 There are 16 registers, but r0 is hardwired to 0.
+- r0: hardwired zero
+- r1–r12: general purpose (r1=return value, r4–r7=function args)
+- r13: stack pointer (SP)
+- r14: frame pointer (FP)
+- r15: return address (RA)
 
 
-## C Compiler (B32CC)
+## C Toolchain
 
-B32CC is a single-pass C compiler based on Smaller C, targeting the B32P3 ISA.
-Since this is a very simple single pass C compiler, many things are not supported (like macro functions, returning a struct from a function, etc). The most important limitation in C programming is that there is NO linker at all, so some clever tricks are used to include library code.
+### Modern Toolchain (Primary)
+
+The primary C toolchain uses three components in a pipeline:
+
+```
+source.c → cpp (preprocessor) → cproc (C11 frontend) → QBE IR → QBE (backend) → B32P3 assembly → ASMPY (assembler) → binary
+```
+
+- **cproc**: C11-compliant frontend that emits QBE intermediate representation. Supports full C11 including structs, variadics, separate compilation. Located at `BuildTools/cproc/`.
+- **QBE**: Optimizing compiler backend with graph-coloring register allocation, SSA, constant folding, instruction selection. B32P3 backend in `BuildTools/QBE/b32p3/`. Produces ASMPY-compatible assembly.
+- **ASMPY**: Python assembler that produces flat binaries. Supports ELF-style data directives, label offsets, and an assembly-level linker for multi-file compilation. Located at `BuildTools/ASMPY/asmpy/`.
+
+Build: `make qbe cproc` from project root.
+
+Pipeline with linker (multi-file):
+```
+file1.c → cproc → QBE → file1.asm ─┐
+file2.c → cproc → QBE → file2.asm ─┼→ linker → combined.asm → ASMPY → .list → .bin
+crt0.asm ───────────────────────────┘
+```
+
+Compile script: `Scripts/BCC/compile_modern_c.sh` handles the full pipeline including preprocessing, compilation, linking, and assembly. Supports mixed `.c` and `.asm` inputs, `-h` (header), `-i` (PIC), `-s` (syscall vector), `--libc`, and `-I` include paths.
+
+### B32CC (Legacy)
+
+B32CC is a single-pass C compiler based on Smaller C, targeting the B32P3 ISA. It was the original compiler for the project and is still used for:
+- B32CC test suite (`Tests/B32CC/`) — validates B32CC itself
+- Self-hosting on BDOS (compiling user programs on the FPGC itself)
+- userBDOS compilation via B32CC (until the new toolchain handles this)
+
+Key limitations: no linker (single compilation unit via orchestrator pattern), no C11 features, limited struct handling, no optimization.
 
 ### Location
 
-- Source: `BuildTools/B32CC/smlrc.c` (main compiler)
-- Backend: `BuildTools/B32CC/cgB32P3.inc` (B32P3 code generation)
+- Modern toolchain: `BuildTools/cproc/`, `BuildTools/QBE/`, `BuildTools/ASMPY/`
+- B32CC: `BuildTools/B32CC/smlrc.c` (compiler), `BuildTools/B32CC/cgB32P3.inc` (backend)
 
 ## Assembler (ASMPY)
 
@@ -83,37 +122,98 @@ ASMPY is written in Python and assembles B32P3 assembly into binary.
 
 **Sections:**
 
--There is support for different sections, but all they do is that .code sections are compiled first and all the other sections (like .data) are moved below the .code section in memory.
+- There is support for different sections, but all they do is that .code sections are compiled first and all the other sections (like .data) are moved below the .code section in memory.
+
+**ELF-style directives** (for QBE output):
+
+- `.int`, `.byte`, `.short`, `.ascii`, `.fill` — data directives with byte-level packing
+- `.balign`, `.globl`/`.global`, `.text` — alignment and symbol visibility
+- Label offset syntax: `SYMBOL+OFFSET` in instructions and data
+
+**Assembly-level linker** (`asmpy/linker.py`):
+
+- Combines multiple `.asm` files into one assembly
+- Renames local labels (`.L*`) to avoid cross-file conflicts
+- Validates global symbol uniqueness
 
 **Directives:**
 
 - Labels: `Label_name:`
-- Comments: `;`
+- Comments: `;` or `/* */`
+
+## Software Structure
+
+### Directory Layout
+
+```
+Software/C/
+├── libc/                    # Standard C library (picolibc-derived subset)
+│   ├── include/             # Standard headers: string.h, stdlib.h, stdio.h, etc.
+│   ├── string/string.c     # String functions
+│   ├── stdlib/stdlib.c      # Standard library + malloc.c
+│   ├── stdio/stdio.c       # printf/sprintf (tinystdio-based)
+│   ├── ctype/ctype.c       # Character classification
+│   └── sys/                 # System stubs: syscalls.c, hwio.asm, _exit.asm
+│
+├── libfpgc/                 # FPGC hardware abstraction library
+│   ├── include/             # fpgc.h (mem map + I/O), gpu_hal.h, term.h, uart.h, etc.
+│   └── src/                 # Drivers: spi.c, uart.c, timer.c, ch376.c, enc28j60.c,
+│                            #   gpu_hal.c, gpu_fb.c, term.c, brfs.c, sys.c, sys_asm.asm
+│
+├── bdos/                    # BDOS kernel (modern C, separately compiled)
+│   ├── include/             # Kernel headers: bdos.h, bdos_syscall.h, bdos_hid.h, etc.
+│   └── src files            # main.c, init.c, syscall.c, shell.c, hid.c, eth.c, etc.
+│
+├── userlib/                 # User program library (syscalls, FNP, plot, fixed-point)
+│   ├── include/             # syscall.h, fnp.h, plot.h, fixed64.h, fixedmath.h, time.h
+│   └── src/                 # syscall.c, syscall_asm.asm, fnp.c, plot.c, etc.
+│
+├── userBDOS/                # User programs (compiled with modern toolchain)
+│
+├── bareMetal/               # Bare-metal test programs
+│
+└── b32cc/                   # Archived B32CC-era code
+    ├── BDOS/                # Old B32CC BDOS (archived)
+    ├── libs/                # Old orchestrator libraries (archived)
+    └── userBDOS/            # Old B32CC user programs (being ported)
+```
+
+### Startup Files (crt0)
+
+Located at `Software/ASM/crt0/`:
+
+| File | Program Type | Stack Init | Return Behavior |
+|------|-------------|------------|-----------------|
+| `crt0_baremetal.asm` | Bare metal (tests, flash_writer) | SP=0x1DFFFFC, FP=0 | UART TX r1, halt |
+| `crt0_bdos.asm` | BDOS kernel | SP=0x3DFFFC, FP=0 | UART TX r1, halt |
+| `crt0_userbdos.asm` | User programs under BDOS | FP=0, push/pop r15 | Return to BDOS |
 
 ## Testing Infrastructure
 
 ### Make Commands
 
-These are very important for testing and debugging both the CPU and the C compiler.
-
 **When you change Verilog code:**
 
-Run `make test-cpu` to run all CPU tests, followed by `make test-b32cc` to run all C compiler tests (which also test the CPU indirectly). If a test fails, you can run it individually using `make test-cpu-single file=<path>` or `make test-b32cc-single file=<path>`. Finally, to actually debug with verilog display output, run `make debug-cpu file=<path>` or `make debug-b32cc file=<path>`.
+Run `make test-cpu` to run all CPU tests, followed by `make test-b32cc` and `make test-modern-c` to run all C compiler tests. If a test fails, you can run it individually using `make test-cpu-single file=<path>` or `make test-b32cc-single file=<path>`. To debug with Verilog display output, run `make debug-cpu file=<path>` or `make debug-b32cc file=<path>`.
 
-**When you change C compiler code:**
+**When you change the modern C toolchain (cproc, QBE, ASMPY):**
 
-Run `make test-b32cc` to run all C compiler tests. If a test fails, you can run it individually using `make test-b32cc-single file=<path>`. To debug with verilog display output, run `make debug-b32cc file=<path>`.
+Run `make test-modern-c` to run all modern C tests. If a test fails, run individually with `make test-modern-c-single file=<path>`.
 
-**When you change C code in BDOS or a user program:**
+**When you change B32CC compiler code:**
 
-Just compile the code. No need to run any of the `make test-*` commands, since those are only for testing the CPU and C compiler.
+Run `make test-b32cc` to run all B32CC compiler tests.
+
+**When you change BDOS or a user program:**
+
+Just compile the code (`make compile-bdos` or `make compile-userbdos file=<name>`). No need to run test suites.
 
 ### How the testing framework works
 
-- First, the C code is compiled to B32P3 assembly using B32CC.
-- Then, ASMPY assembles the assembly into .list files, which in turn are used to initialize the memories in the Verilog testbench.
-- The Verilog testbench simulates the CPU running the program, capturing UART output and register/memory traces.
-- Finally, the test framework checks the UART output (in case of B32CC tests, otherwise just the last r15 write) against expected values.
+- The C code is compiled to B32P3 assembly (via cproc+QBE or B32CC).
+- ASMPY assembles the assembly into .list files, which initialize the memories in the Verilog testbench.
+- The Verilog testbench simulates the CPU running the program, capturing UART output.
+- The test framework checks the UART output against expected values.
 
 Note that the tests use `cpu_tests_tb.v` as simulation testbench, while the `make debug` commands use `cpu_tb.v` as simulation testbench.
 
@@ -121,119 +221,74 @@ Note that the tests use `cpu_tests_tb.v` as simulation testbench, while the `mak
 
 ## C Programming Guide
 
-### B32CC Compiler Capabilities and Limitations
+### Modern Toolchain (Recommended)
 
-B32CC is a single-pass C compiler based on Smaller C. Understanding its capabilities and limitations is essential for effective C programming on FPGC.
+The modern toolchain supports full C11:
 
-**Supported C Features:**
+- All standard data types including proper `char` (1 byte), `short` (2 bytes), `int` (4 bytes)
+- Full struct/union support including return by value
+- Standard `#include <header.h>` with picolibc-derived standard library
+- Separate compilation with linker — each `.c` file compiled independently
+- No inline assembly — assembly code goes in separate `.asm` files
+- Variadics, complex initializers, function pointers — all work correctly
 
-- Basic data types: `int` (32-bit), `char` (8-bit), pointers, arrays
-- Structs and unions (with limitations)
-- Functions with up to ~8 parameters efficiently
-- Single-dimensional arrays and pointer arithmetic
-- Basic operators: arithmetic, logical, bitwise, comparison
-- Control flow: `if`, `else`, `while`, `for`, `do-while`, `switch`, `break`, `continue`, `return`
-- Global and local variables
-- Function pointers
-- Inline assembly via `asm()` statements
-- Preprocessor: `#define`, `#include`, `#ifdef`, `#ifndef`, `#if`, `#else`, `#endif`
-- Type casting
-- Forward declarations
+**UserBDOS program template:**
+```c
+#include <syscall.h>
 
-**Critical Limitations Discovered:**
-
-1. **No Complex Macro Expressions**
-   - Ternary operators in `#define` macros do NOT work
-   - Example: `#define MAX(a,b) ((a) > (b) ? (a) : (b))` - **FAILS**
-
-2. **No Struct Return Values**
-   - Functions cannot return structs by value
-   - Standard functions like `div()` that return `div_t` cannot be implemented
-
-3. **Limited Static Initializers**
-   - Complex static variable initialization is not supported
-   - Static arrays with non-constant initializers fail
-
-4. **Variadic Functions Limitations**
-   - `va_list`, `va_start`, `va_arg`, `va_end` have limited support
-   - Complex format strings in `printf`/`sprintf` may not work correctly
-
-5. **No Floating-Point Support**
-   - CPU has no FPU, compiler has no `float` or `double` support
-   - All floating-point math must use fixed-point arithmetic
-
-6. **Limited Type Support**
-   - No `long long` (64-bit integers)
-   - `long` is same as `int` (32-bit)
-   - No `unsigned long long`
-
-**Additional Limitations:**
-
-- No function overloading (C doesn't support this anyway)
-- Limited optimization (single-pass compiler)
-- No inline functions (except via macro hacks)
-- Limited string literal handling
-- No wide character support (`wchar_t`)
-- No standard library by default (must implement yourself)
-
-### C Library Structure
-
-The FPGC project uses a unique library structure due to the absence of a linker. Understanding this structure is crucial for using and extending libraries.
-
-**Directory Layout:**
-
-```
-Software/C/libs/
-├── common/          # Libraries shared between kernel and user programs
-│   └── common.h     # Orchestrator header (includes all common libraries)
-├── kernel/          # Kernel-specific libraries
-│   └── kernel.h     # Kernel orchestrator
-└── user/            # User program libraries
-    └── user.h       # User orchestrator
+int main(void)
+{
+    sys_print_str("Hello from BDOS!\n");
+    return 0;
+}
 ```
 
-**Orchestrator Pattern (No Linker Workaround):**
+Compile: `make compile-userbdos file=hello`
 
-Since B32CC doesn't support linking, all library code must be included directly in the compilation unit. The orchestrator headers provide flag-based inclusion.
+**Multi-file program:**
+```c
+// main.c
+#include <string.h>
+#include <stdlib.h>
+#include <syscall.h>
+#include <fnp.h>
 
-**Best Practices:**
+int main(void) { ... }
+```
 
-1. **Define flags before including**: Always `#define` library flags before `#include "common.h"`
-2. **Don't include .c files directly**: Use the orchestrator header instead
-3. **Minimize includes**: Only include what you need to reduce compilation time
-4. **Be aware of dependencies**: stdio automatically includes string, stdlib includes string
-5. **Use include guards**: All .h files use `#ifndef HEADER_H` guards
+### B32CC Compiler (Legacy)
 
-### C Standard Library Implementation
+B32CC is a single-pass C compiler with significant limitations. See `Docs/plans/modern-c-compiler-support.md` for details on why the modern toolchain was created.
 
-The project includes custom implementations of essential C standard library functions, tailored to work without an OS and without floating-point support.
+Key limitations: no linker (orchestrator pattern required), no C11, limited struct handling, no optimization, limited variadics.
 
 ### Testing C Code
 
-**Test File Format:**
+**Modern C test file format:**
 
 ```c
-// Test file: Tests/B32CC/XX_category/test_name.c
-#define COMMON_STDLIB  // Include needed libraries
-#include "libs/common/common.h"
+// Test file: Tests/C/XX_category/test_name.c
+#include <string.h>  // if needed
 
-int main() {
-    // Test code
-    int result = some_function();
-    
-    // Return expected value for test verification
+int main(void)
+{
+    int result = 42;
     return result; // expected=42
 }
 
-void interrupt() {
-   // Required empty interrupt handler
-}
+void interrupt(void) {}
 ```
 
-**Expected Value Comment:**
-
-The test runner checks the return value against the expected value in the comment:
+**B32CC test file format (legacy):**
 
 ```c
-return 5; // expected=5
+// Test file: Tests/B32CC/XX_category/test_name.c
+#define COMMON_STDLIB
+#include "libs/common/common.h"
+
+int main() {
+    return 5; // expected=5
+}
+
+void interrupt() {}
 ```

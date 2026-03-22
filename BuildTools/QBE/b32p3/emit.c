@@ -440,6 +440,8 @@ emitins(Ins *i, Fn *fn, FILE *f)
  *   +=============+
  *   |  caller's   |
  *   |  stack args |
+ *   +-------------+              <- caller's SP for non-vararg call
+ *   |  r4-r7 save | (vararg only, 16 bytes)
  *   +-------------+ <- old SP
  *   |  saved FP   |  [FP+0]
  *   |  saved RA   |  [FP+4]
@@ -473,6 +475,17 @@ b32p3_emitfn(Fn *fn, FILE *f)
 	fprintf(f, "  write 0 r13 r14\n");   /* save old FP at [SP] */
 	fprintf(f, "  write 4 r13 r15\n");   /* save RA at [SP+4] */
 	fprintf(f, "  or r0 r13 r14\n");     /* FP = SP */
+
+	if (fn->vararg) {
+		/* save arg registers r4-r7 above FP/RA so they are
+		 * contiguous with any stack arguments from the caller.
+		 * the caller reserves 24 bytes (8 for FP/RA + 16 for
+		 * the 4 arg regs) when calling a vararg function. */
+		fprintf(f, "  write 8 r14 r4\n");    /* [FP+8]  = r4 */
+		fprintf(f, "  write 12 r14 r5\n");   /* [FP+12] = r5 */
+		fprintf(f, "  write 16 r14 r6\n");   /* [FP+16] = r6 */
+		fprintf(f, "  write 20 r14 r7\n");   /* [FP+20] = r7 */
+	}
 
 	/* calculate frame size: spill slots + callee-save regs */
 	frame = 4 * fn->slot;  /* spill slots */
