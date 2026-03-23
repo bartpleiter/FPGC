@@ -5,8 +5,8 @@
 //
 
 #include <syscall.h>
+#include <plot.h>
 #include <fixed64.h>
-#include <hwio.h>
 
 // ---- Screen constants ----
 #define SCREEN_WIDTH  320
@@ -253,7 +253,7 @@ void render_frame(void)
         px = ((iter - 1) % 255) + 1;
       }
 
-      hwio_write(PIXEL_FB_ADDR + (y * SCREEN_WIDTH + x) * 4, px);
+      __builtin_store(PIXEL_FB_ADDR + (y * SCREEN_WIDTH + x) * 4, px);
 
       fp64_add(&c_re, &c_re, &step);
     }
@@ -310,7 +310,7 @@ int main(void)
     int ci;
     for (ci = 0; ci < SCREEN_WIDTH * SCREEN_HEIGHT; ci++)
     {
-      hwio_write(PIXEL_FB_ADDR + ci * 4, 0);
+      __builtin_store(PIXEL_FB_ADDR + ci * 4, 0);
     }
   }
 
@@ -403,7 +403,7 @@ int main(void)
     int ci;
     for (ci = 0; ci < SCREEN_WIDTH * SCREEN_HEIGHT; ci++)
     {
-      hwio_write(PIXEL_FB_ADDR + ci * 4, 0);
+      __builtin_store(PIXEL_FB_ADDR + ci * 4, 0);
     }
   }
   sys_term_clear();

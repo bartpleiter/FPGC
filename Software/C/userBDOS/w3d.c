@@ -3,7 +3,7 @@
 
 #include <syscall.h>
 #include <fixedmath.h>
-#include <hwio.h>
+#include <plot.h>
 #include <time.h>
 
 // ---- Constants ----

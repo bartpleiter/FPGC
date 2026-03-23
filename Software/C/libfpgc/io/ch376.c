@@ -29,13 +29,13 @@ static void ch376_end_cmd(int spi_id)
 /* Read the top CH376 interrupt pin state (via MMIO). */
 static int ch376_get_top_nint(void)
 {
-  return hwio_read(FPGC_CH376_TOP_NINT);
+  return __builtin_load(FPGC_CH376_TOP_NINT);
 }
 
 /* Read the bottom CH376 interrupt pin state (via MMIO). */
 static int ch376_get_bottom_nint(void)
 {
-  return hwio_read(FPGC_CH376_BOT_NINT);
+  return __builtin_load(FPGC_CH376_BOT_NINT);
 }
 
 /* Return non-zero when CH376 interrupt is asserted. */

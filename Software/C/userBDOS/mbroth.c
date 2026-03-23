@@ -4,9 +4,9 @@
 //
 
 #include <syscall.h>
+#include <plot.h>
 #include <fnp.h>
 #include <fixed64.h>
-#include <hwio.h>
 
 // ---- Screen constants ----
 #define SCREEN_WIDTH  320
@@ -287,7 +287,7 @@ int process_result_chunk(int worker_id, char *data, int data_len)
     int px;
     px = data[CHUNK_HEADER_SIZE + i] & 0xFF;
     backbuf[pixel_offset + i] = px;
-    hwio_write(PIXEL_FB_ADDR + (pixel_offset + i) * 4, px);
+    __builtin_store(PIXEL_FB_ADDR + (pixel_offset + i) * 4, px);
     i = i + 1;
   }
 
@@ -302,7 +302,7 @@ void blit_backbuf(void)
   int i;
   for (i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++)
   {
-    hwio_write(PIXEL_FB_ADDR + i * 4, backbuf[i]);
+    __builtin_store(PIXEL_FB_ADDR + i * 4, backbuf[i]);
   }
 }
 
@@ -316,8 +316,8 @@ void upscale_to_fb(void)
     for (ox = 0; ox < SCREEN_WIDTH; ox++)
     {
       sx = UPSCALE_X0 + (ox * UPSCALE_W) / SCREEN_WIDTH;
-      hwio_write(PIXEL_FB_ADDR + (oy * SCREEN_WIDTH + ox) * 4,
-                 backbuf[sy * SCREEN_WIDTH + sx]);
+      __builtin_store(PIXEL_FB_ADDR + (oy * SCREEN_WIDTH + ox) * 4,
+                      backbuf[sy * SCREEN_WIDTH + sx]);
     }
   }
 }
@@ -450,7 +450,7 @@ int main(void)
   sys_term_clear();
   for (ci = 0; ci < SCREEN_WIDTH * SCREEN_HEIGHT; ci++)
   {
-    hwio_write(PIXEL_FB_ADDR + ci * 4, 0);
+    __builtin_store(PIXEL_FB_ADDR + ci * 4, 0);
     backbuf[ci] = 0;
   }
 
@@ -532,7 +532,7 @@ int main(void)
     }
   }
   for (ci = 0; ci < SCREEN_WIDTH * SCREEN_HEIGHT; ci++)
-    hwio_write(PIXEL_FB_ADDR + ci * 4, 0);
+    __builtin_store(PIXEL_FB_ADDR + ci * 4, 0);
   sys_term_clear();
 
   return 0;

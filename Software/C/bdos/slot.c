@@ -120,7 +120,7 @@ void bdos_save_and_switch_c(void)
   }
 
   /* Suspend: save user HW stack entries */
-  total_sp = hwio_read(FPGC_HW_STACK_PTR);
+  total_sp = __builtin_load(FPGC_HW_STACK_PTR);
   user_sp = total_sp - 13; /* subtract trampoline entries */
   if (user_sp < 0)
   {

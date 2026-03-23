@@ -6,6 +6,14 @@
  * Uses a built-in 3x5 pixel mini-font for labels.
  */
 
+/* GPU pixel framebuffer */
+#define PIXEL_FB_ADDR    0x1EC00000
+#define PIXEL_FB_WIDTH   320
+#define PIXEL_FB_HEIGHT  240
+
+/* GPU pixel palette */
+#define PIXEL_PALETTE_ADDR 0x1EC80000
+
 void plot_init(int x, int y, int w, int h);
 void plot_clear(int bg_color);
 void plot_axes(int y_min, int y_max, int x_max, int axis_color, int grid_color);

@@ -300,7 +300,6 @@ compile-c-baremetal: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 
 BDOS_V3_SOURCES = \
 	Software/ASM/crt0/crt0_bdos.asm \
-	Software/C/libc/sys/hwio.asm \
 	Software/C/libc/sys/_exit.asm \
 	Software/C/libc/string/string.c \
 	Software/C/libc/stdlib/stdlib.c \
@@ -350,7 +349,6 @@ compile-bdos: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 # User library sources linked into every userBDOS program
 USERLIB_SOURCES = \
 	Software/ASM/crt0/crt0_userbdos.asm \
-	Software/C/libc/sys/hwio.asm \
 	Software/C/libc/string/string.c \
 	Software/C/libc/stdlib/stdlib.c \
 	Software/C/libc/stdlib/malloc.c \

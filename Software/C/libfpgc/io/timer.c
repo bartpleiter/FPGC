@@ -44,7 +44,7 @@ timer_set(int timer_id, unsigned int ms)
 {
     if (!timer_valid(timer_id))
         return;
-    hwio_write(timer_val_addrs[timer_id], (int)ms);
+    __builtin_store(timer_val_addrs[timer_id], (int)ms);
 }
 
 void
@@ -52,7 +52,7 @@ timer_start(int timer_id)
 {
     if (!timer_valid(timer_id))
         return;
-    hwio_write(timer_ctrl_addrs[timer_id], 1);
+    __builtin_store(timer_ctrl_addrs[timer_id], 1);
 }
 
 void

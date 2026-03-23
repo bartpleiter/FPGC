@@ -153,7 +153,7 @@ Software/C/
 │   ├── stdlib/stdlib.c      # Standard library + malloc.c
 │   ├── stdio/stdio.c       # printf/sprintf (tinystdio-based)
 │   ├── ctype/ctype.c       # Character classification
-│   └── sys/                 # System stubs: syscalls.c, hwio.asm, _exit.asm
+│   └── sys/                 # System stubs: syscalls.c, _exit.asm
 │
 ├── libfpgc/                 # FPGC hardware abstraction library
 │   ├── include/             # fpgc.h (mem map + I/O), gpu_hal.h, term.h, uart.h, etc.

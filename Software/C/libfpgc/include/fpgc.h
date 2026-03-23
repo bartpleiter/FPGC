@@ -2,20 +2,15 @@
 #define FPGC_H
 
 /*========================================================================
- * Assembly-level I/O helpers (defined in hwio.asm)
+ * Memory-mapped I/O builtins
  *
  * cproc does not support volatile stores, so all memory-mapped I/O
- * goes through these assembly functions.
- *
- * For performance-critical code, prefer the inline builtins:
+ * uses compiler builtins that emit inline write/read instructions:
  *   __builtin_store(addr, value)   — inline word store
  *   __builtin_storeb(addr, value)  — inline byte store
  *   __builtin_load(addr)           — inline word load
  *   __builtin_loadb(addr)          — inline byte load
  *======================================================================*/
-
-extern void hwio_write(int addr, int value);
-extern int  hwio_read(int addr);
 
 /*========================================================================
  * Memory-Mapped I/O Addresses

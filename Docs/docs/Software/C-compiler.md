@@ -25,7 +25,7 @@ Both cproc and QBE have been adapted from their upstream versions to target the 
 ### Limitations
 
 - No inline assembly (use separate `.asm` files and the assembler's `.global` directive instead)
-- No `volatile` qualifier for memory-mapped I/O (all MMIO must go through `hwio_write()`/`hwio_read()` assembly helpers)
+- No `volatile` qualifier for memory-mapped I/O (use `__builtin_store()`/`__builtin_load()` compiler builtins for inline MMIO)
 - No floating point types (`float`, `double`) — use the FP64 coprocessor intrinsics via B32CC instead
 - No 64-bit integers (`long long`)
 
@@ -78,7 +78,7 @@ The hardware abstraction library at `Software/C/libfpgc/` provides drivers for a
 | `mem/debug.c` | Hex dump utility |
 | `fs/brfs.c` | BRFS filesystem driver |
 
-All memory-mapped I/O is handled through `hwio_write()`/`hwio_read()` assembly helpers in `sys/hwio.asm`, which work around the lack of `volatile` support in cproc.
+All memory-mapped I/O uses compiler builtins that emit inline `write`/`read` instructions: `__builtin_store(addr, value)`, `__builtin_storeb(addr, value)`, `__builtin_load(addr)`, `__builtin_loadb(addr)`. These bypass the lack of `volatile` support in cproc with zero function call overhead.
 
 ### Program Structure
 

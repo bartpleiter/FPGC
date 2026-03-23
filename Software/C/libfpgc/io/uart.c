@@ -30,7 +30,7 @@ uart_init(void)
 void
 uart_putchar(char c)
 {
-    hwio_write(FPGC_UART_TX, (int)(unsigned char)c);
+    __builtin_store(FPGC_UART_TX, (int)(unsigned char)c);
 }
 
 void
@@ -76,7 +76,7 @@ uart_isr_handler(void)
     char byte;
     int next_head;
 
-    byte = (char)hwio_read(FPGC_UART_RX);
+    byte = (char)__builtin_load(FPGC_UART_RX);
     next_head = (rx_head + 1) % UART_RX_BUFFER_SIZE;
 
     if (next_head == rx_tail) {

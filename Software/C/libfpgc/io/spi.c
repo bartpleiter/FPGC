@@ -17,8 +17,8 @@ spi_transfer(int spi_id, int data)
 {
     if (spi_id < 0 || spi_id >= SPI_COUNT)
         return 0;
-    hwio_write(spi_data_addr[spi_id], data);
-    return hwio_read(spi_data_addr[spi_id]);
+    __builtin_store(spi_data_addr[spi_id], data);
+    return __builtin_load(spi_data_addr[spi_id]);
 }
 
 void
@@ -26,7 +26,7 @@ spi_select(int spi_id)
 {
     if (spi_id < 0 || spi_id >= SPI_COUNT)
         return;
-    hwio_write(spi_cs_addr[spi_id], 0);
+    __builtin_store(spi_cs_addr[spi_id], 0);
 }
 
 void
@@ -34,5 +34,5 @@ spi_deselect(int spi_id)
 {
     if (spi_id < 0 || spi_id >= SPI_COUNT)
         return;
-    hwio_write(spi_cs_addr[spi_id], 1);
+    __builtin_store(spi_cs_addr[spi_id], 1);
 }

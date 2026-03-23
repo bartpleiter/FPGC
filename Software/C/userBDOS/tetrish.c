@@ -6,7 +6,6 @@
 
 #include <syscall.h>
 #include <fnp.h>
-#include <hwio.h>
 #include <plot.h>
 
 // ---- Screen constants ----
@@ -652,7 +651,7 @@ void dispatch_pending_assigns(void)
 
 void fb_write(int offset, int color)
 {
-  hwio_write(PIXEL_FB_ADDR + offset * 4, color);
+  __builtin_store(PIXEL_FB_ADDR + offset * 4, color);
 }
 
 void draw_rect(int x, int y, int w, int h, int color)

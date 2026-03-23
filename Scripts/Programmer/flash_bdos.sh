@@ -28,7 +28,6 @@ echo ""
 echo "Step 2: Compiling flash_writer program..."
 ./Scripts/BCC/compile_modern_c.sh \
     Software/ASM/crt0/crt0_baremetal.asm \
-    Software/C/libc/sys/hwio.asm \
     Software/C/libc/sys/_exit.asm \
     Software/C/libc/string/string.c \
     Software/C/libc/stdlib/stdlib.c \

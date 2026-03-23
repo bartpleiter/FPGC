@@ -16,7 +16,7 @@ BDOS is organized as three libraries plus the kernel:
 
 ### libc (`Software/C/libc/`)
 
-Standard C library (picolibc-derived). Provides `string.h`, `stdlib.h`, `stdio.h`, `ctype.h`, `stdint.h`, etc. System stubs in `sys/syscalls.c` (UART I/O), `sys/hwio.asm` (memory-mapped I/O helpers), `sys/_exit.asm`.
+Standard C library (picolibc-derived). Provides `string.h`, `stdlib.h`, `stdio.h`, `ctype.h`, `stdint.h`, etc. System stubs in `sys/syscalls.c` (UART I/O), `sys/_exit.asm`.
 
 ### libfpgc (`Software/C/libfpgc/`)
 
@@ -24,7 +24,7 @@ Hardware abstraction layer. Headers in `include/`:
 
 | Header | Purpose |
 |--------|---------|
-| `fpgc.h` | Memory map constants, I/O addresses, `hwio_write()`/`hwio_read()` |
+| `fpgc.h` | Memory map constants, I/O addresses |
 | `sys.h` | `get_int_id()`, `get_boot_mode()`, `set_user_led()`, `get_micros()` |
 | `timer.h` | Timer management (3 hardware timers) |
 | `uart.h` | UART I/O |
@@ -283,7 +283,7 @@ The shell has modal input for the format wizard (multi-step: blocks → words/bl
 - BDOS is built with the modern C toolchain (cproc + QBE). Full C11 is available.
 - Each source file is compiled independently — use `#include <header.h>` with proper `-I` paths.
 - No inline assembly. Assembly code goes in dedicated `.asm` files (e.g., `slot_asm.asm`, `sys_asm.asm`).
-- All MMIO access goes through `hwio_write()`/`hwio_read()` from `fpgc.h` (cproc has no `volatile`).
+- All MMIO access uses `__builtin_store()`/`__builtin_load()` compiler builtins (cproc has no `volatile`).
 - `TIMER_1` is taken by HID polling; `TIMER_2` by `delay()`. Use `TIMER_0` if a new timer is needed.
 - Keep FIFO API stable — shell and FNP both push events into it.
 - New shell commands: add handler function in `shell_cmds.c`, add dispatch entry in `bdos_shell_execute_line()`.

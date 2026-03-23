@@ -5,10 +5,6 @@
 #define UART_TX_ADDR  0x1C000000
 #define UART_RX_ADDR  0x1C000004
 
-/* Assembly helpers for memory-mapped I/O (cproc can't do volatile stores) */
-extern void hwio_write(int addr, int value);
-extern int hwio_read(int addr);
-
 /*========================================================================
  * _write — write bytes to a file descriptor
  *
@@ -23,7 +19,7 @@ _write(int fd, const char *buf, int len)
 
     if (fd == 1 || fd == 2 || fd == -1 || fd == -2) {
         for (i = 0; i < len; i++)
-            hwio_write(UART_TX_ADDR, (int)(unsigned char)buf[i]);
+            __builtin_store(UART_TX_ADDR, (int)(unsigned char)buf[i]);
         return len;
     }
 
@@ -45,7 +41,7 @@ _read(int fd, char *buf, int len)
 
     if (fd == 0 || fd == -3) {
         for (i = 0; i < len; i++)
-            buf[i] = (char)hwio_read(UART_RX_ADDR);
+            buf[i] = (char)__builtin_load(UART_RX_ADDR);
         return len;
     }
 

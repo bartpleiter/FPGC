@@ -3,7 +3,6 @@
  */
 
 #include <plot.h>
-#include <hwio.h>
 
 /* Current plot region */
 static int plot_x;
@@ -69,7 +68,7 @@ void plot_put_pixel(int x, int y, int color)
 {
     if (x < 0 || x >= PIXEL_FB_WIDTH || y < 0 || y >= PIXEL_FB_HEIGHT)
         return;
-    hwio_write(PIXEL_FB_ADDR + (y * PIXEL_FB_WIDTH + x) * 4, color);
+    __builtin_store(PIXEL_FB_ADDR + (y * PIXEL_FB_WIDTH + x) * 4, color);
 }
 
 void plot_hline(int x0, int x1, int y, int color)
@@ -212,7 +211,7 @@ void plot_clear(int bg_color)
             for (px = plot_x; px < plot_x + plot_w; px++)
             {
                 if (px >= 0 && px < PIXEL_FB_WIDTH)
-                    hwio_write(PIXEL_FB_ADDR + (py * PIXEL_FB_WIDTH + px) * 4, bg_color);
+                    __builtin_store(PIXEL_FB_ADDR + (py * PIXEL_FB_WIDTH + px) * 4, bg_color);
             }
         }
     }

@@ -4,17 +4,17 @@
 int
 get_boot_mode(void)
 {
-    return hwio_read(FPGC_BOOT_MODE);
+    return __builtin_load(FPGC_BOOT_MODE);
 }
 
 void
 set_user_led(int on)
 {
-    hwio_write(FPGC_USER_LED, on);
+    __builtin_store(FPGC_USER_LED, on);
 }
 
 unsigned int
 get_micros(void)
 {
-    return (unsigned int)hwio_read(FPGC_MICROS);
+    return (unsigned int)__builtin_load(FPGC_MICROS);
 }

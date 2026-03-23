@@ -3,9 +3,8 @@
  */
 
 #include <time.h>
-#include <hwio.h>
 
 unsigned int get_micros(void)
 {
-    return (unsigned int)hwio_read(MICROS_ADDR);
+    return (unsigned int)__builtin_load(MICROS_ADDR);
 }
