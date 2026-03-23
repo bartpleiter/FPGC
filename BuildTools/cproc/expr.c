@@ -893,6 +893,25 @@ builtinfunc(struct scope *s, enum builtinkind kind)
 		e->u.builtin.kind = kind;
 		break;
 	}
+	case BUILTINSTORE:
+	case BUILTINSTOREB: {
+		struct expr *arg1, *arg2;
+		arg1 = assignexpr(s);
+		expect(TCOMMA, "after first argument");
+		arg2 = assignexpr(s);
+		arg1->next = arg2;
+		e = mkexpr(EXPRBUILTIN, &typevoid, arg1);
+		e->u.builtin.kind = kind;
+		break;
+	}
+	case BUILTINLOAD:
+	case BUILTINLOADB: {
+		struct expr *arg1;
+		arg1 = assignexpr(s);
+		e = mkexpr(EXPRBUILTIN, &typeint, arg1);
+		e->u.builtin.kind = kind;
+		break;
+	}
 	default:
 		fatal("internal error; unknown builtin");
 		return NULL;  /* unreachable */

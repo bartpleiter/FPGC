@@ -4,8 +4,19 @@
 /*
  * hwio.h — Memory-mapped I/O access for user programs.
  *
- * The actual implementation is in libc/sys/hwio.asm (linked into the binary).
- * cproc does not support volatile, so all MMIO goes through these asm helpers.
+ * For performance-critical code (e.g., pixel rendering loops), prefer the
+ * compiler builtins which emit inline write/read instructions with no
+ * function call overhead:
+ *
+ *   __builtin_store(addr, value)   — word store  (write instruction)
+ *   __builtin_storeb(addr, value)  — byte store  (writeb instruction)
+ *   __builtin_load(addr)           — word load   (read instruction)
+ *   __builtin_loadb(addr)          — byte load   (readb instruction)
+ *
+ * The hwio_write/hwio_read functions below are assembly helpers that work
+ * correctly but incur ~10 cycles of call/return overhead per invocation.
+ * Use them for non-performance-critical I/O or when compatibility with
+ * code that can't use builtins is needed.
  */
 
 extern void hwio_write(int addr, int value);

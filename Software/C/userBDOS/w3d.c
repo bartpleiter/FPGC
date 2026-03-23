@@ -1,5 +1,5 @@
 // w3d.c — Wolfenstein 3D-style raycaster for FPGC BDOS
-// Uses pixel framebuffer via hwio_write for rendering.
+// Uses pixel framebuffer via __builtin_store for inline VRAM writes.
 
 #include <syscall.h>
 #include <fixedmath.h>
@@ -101,7 +101,7 @@ void clear_framebuffer(void)
   int i;
   for (i = 0; i < SCREEN_W * SCREEN_H; i++)
   {
-    hwio_write(PIXEL_FB_ADDR + i * 4, 0);
+    __builtin_store(PIXEL_FB_ADDR + i * 4, 0);
   }
 }
 
@@ -115,7 +115,7 @@ void draw_border(void)
   {
     for (x = 0; x < SCREEN_W; x++)
     {
-      hwio_write(PIXEL_FB_ADDR + (y * SCREEN_W + x) * 4, BORDER_COLOR);
+      __builtin_store(PIXEL_FB_ADDR + (y * SCREEN_W + x) * 4, BORDER_COLOR);
     }
   }
 
@@ -124,7 +124,7 @@ void draw_border(void)
   {
     for (x = 0; x < SCREEN_W; x++)
     {
-      hwio_write(PIXEL_FB_ADDR + (y * SCREEN_W + x) * 4, BORDER_COLOR);
+      __builtin_store(PIXEL_FB_ADDR + (y * SCREEN_W + x) * 4, BORDER_COLOR);
     }
   }
 
@@ -133,11 +133,11 @@ void draw_border(void)
   {
     for (x = 0; x < VIEW_X; x++)
     {
-      hwio_write(PIXEL_FB_ADDR + (y * SCREEN_W + x) * 4, BORDER_COLOR);
+      __builtin_store(PIXEL_FB_ADDR + (y * SCREEN_W + x) * 4, BORDER_COLOR);
     }
     for (x = VIEW_X + VIEW_W; x < SCREEN_W; x++)
     {
-      hwio_write(PIXEL_FB_ADDR + (y * SCREEN_W + x) * 4, BORDER_COLOR);
+      __builtin_store(PIXEL_FB_ADDR + (y * SCREEN_W + x) * 4, BORDER_COLOR);
     }
   }
 }
@@ -274,7 +274,7 @@ void draw_textured_column(int screenX, int drawStart, int drawEnd, int side,
   // Ceiling
   for (row = 0; row < drawStart; row++)
   {
-    hwio_write(addr, CEIL_COLOR);
+    __builtin_store(addr, CEIL_COLOR);
     addr += SCREEN_W * 4;
   }
 
@@ -287,7 +287,7 @@ void draw_textured_column(int screenX, int drawStart, int drawEnd, int side,
     {
       color = (color >> 1) & 0x6D;
     }
-    hwio_write(addr, color);
+    __builtin_store(addr, color);
     addr += SCREEN_W * 4;
     texPos += texStep;
   }
@@ -295,7 +295,7 @@ void draw_textured_column(int screenX, int drawStart, int drawEnd, int side,
   // Floor
   for (row = drawEnd + 1; row < VIEW_H; row++)
   {
-    hwio_write(addr, FLOOR_COLOR);
+    __builtin_store(addr, FLOOR_COLOR);
     addr += SCREEN_W * 4;
   }
 }

@@ -25,6 +25,10 @@ scopeinit(void)
 		{.name = "__builtin_c23_va_start", .kind = DECLBUILTIN, .u.builtin = BUILTINVASTART},
 		{.name = "__builtin_multfp",       .kind = DECLBUILTIN, .u.builtin = BUILTINMULTFP},
 		{.name = "__builtin_divfp",        .kind = DECLBUILTIN, .u.builtin = BUILTINDIVFP},
+		{.name = "__builtin_store",        .kind = DECLBUILTIN, .u.builtin = BUILTINSTORE},
+		{.name = "__builtin_storeb",       .kind = DECLBUILTIN, .u.builtin = BUILTINSTOREB},
+		{.name = "__builtin_load",         .kind = DECLBUILTIN, .u.builtin = BUILTINLOAD},
+		{.name = "__builtin_loadb",        .kind = DECLBUILTIN, .u.builtin = BUILTINLOADB},
 	};
 	static struct decl valist;
 	struct decl *d;

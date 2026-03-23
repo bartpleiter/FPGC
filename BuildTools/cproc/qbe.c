@@ -951,6 +951,22 @@ funcexpr(struct func *f, struct expr *e)
 			l = funcexpr(f, e->base);
 			r = funcexpr(f, e->base->next);
 			return funcinst(f, IDIVFP, 'w', l, r);
+		case BUILTINSTORE:
+			l = funcexpr(f, e->base);
+			r = funcexpr(f, e->base->next);
+			funcinst(f, ISTOREW, 0, r, l);
+			break;
+		case BUILTINSTOREB:
+			l = funcexpr(f, e->base);
+			r = funcexpr(f, e->base->next);
+			funcinst(f, ISTOREB, 0, r, l);
+			break;
+		case BUILTINLOAD:
+			l = funcexpr(f, e->base);
+			return funcinst(f, ILOADW, 'w', l, NULL);
+		case BUILTINLOADB:
+			l = funcexpr(f, e->base);
+			return funcinst(f, ILOADUB, 'w', l, NULL);
 		case BUILTINUNREACHABLE:
 			return NULL;
 		default:
