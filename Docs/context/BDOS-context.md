@@ -191,6 +191,8 @@ User programs invoke syscalls via an assembly trampoline. ABI: `r4` = syscall nu
 | 28 | `NET_RECV` | buf, max_len | bytes received |
 | 29 | `NET_PACKET_COUNT` | — | count |
 | 30 | `NET_GET_MAC` | mac_buf | 0 |
+| 31 | `UART_PRINT_CHAR` | char | 0 |
+| 32 | `UART_PRINT_STR` | char* | 0 |
 
 Note: `TERM_PUT_CELL` packs tile and palette into a single argument (`a3`) because the syscall ABI only allows 3 arguments. `TERM_GET_CURSOR` packs x and y into the return value similarly. `SET_PALETTE` writes to `GPU_PALETTE_TABLE_ADDR + index`; value format is `(bg_color << 8) | fg_color` with 8-bit RRRGGGBB colors. `EXIT` terminates the calling program immediately by resetting the HW stack to the trampoline depth and jumping to the BDOS return path — the exit code is reported as the program's return value. `FS_READDIR` fills `entry_buf` with raw `brfs_dir_entry` structs and returns the number of entries. `GET_KEY_STATE` returns the current key state bitmap — see Key State Bitmap section above. `SET_PIXEL_PALETTE` sets a 320×240 pixel framebuffer palette entry (RGB24). `NET_SEND`/`NET_RECV`/`NET_PACKET_COUNT`/`NET_GET_MAC` provide raw Ethernet frame I/O for user programs (used by FNP protocol library).
 

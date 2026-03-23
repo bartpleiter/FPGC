@@ -334,7 +334,8 @@ void render_frame(void)
 
     // ---- DDA raycasting ----
 
-    cameraX = __builtin_divfp(int2fixed(2 * x), int2fixed(VIEW_W)) - FIXED_ONE;
+    // Previous workaround for old CPU bug: cameraX = __builtin_divfp((2 * x) << 16, VIEW_W << 16) - FIXED_ONE;
+    cameraX = cameraX = __builtin_divfp(int2fixed(2 * x), int2fixed(VIEW_W)) - FIXED_ONE;
     rayDirX = dirX + __builtin_multfp(planeX, cameraX);
     rayDirY = dirY + __builtin_multfp(planeY, cameraX);
 

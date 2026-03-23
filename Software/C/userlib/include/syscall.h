@@ -33,6 +33,8 @@
 #define SYSCALL_NET_RECV         28
 #define SYSCALL_NET_PACKET_COUNT 29
 #define SYSCALL_NET_GET_MAC      30
+#define SYSCALL_UART_PRINT_CHAR  31
+#define SYSCALL_UART_PRINT_STR   32
 
 /* Key state bitmap bit positions (matching BDOS bdos_hid.h) */
 #define KEYSTATE_W        0x0001
@@ -122,6 +124,10 @@ int  sys_net_send(char *buf, int len);
 int  sys_net_recv(char *buf, int max_len);
 int  sys_net_packet_count(void);
 void sys_net_get_mac(int *mac_buf);
+
+/* ---- Convenience wrappers: UART debug output ---- */
+void sys_uart_print_char(int ch);
+void sys_uart_print_str(char *s);
 
 /* ---- Convenience wrappers: Process control ---- */
 void sys_exit(int code);

@@ -179,6 +179,18 @@ void sys_net_get_mac(int *mac_buf)
     syscall(SYSCALL_NET_GET_MAC, (int)mac_buf, 0, 0);
 }
 
+/* ---- UART debug output ---- */
+
+void sys_uart_print_char(int ch)
+{
+    syscall(SYSCALL_UART_PRINT_CHAR, ch, 0, 0);
+}
+
+void sys_uart_print_str(char *s)
+{
+    syscall(SYSCALL_UART_PRINT_STR, (int)s, 0, 0);
+}
+
 /* ---- Process control ---- */
 
 void sys_exit(int code)

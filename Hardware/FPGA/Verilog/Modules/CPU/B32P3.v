@@ -596,7 +596,9 @@ end
 
 // Stall pipeline while multi-cycle ALU is in progress
 // Single-cycle FP operations (fadd, fsub, fld, fsthi, fstlo) do NOT stall
-assign multicycle_stall = id_ex_valid && id_ex_arithm && !is_fp_singlecycle && !malu_request_finished;
+// Must also check !flush_id_ex: if the EX stage is being flushed (branch redirect),
+// the instruction is speculative and must NOT start the multi-cycle ALU.
+assign multicycle_stall = id_ex_valid && id_ex_arithm && !is_fp_singlecycle && !malu_request_finished && !flush_id_ex;
 
 
 MultiCycleALU multi_cycle_alu (
@@ -636,7 +638,7 @@ begin
 
                 // Start when we have a valid multi-cycle arithm instruction
                 // Single-cycle FP ops (fadd, fsub, fld, fsthi, fstlo) must NOT start the MALU
-                if (id_ex_valid && id_ex_arithm && !malu_request_finished && !is_fp_singlecycle)
+                if (id_ex_valid && id_ex_arithm && !malu_request_finished && !is_fp_singlecycle && !flush_id_ex)
                 begin
                     malu_start_reg <= 1'b1;
                     malu_a_reg <= ex_alu_a;

@@ -148,6 +148,15 @@ int bdos_syscall_dispatch(int num, int a1, int a2, int a3)
       return 0;
     }
 
+    /* ---- UART debug output ---- */
+    case SYSCALL_UART_PRINT_CHAR:
+      uart_putchar((char)a1);
+      return 0;
+
+    case SYSCALL_UART_PRINT_STR:
+      uart_puts((char *)a1);
+      return 0;
+
     default:
       return -1;
   }

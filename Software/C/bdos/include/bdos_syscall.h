@@ -33,6 +33,8 @@
 #define SYSCALL_NET_RECV         28
 #define SYSCALL_NET_PACKET_COUNT 29
 #define SYSCALL_NET_GET_MAC      30
+#define SYSCALL_UART_PRINT_CHAR  31
+#define SYSCALL_UART_PRINT_STR   32
 
 /* Syscall dispatch function */
 int bdos_syscall_dispatch(int num, int a1, int a2, int a3);

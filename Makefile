@@ -45,6 +45,7 @@ CPROC_OUTPUT = $(CPROC_DIR)/output/cproc-qbe
 .PHONY: check
 .PHONY: fnp-upload-text fnp-upload-userbdos fnp-upload-userbdos-b32cc
 .PHONY: fnp-keyboard fnp-detect-iface fnp-sync-files fnp-run
+.PHONY: fnp-debug-userbdos
 .PHONY: convert-w3d-textures
 
 # -----------------------------------------------------------------------------
@@ -532,9 +533,7 @@ fnp-upload-userbdos: compile-userbdos
 		exit 1; \
 	fi
 	@echo "Uploading to FPGC: /bin/$(file)"
-	@source .venv/bin/activate && \
-		python3 Scripts/Programmer/Network/fnp_tool.py --mac $(FNP_MAC) upload Software/ASM/Output/code.bin /bin/$(file) && \
-		deactivate
+	@.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py --mac $(FNP_MAC) upload Software/ASM/Output/code.bin /bin/$(file)
 	@echo "Done! Program uploaded to /bin/$(file)"
 
 fnp-upload-userbdos-b32cc: $(B32CC_OUTPUT)
@@ -567,6 +566,18 @@ fnp-run:
 # =============================================================================
 # Cleanup
 # =============================================================================
+
+# UART port and debug capture duration (seconds)
+uart_port ?= /dev/ttyUSB0
+duration ?= 3
+
+# Compile, upload via FNP, run, and capture UART debug output:
+#   make fnp-debug-userbdos file=hello [dev=1] [duration=3] [uart_port=/dev/ttyUSB0]
+fnp-debug-userbdos: compile-userbdos
+	@.venv/bin/python3 Scripts/Programmer/fnp_debug_capture.py \
+		--mac $(FNP_MAC) --cmd $(file) \
+		--bin Software/ASM/Output/code.bin --dest /bin/$(file) \
+		--duration $(duration) --port $(uart_port)
 
 clean:
 	@echo "Cleaning all build artifacts and environments..."
@@ -694,6 +705,8 @@ help:
 	@echo "                          Usage: make fnp-sync-files [dev=N]"
 	@echo "  fnp-run               - Run a shell command on an FPGC device"
 	@echo "                          Usage: make fnp-run cmd=<command> [dev=N]"
+	@echo "  fnp-debug-userbdos    - Compile, upload, run and capture UART debug output"
+	@echo "                          Usage: make fnp-debug-userbdos file=<name> [dev=N] [duration=3] [uart_port=/dev/ttyUSB0]"
 	@echo ""
 	@echo "--- Cleanup ---"
 	@echo "  clean               - Clean all build artifacts and environments"
