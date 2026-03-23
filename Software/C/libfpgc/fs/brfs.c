@@ -770,16 +770,84 @@ static void brfs_write_data_sector(unsigned int sector_idx)
   }
 }
 
+static unsigned int brfs_sync_fat(struct brfs_superblock *sb,
+                                  unsigned int fat_sectors,
+                                  unsigned int progress_step,
+                                  unsigned int progress_total)
+{
+  unsigned int sector;
+  unsigned int block;
+  unsigned int i;
+  int sector_dirty;
+
+  for (sector = 0; sector < fat_sectors; sector++)
+  {
+    sector_dirty = 0;
+
+    for (i = 0; i < BRFS_FLASH_WORDS_PER_SECTOR && !sector_dirty; i++)
+    {
+      block = sector * BRFS_FLASH_WORDS_PER_SECTOR + i;
+      if (block < sb->total_blocks && brfs_is_block_dirty(block))
+      {
+        sector_dirty = 1;
+      }
+    }
+
+    if (sector_dirty)
+    {
+      brfs_write_fat_sector(sector);
+    }
+
+    progress_step++;
+    brfs_report_progress("sync-fat", progress_step, progress_total);
+  }
+
+  return progress_step;
+}
+
+static unsigned int brfs_sync_data(struct brfs_superblock *sb,
+                                   unsigned int blocks_per_sector,
+                                   unsigned int data_sectors,
+                                   unsigned int progress_step,
+                                   unsigned int progress_total)
+{
+  unsigned int sector;
+  unsigned int block;
+  unsigned int i;
+  int sector_dirty;
+
+  for (sector = 0; sector < data_sectors; sector++)
+  {
+    sector_dirty = 0;
+
+    for (i = 0; i < blocks_per_sector && !sector_dirty; i++)
+    {
+      block = sector * blocks_per_sector + i;
+      if (block < sb->total_blocks && brfs_is_block_dirty(block))
+      {
+        sector_dirty = 1;
+      }
+    }
+
+    if (sector_dirty)
+    {
+      brfs_write_data_sector(sector);
+    }
+
+    progress_step++;
+    brfs_report_progress("sync-data", progress_step, progress_total);
+  }
+
+  return progress_step;
+}
+
 int brfs_sync(void)
 {
   struct brfs_superblock *sb;
   unsigned int blocks_per_sector;
-  unsigned int sector;
-  unsigned int block;
   unsigned int i;
   unsigned int fat_sectors;
   unsigned int data_sectors;
-  int sector_dirty;
   unsigned int progress_total;
   unsigned int progress_step;
 
@@ -804,49 +872,9 @@ int brfs_sync(void)
   progress_total = fat_sectors + data_sectors;
   progress_step = 0;
 
-  for (sector = 0; sector < fat_sectors; sector++)
-  {
-    sector_dirty = 0;
-
-    for (i = 0; i < BRFS_FLASH_WORDS_PER_SECTOR && !sector_dirty; i++)
-    {
-      block = sector * BRFS_FLASH_WORDS_PER_SECTOR + i;
-      if (block < sb->total_blocks && brfs_is_block_dirty(block))
-      {
-        sector_dirty = 1;
-      }
-    }
-
-    if (sector_dirty)
-    {
-      brfs_write_fat_sector(sector);
-    }
-
-    progress_step++;
-    brfs_report_progress("sync-fat", progress_step, progress_total);
-  }
-
-  for (sector = 0; sector < data_sectors; sector++)
-  {
-    sector_dirty = 0;
-
-    for (i = 0; i < blocks_per_sector && !sector_dirty; i++)
-    {
-      block = sector * blocks_per_sector + i;
-      if (block < sb->total_blocks && brfs_is_block_dirty(block))
-      {
-        sector_dirty = 1;
-      }
-    }
-
-    if (sector_dirty)
-    {
-      brfs_write_data_sector(sector);
-    }
-
-    progress_step++;
-    brfs_report_progress("sync-data", progress_step, progress_total);
-  }
+  progress_step = brfs_sync_fat(sb, fat_sectors, progress_step, progress_total);
+  progress_step = brfs_sync_data(sb, blocks_per_sector, data_sectors,
+                                 progress_step, progress_total);
 
   for (i = 0; i < sizeof(brfs.dirty_blocks) / sizeof(brfs.dirty_blocks[0]); i++)
   {
