@@ -458,7 +458,7 @@ DOOM_SOURCES = \
 	$(DOOM_DIR)/gusconf.c \
 	$(DOOM_DIR)/mus2mid.c
 
-DOOM_FLAGS = --libc -I Software/C/userlib/include -I $(DOOM_DIR) -h -i
+DOOM_FLAGS = --libc -I Software/C/userlib/include -I $(DOOM_DIR) -h --offset 0x2000000
 
 .PHONY: compile-doom
 compile-doom: $(QBE_OUTPUT) $(CPROC_OUTPUT)

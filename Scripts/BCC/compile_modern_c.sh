@@ -36,6 +36,7 @@ OUTPUT=""
 INPUT_FILES=()
 INCLUDE_DIRS=()
 USE_LIBC=0
+OFFSET_ADDR=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -66,6 +67,10 @@ while [[ $# -gt 0 ]]; do
         --libc)
             USE_LIBC=1
             shift
+            ;;
+        --offset)
+            OFFSET_ADDR="$2"
+            shift 2
             ;;
         *.c|*.asm)
             INPUT_FILES+=("$1")
@@ -148,6 +153,7 @@ else
     [ -n "$HEADER_FLAG" ] && LINKER_FLAGS="$LINKER_FLAGS -H"
     [ -n "$INDEPENDENT_FLAG" ] && LINKER_FLAGS="$LINKER_FLAGS -i"
     [ -n "$SYSCALL_FLAG" ] && LINKER_FLAGS="$LINKER_FLAGS -s"
+    [ -n "$OFFSET_ADDR" ] && LINKER_FLAGS="$LINKER_FLAGS -o $OFFSET_ADDR"
     python -m asmpy.linker "${ASM_FILES[@]}" "$LIST_OUTPUT" $LINKER_FLAGS
 fi
 
