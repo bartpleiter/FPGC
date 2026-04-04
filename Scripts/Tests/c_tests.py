@@ -191,12 +191,39 @@ class CTestRunner:
 
         return output
 
-    def _compile_modern_c(self, c_path: str, list_path: str) -> None:
+    def _get_extra_sources(self, test_lines: list[str]) -> list[str]:
+        """Parse // extra_sources=path1,path2 directive from test file."""
+        pattern = re.compile(r"//\s*extra_sources\s*=\s*(.+)", re.IGNORECASE)
+        for line in test_lines:
+            match = pattern.search(line)
+            if match:
+                return [s.strip() for s in match.group(1).split(",") if s.strip()]
+        return []
+
+    def _get_compile_flags(self, test_lines: list[str]) -> str:
+        """Parse // compile_flags=... directive from test file."""
+        pattern = re.compile(r"//\s*compile_flags\s*=\s*(.+)", re.IGNORECASE)
+        for line in test_lines:
+            match = pattern.search(line)
+            if match:
+                return match.group(1).strip()
+        return ""
+
+    def _compile_modern_c(
+        self,
+        c_path: str,
+        list_path: str,
+        extra_sources: list[str] = None,
+        compile_flags: str = "",
+    ) -> None:
         """Compile C code using the modern toolchain (cproc + QBE + crt0)."""
+        sources = f"{self.config.CRT0_PATH} {c_path}"
+        if extra_sources:
+            sources += " " + " ".join(extra_sources)
         compile_cmd = (
             f"{self.config.COMPILE_SCRIPT} "
-            f"{self.config.CRT0_PATH} {c_path} "
-            f"-h -o {list_path.replace('.list', '.bin')}"
+            f"{sources} "
+            f"-h {compile_flags} -o {list_path.replace('.list', '.bin')}"
         )
         exit_code, output = self._run_command(
             compile_cmd, f"Compiling {c_path} (modern C)"
@@ -257,6 +284,8 @@ class CTestRunner:
             raise CTestError(f"Test file not found: {test_path}")
 
         expected_value = self._get_expected_value(lines)
+        extra_sources = self._get_extra_sources(lines)
+        compile_flags = self._get_compile_flags(lines)
 
         # Prepare temp testbench if in isolated mode
         if self.temp_dir:
@@ -265,7 +294,7 @@ class CTestRunner:
         # Compile using modern C toolchain
         base_name = os.path.splitext(test_file)[0].replace(os.sep, "_")
         list_path = os.path.join(self.config.TMP_DIRECTORY, f"{base_name}.list")
-        self._compile_modern_c(test_path, list_path)
+        self._compile_modern_c(test_path, list_path, extra_sources, compile_flags)
 
         # Prepare simulation environment
         self._prepare_simulation_environment(list_path)

@@ -560,9 +560,14 @@ wire [63:0] fp_write_data =
 // Uses a "write-once" flag to avoid repeated writes during pipeline stalls.
 // This removes ex_pipeline_stall from the combinational write-enable path,
 // breaking the critical timing path through cache_line_hazard → pipeline_stall.
+// Must suppress speculative FP writes: when a jump/jumpr is in MEM, the
+// instruction in EX was fetched speculatively and must NOT write to the FP
+// register file. We use the registered ex_mem pipeline signals instead of
+// the combinational pc_redirect to avoid critical timing paths.
 reg fp_write_pending = 1'b0;
+wire fp_speculative = ex_mem_valid && (ex_mem_is_jump || ex_mem_is_jumpr);
 wire fp_singlecycle_we = id_ex_valid && is_fp_singlecycle && fp_writes_to_fpregs
-                         && !fp_write_pending;
+                         && !fp_write_pending && !fp_speculative;
 
 // fp_write_pending: set after writing, cleared when stall ends (instruction advances)
 always @(posedge clk) begin
