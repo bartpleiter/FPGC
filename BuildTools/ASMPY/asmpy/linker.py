@@ -31,10 +31,17 @@ def _make_file_prefix(file_path: Path) -> str:
 
 
 def _rename_local_labels(lines: list[str], prefix: str) -> list[str]:
-    """Rename local labels (.L prefix) to avoid cross-file conflicts.
+    """Rename local labels to avoid cross-file conflicts.
 
-    Renames both label definitions (.Lfoo:) and all references to them
-    in instructions and data directives.
+    Renames .L prefix labels (QBE basic block labels) which are
+    guaranteed to be file-local. Both definitions and references
+    are renamed.
+
+    Also renames non-.global, non-.L labels that are NOT referenced
+    externally. Since we can't know external refs at this point,
+    we only rename .L labels here. Non-.L static symbols that conflict
+    are handled by making the duplicate check non-fatal for non-global
+    symbols.
     """
     # Find all local label definitions in this file
     local_labels: set[str] = set()
@@ -109,29 +116,31 @@ def link_asm_files(
     """Link multiple assembly files into a single binary.
 
     1. Read all input .asm files
-    2. Rename local labels to avoid conflicts
-    3. Collect and validate symbols
-    4. Concatenate into one assembly stream
-    5. Assemble with ASMPY
+    2. Rename .L local labels per file to avoid conflicts
+    3. Detect non-global label conflicts across files and rename them
+    4. Collect and validate symbols
+    5. Concatenate into one assembly stream
+    6. Assemble with ASMPY
     """
-    all_lines: list[str] = []
-    all_global_defs: dict[str, str] = {}  # symbol -> defining file
-    all_local_defs: set[str] = set()
-
+    # Phase 1: read files and rename .L labels
+    file_data: list[tuple[Path, list[str], str]] = []  # (path, lines, prefix)
     for file_path in input_files:
         logger.info(f"Reading {file_path}")
         with open(file_path) as f:
             lines = f.readlines()
-
-        # Strip trailing newlines
         lines = [line.rstrip("\n") for line in lines]
-
-        # Rename local labels
         prefix = _make_file_prefix(file_path)
         lines = _rename_local_labels(lines, prefix)
+        file_data.append((file_path, lines, prefix))
 
-        # Collect symbols
+    # Phase 2: collect per-file symbol info
+    file_symbols: list[tuple[set[str], set[str]]] = []  # (global_defs, all_label_defs)
+    all_global_defs: dict[str, str] = {}
+    label_def_files: dict[str, list[int]] = {}  # label -> list of file indices
+
+    for idx, (file_path, lines, prefix) in enumerate(file_data):
         global_defs, local_defs, _ = _collect_symbols(lines)
+        file_symbols.append((global_defs, local_defs))
 
         # Check for duplicate global symbols
         for sym in global_defs:
@@ -142,6 +151,48 @@ def link_asm_files(
                 )
             all_global_defs[sym] = file_path.name
 
+        # Track which files define each label
+        for lbl in local_defs:
+            if lbl not in label_def_files:
+                label_def_files[lbl] = []
+            label_def_files[lbl].append(idx)
+
+    # Phase 3: find labels defined in multiple files (static symbol conflicts)
+    # These need to be renamed with file-specific prefixes in files
+    # where they are NOT globally exported.
+    conflicting_labels: set[str] = set()
+    for lbl, file_indices in label_def_files.items():
+        if len(file_indices) > 1:
+            conflicting_labels.add(lbl)
+
+    # Phase 4: rename conflicting non-global labels in their defining files
+    if conflicting_labels:
+        for idx, (file_path, lines, prefix) in enumerate(file_data):
+            global_defs, local_defs = file_symbols[idx]
+            # Only rename conflicting labels that this file defines
+            # but does NOT export (i.e., static/file-local symbols)
+            to_rename = (conflicting_labels & local_defs) - global_defs
+            if not to_rename:
+                continue
+            # Build regex for these labels
+            sorted_labels = sorted(to_rename, key=len, reverse=True)
+            escaped = [re.escape(lbl) for lbl in sorted_labels]
+            pattern = re.compile(r"(?<!\w)(" + "|".join(escaped) + r")(?!\w)")
+            renamed_lines = []
+            for line in lines:
+                stripped = line.strip()
+                if stripped.startswith((".globl ", ".global ")):
+                    renamed_lines.append(line)
+                    continue
+                renamed_lines.append(pattern.sub(
+                    lambda m: f"__{prefix}__{m.group(1)}", line))
+            file_data[idx] = (file_path, renamed_lines, prefix)
+
+    # Phase 5: concatenate and assemble
+    all_lines: list[str] = []
+    all_local_defs: set[str] = set()
+    for file_path, lines, prefix in file_data:
+        global_defs, local_defs, _ = _collect_symbols(lines)
         all_local_defs.update(local_defs)
         all_lines.extend(lines)
 

@@ -98,7 +98,7 @@ static struct {
 	{ Oload,   Kw, "read %M0 %=" },
 	{ Oload,   Kl, "read %M0 %=" },   /* pointers are 32-bit */
 	{ Oextub,  Ki, "and %0 0xFF %=" },
-	{ Oextuh,  Ki, "and %0 0xFFFF %=" },
+	{ Oextuh,  Ki, "" },  /* handled in emitins for large constant */
 	{ Oextsw,  Ki, "or r0 %0 %=" },   /* no-op on 32-bit */
 	{ Oextuw,  Ki, "or r0 %0 %=" },   /* no-op on 32-bit */
 	{ Oreqz,   Ki, "sltu %0 1 %=" },  /* result = (arg == 0) */
@@ -233,7 +233,7 @@ loadcon(Con *c, int r, FILE *f)
 	case CBits:
 		n = c->bits.i;
 		n = (int32_t)n; /* truncate to 32-bit */
-		if (n >= 0 && n <= 0xFFFF) {
+		if (n >= 0 && n <= 0x7FFF) {
 			fprintf(f, "  load %d %s\n", (int)n, rn);
 		} else {
 			fprintf(f, "  load32 %d %s\n", (int)n, rn);
@@ -299,6 +299,18 @@ emitins(Ins *i, Fn *fn, FILE *f)
 			fixaddr(&i->arg[1], fn, f);
 			fixmem(&i->arg[1], fn, f);
 		}
+		/* If arg[1] is a constant that doesn't fit in signed 16-bit,
+		 * load it into r12 first and use register form */
+		if (rtype(i->arg[1]) == RCon) {
+			con = &fn->con[i->arg[1].val];
+			if (con->type == CBits) {
+				int32_t v = (int32_t)con->bits.i;
+				if (v < -32768 || v > 32767) {
+					loadcon(con, R12, f);
+					i->arg[1] = TMP(R12);
+				}
+			}
+		}
 	Table:
 		for (o=0;; o++) {
 			if (omap[o].op == NOp)
@@ -343,15 +355,45 @@ emitins(Ins *i, Fn *fn, FILE *f)
 		fprintf(f, "  shiftl %s 16 %s\n", rname[i->arg[0].val], rn);
 		fprintf(f, "  shiftrs %s 16 %s\n", rn, rn);
 		break;
+	case Oextuh:
+		/* Zero-extend unsigned halfword: mask with 0xFFFF.
+		 * 0xFFFF doesn't fit signed 16-bit, so use shift pair. */
+		assert(isreg(i->arg[0]));
+		rn = rname[i->to.val];
+		fprintf(f, "  shiftl %s 16 %s\n", rname[i->arg[0].val], rn);
+		fprintf(f, "  shiftr %s 16 %s\n", rn, rn);
+		break;
 	case Ocopy:
 		if (req(i->to, i->arg[0]))
 			break;
 		if (rtype(i->to) == RSlot) {
 			switch (rtype(i->arg[0])) {
-			case RSlot:
+			case RSlot: {
+				/* copy slot to slot via r12 */
+				int64_t soff = slot(i->arg[0], fn);
+				if (soff >= -32768 && soff <= 32767) {
+					fprintf(f, "  read %d r14 r12\n", (int)soff);
+				} else {
+					fprintf(f, "  load32 %d r12\n", (int)soff);
+					fprintf(f, "  add r14 r12 r12\n");
+					fprintf(f, "  read 0 r12 r12\n");
+				}
+				i->arg[0] = TMP(R12);
+				i->arg[1] = i->to;
+				i->to = R;
+				i->op = Ostorew;
+				fixmem(&i->arg[1], fn, f);
+				goto Table;
+			}
 			case RCon:
-				die("unimplemented copy slot/con to slot");
-				break;
+				/* copy const to slot via r12 */
+				loadcon(&fn->con[i->arg[0].val], R12, f);
+				i->arg[0] = TMP(R12);
+				i->arg[1] = i->to;
+				i->to = R;
+				i->op = Ostorew;
+				fixmem(&i->arg[1], fn, f);
+				goto Table;
 			default:
 				assert(isreg(i->arg[0]));
 				i->arg[1] = i->to;
@@ -552,14 +594,33 @@ b32p3_emitfn(Fn *fn, FILE *f)
 				b->s2 = s;
 				neg = 1;
 			}
-			assert(isreg(b->jmp.arg));
-			fprintf(f,
-				"  %s %s r0 8\n"
-				"  jump .L%d\n",
-				neg ? "beq" : "bne",
-				rname[b->jmp.arg.val],
-				id0+b->s2->id
-			);
+			if (rtype(b->jmp.arg) == RSlot) {
+				/* Spill pass turned jnz arg into a slot;
+				 * emit a load from the spill slot into r12 */
+				int64_t soff = slot(b->jmp.arg, fn);
+				if (soff >= -32768 && soff <= 32767) {
+					fprintf(f, "  read %d r14 r12\n", (int)soff);
+				} else {
+					fprintf(f, "  load32 %d r12\n", (int)soff);
+					fprintf(f, "  add r14 r12 r12\n");
+					fprintf(f, "  read 0 r12 r12\n");
+				}
+				fprintf(f,
+					"  %s r12 r0 8\n"
+					"  jump .L%d\n",
+					neg ? "beq" : "bne",
+					id0+b->s2->id
+				);
+			} else {
+				assert(isreg(b->jmp.arg));
+				fprintf(f,
+					"  %s %s r0 8\n"
+					"  jump .L%d\n",
+					neg ? "beq" : "bne",
+					rname[b->jmp.arg.val],
+					id0+b->s2->id
+				);
+			}
 			goto Jmp;
 		}
 	}

@@ -87,11 +87,12 @@ radd(RMap *m, int t, int r)
 {
 	assert((t >= Tmp0 || t == r) && "invalid temporary");
 	assert(((T.gpr0 <= r && r < T.gpr0 + T.ngpr)
-		|| (T.fpr0 <= r && r < T.fpr0 + T.nfpr))
+		|| (T.fpr0 <= r && r < T.fpr0 + T.nfpr)
+		|| (BIT(r) & T.rglob))
 		&& "invalid register");
 	assert(!bshas(m->b, t) && "temporary has mapping");
 	assert(!bshas(m->b, r) && "register already allocated");
-	assert(m->n <= T.ngpr+T.nfpr && "too many mappings");
+	assert(m->n <= T.ngpr+T.nfpr+__builtin_popcountl(T.rglob) && "too many mappings");
 	bsset(m->b, t);
 	bsset(m->b, r);
 	m->t[m->n] = t;

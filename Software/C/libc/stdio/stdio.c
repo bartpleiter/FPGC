@@ -4,8 +4,8 @@
 #include <stdint.h>
 #include <limits.h>
 
-/* errno support */
-int errno;
+/* errno support (defined in userlib/src/syscall.c) */
+extern int errno;
 
 /*========================================================================
  * Output callback abstraction
@@ -673,6 +673,17 @@ int
 remove(const char *pathname)
 {
     (void)pathname;
+    return -1;
+}
+
+/*------------------------------------------------------------------------
+ * rename — stub
+ *----------------------------------------------------------------------*/
+int
+rename(const char *oldpath, const char *newpath)
+{
+    (void)oldpath;
+    (void)newpath;
     return -1;
 }
 

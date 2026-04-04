@@ -165,7 +165,7 @@ static void
 limit(BSet *b, int k, BSet *f)
 {
 	static int *tarr, maxt;
-	int i, t, nt;
+	int i, t, nt, nphys;
 
 	nt = bscount(b);
 	if (nt <= k)
@@ -187,6 +187,14 @@ limit(BSet *b, int k, BSet *f)
 			qsort(tarr, nt, sizeof tarr[0], tcmp1);
 		}
 	}
+	/* Physical registers (< Tmp0) must never be spilled.
+	 * They sort first (UINT_MAX cost), so count them and
+	 * always keep them in the set. */
+	nphys = 0;
+	for (i=0; i<nt && tarr[i] < Tmp0; i++)
+		nphys++;
+	if (k < nphys)
+		k = nphys;
 	for (i=0; i<k && i<nt; i++)
 		bsset(b, tarr[i]);
 	for (; i<nt; i++)
@@ -412,6 +420,7 @@ spill(Fn *fn)
 		bscopy(b->out, v);
 
 		/* 2. process the block instructions */
+		curi = &insb[NIns];
 		if (rtype(b->jmp.arg) == RTmp) {
 			t = b->jmp.arg.val;
 			assert(KBASE(tmp[t].cls) == 0);
@@ -426,7 +435,6 @@ spill(Fn *fn)
 			}
 			reloads(u, v);
 		}
-		curi = &insb[NIns];
 		for (i=&b->ins[b->nins]; i!=b->ins;) {
 			i--;
 			if (regcpy(i)) {

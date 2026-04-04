@@ -41,7 +41,7 @@ enum B32p3Reg {
 	/* r0 is not enumerated — it's hardwired zero,
 	 * handled specially in emit (like rv64's x0) */
 
-	NGPR = R15 - R1 + 1,  /* 15 allocatable GPRs */
+	NGPR = R12 - R1 + 1,  /* 12 allocatable GPRs (excludes R13-R15 rglob) */
 	NFPR = 0,              /* no FP register class */
 	NGPS = R12 - R1 + 1,  /* 8 caller-save */
 	NFPS = 0,

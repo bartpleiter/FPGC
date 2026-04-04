@@ -9,13 +9,29 @@
 int errno;
 
 /*
- * _sbrk — stub for libc malloc. UserBDOS programs use sys_heap_alloc()
- * instead, but libc's string.c references malloc (via strdup/strndup),
- * which requires _sbrk to link. Programs should not call malloc directly.
+ * _sbrk — heap allocation for libc malloc/free.
+ * Lazily requests a heap block from BDOS via sys_heap_alloc() on first call,
+ * then manages the break pointer within that block.
  */
+#define SBRK_HEAP_SIZE (8 * 1024 * 1024) /* 8 MiB */
+static char *sbrk_base;
+static char *sbrk_ptr;
+
 void *_sbrk(int incr)
 {
-    return (void *)-1;
+    char *prev;
+
+    if (sbrk_base == 0) {
+        sbrk_base = (char *)sys_heap_alloc(SBRK_HEAP_SIZE);
+        if (sbrk_base == 0)
+            return (void *)-1;
+        sbrk_ptr = sbrk_base;
+    }
+    if (sbrk_ptr + incr > sbrk_base + SBRK_HEAP_SIZE || sbrk_ptr + incr < sbrk_base)
+        return (void *)-1;
+    prev = sbrk_ptr;
+    sbrk_ptr += incr;
+    return (void *)prev;
 }
 
 /* ---- I/O ---- */
@@ -194,6 +210,11 @@ void sys_uart_print_str(char *s)
 /* ---- Process control ---- */
 
 void sys_exit(int code)
+{
+    syscall(SYSCALL_EXIT, code, 0, 0);
+}
+
+void _exit(int code)
 {
     syscall(SYSCALL_EXIT, code, 0, 0);
 }

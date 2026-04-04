@@ -62,5 +62,6 @@ int sscanf(const char *str, const char *format, ...);
 
 /* Remove file */
 int remove(const char *pathname);
+int rename(const char *oldpath, const char *newpath);
 
 #endif /* _STDIO_H */
