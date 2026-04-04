@@ -635,8 +635,17 @@ begin
         case (malu_state)
             MALU_IDLE:
             begin
-                malu_request_finished <= 1'b0;
-                malu_result_reg <= 32'd0;
+                // Only clear malu_request_finished when the instruction
+                // has actually advanced out of EX. If EX is stalled by
+                // another backend stall (e.g. cache_stall_mem), the
+                // ARITHM instruction stays in EX and we must NOT restart
+                // the MALU — keep request_finished asserted to suppress
+                // multicycle_stall.
+                if (!ex_pipeline_stall)
+                begin
+                    malu_request_finished <= 1'b0;
+                    malu_result_reg <= 32'd0;
+                end
 
                 // Start when we have a valid multi-cycle arithm instruction
                 // Single-cycle FP ops (fadd, fsub, fld, fsthi, fstlo) must NOT start the MALU
