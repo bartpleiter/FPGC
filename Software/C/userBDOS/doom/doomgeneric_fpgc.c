@@ -231,16 +231,16 @@ static unsigned char translate_bdos_key(int bdos_key)
 
 /* ---- Entry point ---- */
 
+/* argv must be static so it survives across all Doom function calls.
+ * A stack-local array in main() can be clobbered by deep call chains. */
+static char *doom_argv[] = { "doom", "-iwad", "/data/doom/doom1.wad" };
+
 int main(void)
 {
     printf("DOOM: main() entered\n");
 
-    /* Set up argc/argv — tell Doom where the WAD is */
-    char *argv[] = { "doom", "-iwad", "/data/doom/doom1.wad" };
-    int argc = 3;
-
     printf("DOOM: calling doomgeneric_Create\n");
-    doomgeneric_Create(argc, argv);
+    doomgeneric_Create(3, doom_argv);
 
     printf("DOOM: entering main loop\n");
 

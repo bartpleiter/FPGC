@@ -198,11 +198,24 @@ wad_file_t *W_AddFile (char *filename)
 
 		header.numlumps = LONG(header.numlumps);
 		header.infotableofs = LONG(header.infotableofs);
+		printf("WAD: numlumps=%d infotableofs=%d (0x%x)\n",
+		       header.numlumps, header.infotableofs, header.infotableofs);
 		length = header.numlumps*sizeof(filelump_t);
 		fileinfo = Z_Malloc(length, PU_STATIC, 0);
 
         W_Read(wad_file, header.infotableofs, fileinfo, length);
         newnumlumps += header.numlumps;
+
+        /* Debug: dump first 5 lump directory entries */
+        {
+            int dbg;
+            filelump_t *fr = fileinfo;
+            for (dbg = 0; dbg < 5 && dbg < header.numlumps; dbg++) {
+                printf("  lump[%d]: pos=%d size=%d name=%.8s\n",
+                       dbg, LONG(fr->filepos), LONG(fr->size), fr->name);
+                fr++;
+            }
+        }
     }
 
     // Increase size of numlumps array to accomodate the new file.

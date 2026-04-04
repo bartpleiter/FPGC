@@ -611,6 +611,9 @@ static void BuildIWADDirList(void)
     AddIWADDir("/usr/share/games/doom");
     AddIWADDir("/usr/local/share/games/doom");
 
+    // FPGC: default WAD location on BRFS
+    AddIWADDir("/data/doom");
+
 #endif
 #else
     AddIWADDir (FILES_DIR);
