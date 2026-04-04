@@ -1,26 +1,37 @@
 //
 // mbrot.c — Standalone Mandelbrot zoom animation (userBDOS).
 // Renders directly on a single device using the FP64 coprocessor
-// via the fixed64 Q32.32 library.
+// via assembly helpers (mbrot_asm.asm) for maximum performance.
 //
 
 #include <syscall.h>
 #include <plot.h>
-#include <fixed64.h>
 
 // ---- Screen constants ----
 #define SCREEN_WIDTH  320
 #define SCREEN_HEIGHT 240
+
+// ---- Off-screen buffer ----
+char *backbuf;
+
+// Upscale source rect for 0.90x zoom (center 90% of image)
+#define UPSCALE_X0  16
+#define UPSCALE_Y0  12
+#define UPSCALE_W   288
+#define UPSCALE_H   216
 
 // ---- Palette data ----
 #define NUM_PALETTES 5
 int current_palette;
 int palette[256];
 
-// ---- View state (Q32.32 fixed-point) ----
-struct fp64 center_re;
-struct fp64 center_im;
-struct fp64 scale;
+// ---- View state (Q32.32 fixed-point, stored as hi/lo pairs) ----
+int center_re_hi;
+unsigned int center_re_lo;
+int center_im_hi;
+unsigned int center_im_lo;
+int scale_hi;
+unsigned int scale_lo;
 int max_iter;
 
 // Minimum scale before reset (~1e-7 in Q32.32)
@@ -31,6 +42,25 @@ int max_iter;
 
 // ---- Auto-zoom state ----
 int auto_zoom;
+
+// ---- Assembly FP64 helpers (mbrot_asm.asm) ----
+extern void mbrot_load_cre(int hi, int lo);
+extern void mbrot_load_cim(int hi, int lo);
+extern void mbrot_load_step(int hi, int lo);
+extern void mbrot_advance_cre(void);
+extern void mbrot_advance_cim(void);
+extern int  mbrot_store_hi_cre(void);
+extern int  mbrot_store_lo_cre(void);
+extern int  mbrot_store_hi_step(void);
+extern int  mbrot_store_lo_step(void);
+extern void mbrot_load_f6(int hi, int lo);
+extern void mbrot_load_f7(int hi, int lo);
+extern void mbrot_mul_f7_f6(void);
+extern void mbrot_sub_f0_f6(void);
+extern void mbrot_sub_f1_f6(void);
+extern int  mbrot_store_hi_f7(void);
+extern int  mbrot_store_lo_f7(void);
+extern int  mbrot_mandelbrot_pixel(int max_iter);
 
 // ---- Palette generation ----
 
@@ -154,95 +184,82 @@ void apply_palette(void)
   }
 }
 
-// ---- Mandelbrot iteration for one pixel ----
-// Returns iteration count (0 = in set, 1..max_iter = escaped).
-int mandelbrot_pixel(struct fp64 *c_re, struct fp64 *c_im)
+// ---- Upscale center 90% of backbuffer to framebuffer ----
+void upscale_to_fb(void)
 {
-  struct fp64 z_re;
-  struct fp64 z_im;
-  struct fp64 zr2;
-  struct fp64 zi2;
-  struct fp64 zri;
-  struct fp64 mag;
-  struct fp64 four;
-  struct fp64 tmp;
-  int i;
+  int ox, oy, sx, sy;
 
-  fp64_make(&z_re, 0, 0);
-  fp64_make(&z_im, 0, 0);
-  fp64_make(&four, 4, 0);
-
-  for (i = 0; i < max_iter; i++)
+  for (oy = 0; oy < SCREEN_HEIGHT; oy++)
   {
-    fp64_mul(&zr2, &z_re, &z_re);
-    fp64_mul(&zi2, &z_im, &z_im);
-    fp64_mul(&zri, &z_re, &z_im);
-
-    // z_re = z_re^2 - z_im^2 + c_re
-    fp64_sub(&tmp, &zr2, &zi2);
-    fp64_add(&z_re, &tmp, c_re);
-
-    // z_im = 2 * z_re_old * z_im + c_im
-    fp64_add(&tmp, &zri, &zri);
-    fp64_add(&z_im, &tmp, c_im);
-
-    // Check |z|^2 >= 4
-    fp64_add(&mag, &zr2, &zi2);
-    if (fp64_cmp(&mag, &four) >= 0)
+    sy = UPSCALE_Y0 + (oy * UPSCALE_H) / SCREEN_HEIGHT;
+    for (ox = 0; ox < SCREEN_WIDTH; ox++)
     {
-      return i + 1;
+      sx = UPSCALE_X0 + (ox * UPSCALE_W) / SCREEN_WIDTH;
+      __builtin_store(PIXEL_FB_ADDR + (oy * SCREEN_WIDTH + ox) * 4,
+                      backbuf[sy * SCREEN_WIDTH + sx] & 0xFF);
     }
   }
-
-  return 0;
 }
 
-// ---- Render one full frame to framebuffer ----
+// ---- Render one full frame to backbuffer ----
 void render_frame(void)
 {
-  struct fp64 step;
-  struct fp64 start_re;
-  struct fp64 start_im;
-  struct fp64 c_re;
-  struct fp64 c_im;
-  struct fp64 inv320;
-  struct fp64 half;
-  struct fp64 half_h;
+  int step_hi;
+  unsigned int step_lo;
+  int start_re_hi;
+  unsigned int start_re_lo;
   int y;
   int x;
   int iter;
   int px;
 
-  // step = scale / 320
+  // Compute pixel step = scale / 320
   // 1/320 in Q32.32: {0, 0x00CCCCCD}
-  fp64_make(&inv320, 0, 0x00CCCCCD);
-  fp64_mul(&step, &scale, &inv320);
+  mbrot_load_f6(0, 0x00CCCCCD);
+  mbrot_load_f7(scale_hi, scale_lo);
+  mbrot_mul_f7_f6();  // f7 = scale * (1/320)
 
-  // start_re = center_re - scale * 0.5
-  fp64_make(&half, 0, 0x80000000);
+  step_hi = mbrot_store_hi_f7();
+  step_lo = mbrot_store_lo_f7();
+
+  // Load step into f7 for advance operations
+  mbrot_load_step(step_hi, step_lo);
+
+  // Compute start_re = center_re - scale * 0.5
+  mbrot_load_f6(0, 0x80000000);  // 0.5
+  mbrot_load_f7(scale_hi, scale_lo);
+  mbrot_mul_f7_f6();  // f7 = scale * 0.5 = half_width
   {
-    struct fp64 tmp;
-    fp64_mul(&tmp, &scale, &half);
-    fp64_sub(&start_re, &center_re, &tmp);
+    int hw_hi = mbrot_store_hi_f7();
+    unsigned int hw_lo = mbrot_store_lo_f7();
+    mbrot_load_f6(hw_hi, hw_lo);
   }
+  mbrot_load_cre(center_re_hi, center_re_lo);  // f0 = center_re
+  mbrot_sub_f0_f6();  // f0 = center_re - half_width = start_re
 
-  // start_im = center_im - step * 120
-  fp64_from_int(&half_h, 120);
+  start_re_hi = mbrot_store_hi_cre();
+  start_re_lo = mbrot_store_lo_cre();
+
+  // Compute start_im = center_im - step * 120
+  mbrot_load_f6(120, 0);
+  mbrot_load_f7(step_hi, step_lo);
+  mbrot_mul_f7_f6();  // f7 = step * 120
   {
-    struct fp64 tmp;
-    fp64_mul(&tmp, &step, &half_h);
-    fp64_sub(&start_im, &center_im, &tmp);
+    int off_hi = mbrot_store_hi_f7();
+    unsigned int off_lo = mbrot_store_lo_f7();
+    mbrot_load_f6(off_hi, off_lo);
   }
-
-  c_im = start_im;
+  mbrot_load_cim(center_im_hi, center_im_lo);  // f1 = center_im
+  mbrot_sub_f1_f6();  // f1 = center_im - offset = start_im
 
   for (y = 0; y < SCREEN_HEIGHT; y++)
   {
-    c_re = start_re;
+    // Reset c_re to start_re for this row
+    mbrot_load_cre(start_re_hi, start_re_lo);
 
     for (x = 0; x < SCREEN_WIDTH; x++)
     {
-      iter = mandelbrot_pixel(&c_re, &c_im);
+      iter = mbrot_mandelbrot_pixel(max_iter);
 
       if (iter == 0)
       {
@@ -253,12 +270,17 @@ void render_frame(void)
         px = ((iter - 1) % 255) + 1;
       }
 
+      backbuf[y * SCREEN_WIDTH + x] = px;
       __builtin_store(PIXEL_FB_ADDR + (y * SCREEN_WIDTH + x) * 4, px);
 
-      fp64_add(&c_re, &c_re, &step);
+      // Advance c_re by step
+      mbrot_load_step(step_hi, step_lo);
+      mbrot_advance_cre();
     }
 
-    fp64_add(&c_im, &c_im, &step);
+    // Advance c_im by step
+    mbrot_load_step(step_hi, step_lo);
+    mbrot_advance_cim();
   }
 }
 
@@ -267,22 +289,22 @@ void update_max_iter(void)
 {
   int iter;
 
-  if (scale.hi > 0)
+  if (scale_hi > 0)
   {
     max_iter = 60;
     return;
   }
 
-  if      (scale.lo > 0x40000000) iter = 100;
-  else if (scale.lo > 0x10000000) iter = 120;
-  else if (scale.lo > 0x04000000) iter = 160;
-  else if (scale.lo > 0x01000000) iter = 200;
-  else if (scale.lo > 0x00400000) iter = 240;
-  else if (scale.lo > 0x00100000) iter = 280;
-  else if (scale.lo > 0x00040000) iter = 300;
-  else if (scale.lo > 0x00010000) iter = 320;
-  else if (scale.lo > 0x00004000) iter = 340;
-  else if (scale.lo > 0x00001000) iter = 380;
+  if      (scale_lo > 0x40000000) iter = 100;
+  else if (scale_lo > 0x10000000) iter = 120;
+  else if (scale_lo > 0x04000000) iter = 160;
+  else if (scale_lo > 0x01000000) iter = 200;
+  else if (scale_lo > 0x00400000) iter = 240;
+  else if (scale_lo > 0x00100000) iter = 280;
+  else if (scale_lo > 0x00040000) iter = 300;
+  else if (scale_lo > 0x00010000) iter = 320;
+  else if (scale_lo > 0x00004000) iter = 340;
+  else if (scale_lo > 0x00001000) iter = 380;
   else                            iter = 410;
 
   max_iter = iter;
@@ -291,9 +313,12 @@ void update_max_iter(void)
 // ---- Reset view to initial state ----
 void reset_view(void)
 {
-  fp64_make(&center_re, -1, 0x41A1BEB0);
-  fp64_make(&center_im, 0, 0x21C01C90);
-  fp64_make(&scale, 3, 0x80000000);
+  center_re_hi = -1;
+  center_re_lo = 0x41A1BEB0;
+  center_im_hi = 0;
+  center_im_lo = 0x21C01C90;
+  scale_hi = 3;
+  scale_lo = 0x80000000;
   update_max_iter();
 }
 
@@ -302,16 +327,20 @@ int main(void)
   int key;
   int keys;
   int running;
-  struct fp64 zoom_factor;
+  int ci;
 
   // Clear terminal and pixel framebuffer
   sys_term_clear();
+  for (ci = 0; ci < SCREEN_WIDTH * SCREEN_HEIGHT; ci++)
   {
-    int ci;
-    for (ci = 0; ci < SCREEN_WIDTH * SCREEN_HEIGHT; ci++)
-    {
-      __builtin_store(PIXEL_FB_ADDR + ci * 4, 0);
-    }
+    __builtin_store(PIXEL_FB_ADDR + ci * 4, 0);
+  }
+
+  // Allocate off-screen backbuffer (1 byte per pixel)
+  backbuf = (char *)sys_heap_alloc(SCREEN_WIDTH * SCREEN_HEIGHT);
+  for (ci = 0; ci < SCREEN_WIDTH * SCREEN_HEIGHT; ci++)
+  {
+    backbuf[ci] = 0;
   }
 
   // Set up initial view
@@ -322,8 +351,6 @@ int main(void)
   current_palette = 3;
   load_palette(current_palette);
   apply_palette();
-
-  fp64_make(&zoom_factor, 0, ZOOM_FACTOR_LO);
 
   // ---- Main render loop ----
   running = 1;
@@ -356,20 +383,29 @@ int main(void)
       break;
     }
 
+    if (auto_zoom)
+    {
+      // Advance zoom: scale *= 0.90
+      mbrot_load_f6(scale_hi, scale_lo);
+      mbrot_load_f7(0, ZOOM_FACTOR_LO);
+      mbrot_mul_f7_f6();  // f7 = scale * 0.90
+      scale_hi = mbrot_store_hi_f7();
+      scale_lo = mbrot_store_lo_f7();
+      update_max_iter();
+
+      // Show zoom preview of previous frame while new frame renders
+      upscale_to_fb();
+    }
+
     render_frame();
 
     if (!auto_zoom)
     {
       sys_delay(50);
-      continue;
     }
 
-    // Advance zoom: scale *= 0.90
-    fp64_mul(&scale, &scale, &zoom_factor);
-    update_max_iter();
-
     // Check zoom limit
-    if (scale.hi == 0 && scale.lo < MIN_SCALE_LO)
+    if (auto_zoom && scale_hi == 0 && scale_lo < MIN_SCALE_LO)
     {
       sys_delay(3000);
       reset_view();
