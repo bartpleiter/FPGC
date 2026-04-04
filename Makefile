@@ -37,7 +37,7 @@ CPROC_OUTPUT = $(CPROC_DIR)/output/cproc-qbe
 .PHONY: compile-asm compile-bootloader compile-c-baremetal compile-bdos
 .PHONY: compile-userbdos compile-userbdos-all
 .PHONY: compile-userbdos-b32cc compile-userbdos-all-b32cc
-.PHONY: run-uart run-asm-uart run-c-baremetal-uart run-bdos
+.PHONY: run-uart uart-monitor run-asm-uart run-c-baremetal-uart run-bdos
 .PHONY: flash-c-baremetal-spi flash-bdos
 .PHONY: b32cc test-b32cc test-b32cc-single debug-b32cc clean-b32cc
 .PHONY: qbe clean-qbe
@@ -353,8 +353,10 @@ USERLIB_SOURCES = \
 	Software/C/libc/stdlib/stdlib.c \
 	Software/C/libc/stdlib/malloc.c \
 	Software/C/libc/ctype/ctype.c \
+	Software/C/libc/stdio/stdio.c \
 	Software/C/userlib/src/syscall_asm.asm \
 	Software/C/userlib/src/syscall.c \
+	Software/C/userlib/src/io_stubs.c \
 	Software/C/userlib/src/time.c \
 	Software/C/userlib/src/fixedmath.c \
 	Software/C/userlib/src/fixed64_asm.asm \
@@ -575,6 +577,9 @@ compile-userbdos-all-b32cc: $(B32CC_OUTPUT)
 
 run-uart:
 	./Scripts/Programmer/UART/run_uart.sh
+
+uart-monitor:
+	python3 Scripts/Programmer/UART/uart_monitor.py -p $(uart_port)
 
 run-asm-uart: compile-asm run-uart
 

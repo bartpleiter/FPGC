@@ -1169,6 +1169,8 @@ void D_DoomMain (void)
     int numiwadlumps;
 #endif
 
+    printf("D_DoomMain: entered\n");
+
     I_AtExit(D_Endoom, false);
 
     // print banner
@@ -1176,7 +1178,9 @@ void D_DoomMain (void)
     I_PrintBanner(PACKAGE_STRING);
 
     DEH_printf("Z_Init: Init zone memory allocation daemon. \n");
+    printf("D_DoomMain: calling Z_Init\n");
     Z_Init ();
+    printf("D_DoomMain: Z_Init done\n");
 
 #ifdef FEATURE_MULTIPLAYER
     //!
@@ -1351,20 +1355,27 @@ void D_DoomMain (void)
     
     // init subsystems
     DEH_printf("V_Init: allocate screens.\n");
+    printf("D_DoomMain: calling V_Init\n");
     V_Init ();
+    printf("D_DoomMain: V_Init done\n");
 
     // Load configuration files before initialising other subsystems.
     DEH_printf("M_LoadDefaults: Load system defaults.\n");
+    printf("D_DoomMain: M_SetConfigFilenames\n");
     M_SetConfigFilenames("default.cfg", PROGRAM_PREFIX "doom.cfg");
+    printf("D_DoomMain: D_BindVariables\n");
     D_BindVariables();
+    printf("D_DoomMain: M_LoadDefaults\n");
     M_LoadDefaults();
+    printf("D_DoomMain: M_LoadDefaults done\n");
 
     // Save configuration at exit.
     I_AtExit(M_SaveDefaults, false);
 
     // Find main IWAD file and load it.
+    printf("D_DoomMain: D_FindIWAD\n");
     iwadfile = D_FindIWAD(IWAD_MASK_DOOM, &gamemission);
-
+    printf("D_DoomMain: iwadfile=%p\n", iwadfile);
     // None found?
 
     if (iwadfile == NULL)
@@ -1376,7 +1387,9 @@ void D_DoomMain (void)
     modifiedgame = false;
 
     DEH_printf("W_Init: Init WADfiles.\n");
+    printf("D_DoomMain: D_AddFile iwad\n");
     D_AddFile(iwadfile);
+    printf("D_DoomMain: D_AddFile done\n");
 #if ORIGCODE
     numiwadlumps = numlumps;
 #endif
@@ -1608,11 +1621,13 @@ void D_DoomMain (void)
     }
 
     DEH_printf("I_Init: Setting up machine state.\n");
+    printf("D_DoomMain: I_Init\n");
     I_CheckIsScreensaver();
     I_InitTimer();
     I_InitJoystick();
     I_InitSound(true);
     I_InitMusic();
+    printf("D_DoomMain: I_Init done\n");
 
 #ifdef FEATURE_MULTIPLAYER
     printf ("NET_Init: Init network subsystem.\n");
@@ -1760,11 +1775,15 @@ void D_DoomMain (void)
     DEH_printf("M_Init: Init miscellaneous info.\n");
     M_Init ();
 
+    printf("D_DoomMain: R_Init\n");
     DEH_printf("R_Init: Init DOOM refresh daemon - ");
     R_Init ();
+    printf("D_DoomMain: R_Init done\n");
 
     DEH_printf("\nP_Init: Init Playloop state.\n");
+    printf("D_DoomMain: P_Init\n");
     P_Init ();
+    printf("D_DoomMain: P_Init done\n");
 
     DEH_printf("S_Init: Setting up sound.\n");
     S_Init (sfxVolume * 8, musicVolume * 8);
@@ -1840,6 +1859,7 @@ void D_DoomMain (void)
 			D_StartTitle ();                // start up intro loop
     }
 
+    printf("D_DoomMain: entering D_DoomLoop\n");
     D_DoomLoop ();
 }
 

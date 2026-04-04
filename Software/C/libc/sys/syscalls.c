@@ -1,6 +1,9 @@
 #include <stddef.h>
 #include <errno.h>
 
+/* Global errno — defined here, declared extern in errno.h and stdio.c */
+int errno;
+
 /* UART memory-mapped I/O addresses */
 #define UART_TX_ADDR  0x1C000000
 #define UART_RX_ADDR  0x1C000004

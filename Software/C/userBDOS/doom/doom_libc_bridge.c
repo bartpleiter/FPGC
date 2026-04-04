@@ -16,7 +16,24 @@
 
 int _open(const char *path, int flags)
 {
-    return sys_fs_open((char *)path);
+    int fd = sys_fs_open((char *)path);
+    sys_uart_print_str("_open(\"");
+    sys_uart_print_str((char *)path);
+    sys_uart_print_str("\") = ");
+    /* print fd as decimal */
+    if (fd < 0) {
+        sys_uart_print_str("-1");
+    } else {
+        char buf[12];
+        int i = 11;
+        int n = fd;
+        buf[i] = 0;
+        if (n == 0) buf[--i] = '0';
+        while (n > 0) { buf[--i] = '0' + (n % 10); n /= 10; }
+        sys_uart_print_str(&buf[i]);
+    }
+    sys_uart_print_str("\n");
+    return fd;
 }
 
 int _close(int fd)
@@ -54,11 +71,13 @@ int _lseek(int fd, int offset, int whence)
 
 int _write(int fd, const char *buf, int len)
 {
-    /* stdout/stderr → print to terminal */
+    /* stdout/stderr → print to terminal AND UART for debugging */
     if (fd == 1 || fd == 2 || fd == -1 || fd == -2) {
         int i;
-        for (i = 0; i < len; i++)
+        for (i = 0; i < len; i++) {
             sys_print_char(buf[i]);
+            sys_uart_print_char(buf[i]);
+        }
         return len;
     }
     /* File write */

@@ -7,6 +7,7 @@
 
 /* Include syscall.h first, before Doom headers redefine KEY_F* etc. */
 #include <time.h>
+#include <stdio.h>
 
 /* BDOS syscall numbers and key state bits — use raw numbers to avoid
  * name collisions with Doom's own KEY_* defines. */
@@ -232,11 +233,16 @@ static unsigned char translate_bdos_key(int bdos_key)
 
 int main(void)
 {
+    printf("DOOM: main() entered\n");
+
     /* Set up argc/argv — tell Doom where the WAD is */
     char *argv[] = { "doom", "-iwad", "/data/doom/doom1.wad" };
     int argc = 3;
 
+    printf("DOOM: calling doomgeneric_Create\n");
     doomgeneric_Create(argc, argv);
+
+    printf("DOOM: entering main loop\n");
 
     /* Main game loop */
     for (;;) {

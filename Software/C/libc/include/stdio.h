@@ -18,10 +18,15 @@
 /* FILE is opaque — internal structure defined in stdio implementation */
 typedef struct __stdio_file FILE;
 
-/* Standard streams */
-extern FILE *stdin;
-extern FILE *stdout;
-extern FILE *stderr;
+/* Standard streams — use macros so that &__XXX_file uses PC-relative
+ * addressing in PIC mode, avoiding broken absolute pointers in .data.  */
+extern struct __stdio_file __stdin_file;
+extern struct __stdio_file __stdout_file;
+extern struct __stdio_file __stderr_file;
+
+#define stdin  ((FILE *)&__stdin_file)
+#define stdout ((FILE *)&__stdout_file)
+#define stderr ((FILE *)&__stderr_file)
 
 /* Formatted output */
 int printf(const char *format, ...);

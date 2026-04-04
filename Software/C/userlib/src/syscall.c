@@ -26,6 +26,23 @@ void *_sbrk(int incr)
         if (sbrk_base == 0)
             return (void *)-1;
         sbrk_ptr = sbrk_base;
+        /* Debug: show heap base once */
+        sys_uart_print_str("HEAP: base=");
+        /* Print hex address */
+        {
+            unsigned int addr = (unsigned int)sbrk_base;
+            char hex[12];
+            int i;
+            hex[0] = '0'; hex[1] = 'x';
+            for (i = 9; i >= 2; i--) {
+                int d = addr & 0xF;
+                hex[i] = d < 10 ? '0' + d : 'A' + d - 10;
+                addr >>= 4;
+            }
+            hex[10] = '\n';
+            hex[11] = 0;
+            sys_uart_print_str(hex);
+        }
     }
     if (sbrk_ptr + incr > sbrk_base + SBRK_HEAP_SIZE || sbrk_ptr + incr < sbrk_base)
         return (void *)-1;

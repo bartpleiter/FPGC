@@ -383,13 +383,11 @@ struct __stdio_file {
 #define STDIO_SERR 0x04
 #define STDIO_SEOF 0x08
 
-static struct __stdio_file __stdin_file  = { STDIO_FD_STDIN,  STDIO_SRD, -1 };
-static struct __stdio_file __stdout_file = { STDIO_FD_STDOUT, STDIO_SWR, -1 };
-static struct __stdio_file __stderr_file = { STDIO_FD_STDERR, STDIO_SWR, -1 };
-
-FILE *stdin  = &__stdin_file;
-FILE *stdout = &__stdout_file;
-FILE *stderr = &__stderr_file;
+/* Global FILE structs — accessed via macros in stdio.h.
+ * NOT static, so the header's extern declarations work. */
+struct __stdio_file __stdin_file  = { STDIO_FD_STDIN,  STDIO_SRD, -1 };
+struct __stdio_file __stdout_file = { STDIO_FD_STDOUT, STDIO_SWR, -1 };
+struct __stdio_file __stderr_file = { STDIO_FD_STDERR, STDIO_SWR, -1 };
 
 /* Platform-provided low-level I/O */
 extern int _write(int fd, const char *buf, int len);

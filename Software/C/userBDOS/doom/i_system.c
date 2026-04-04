@@ -96,6 +96,8 @@ static byte *AutoAllocMemory(int *size, int default_ram, int min_ram)
     {
         // We need a reasonable minimum amount of RAM to start.
 
+        printf("zone: trying %d MiB (min=%d)\n", default_ram, min_ram);
+
         if (default_ram < min_ram)
         {
             I_Error("Unable to allocate %i MiB of RAM for zone", default_ram);
@@ -105,7 +107,9 @@ static byte *AutoAllocMemory(int *size, int default_ram, int min_ram)
 
         *size = default_ram * 1024 * 1024;
 
+        printf("zone: malloc(%d)\n", *size);
         zonemem = malloc(*size);
+        printf("zone: malloc returned %p\n", zonemem);
 
         // Failed to allocate?  Reduce zone size until we reach a size
         // that is acceptable.
@@ -125,13 +129,9 @@ byte *I_ZoneBase (int *size)
     int min_ram, default_ram;
     int p;
 
-    //!
-    // @arg <mb>
-    //
-    // Specify the heap size, in MiB (default 16).
-    //
-
     p = M_CheckParmWithArgs("-mb", 1);
+
+    printf("I_ZoneBase: p=%d\n", p);
 
     if (p > 0)
     {
@@ -143,6 +143,8 @@ byte *I_ZoneBase (int *size)
         default_ram = DEFAULT_RAM;
         min_ram = MIN_RAM;
     }
+
+    printf("I_ZoneBase: default_ram=%d min_ram=%d\n", default_ram, min_ram);
 
     zonemem = AutoAllocMemory(size, default_ram, min_ram);
 
