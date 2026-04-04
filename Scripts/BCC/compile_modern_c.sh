@@ -35,6 +35,7 @@ SYSCALL_FLAG=""
 OUTPUT=""
 INPUT_FILES=()
 INCLUDE_DIRS=()
+CPP_DEFINES=()
 USE_LIBC=0
 OFFSET_ADDR=""
 
@@ -71,6 +72,14 @@ while [[ $# -gt 0 ]]; do
         --offset)
             OFFSET_ADDR="$2"
             shift 2
+            ;;
+        -D)
+            CPP_DEFINES+=("-D$2")
+            shift 2
+            ;;
+        -D*)
+            CPP_DEFINES+=("$1")
+            shift
             ;;
         *.c|*.asm)
             INPUT_FILES+=("$1")
@@ -116,6 +125,9 @@ if [ "$USE_LIBC" -eq 1 ]; then
 fi
 for dir in "${INCLUDE_DIRS[@]}"; do
     CPP_FLAGS="$CPP_FLAGS -I$dir"
+done
+for def in "${CPP_DEFINES[@]}"; do
+    CPP_FLAGS="$CPP_FLAGS $def"
 done
 
 ASM_FILES=()

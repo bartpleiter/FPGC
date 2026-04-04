@@ -23,6 +23,7 @@
 #include "i_swap.h"
 #include "i_system.h"
 #include "z_zone.h"
+#include <syscall.h>
 
 
 #include "w_wad.h"
@@ -504,6 +505,26 @@ void R_InitTextures (void)
     numtextures1 = LONG(*maptex);
     maxoff = W_LumpLength (W_GetNumForName (DEH_String("TEXTURE1")));
     directory = maptex+1;
+
+    printf("TEX: numtextures1=%d maxoff=%d nummappatches=%d\n",
+           numtextures1, maxoff, nummappatches);
+    /* Dump first texture entry */
+    {
+        int dbg_off = LONG(*(directory));
+        maptexture_t *dbg_mt = (maptexture_t *)((byte *)maptex + dbg_off);
+        printf("TEX[0]: off=%d name=%.8s w=%d h=%d pc=%d\n",
+               dbg_off, dbg_mt->name,
+               SHORT(dbg_mt->width), SHORT(dbg_mt->height),
+               SHORT(dbg_mt->patchcount));
+        if (SHORT(dbg_mt->patchcount) > 0) {
+            mappatch_t *dbg_mp = &dbg_mt->patches[0];
+            printf("TEX[0].patch[0]: ox=%d oy=%d patch=%d\n",
+                   SHORT(dbg_mp->originx), SHORT(dbg_mp->originy),
+                   SHORT(dbg_mp->patch));
+            printf("TEX[0].patch[0].lookup=%d\n",
+                   patchlookup[SHORT(dbg_mp->patch)]);
+        }
+    }
 	
     if (W_CheckNumForName (DEH_String("TEXTURE2")) != -1)
     {
@@ -538,21 +559,10 @@ void R_InitTextures (void)
     // up the box" effect, which uses backspace to "step back" inside
     // the box.  If stdout is a file, don't draw the box.
 
-    if (I_ConsoleStdout())
-    {
-        printf("[");
-        for (i = 0; i < temp3 + 9; i++)
-            printf(" ");
-        printf("]");
-        for (i = 0; i < temp3 + 10; i++)
-            printf("\b");
-    }
+    // FPGC: Skip progress bar (printf in tight loops causes syscall issues)
 	
     for (i=0 ; i<numtextures ; i++, directory++)
     {
-	if (!(i&63))
-	    printf (".");
-
 	if (i == numtextures1)
 	{
 	    // Start looking in second texture file.
@@ -661,20 +671,32 @@ void R_InitSpriteLumps (void)
     lastspritelump = W_GetNumForName (DEH_String("S_END")) - 1;
     
     numspritelumps = lastspritelump - firstspritelump + 1;
+    printf("SPRITES: first=%d last=%d count=%d\n",
+           firstspritelump, lastspritelump, numspritelumps);
+    printf("SPRITES: allocating arrays...\n");
     spritewidth = Z_Malloc (numspritelumps*sizeof(*spritewidth), PU_STATIC, 0);
+    printf("SPRITES: spritewidth ok\n");
     spriteoffset = Z_Malloc (numspritelumps*sizeof(*spriteoffset), PU_STATIC, 0);
+    printf("SPRITES: spriteoffset ok\n");
     spritetopoffset = Z_Malloc (numspritelumps*sizeof(*spritetopoffset), PU_STATIC, 0);
+    printf("SPRITES: all arrays ok\n");
+
+    /* Direct test: cache the first sprite lump manually */
+    printf("SPRITES: test caching lump %d\n", firstspritelump);
+    {
+        void *test = W_CacheLumpNum(firstspritelump, PU_CACHE);
+        printf("SPRITES: test cache OK, ptr=%p\n", test);
+    }
 	
     for (i=0 ; i< numspritelumps ; i++)
     {
-	if (!(i&63))
-	    printf (".");
-
+	/* No printf inside loop to avoid potential syscall interference */
 	patch = W_CacheLumpNum (firstspritelump+i, PU_CACHE);
 	spritewidth[i] = SHORT(patch->width)<<FRACBITS;
 	spriteoffset[i] = SHORT(patch->leftoffset)<<FRACBITS;
 	spritetopoffset[i] = SHORT(patch->topoffset)<<FRACBITS;
     }
+    printf("SPRITES: loop done! All %d sprites loaded\n", numspritelumps);
 }
 
 
@@ -703,12 +725,14 @@ void R_InitColormaps (void)
 void R_InitData (void)
 {
     R_InitTextures ();
-    printf (".");
+    sys_uart_print_str("R_InitData: textures done\n");
     R_InitFlats ();
-    printf (".");
+    sys_uart_print_str("R_InitData: flats done\n");
     R_InitSpriteLumps ();
-    printf (".");
+    sys_uart_print_str("R_InitData: sprites done\n");
     R_InitColormaps ();
+    sys_uart_print_str("R_InitData: colormaps done\n");
+    sys_uart_print_str("R_InitData: returning\n");
 }
 
 

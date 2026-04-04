@@ -24,6 +24,7 @@
 
 #include <stdlib.h>
 #include <math.h>
+#include <syscall.h>
 
 
 #include "doomdef.h"
@@ -767,21 +768,22 @@ void R_ExecuteSetViewSize (void)
 void R_Init (void)
 {
     R_InitData ();
-    printf (".");
+    sys_uart_print_str("R_Init: data done\n");
     R_InitPointToAngle ();
-    printf (".");
+    sys_uart_print_str("R_Init: point2angle done\n");
     R_InitTables ();
-    // viewwidth / viewheight / detailLevel are set by the defaults
-    printf (".");
+    sys_uart_print_str("R_Init: tables done\n");
 
     R_SetViewSize (screenblocks, detailLevel);
+    sys_uart_print_str("R_Init: viewsize done\n");
     R_InitPlanes ();
-    printf (".");
+    sys_uart_print_str("R_Init: planes done\n");
     R_InitLightTables ();
-    printf (".");
+    sys_uart_print_str("R_Init: lighttables done\n");
     R_InitSkyMap ();
+    sys_uart_print_str("R_Init: skymap done\n");
     R_InitTranslationTables ();
-    printf (".");
+    sys_uart_print_str("R_Init: translation done\n");
 	
     framecount = 0;
 }

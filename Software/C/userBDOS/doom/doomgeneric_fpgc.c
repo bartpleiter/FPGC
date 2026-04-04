@@ -9,6 +9,8 @@
 #include <time.h>
 #include <stdio.h>
 
+#include "config.h"
+
 /* BDOS syscall numbers and key state bits — use raw numbers to avoid
  * name collisions with Doom's own KEY_* defines. */
 extern int syscall(int num, int a1, int a2, int a3);

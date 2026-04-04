@@ -58,6 +58,8 @@
 #include "i_timer.h"
 #include "i_video.h"
 
+#include <syscall.h>
+
 #include "g_game.h"
 
 #include "hu_stuff.h"
@@ -182,6 +184,8 @@ void D_Display (void)
     boolean			wipe;
     boolean			redrawsbar;
 
+    sys_uart_print_str("DD: enter\n");
+
     if (nodrawers)
     	return;                    // for comparative timing / profiling
 		
@@ -195,6 +199,7 @@ void D_Display (void)
 		borderdrawcount = 3;
     }
 
+    sys_uart_print_str("DD: wipe check\n");
     // save the current screen if about to wipe
     if (gamestate != wipegamestate)
 		{
@@ -207,6 +212,7 @@ void D_Display (void)
     if (gamestate == GS_LEVEL && gametic)
     	HU_Erase();
     
+    sys_uart_print_str("DD: switch\n");
     // do buffered drawing
     switch (gamestate)
     {
@@ -232,10 +238,13 @@ void D_Display (void)
 		break;
 
       case GS_DEMOSCREEN:
+		sys_uart_print_str("DD: D_PageDrawer\n");
 		D_PageDrawer ();
+		sys_uart_print_str("DD: D_PageDrawer done\n");
 		break;
     }
     
+    sys_uart_print_str("DD: UpdateNoBlit\n");
     // draw buffered stuff to screen
     I_UpdateNoBlit ();
     
@@ -249,6 +258,8 @@ void D_Display (void)
     // clean up border stuff
     if (gamestate != oldgamestate && gamestate != GS_LEVEL)
     	I_SetPalette (W_CacheLumpName (DEH_String("PLAYPAL"),PU_CACHE));
+
+    sys_uart_print_str("DD: post-palette\n");
 
     // see if the border needs to be initially drawn
     if (gamestate == GS_LEVEL && oldgamestate != GS_LEVEL)
@@ -295,21 +306,25 @@ void D_Display (void)
 
     // menus go directly to the screen
     M_Drawer ();          // menu is drawn even on top of everything
+    sys_uart_print_str("DD: post-menu\n");
     NetUpdate ();         // send out any new accumulation
 
 
     // normal update
     if (!wipe)
     {
+	sys_uart_print_str("DD: no-wipe FinishUpdate\n");
 	I_FinishUpdate ();              // page flip or blit buffer
 	return;
     }
     
+    sys_uart_print_str("DD: wipe path\n");
     // wipe update
     wipe_EndScreen(0, 0, SCREENWIDTH, SCREENHEIGHT);
 
     wipestart = I_GetTime () - 1;
 
+    sys_uart_print_str("D_Display: wipe loop start\n");
     do
     {
 	do
@@ -326,6 +341,7 @@ void D_Display (void)
 	M_Drawer ();                            // menu is drawn even on top of wipes
 	I_FinishUpdate ();                      // page flip or blit buffer
     } while (!done);
+    sys_uart_print_str("D_Display: wipe done\n");
 }
 
 //
@@ -404,18 +420,23 @@ boolean D_GrabMouseCallback(void)
 
 void doomgeneric_Tick()
 {
+    sys_uart_print_str("TICK: I_StartFrame\n");
     // frame syncronous IO operations
     I_StartFrame ();
 
+    sys_uart_print_str("TICK: TryRunTics\n");
     TryRunTics (); // will run at least one tic
 
+    sys_uart_print_str("TICK: S_UpdateSounds\n");
     S_UpdateSounds (players[consoleplayer].mo);// move positional sounds
 
     // Update display, next frame, with current state.
     if (screenvisible)
     {
+        sys_uart_print_str("TICK: D_Display\n");
         D_Display ();
     }
+    sys_uart_print_str("TICK: done\n");
 }
 
 //
@@ -437,17 +458,24 @@ void D_DoomLoop (void)
 
     main_loop_started = true;
 
+    sys_uart_print_str("DL: TryRunTics\n");
     TryRunTics();
 
+    sys_uart_print_str("DL: I_SetWindowTitle\n");
     I_SetWindowTitle(gamedescription);
     I_GraphicsCheckCommandLine();
     I_SetGrabMouseCallback(D_GrabMouseCallback);
+    sys_uart_print_str("DL: I_InitGraphics\n");
     I_InitGraphics();
+    sys_uart_print_str("DL: I_EnableLoadingDisk\n");
     I_EnableLoadingDisk();
 
+    sys_uart_print_str("DL: V_RestoreBuffer\n");
     V_RestoreBuffer();
+    sys_uart_print_str("DL: R_ExecuteSetViewSize\n");
     R_ExecuteSetViewSize();
 
+    sys_uart_print_str("DL: D_StartGameLoop\n");
     D_StartGameLoop();
 
     if (testcontrols)
@@ -455,6 +483,7 @@ void D_DoomLoop (void)
         wipegamestate = gamestate;
     }
 
+    sys_uart_print_str("DL: doomgeneric_Tick\n");
     doomgeneric_Tick();
 }
 
@@ -485,7 +514,16 @@ void D_PageTicker (void)
 //
 void D_PageDrawer (void)
 {
-    V_DrawPatch (0, 0, W_CacheLumpName(pagename, PU_CACHE));
+    sys_uart_print_str("PageDrawer: CacheLump '");
+    sys_uart_print_str(pagename);
+    sys_uart_print_str("'\n");
+    patch_t *p = W_CacheLumpName(pagename, PU_CACHE);
+    char hbuf[64];
+    snprintf(hbuf, sizeof(hbuf), "PageDrawer: patch=%x w=%d h=%d\n",
+             (unsigned int)p, (int)p->width, (int)p->height);
+    sys_uart_print_str(hbuf);
+    V_DrawPatch (0, 0, p);
+    sys_uart_print_str("PageDrawer: done\n");
 }
 
 

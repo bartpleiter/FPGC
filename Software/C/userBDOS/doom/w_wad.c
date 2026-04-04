@@ -399,6 +399,8 @@ void *W_CacheLumpNum(int lumpnum, int tag)
 
     if ((unsigned)lumpnum >= numlumps)
     {
+	printf("W_CacheLumpNum FAIL: lumpnum=%d (0x%x) numlumps=%d\n",
+	       lumpnum, lumpnum, numlumps);
 	I_Error ("W_CacheLumpNum: %i >= numlumps", lumpnum);
     }
 
