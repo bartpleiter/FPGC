@@ -51,6 +51,9 @@ static int prev_key_state = 0;
 /* Microsecond counter base for tick calculation */
 static unsigned int tick_base = 0;
 
+/* Assembly-optimized framebuffer copy (doom_asm.asm) */
+extern void doom_draw_frame_asm(unsigned char *src);
+
 /* Forward declarations */
 static void fpgc_poll_keys(void);
 static unsigned char translate_bdos_key(int bdos_key);
@@ -75,17 +78,14 @@ void DG_DrawFrame(void)
      * The pixel FB is 8-bit indexed, word-addressed from CPU:
      * VRAMPX address = (byte_addr - 0x1EC00000) >> 2, so each
      * pixel occupies 4 bytes of CPU address space. */
-    unsigned char *src = (unsigned char *)DG_ScreenBuffer;
-    int i;
-
-    for (i = 0; i < DOOM_WIDTH * DOOM_HEIGHT; i++)
-        __builtin_storeb(0x1EC00000 + i * 4, src[i]);
+    doom_draw_frame_asm((unsigned char *)DG_ScreenBuffer);
 
     /* Update the FPGC palette from Doom's colors array */
 #ifdef CMAP256
     extern boolean palette_changed;
     extern struct color colors[256];
     if (palette_changed) {
+        int i;
         for (i = 0; i < 256; i++) {
             int rgb24 = (colors[i].r << 16) | (colors[i].g << 8) | colors[i].b;
             bdos_set_pixel_palette(i, rgb24);

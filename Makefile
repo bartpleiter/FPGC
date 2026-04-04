@@ -372,6 +372,7 @@ DOOM_DIR = Software/C/userBDOS/doom
 
 # Core doom source files (order matters for linker)
 DOOM_SOURCES = \
+	$(DOOM_DIR)/doom_asm.asm \
 	$(DOOM_DIR)/doom_libc_bridge.c \
 	Software/C/libc/stdio/stdio.c \
 	$(DOOM_DIR)/doomgeneric_fpgc.c \

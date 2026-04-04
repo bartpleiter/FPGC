@@ -184,8 +184,6 @@ void D_Display (void)
     boolean			wipe;
     boolean			redrawsbar;
 
-    sys_uart_print_str("DD: enter\n");
-
     if (nodrawers)
     	return;                    // for comparative timing / profiling
 		
@@ -240,7 +238,6 @@ void D_Display (void)
 		break;
     }
     
-    sys_uart_print_str("DD: UpdateNoBlit\n");
     // draw buffered stuff to screen
     I_UpdateNoBlit ();
     
@@ -316,7 +313,6 @@ void D_Display (void)
 
     wipestart = I_GetTime () - 1;
 
-    sys_uart_print_str("D_Display: wipe loop start\n");
     do
     {
 	do
@@ -333,7 +329,6 @@ void D_Display (void)
 	M_Drawer ();                            // menu is drawn even on top of wipes
 	I_FinishUpdate ();                      // page flip or blit buffer
     } while (!done);
-    sys_uart_print_str("D_Display: wipe done\n");
 }
 
 //
@@ -412,23 +407,18 @@ boolean D_GrabMouseCallback(void)
 
 void doomgeneric_Tick()
 {
-    sys_uart_print_str("TICK: I_StartFrame\n");
     // frame syncronous IO operations
     I_StartFrame ();
 
-    sys_uart_print_str("TICK: TryRunTics\n");
     TryRunTics (); // will run at least one tic
 
-    sys_uart_print_str("TICK: S_UpdateSounds\n");
     S_UpdateSounds (players[consoleplayer].mo);// move positional sounds
 
     // Update display, next frame, with current state.
     if (screenvisible)
     {
-        sys_uart_print_str("TICK: D_Display\n");
         D_Display ();
     }
-    sys_uart_print_str("TICK: done\n");
 }
 
 //
