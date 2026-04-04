@@ -14,7 +14,8 @@
  *   sub  rA rB rD   ; rD = rA - rB
  *   read off rA rD  ; rD = mem[rA + off]     (word load)
  *   write off rA rS ; mem[rA + off] = rS     (word store)
- *   readb off rA rD ; rD = byte mem[rA + off] (byte load, zero-extend)
+ *   readb off rA rD ; rD = sign-extended byte mem[rA + off]
+ *   readbu off rA rD ; rD = zero-extended byte mem[rA + off]
  *   writeb off rA rS; byte mem[rA + off] = rS (byte store)
  *   load imm rD     ; rD = sign-extend-16(imm)
  *   loadhi imm rD   ; rD[31:16] = imm
@@ -91,8 +92,8 @@ static struct {
 	{ Ostoreh, Kw, "writeh %M1 %0" },
 	{ Ostorew, Kw, "write %M1 %0" },
 	{ Ostorel, Ki, "write %M1 %0" },  /* 32-bit target: storel = storew */
-	{ Oloadub, Ki, "readb %M0 %=" },
-	{ Oloaduh, Ki, "readh %M0 %=" },
+	{ Oloadub, Ki, "readbu %M0 %=" },
+	{ Oloaduh, Ki, "readhu %M0 %=" },
 	{ Oloadsw, Ki, "read %M0 %=" },
 	{ Oloaduw, Ki, "read %M0 %=" },
 	{ Oload,   Kw, "read %M0 %=" },
@@ -323,24 +324,17 @@ emitins(Ins *i, Fn *fn, FILE *f)
 		}
 		emitf(omap[o].asm_str, i, fn, f);
 		break;
-	/* Signed byte/halfword loads: B32P3 only has zero-extending
-	 * readb/readh, so we sign-extend via shift left + arithmetic
-	 * shift right. */
+	/* Signed byte/halfword loads: B32P3 readb/readh already
+	 * sign-extend, so no extra work needed. */
 	case Oloadsb:
 		fixaddr(&i->arg[0], fn, f);
 		fixmem(&i->arg[0], fn, f);
 		emitf("readb %M0 %=", i, fn, f);
-		rn = rname[i->to.val];
-		fprintf(f, "  shiftl %s 24 %s\n", rn, rn);
-		fprintf(f, "  shiftrs %s 24 %s\n", rn, rn);
 		break;
 	case Oloadsh:
 		fixaddr(&i->arg[0], fn, f);
 		fixmem(&i->arg[0], fn, f);
 		emitf("readh %M0 %=", i, fn, f);
-		rn = rname[i->to.val];
-		fprintf(f, "  shiftl %s 16 %s\n", rn, rn);
-		fprintf(f, "  shiftrs %s 16 %s\n", rn, rn);
 		break;
 	/* Sign-extend byte/halfword in register */
 	case Oextsb:

@@ -199,7 +199,6 @@ void D_Display (void)
 		borderdrawcount = 3;
     }
 
-    sys_uart_print_str("DD: wipe check\n");
     // save the current screen if about to wipe
     if (gamestate != wipegamestate)
 		{
@@ -212,7 +211,6 @@ void D_Display (void)
     if (gamestate == GS_LEVEL && gametic)
     	HU_Erase();
     
-    sys_uart_print_str("DD: switch\n");
     // do buffered drawing
     switch (gamestate)
     {
@@ -238,9 +236,7 @@ void D_Display (void)
 		break;
 
       case GS_DEMOSCREEN:
-		sys_uart_print_str("DD: D_PageDrawer\n");
 		D_PageDrawer ();
-		sys_uart_print_str("DD: D_PageDrawer done\n");
 		break;
     }
     
@@ -259,7 +255,6 @@ void D_Display (void)
     if (gamestate != oldgamestate && gamestate != GS_LEVEL)
     	I_SetPalette (W_CacheLumpName (DEH_String("PLAYPAL"),PU_CACHE));
 
-    sys_uart_print_str("DD: post-palette\n");
 
     // see if the border needs to be initially drawn
     if (gamestate == GS_LEVEL && oldgamestate != GS_LEVEL)
@@ -306,19 +301,16 @@ void D_Display (void)
 
     // menus go directly to the screen
     M_Drawer ();          // menu is drawn even on top of everything
-    sys_uart_print_str("DD: post-menu\n");
     NetUpdate ();         // send out any new accumulation
 
 
     // normal update
     if (!wipe)
     {
-	sys_uart_print_str("DD: no-wipe FinishUpdate\n");
 	I_FinishUpdate ();              // page flip or blit buffer
 	return;
     }
     
-    sys_uart_print_str("DD: wipe path\n");
     // wipe update
     wipe_EndScreen(0, 0, SCREENWIDTH, SCREENHEIGHT);
 
@@ -514,16 +506,7 @@ void D_PageTicker (void)
 //
 void D_PageDrawer (void)
 {
-    sys_uart_print_str("PageDrawer: CacheLump '");
-    sys_uart_print_str(pagename);
-    sys_uart_print_str("'\n");
-    patch_t *p = W_CacheLumpName(pagename, PU_CACHE);
-    char hbuf[64];
-    snprintf(hbuf, sizeof(hbuf), "PageDrawer: patch=%x w=%d h=%d\n",
-             (unsigned int)p, (int)p->width, (int)p->height);
-    sys_uart_print_str(hbuf);
-    V_DrawPatch (0, 0, p);
-    sys_uart_print_str("PageDrawer: done\n");
+    V_DrawPatch (0, 0, W_CacheLumpName(pagename, PU_CACHE));
 }
 
 

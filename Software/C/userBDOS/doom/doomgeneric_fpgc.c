@@ -8,6 +8,7 @@
 /* Include syscall.h first, before Doom headers redefine KEY_F* etc. */
 #include <time.h>
 #include <stdio.h>
+#include <syscall.h>
 
 #include "config.h"
 
@@ -61,24 +62,24 @@ void DG_Init(void)
     /* Record base time */
     tick_base = get_micros();
 
-    /* Clear the pixel framebuffer */
-    unsigned char *fb = PIXEL_FB;
+    /* Clear the pixel framebuffer (word-addressed: 4 bytes per pixel) */
     int i;
     for (i = 0; i < FB_WIDTH * FB_HEIGHT; i++)
-        fb[i] = 0;
+        __builtin_storeb(0x1EC00000 + i * 4, 0);
 }
 
 void DG_DrawFrame(void)
 {
     /* Copy Doom's 320x200 screen buffer to FPGC's pixel framebuffer.
      * DG_ScreenBuffer is 8-bit palette indices (CMAP256 mode).
-     * The pixel FB is also 8-bit indexed, so direct copy works. */
+     * The pixel FB is 8-bit indexed, word-addressed from CPU:
+     * VRAMPX address = (byte_addr - 0x1EC00000) >> 2, so each
+     * pixel occupies 4 bytes of CPU address space. */
     unsigned char *src = (unsigned char *)DG_ScreenBuffer;
-    unsigned char *dst = PIXEL_FB;
     int i;
 
     for (i = 0; i < DOOM_WIDTH * DOOM_HEIGHT; i++)
-        dst[i] = src[i];
+        __builtin_storeb(0x1EC00000 + i * 4, src[i]);
 
     /* Update the FPGC palette from Doom's colors array */
 #ifdef CMAP256
@@ -150,16 +151,16 @@ static struct keymap_entry keymap[] = {
     { 0x0020, KEY_DOWNARROW },  /* KEYSTATE_DOWN */
     { 0x0040, KEY_LEFTARROW },  /* KEYSTATE_LEFT */
     { 0x0080, KEY_RIGHTARROW }, /* KEYSTATE_RIGHT */
-    { 0x0001, 'w' },            /* KEYSTATE_W — also forward */
-    { 0x0002, 'a' },            /* KEYSTATE_A — strafe left */
-    { 0x0004, 's' },            /* KEYSTATE_S — also backward */
-    { 0x0008, 'd' },            /* KEYSTATE_D — strafe right */
+    { 0x0001, KEY_UPARROW },   /* KEYSTATE_W — forward */
+    { 0x0002, KEY_STRAFE_L },  /* KEYSTATE_A — strafe left */
+    { 0x0004, KEY_DOWNARROW },  /* KEYSTATE_S — backward */
+    { 0x0008, KEY_STRAFE_R },  /* KEYSTATE_D — strafe right */
     { 0x0100, KEY_USE },        /* KEYSTATE_SPACE — use */
     { 0x0200, KEY_RSHIFT },     /* KEYSTATE_SHIFT — run */
     { 0x0400, KEY_FIRE },       /* KEYSTATE_CTRL — fire */
     { 0x0800, KEY_ESCAPE },     /* KEYSTATE_ESCAPE */
-    { 0x1000, 'e' },            /* KEYSTATE_E */
-    { 0x2000, 'q' },            /* KEYSTATE_Q */
+    { 0x1000, KEY_ENTER },      /* KEYSTATE_E — enter/use */
+    { 0x2000, KEY_TAB },        /* KEYSTATE_Q — automap */
 };
 
 #define KEYMAP_COUNT (sizeof(keymap) / sizeof(keymap[0]))
@@ -179,15 +180,13 @@ static void fpgc_poll_keys(void)
 
     prev_key_state = state;
 
-    /* Also check character-level keys (for menu: enter, numbers, etc.) */
-    while (bdos_key_available()) {
+    /* Also check character-level keys (for menu: enter, numbers, etc.)
+     * Only process first queued key per poll to avoid flooding */
+    if (bdos_key_available()) {
         int k = bdos_read_key();
         unsigned char dk = translate_bdos_key(k);
         if (dk != 0) {
             enqueue_key(dk, 1);
-            /* We don't get key-up events from sys_read_key,
-             * but the key_state bitmap covers the main game keys.
-             * For one-shot menu keys (enter, numbers), a quick press+release works. */
             enqueue_key(dk, 0);
         }
     }
@@ -209,12 +208,9 @@ static unsigned char translate_bdos_key(int bdos_key)
     if (bdos_key == 0x08 || bdos_key == 0x7F)
         return KEY_BACKSPACE;
 
-    /* BDOS special key codes (KEY_SPECIAL_BASE + offset) */
+    /* BDOS special key codes — arrow keys are handled by key_state bitmap,
+     * so only map non-bitmap keys here to avoid duplicate events */
     switch (bdos_key) {
-    case 0x101: return KEY_UPARROW;
-    case 0x102: return KEY_DOWNARROW;
-    case 0x103: return KEY_LEFTARROW;
-    case 0x104: return KEY_RIGHTARROW;
     case 0x10B: return KEY_F1;
     case 0x10C: return KEY_F2;
     case 0x10D: return KEY_F3;
@@ -239,6 +235,9 @@ static char *doom_argv[] = { "doom", "-iwad", "/data/doom/doom1.wad" };
 
 int main(void)
 {
+    /* Clear terminal before switching to pixel framebuffer mode */
+    sys_term_clear();
+
     printf("DOOM: main() entered\n");
 
     printf("DOOM: calling doomgeneric_Create\n");

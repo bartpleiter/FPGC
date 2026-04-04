@@ -41,6 +41,8 @@
 #include <png.h>
 #endif
 
+#include <syscall.h>
+
 // TODO: There are separate RANGECHECK defines for different games, but this
 // is common code. Fix this.
 #define RANGECHECK
@@ -99,7 +101,8 @@ void V_CopyRect(int srcx, int srcy, byte *source,
      || desty < 0
      || desty + height > SCREENHEIGHT)
     {
-        I_Error ("Bad V_CopyRect");
+        sys_uart_print_str("SKIP V_CopyRect (out of bounds)\n");
+        return;
     }
 #endif 
 
@@ -146,6 +149,9 @@ void V_DrawPatch(int x, int y, patch_t *patch)
     byte *source;
     int w;
 
+    if (!patch)
+        return;
+
     y -= SHORT(patch->topoffset);
     x -= SHORT(patch->leftoffset);
 
@@ -162,7 +168,11 @@ void V_DrawPatch(int x, int y, patch_t *patch)
      || y < 0
      || y + SHORT(patch->height) > SCREENHEIGHT)
     {
-        I_Error("Bad V_DrawPatch x=%i y=%i patch.width=%i patch.height=%i topoffset=%i leftoffset=%i", x, y, patch->width, patch->height, patch->topoffset, patch->leftoffset);
+        char ebuf[128];
+        snprintf(ebuf, sizeof(ebuf), "SKIP V_DrawPatch x=%d y=%d w=%d h=%d patch@%x\n",
+                 x, y, (int)SHORT(patch->width), (int)SHORT(patch->height), (unsigned)patch);
+        sys_uart_print_str(ebuf);
+        return;  /* skip instead of I_Error to keep running */
     }
 #endif
 
@@ -183,6 +193,14 @@ void V_DrawPatch(int x, int y, patch_t *patch)
             source = (byte *)column + 3;
             dest = desttop + column->topdelta*SCREENWIDTH;
             count = column->length;
+
+            if (count > 200 || count < 0) {
+                char ebuf[80];
+                snprintf(ebuf, sizeof(ebuf), "VDP BAD: col=%d td=%d len=%d col@%x\n",
+                         col, column->topdelta, count, (unsigned)column);
+                sys_uart_print_str(ebuf);
+                return;
+            }
 
             while (count--)
             {
@@ -209,6 +227,9 @@ void V_DrawPatchFlipped(int x, int y, patch_t *patch)
     byte *dest;
     byte *source; 
     int w; 
+
+    if (!patch)
+        return;
  
     y -= SHORT(patch->topoffset); 
     x -= SHORT(patch->leftoffset); 
@@ -226,7 +247,8 @@ void V_DrawPatchFlipped(int x, int y, patch_t *patch)
      || y < 0
      || y + SHORT(patch->height) > SCREENHEIGHT)
     {
-        I_Error("Bad V_DrawPatchFlipped");
+        sys_uart_print_str("SKIP V_DrawPatchFlipped\n");
+        return;
     }
 #endif
 
