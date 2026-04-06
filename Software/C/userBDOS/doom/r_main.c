@@ -698,17 +698,21 @@ void R_ExecuteSetViewSize (void)
 
     if (!detailshift)
     {
-	colfunc = basecolfunc = R_DrawColumn;
+	extern void R_DrawColumn_asm(void);
+	extern void R_DrawSpan_asm(void);
+	colfunc = basecolfunc = R_DrawColumn_asm;
 	fuzzcolfunc = R_DrawFuzzColumn;
 	transcolfunc = R_DrawTranslatedColumn;
-	spanfunc = R_DrawSpan;
+	spanfunc = R_DrawSpan_asm;
     }
     else
     {
-	colfunc = basecolfunc = R_DrawColumnLow;
+	extern void R_DrawColumnLow_asm(void);
+	extern void R_DrawSpanLow_asm(void);
+	colfunc = basecolfunc = R_DrawColumnLow_asm;
 	fuzzcolfunc = R_DrawFuzzColumnLow;
 	transcolfunc = R_DrawTranslatedColumnLow;
-	spanfunc = R_DrawSpanLow;
+	spanfunc = R_DrawSpanLow_asm;
     }
 
     R_InitBuffer (scaledviewwidth, viewheight);
