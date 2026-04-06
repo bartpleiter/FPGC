@@ -71,6 +71,10 @@ static void fpgc_restore_display(void)
 {
     int i;
 
+    /* Close WAD file descriptors to release BRFS fds */
+    extern void W_CloseAllFiles(void);
+    W_CloseAllFiles();
+
     /* Clear the pixel framebuffer */
     fpgc_clear_vrampx();
 

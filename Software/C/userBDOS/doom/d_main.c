@@ -1182,11 +1182,13 @@ void D_DoomMain (void)
 
     printf("D_DoomMain: entered\n");
 
-    I_AtExit(D_Endoom, false);
+    /* D_Endoom disabled — no ANSI terminal on FPGC, and its exit(0)
+     * would skip our display restore handler. */
+    /* I_AtExit(D_Endoom, false); */
 
-    /* Close all WAD files on exit to release BRFS file descriptors */
-    extern void W_CloseAllFiles(void);
-    I_AtExit((atexit_func_t)W_CloseAllFiles, true);
+    /* WAD fds cleaned up by BDOS on process exit — explicit close
+     * was racing with D_Endoom's lump read and crashing. */
+    /* I_AtExit((atexit_func_t)W_CloseAllFiles, true); */
 
     // print banner
 
