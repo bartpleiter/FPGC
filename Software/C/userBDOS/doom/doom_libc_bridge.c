@@ -162,6 +162,7 @@ int _write(int fd, const char *buf, int len)
                 tmp[j] = buf[offset + j];
             tmp[chunk] = '\0';
             sys_print_str(tmp);
+            sys_uart_print_str(tmp);
             offset += chunk;
         }
         return len;

@@ -345,9 +345,25 @@ void bdos_poll_usb_keyboard(int timer_id)
   }
 }
 
+/* Only check USB connect/disconnect every 2 seconds to avoid blocking
+ * the timer-driven keyboard poll.  ch376_test_connect() holds SPI
+ * (bdos_usb_main_loop_active = 1) and the timer ISR skips keyboard
+ * polling whenever that flag is set.  Running test_connect on every
+ * main-loop iteration caused ~75% of polls to be skipped. */
+#define BDOS_USB_MAINLOOP_INTERVAL_US 2000000U
+static unsigned int bdos_usb_mainloop_last_us = 0;
+
 void bdos_usb_keyboard_main_loop(void)
 {
   int status;
+  unsigned int now;
+
+  now = get_micros();
+  if ((unsigned int)(now - bdos_usb_mainloop_last_us) < BDOS_USB_MAINLOOP_INTERVAL_US)
+  {
+    return;
+  }
+  bdos_usb_mainloop_last_us = now;
 
   bdos_usb_main_loop_active = 1;
   status = ch376_test_connect(bdos_usb_keyboard_spi_id);

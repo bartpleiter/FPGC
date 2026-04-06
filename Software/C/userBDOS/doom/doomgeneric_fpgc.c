@@ -267,7 +267,7 @@ static unsigned char translate_bdos_key(int bdos_key)
 
 /* argv must be static so it survives across all Doom function calls.
  * A stack-local array in main() can be clobbered by deep call chains. */
-static char *doom_argv[] = { "doom", "-iwad", "/data/doom/doom1.wad" };
+static char *doom_argv[] = { "doom", "-iwad", "/data/doom/doom.wad" };
 
 int main(void)
 {
