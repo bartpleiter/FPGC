@@ -148,12 +148,10 @@ int _lseek(int fd, int offset, int whence)
 
 int _write(int fd, const char *buf, int len)
 {
-    /* stdout/stderr → batch output to UART only.
-     * Terminal output (sys_print_char) is skipped because per-character
-     * BDOS syscalls under heavy load cause crashes/hangs.
-     * Doom uses the pixel framebuffer, not the text terminal. */
+    /* stdout/stderr → BDOS terminal + UART.
+     * Output to the BDOS screen terminal so startup log is visible,
+     * and also to UART for serial debugging. */
     if (fd == 1 || fd == 2 || fd == -1 || fd == -2) {
-        /* Batch output through sys_uart_print_str (one syscall per chunk) */
         char tmp[129];
         int offset = 0;
         while (offset < len) {
@@ -163,7 +161,7 @@ int _write(int fd, const char *buf, int len)
             for (j = 0; j < chunk; j++)
                 tmp[j] = buf[offset + j];
             tmp[chunk] = '\0';
-            sys_uart_print_str(tmp);
+            sys_print_str(tmp);
             offset += chunk;
         }
         return len;

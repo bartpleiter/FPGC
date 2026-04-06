@@ -60,15 +60,47 @@ static unsigned char translate_bdos_key(int bdos_key);
 
 /* ---- Required platform functions ---- */
 
+static void fpgc_clear_vrampx(void)
+{
+    int i;
+    for (i = 0; i < FB_WIDTH * FB_HEIGHT; i++)
+        __builtin_storeb(0x1EC00000 + i * 4, 0);
+}
+
+static void fpgc_restore_display(void)
+{
+    int i;
+
+    /* Clear the pixel framebuffer */
+    fpgc_clear_vrampx();
+
+    /* Restore default RRRGGGBB identity pixel palette */
+    for (i = 0; i < 256; i++) {
+        int r3 = (i >> 5) & 7;
+        int g3 = (i >> 2) & 7;
+        int b2 = i & 3;
+        int r = (r3 << 5) | (r3 << 2) | (r3 >> 1);
+        int g = (g3 << 5) | (g3 << 2) | (g3 >> 1);
+        int b = (b2 << 6) | (b2 << 4) | (b2 << 2) | b2;
+        bdos_set_pixel_palette(i, (r << 16) | (g << 8) | b);
+    }
+
+    /* Restore default text palette (white on black) and clear terminal */
+    sys_set_palette(0, (0 << 8) | 0xFF);
+    sys_term_clear();
+}
+
 void DG_Init(void)
 {
     /* Record base time */
     tick_base = get_micros();
 
-    /* Clear the pixel framebuffer (word-addressed: 4 bytes per pixel) */
-    int i;
-    for (i = 0; i < FB_WIDTH * FB_HEIGHT; i++)
-        __builtin_storeb(0x1EC00000 + i * 4, 0);
+    /* Clear the pixel framebuffer */
+    fpgc_clear_vrampx();
+
+    /* Register display restore for clean exit */
+    extern void I_AtExit(void (*func)(void), int run_on_error);
+    I_AtExit(fpgc_restore_display, 1);
 }
 
 void DG_DrawFrame(void)
@@ -235,10 +267,10 @@ static char *doom_argv[] = { "doom", "-iwad", "/data/doom/doom1.wad" };
 
 int main(void)
 {
-    /* Clear terminal before switching to pixel framebuffer mode */
-    sys_term_clear();
-
     doomgeneric_Create(3, doom_argv);
+
+    /* Clear terminal text overlay so pixel framebuffer is visible */
+    sys_term_clear();
 
     /* Main game loop */
     for (;;) {
