@@ -1184,6 +1184,10 @@ void D_DoomMain (void)
 
     I_AtExit(D_Endoom, false);
 
+    /* Close all WAD files on exit to release BRFS file descriptors */
+    extern void W_CloseAllFiles(void);
+    I_AtExit((atexit_func_t)W_CloseAllFiles, true);
+
     // print banner
 
     I_PrintBanner(PACKAGE_STRING);

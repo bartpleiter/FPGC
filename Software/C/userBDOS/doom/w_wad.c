@@ -625,3 +625,18 @@ void W_CheckCorrectIWAD(GameMission_t mission)
     }
 }
 
+void W_CloseAllFiles(void)
+{
+    unsigned int i;
+    wad_file_t *prev = NULL;
+
+    for (i = 0; i < numlumps; i++) {
+        wad_file_t *wf = lumpinfo[i].wad_file;
+        if (wf != NULL && wf != prev) {
+            W_CloseFile(wf);
+            prev = wf;
+            lumpinfo[i].wad_file = NULL;
+        }
+    }
+}
+

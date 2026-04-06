@@ -202,7 +202,7 @@ static unsigned char translate_bdos_key(int bdos_key)
     if (bdos_key == 0x0D || bdos_key == '\n')
         return KEY_ENTER;
     if (bdos_key == 0x1B)
-        return KEY_ESCAPE;
+        return 0;  /* escape handled by key_state bitmap — skip here to avoid duplicate press+release */
     if (bdos_key == 0x09)
         return KEY_TAB;
     if (bdos_key == 0x08 || bdos_key == 0x7F)
