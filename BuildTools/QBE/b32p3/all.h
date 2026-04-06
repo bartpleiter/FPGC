@@ -28,10 +28,12 @@ enum B32p3Reg {
 	/* caller-save temporaries */
 	R1 = RXX + 1, R2, R3,
 	R4, R5, R6, R7,  /* argument registers */
-	R12,              /* temporary */
 
 	/* callee-save */
 	R8, R9, R10, R11,
+
+	/* reserved for emit.c scratch (not allocatable) */
+	R12,
 
 	/* globally live (never allocated) */
 	R13, /* SP */
@@ -41,9 +43,9 @@ enum B32p3Reg {
 	/* r0 is not enumerated — it's hardwired zero,
 	 * handled specially in emit (like rv64's x0) */
 
-	NGPR = R12 - R1 + 1,  /* 12 allocatable GPRs (excludes R13-R15 rglob) */
+	NGPR = R11 - R1 + 1,  /* 11 allocatable GPRs (R1-R11; R12 reserved for emit scratch) */
 	NFPR = 0,              /* no FP register class */
-	NGPS = R12 - R1 + 1,  /* 8 caller-save */
+	NGPS = R7 - R1 + 1,   /* 7 caller-save */
 	NFPS = 0,
 	NCLR = R11 - R8 + 1,  /* 4 callee-save */
 };

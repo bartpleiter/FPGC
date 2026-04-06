@@ -9,7 +9,6 @@ B32p3Op b32p3_op[NOp] = {
 int b32p3_rsave[] = {
 	R1, R2, R3,
 	R4, R5, R6, R7,
-	R12,
 	-1
 };
 
@@ -18,7 +17,7 @@ int b32p3_rclob[] = {
 	-1
 };
 
-#define RGLOB (BIT(R13) | BIT(R14) | BIT(R15))
+#define RGLOB (BIT(R12) | BIT(R13) | BIT(R14) | BIT(R15))
 
 static int
 b32p3_memargs(int op)
@@ -35,7 +34,7 @@ Target T_b32p3 = {
 	.fpr0 = 0,
 	.nfpr = NFPR,
 	.rglob = RGLOB,
-	.nrglob = 3,
+	.nrglob = 4,
 	.rsave = b32p3_rsave,
 	.nrsave = {NGPS, NFPS},
 	.retregs = b32p3_retregs,
