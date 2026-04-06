@@ -506,26 +506,6 @@ void R_InitTextures (void)
     maxoff = W_LumpLength (W_GetNumForName (DEH_String("TEXTURE1")));
     directory = maptex+1;
 
-    printf("TEX: numtextures1=%d maxoff=%d nummappatches=%d\n",
-           numtextures1, maxoff, nummappatches);
-    /* Dump first texture entry */
-    {
-        int dbg_off = LONG(*(directory));
-        maptexture_t *dbg_mt = (maptexture_t *)((byte *)maptex + dbg_off);
-        printf("TEX[0]: off=%d name=%.8s w=%d h=%d pc=%d\n",
-               dbg_off, dbg_mt->name,
-               SHORT(dbg_mt->width), SHORT(dbg_mt->height),
-               SHORT(dbg_mt->patchcount));
-        if (SHORT(dbg_mt->patchcount) > 0) {
-            mappatch_t *dbg_mp = &dbg_mt->patches[0];
-            printf("TEX[0].patch[0]: ox=%d oy=%d patch=%d\n",
-                   SHORT(dbg_mp->originx), SHORT(dbg_mp->originy),
-                   SHORT(dbg_mp->patch));
-            printf("TEX[0].patch[0].lookup=%d\n",
-                   patchlookup[SHORT(dbg_mp->patch)]);
-        }
-    }
-	
     if (W_CheckNumForName (DEH_String("TEXTURE2")) != -1)
     {
 	maptex2 = W_CacheLumpName (DEH_String("TEXTURE2"), PU_STATIC);
@@ -671,23 +651,10 @@ void R_InitSpriteLumps (void)
     lastspritelump = W_GetNumForName (DEH_String("S_END")) - 1;
     
     numspritelumps = lastspritelump - firstspritelump + 1;
-    printf("SPRITES: first=%d last=%d count=%d\n",
-           firstspritelump, lastspritelump, numspritelumps);
-    printf("SPRITES: allocating arrays...\n");
     spritewidth = Z_Malloc (numspritelumps*sizeof(*spritewidth), PU_STATIC, 0);
-    printf("SPRITES: spritewidth ok\n");
     spriteoffset = Z_Malloc (numspritelumps*sizeof(*spriteoffset), PU_STATIC, 0);
-    printf("SPRITES: spriteoffset ok\n");
     spritetopoffset = Z_Malloc (numspritelumps*sizeof(*spritetopoffset), PU_STATIC, 0);
-    printf("SPRITES: all arrays ok\n");
 
-    /* Direct test: cache the first sprite lump manually */
-    printf("SPRITES: test caching lump %d\n", firstspritelump);
-    {
-        void *test = W_CacheLumpNum(firstspritelump, PU_CACHE);
-        printf("SPRITES: test cache OK, ptr=%p\n", test);
-    }
-	
     for (i=0 ; i< numspritelumps ; i++)
     {
 	/* No printf inside loop to avoid potential syscall interference */
@@ -696,7 +663,6 @@ void R_InitSpriteLumps (void)
 	spriteoffset[i] = SHORT(patch->leftoffset)<<FRACBITS;
 	spritetopoffset[i] = SHORT(patch->topoffset)<<FRACBITS;
     }
-    printf("SPRITES: loop done! All %d sprites loaded\n", numspritelumps);
 }
 
 
@@ -725,14 +691,9 @@ void R_InitColormaps (void)
 void R_InitData (void)
 {
     R_InitTextures ();
-    sys_uart_print_str("R_InitData: textures done\n");
     R_InitFlats ();
-    sys_uart_print_str("R_InitData: flats done\n");
     R_InitSpriteLumps ();
-    sys_uart_print_str("R_InitData: sprites done\n");
     R_InitColormaps ();
-    sys_uart_print_str("R_InitData: colormaps done\n");
-    sys_uart_print_str("R_InitData: returning\n");
 }
 
 

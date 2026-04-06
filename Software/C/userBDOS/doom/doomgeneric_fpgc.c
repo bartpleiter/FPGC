@@ -238,12 +238,7 @@ int main(void)
     /* Clear terminal before switching to pixel framebuffer mode */
     sys_term_clear();
 
-    printf("DOOM: main() entered\n");
-
-    printf("DOOM: calling doomgeneric_Create\n");
     doomgeneric_Create(3, doom_argv);
-
-    printf("DOOM: entering main loop\n");
 
     /* Main game loop */
     for (;;) {

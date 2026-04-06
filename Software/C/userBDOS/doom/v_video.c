@@ -101,7 +101,6 @@ void V_CopyRect(int srcx, int srcy, byte *source,
      || desty < 0
      || desty + height > SCREENHEIGHT)
     {
-        sys_uart_print_str("SKIP V_CopyRect (out of bounds)\n");
         return;
     }
 #endif 

@@ -396,11 +396,14 @@ class Assembler:
 
     def _create_label_line_mappings(self) -> None:
         """Create a mapping of labels to the instruction they point to."""
-        for idx, line in enumerate(self._assembly_lines):
+        num_lines = len(self._assembly_lines)
+        for idx in range(num_lines):
+            line = self._assembly_lines[idx]
             if isinstance(line, LabelAssemblyLine):
                 # Find the next instruction line that is not a LabelAssemblyLine
                 mapping_finished = False
-                for next_line in self._assembly_lines[idx:]:
+                for j in range(idx, num_lines):
+                    next_line = self._assembly_lines[j]
                     if not isinstance(next_line, LabelAssemblyLine):
                         # Check if the label is not already defined
                         if line.label in self._label_line_mappings:
@@ -418,10 +421,15 @@ class Assembler:
 
         Each instruction occupies 4 bytes, so the address is index × 4 + offset.
         """
+        # Build reverse index: object id → position, O(n) once
+        line_index = {id(line): idx for idx, line in enumerate(self._assembly_lines)}
         for label, instruction in self._label_line_mappings.items():
-            address = (
-                self._assembly_lines.index(instruction) * 4 + self.offset_address.value
-            )
+            idx = line_index.get(id(instruction))
+            if idx is None:
+                raise ValueError(
+                    f"Label {label} -> ?"
+                )
+            address = idx * 4 + self.offset_address.value
             self._label_address_mappings[label] = address
 
     def _apply_label_address_mappings(self) -> None:

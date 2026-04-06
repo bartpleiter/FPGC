@@ -680,6 +680,15 @@ fnp-run:
 	@.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py --mac $(FNP_MAC) key "$(cmd)"
 	@.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py --mac $(FNP_MAC) keycode 0x0A
 
+# Doom: compile, upload, and run in one step
+.PHONY: run-doom
+run-doom: compile-doom
+	@echo "Uploading doom binary to /bin/doom on device $(dev) ($(FNP_MAC))"
+	@.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py --mac $(FNP_MAC) upload Software/ASM/Output/code.bin /bin/doom
+	@echo "Launching doom..."
+	@.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py --mac $(FNP_MAC) key "doom"
+	@.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py --mac $(FNP_MAC) keycode 0x0A
+
 # =============================================================================
 # Cleanup
 # =============================================================================
