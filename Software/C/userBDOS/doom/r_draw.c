@@ -590,9 +590,11 @@ int			dscount;
 void R_DrawSpan (void) 
 { 
     unsigned int position, step;
+    byte *source;
+    byte *colormap;
     byte *dest;
     int count;
-    int spot;
+    unsigned int spot;
     unsigned int xtemp, ytemp;
 
 #ifdef RANGECHECK
@@ -607,73 +609,25 @@ void R_DrawSpan (void)
 //	dscount++;
 #endif
 
-    // Pack position and step variables into a single 32-bit integer,
-    // with x in the top 16 bits and y in the bottom 16 bits.  For
-    // each 16-bit part, the top 6 bits are the integer part and the
-    // bottom 10 bits are the fractional part of the pixel position.
-
     position = ((ds_xfrac << 10) & 0xffff0000)
              | ((ds_yfrac >> 6)  & 0x0000ffff);
     step = ((ds_xstep << 10) & 0xffff0000)
          | ((ds_ystep >> 6)  & 0x0000ffff);
 
-    dest = ylookup[ds_y] + columnofs[ds_x1];
-
-    // We do not check for zero spans here?
-    count = ds_x2 - ds_x1;
-
-    do
-    {
-	// Calculate current texture index in u,v.
-        ytemp = (position >> 4) & 0x0fc0;
-        xtemp = (position >> 26);
-        spot = xtemp | ytemp;
-
-	// Lookup pixel from flat texture tile,
-	//  re-index using light/colormap.
-	*dest++ = ds_colormap[ds_source[spot]];
-
-        position += step;
-
-    } while (count--);
-}
-
-
-
-// UNUSED.
-// Loop unrolled by 4.
-#if 0
-void R_DrawSpan (void) 
-{ 
-    unsigned	position, step;
-
-    byte*	source;
-    byte*	colormap;
-    byte*	dest;
-    
-    unsigned	count;
-    usingned	spot; 
-    unsigned	value;
-    unsigned	temp;
-    unsigned	xtemp;
-    unsigned	ytemp;
-		
-    position = ((ds_xfrac<<10)&0xffff0000) | ((ds_yfrac>>6)&0xffff);
-    step = ((ds_xstep<<10)&0xffff0000) | ((ds_ystep>>6)&0xffff);
-		
     source = ds_source;
     colormap = ds_colormap;
-    dest = ylookup[ds_y] + columnofs[ds_x1];	 
-    count = ds_x2 - ds_x1 + 1; 
-	
-    while (count >= 4) 
-    { 
+    dest = ylookup[ds_y] + columnofs[ds_x1];
+    count = ds_x2 - ds_x1 + 1;
+
+    /* 4× unrolled inner loop */
+    while (count >= 4)
+    {
 	ytemp = position>>4;
 	ytemp = ytemp & 4032;
 	xtemp = position>>26;
 	spot = xtemp | ytemp;
 	position += step;
-	dest[0] = colormap[source[spot]]; 
+	dest[0] = colormap[source[spot]];
 
 	ytemp = position>>4;
 	ytemp = ytemp & 4032;
@@ -681,37 +635,35 @@ void R_DrawSpan (void)
 	spot = xtemp | ytemp;
 	position += step;
 	dest[1] = colormap[source[spot]];
-	
+
 	ytemp = position>>4;
 	ytemp = ytemp & 4032;
 	xtemp = position>>26;
 	spot = xtemp | ytemp;
 	position += step;
 	dest[2] = colormap[source[spot]];
-	
+
 	ytemp = position>>4;
 	ytemp = ytemp & 4032;
 	xtemp = position>>26;
 	spot = xtemp | ytemp;
 	position += step;
-	dest[3] = colormap[source[spot]]; 
-		
+	dest[3] = colormap[source[spot]];
+
 	count -= 4;
 	dest += 4;
-    } 
-    while (count > 0) 
-    { 
+    }
+    while (count > 0)
+    {
 	ytemp = position>>4;
 	ytemp = ytemp & 4032;
 	xtemp = position>>26;
 	spot = xtemp | ytemp;
 	position += step;
-	*dest++ = colormap[source[spot]]; 
+	*dest++ = colormap[source[spot]];
 	count--;
-    } 
-} 
-#endif
-
+    }
+}
 
 //
 // Again..
