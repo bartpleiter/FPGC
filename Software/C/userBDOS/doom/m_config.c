@@ -2042,11 +2042,7 @@ int M_GetFloatVariable(char *name)
 
 static char *GetDefaultConfigDir(void)
 {
-    char *result = (char *)malloc(2);
-    result[0] = '.';
-    result[1] = '\0';
-
-    return result;
+    return strdup("/data/doom/");
 }
 
 // 
@@ -2087,41 +2083,10 @@ void M_SetConfigDir(char *dir)
 char *M_GetSaveGameDir(char *iwadname)
 {
     char *savegamedir;
-#if ORIGCODE
-    char *topdir;
-#endif
 
-    // If not "doing" a configuration directory (Windows), don't "do"
-    // a savegame directory, either.
-
-    if (!strcmp(configdir, ""))
-    {
-    	savegamedir = strdup("");
-    }
-    else
-    {
-#if ORIGCODE
-        // ~/.chocolate-doom/savegames
-
-        topdir = M_StringJoin(configdir, "savegame", NULL);
-        M_MakeDirectory(topdir);
-
-        // eg. ~/.chocolate-doom/savegames/doom2.wad/
-
-        savegamedir = M_StringJoin(topdir, DIR_SEPARATOR_S, iwadname,
-                                   DIR_SEPARATOR_S, NULL);
-
-        M_MakeDirectory(savegamedir);
-
-        free(topdir);
-#else
-        savegamedir = M_StringJoin(configdir, DIR_SEPARATOR_S, ".savegame/", NULL);
-
-        M_MakeDirectory(savegamedir);
-
-        printf ("Using %s for savegames\n", savegamedir);
-#endif
-    }
+    /* On FPGC, savegames go directly to /data/doom/ alongside the WAD */
+    savegamedir = strdup("/data/doom/");
+    M_MakeDirectory(savegamedir);
 
     return savegamedir;
 }

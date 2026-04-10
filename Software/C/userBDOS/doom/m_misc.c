@@ -23,6 +23,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <errno.h>
+#include <syscall.h>
 
 #include "doomtype.h"
 
@@ -42,7 +43,7 @@
 
 void M_MakeDirectory(char *path)
 {
-    /* FPGC BRFS has no directories */
+    sys_fs_mkdir(path);
 }
 
 // Check if a file exists

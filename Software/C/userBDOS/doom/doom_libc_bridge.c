@@ -21,24 +21,23 @@ static int  fd_open[MAX_OPEN_FDS];        /* 1 if slot in use  */
 
 /* ---- File I/O bridge ---- */
 
+/* flags values from libc stdio.c */
+#define STDIO_SWR 0x02
+
 int _open(const char *path, int flags)
 {
-    int fd = sys_fs_open((char *)path);
-    sys_uart_print_str("_open(\"");
-    sys_uart_print_str((char *)path);
-    sys_uart_print_str("\") = ");
-    if (fd < 0) {
-        sys_uart_print_str("-1");
+    int fd;
+
+    /* For write mode, create the file if it doesn't exist */
+    if (flags & STDIO_SWR) {
+        fd = sys_fs_open((char *)path);
+        if (fd < 0) {
+            sys_fs_create((char *)path);
+            fd = sys_fs_open((char *)path);
+        }
     } else {
-        char buf[12];
-        int i = 11;
-        int n = fd;
-        buf[i] = 0;
-        if (n == 0) buf[--i] = '0';
-        while (n > 0) { buf[--i] = '0' + (n % 10); n /= 10; }
-        sys_uart_print_str(&buf[i]);
+        fd = sys_fs_open((char *)path);
     }
-    sys_uart_print_str("\n");
 
     if (fd >= 0 && fd < MAX_OPEN_FDS) {
         fd_byte_pos[fd] = 0;
@@ -149,9 +148,9 @@ int _lseek(int fd, int offset, int whence)
 int _write(int fd, const char *buf, int len)
 {
     /* stdout/stderr → BDOS terminal + UART.
-     * Output to the BDOS screen terminal so startup log is visible,
-     * and also to UART for serial debugging. */
-    if (fd == 1 || fd == 2 || fd == -1 || fd == -2) {
+     * libc uses negative fds: stdout=-1, stderr=-2.
+     * Positive fds (1, 2, ...) are valid BRFS file descriptors. */
+    if (fd == -1 || fd == -2) {
         char tmp[129];
         int offset = 0;
         while (offset < len) {
@@ -168,49 +167,54 @@ int _write(int fd, const char *buf, int len)
         return len;
     }
 
-    /* File write — pack bytes into words for BRFS */
+    /* File write — pack bytes into words for BRFS.
+     * BRFS stores 4 bytes per word (big-endian packed).
+     * Handles non-aligned writes via read-modify-write. */
     if (fd < 0 || fd >= MAX_OPEN_FDS || len <= 0)
         return -1;
 
     int pos = fd_byte_pos[fd];
-    int start_word = pos / 4;
-    int start_byte = pos % 4;
-
-    /* For simplicity, only support word-aligned writes for now.
-     * Doom primarily writes config files which are text. */
-    if (start_byte != 0) {
-        /* Non-aligned write — not yet supported */
-        return -1;
-    }
-
-    int word_count = (len + 3) / 4;
-    unsigned int wbuf[128];
     int bytes_done = 0;
 
-    sys_fs_seek(fd, start_word);
-
     while (bytes_done < len) {
-        int remaining = len - bytes_done;
-        int wc = (remaining + 3) / 4;
-        if (wc > 128) wc = 128;
+        int cur_pos = pos + bytes_done;
+        int word_idx = cur_pos / 4;
+        int byte_off = cur_pos % 4;
 
-        /* Pack bytes into words (big-endian, pad with 0) */
-        int wi;
-        for (wi = 0; wi < wc; wi++) {
-            unsigned int w = 0;
-            int bi;
-            for (bi = 0; bi < 4; bi++) {
-                int idx = bytes_done + wi * 4 + bi;
-                if (idx < len)
-                    w |= ((unsigned int)(unsigned char)buf[idx]) << (24 - bi * 8);
-            }
-            wbuf[wi] = w;
+        /* How many bytes fit in this word starting from byte_off */
+        int avail = 4 - byte_off;
+        int remaining = len - bytes_done;
+        int chunk = (remaining < avail) ? remaining : avail;
+
+        unsigned int w;
+
+        if (byte_off != 0 || chunk < 4) {
+            /* Partial word: read existing word first */
+            unsigned int rbuf[1];
+            sys_fs_seek(fd, word_idx);
+            int rr = sys_fs_read(fd, rbuf, 1);
+            w = (rr > 0) ? rbuf[0] : 0;
+        } else {
+            w = 0;
         }
 
-        int wr = sys_fs_write(fd, wbuf, wc);
-        if (wr <= 0) break;
-        bytes_done += wr * 4;
-        if (bytes_done > len) bytes_done = len;
+        /* Merge new bytes into the word (big-endian packing) */
+        int i;
+        for (i = 0; i < chunk; i++) {
+            int shift = (24 - (byte_off + i) * 8);
+            unsigned int mask = 0xFF << shift;
+            w = (w & ~mask) | (((unsigned int)(unsigned char)buf[bytes_done + i]) << shift);
+        }
+
+        /* Write the word back */
+        unsigned int wbuf[1];
+        wbuf[0] = w;
+        sys_fs_seek(fd, word_idx);
+        int wr = sys_fs_write(fd, wbuf, 1);
+        if (wr <= 0)
+            break;
+
+        bytes_done += chunk;
     }
 
     fd_byte_pos[fd] = pos + bytes_done;
@@ -221,7 +225,65 @@ int _write(int fd, const char *buf, int len)
 
 void mkdir(const char *path, int mode)
 {
-    /* BRFS doesn't have directories — no-op */
+    sys_fs_mkdir((char *)path);
+}
+
+int _remove(const char *pathname)
+{
+    return sys_fs_delete((char *)pathname);
+}
+
+/*
+ * _rename — rename a file by copy + delete.
+ * BRFS has no native rename, so we read the old file, create the new
+ * file, write the data, then delete the old file.
+ */
+int _rename(const char *oldpath, const char *newpath)
+{
+    int old_fd;
+    int new_fd;
+    int file_words;
+    unsigned int buf[128];
+    int words_left;
+
+    /* Open old file and get its size */
+    old_fd = sys_fs_open((char *)oldpath);
+    if (old_fd < 0)
+        return -1;
+    file_words = sys_fs_filesize(old_fd);
+    if (file_words < 0) {
+        sys_fs_close(old_fd);
+        return -1;
+    }
+
+    /* Delete destination if it exists, then create it */
+    sys_fs_delete((char *)newpath);
+    sys_fs_create((char *)newpath);
+    new_fd = sys_fs_open((char *)newpath);
+    if (new_fd < 0) {
+        sys_fs_close(old_fd);
+        return -1;
+    }
+
+    /* Copy data in 128-word chunks */
+    sys_fs_seek(old_fd, 0);
+    sys_fs_seek(new_fd, 0);
+    words_left = file_words;
+    while (words_left > 0) {
+        int chunk = (words_left > 128) ? 128 : words_left;
+        int rd = sys_fs_read(old_fd, buf, chunk);
+        if (rd <= 0)
+            break;
+        sys_fs_write(new_fd, buf, rd);
+        words_left -= rd;
+    }
+
+    sys_fs_close(old_fd);
+    sys_fs_close(new_fd);
+
+    /* Delete the old file */
+    sys_fs_delete((char *)oldpath);
+    return 0;
 }
 
 /* ---- String utilities ---- */

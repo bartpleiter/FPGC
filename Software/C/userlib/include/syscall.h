@@ -35,6 +35,7 @@
 #define SYSCALL_NET_GET_MAC      30
 #define SYSCALL_UART_PRINT_CHAR  31
 #define SYSCALL_UART_PRINT_STR   32
+#define SYSCALL_FS_MKDIR         33
 
 /* Key state bitmap bit positions (matching BDOS bdos_hid.h) */
 #define KEYSTATE_W        0x0001
@@ -97,6 +98,7 @@ int  sys_fs_delete(char *path);
 int  sys_fs_create(char *path);
 int  sys_fs_filesize(int fd);
 int  sys_fs_readdir(char *path, void *entry_buf, int max_entries);
+int  sys_fs_mkdir(char *path);
 
 /* ---- Convenience wrappers: Shell ---- */
 int    sys_shell_argc(void);

@@ -41,3 +41,14 @@ int _lseek(int fd, int offset, int whence)
 {
     return -1;
 }
+
+int _remove(const char *pathname)
+{
+    return sys_fs_delete((char *)pathname);
+}
+
+int _rename(const char *oldpath, const char *newpath)
+{
+    /* BRFS has no native rename — not supported in default stubs */
+    return -1;
+}

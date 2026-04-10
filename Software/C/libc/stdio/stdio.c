@@ -665,24 +665,23 @@ sscanf(const char *str, const char *fmt, ...)
 }
 
 /*------------------------------------------------------------------------
- * remove — stub
+ * remove — delete a file
  *----------------------------------------------------------------------*/
+extern int _remove(const char *pathname);
 int
 remove(const char *pathname)
 {
-    (void)pathname;
-    return -1;
+    return _remove(pathname);
 }
 
 /*------------------------------------------------------------------------
- * rename — stub
+ * rename — rename a file
  *----------------------------------------------------------------------*/
+extern int _rename(const char *oldpath, const char *newpath);
 int
 rename(const char *oldpath, const char *newpath)
 {
-    (void)oldpath;
-    (void)newpath;
-    return -1;
+    return _rename(oldpath, newpath);
 }
 
 /*------------------------------------------------------------------------

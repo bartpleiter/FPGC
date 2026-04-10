@@ -35,6 +35,7 @@
 #define SYSCALL_NET_GET_MAC      30
 #define SYSCALL_UART_PRINT_CHAR  31
 #define SYSCALL_UART_PRINT_STR   32
+#define SYSCALL_FS_MKDIR         33
 
 /* Syscall dispatch function */
 int bdos_syscall_dispatch(int num, int a1, int a2, int a3);

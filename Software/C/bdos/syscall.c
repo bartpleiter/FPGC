@@ -157,6 +157,9 @@ int bdos_syscall_dispatch(int num, int a1, int a2, int a3)
       uart_puts((char *)a1);
       return 0;
 
+    case SYSCALL_FS_MKDIR:
+      return brfs_create_dir((char *)a1);
+
     default:
       return -1;
   }

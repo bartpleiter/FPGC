@@ -125,6 +125,11 @@ int sys_fs_readdir(char *path, void *entry_buf, int max_entries)
     return syscall(SYSCALL_FS_READDIR, (int)path, (int)entry_buf, max_entries);
 }
 
+int sys_fs_mkdir(char *path)
+{
+    return syscall(SYSCALL_FS_MKDIR, (int)path, 0, 0);
+}
+
 /* ---- Shell ---- */
 
 int sys_shell_argc(void)

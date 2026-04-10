@@ -153,6 +153,9 @@ The ASMPY assembler header places a `jump Syscall` instruction at absolute addre
 | 28 | `NET_RECV` | `a1` = buffer, `a2` = max length | bytes received (0 if none) | Pop a packet from the RX ring buffer (non-blocking, takes network ownership) |
 | 29 | `NET_PACKET_COUNT` | — | count | Number of packets in the RX ring buffer |
 | 30 | `NET_GET_MAC` | `a1` = buffer (6 words) | 0 | Copy our 6-byte MAC address to the buffer |
+| 31 | `UART_PRINT_CHAR` | `a1` = character | 0 | Print a character to UART |
+| 32 | `UART_PRINT_STR` | `a1` = string pointer | 0 | Print a null-terminated string to UART |
+| 33 | `FS_MKDIR` | `a1` = path | 0 on success | Create a directory |
 
 The syscall ABI allows a maximum of 3 arguments (`a1`–`a3` in `r5`–`r7`), with the return value in `r1`. Where more data is needed, arguments are packed (e.g., `TERM_PUT_CELL` packs tile and palette into a single word) or pointers are used. The `EXIT` syscall is special: it never returns to the caller. Instead, it resets the hardware stack to the trampoline depth and jumps directly to the BDOS return path, cleanly unwinding the entire user program state.
 

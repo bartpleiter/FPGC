@@ -111,3 +111,18 @@ _lseek(int fd, int offset, int whence)
     errno = EBADF;
     return -1;
 }
+
+int
+_remove(const char *pathname)
+{
+    (void)pathname;
+    return -1;
+}
+
+int
+_rename(const char *oldpath, const char *newpath)
+{
+    (void)oldpath;
+    (void)newpath;
+    return -1;
+}
