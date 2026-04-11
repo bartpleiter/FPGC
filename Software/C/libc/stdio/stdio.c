@@ -566,6 +566,34 @@ fclose(FILE *stream)
     return ret;
 }
 
+FILE *
+freopen(const char *path, const char *mode, FILE *stream)
+{
+    int flags = 0;
+    int fd;
+
+    if (!stream)
+        return NULL;
+
+    /* Close existing fd (unless it's a special stdin/stdout/stderr fd) */
+    if (stream->fd >= 0)
+        _close(stream->fd);
+
+    if (mode[0] == 'r')      flags = STDIO_SRD;
+    else if (mode[0] == 'w') flags = STDIO_SWR;
+    else if (mode[0] == 'a') flags = STDIO_SWR;
+    else return NULL;
+
+    fd = _open(path, flags);
+    if (fd < 0)
+        return NULL;
+
+    stream->fd = fd;
+    stream->flags = flags;
+    stream->ungetc_buf = -1;
+    return stream;
+}
+
 int
 fflush(FILE *stream)
 {

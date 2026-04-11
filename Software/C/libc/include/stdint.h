@@ -54,9 +54,9 @@ typedef unsigned long long uintmax_t;
 #define INT32_MAX  2147483647
 #define UINT32_MAX 4294967295U
 
-#define INT64_MIN  (-9223372036854775807LL - 1)
-#define INT64_MAX  9223372036854775807LL
-#define UINT64_MAX 18446744073709551615ULL
+#define INT64_MIN  (-INT64_MAX - 1LL)
+#define INT64_MAX  ((long long)(UINT64_MAX >> 1))
+#define UINT64_MAX ((unsigned long long)-1)
 
 /* Limits of minimum-width integer types */
 #define INT_LEAST8_MIN   INT8_MIN

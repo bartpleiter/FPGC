@@ -34,7 +34,7 @@ typedef struct Target Target;
 
 enum {
 	NString = 80,
-	NIns    = 1 << 20,
+	NIns    = 1 << 18,
 	NAlign  = 3,
 	NField  = 32,
 	NBit    = CHAR_BIT * sizeof(bits),
@@ -450,7 +450,9 @@ typedef enum {
 } Pool;
 
 extern Typ *typ;
-extern Ins insb[NIns], *curi;
+extern Ins *insb;
+extern Ins *curi;
+void utilinit(void);
 uint32_t hash(char *);
 void die_(char *, char *, ...) __attribute__((noreturn));
 void *emalloc(size_t);
@@ -503,6 +505,7 @@ bshas(BSet *bs, uint elt)
 
 /* parse.c */
 extern Op optab[NOp];
+void parseinit(void);
 void parse(FILE *, char *, void (char *), void (Dat *), void (Fn *));
 void printfn(Fn *, FILE *);
 void printref(Ref, Fn *, FILE *);

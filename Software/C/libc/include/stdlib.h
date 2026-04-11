@@ -13,6 +13,8 @@ int    atoi(const char *nptr);
 long   atol(const char *nptr);
 long   strtol(const char *nptr, char **endptr, int base);
 unsigned long strtoul(const char *nptr, char **endptr, int base);
+long long strtoll(const char *nptr, char **endptr, int base);
+unsigned long long strtoull(const char *nptr, char **endptr, int base);
 
 /* Integer arithmetic */
 int  abs(int j);

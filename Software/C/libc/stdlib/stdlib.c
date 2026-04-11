@@ -281,3 +281,27 @@ getenv(const char *name)
     (void)name;
     return NULL;
 }
+
+/*------------------------------------------------------------------------
+ * strtoull — convert string to unsigned long long
+ *
+ * On B32P3, long long is 32-bit (same as long), so this is a wrapper
+ * around strtoul.
+ *----------------------------------------------------------------------*/
+unsigned long long
+strtoull(const char *nptr, char **endptr, int base)
+{
+    return (unsigned long long)strtoul(nptr, endptr, base);
+}
+
+/*------------------------------------------------------------------------
+ * strtoll — convert string to long long (signed)
+ *
+ * On B32P3, long long is 32-bit (same as long), so this is a wrapper
+ * around strtol.
+ *----------------------------------------------------------------------*/
+long long
+strtoll(const char *nptr, char **endptr, int base)
+{
+    return (long long)strtol(nptr, endptr, base);
+}

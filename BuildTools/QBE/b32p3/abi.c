@@ -25,6 +25,7 @@ typedef struct Params Params;
 enum {
 	Cptr  = 1, /* replaced by a pointer */
 	Cstk  = 2, /* passed on the stack */
+	Cval  = 4, /* small struct: pass as word value */
 };
 
 struct Class {
@@ -98,11 +99,19 @@ selret(Blk *b, Fn *fn)
 	b->jmp.type = Jret0;
 
 	if (j == Jretc) {
-		/* aggregate return via pointer in fn->retr */
-		assert(rtype(fn->retr) == RTmp);
-		emit(Oblit1, 0, R, INT(typ[fn->retty].size), R);
-		emit(Oblit0, 0, R, r, fn->retr);
-		cty = 0;
+		if (typ[fn->retty].size <= 4) {
+			/* small struct: load value, return in R1 */
+			Ref tmp = newtmp("abi", Kw, fn);
+			emit(Ocopy, Kw, TMP(R1), tmp, R);
+			emit(Oload, Kw, tmp, r, R);
+			cty = 1;
+		} else {
+			/* large struct: blit to hidden pointer */
+			assert(rtype(fn->retr) == RTmp);
+			emit(Oblit1, 0, R, INT(typ[fn->retty].size), R);
+			emit(Oblit0, 0, R, r, fn->retr);
+			cty = 0;
+		}
 	} else {
 		k = j - Jretw;
 		if (k == Kl)
@@ -145,8 +154,14 @@ argsclass(Ins *i0, Ins *i1, Class *carg, int retptr)
 			break;
 		case Oparc:
 		case Oargc:
-			/* structs: pass by pointer */
-			c->class |= Cptr;
+			c->type = &typ[i->arg[0].val];
+			if (c->type->size <= 4) {
+				/* small struct (≤4 bytes): pass as word value */
+				c->class |= Cval;
+			} else {
+				/* large struct: pass by pointer */
+				c->class |= Cptr;
+			}
 			c->cls = Kw;
 			if (ngp > 0) {
 				ngp--;
@@ -201,7 +216,10 @@ selcall(Fn *fn, Ins *i0, Ins *i1, Insl **ilp)
 
 	if (!req(i1->arg[1], R)) {
 		/* aggregate return */
-		cr.class |= Cptr;
+		if (typ[i1->arg[1].val].size <= 4)
+			cr.class |= Cval;
+		else
+			cr.class |= Cptr;
 	}
 
 	cty = argsclass(i0, i1, ca, cr.class & Cptr);
@@ -236,11 +254,16 @@ selcall(Fn *fn, Ins *i0, Ins *i1, Insl **ilp)
 	if (stk)
 		emit(Osalloc, Kl, R, getcon(-stk, fn), R);
 
-	if (!req(i1->arg[1], R)) {
-		/* aggregate return: allocate space, pass pointer in R1 */
+	if (cr.class & Cptr) {
+		/* large aggregate return: allocate space, pass pointer in R4 */
 		stkblob(i1->to, &typ[i1->arg[1].val], fn, ilp);
 		emit(Ocopy, Kw, R, TMP(R1), R);
-		cty |= 0; /* 0 regs returned, pointer handles it */
+		cty |= 0;
+	} else if (cr.class & Cval) {
+		/* small aggregate return: value in R1, store to alloc'd space */
+		stkblob(i1->to, &typ[i1->arg[1].val], fn, ilp);
+		emit(Ostorew, Kw, R, TMP(R1), i1->to);
+		cty |= 1;
 	} else {
 		emit(Ocopy, i1->cls == Kl ? Kw : i1->cls,
 			i1->to, TMP(R1), R);
@@ -257,10 +280,17 @@ selcall(Fn *fn, Ins *i0, Ins *i1, Insl **ilp)
 		if (i->op == Oargv || c->class & Cstk)
 			continue;
 		if (i->op == Oargc) {
-			/* struct by pointer: blit to allocated space */
-			emit(Oblit1, 0, R, INT(c->type->size), R);
-			emit(Oblit0, 0, R, i->arg[1], i->arg[0]);
-			emit(Ocopy, Kw, TMP(c->reg), i->arg[0], R);
+			if (c->class & Cval) {
+				/* small struct: load word value from source */
+				r = newtmp("abi", Kw, fn);
+				emit(Ocopy, Kw, TMP(c->reg), r, R);
+				emit(Oload, Kw, r, i->arg[1], R);
+			} else {
+				/* large struct: blit to allocated space */
+				emit(Oblit1, 0, R, INT(c->type->size), R);
+				emit(Oblit0, 0, R, i->arg[1], i->arg[0]);
+				emit(Ocopy, Kw, TMP(c->reg), i->arg[0], R);
+			}
 		} else {
 			emit(Ocopy, c->cls, TMP(c->reg), i->arg[0], R);
 		}
@@ -276,8 +306,16 @@ selcall(Fn *fn, Ins *i0, Ins *i1, Insl **ilp)
 		if (i->op == Oargv || !(c->class & Cstk))
 			continue;
 		r1 = newtmp("abi", Kw, fn);
-		emit(Ostorew, Kw, R, i->arg[0], r1);
-		emit(Oadd, Kw, r1, r, getcon(off, fn));
+		if (c->class & Cval) {
+			/* small struct: load value, store to stack */
+			Ref val = newtmp("abi", Kw, fn);
+			emit(Ostorew, Kw, R, val, r1);
+			emit(Oadd, Kw, r1, r, getcon(off, fn));
+			emit(Oload, Kw, val, i->arg[1], R);
+		} else {
+			emit(Ostorew, Kw, R, i->arg[0], r1);
+			emit(Oadd, Kw, r1, r, getcon(off, fn));
+		}
 		off += 4;
 	}
 	if (off == (vararg ? 24 : 8)) {
@@ -303,9 +341,12 @@ selpar(Fn *fn, Ins *i0, Ins *i1)
 	curi = &insb[NIns];
 
 	if (fn->retty >= 0) {
-		cr.class |= Cptr;
-		fn->retr = newtmp("abi", Kw, fn);
-		emit(Ocopy, Kw, fn->retr, TMP(R4), R);
+		if (typ[fn->retty].size > 4) {
+			cr.class |= Cptr;
+			fn->retr = newtmp("abi", Kw, fn);
+			emit(Ocopy, Kw, fn->retr, TMP(R4), R);
+		}
+		/* small struct return: value in R1, no hidden pointer */
 	}
 
 	cty = argsclass(i0, i1, ca, cr.class & Cptr);

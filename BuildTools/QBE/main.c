@@ -114,6 +114,8 @@ main(int ac, char *av[])
 	char *f, *sep;
 	int c;
 
+	utilinit();
+	parseinit();
 	T = Deftgt;
 	outf = stdout;
 	while ((c = getopt(ac, av, "hd:o:t:")) != -1)

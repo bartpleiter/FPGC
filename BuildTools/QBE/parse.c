@@ -150,11 +150,22 @@ static struct {
 static int lnum;
 
 static Fn *curf;
-static int tmph[TMask+1];
+static int *tmph;
 static Phi **plink;
 static Blk *curb;
 static Blk **blink;
-static Blk *blkh[BMask+1];
+static Blk **blkh;
+
+void
+parseinit(void)
+{
+	tmph = calloc(TMask+1, sizeof(int));
+	if (!tmph)
+		die("out of memory (tmph)");
+	blkh = calloc(BMask+1, sizeof(Blk *));
+	if (!blkh)
+		die("out of memory (blkh)");
+}
 static int nblk;
 static int rcls;
 static uint ntyp;
@@ -927,7 +938,7 @@ parsefn(Lnk *lnk)
 		b->dlink = 0; /* was trashed by findblk() */
 	for (i=0; i<BMask+1; ++i)
 		blkh[i] = 0;
-	memset(tmph, 0, sizeof tmph);
+	memset(tmph, 0, (TMask+1) * sizeof(int));
 	typecheck(curf);
 	return curf;
 }

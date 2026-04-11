@@ -44,6 +44,7 @@ int fputs(const char *s, FILE *stream);
 int putchar(int c);
 int puts(const char *s);
 int fgetc(FILE *stream);
+#define getc(f) fgetc(f)
 int getchar(void);
 int ungetc(int c, FILE *stream);
 
@@ -53,6 +54,7 @@ size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream);
 
 /* File operations */
 FILE *fopen(const char *path, const char *mode);
+FILE *freopen(const char *path, const char *mode, FILE *stream);
 int   fclose(FILE *stream);
 int   fflush(FILE *stream);
 int   fseek(FILE *stream, long offset, int whence);

@@ -400,10 +400,15 @@ foldint(Con *res, int op, int w, Con *cl, Con *cr)
 	case Oextuh: x = (uint16_t)l.u; break;
 	case Oextsw: x = (int32_t)l.u;  break;
 	case Oextuw: x = (uint32_t)l.u; break;
+#ifdef QBE_BITS32
+	case Ostosi: case Ostoui: case Odtosi: case Odtoui:
+		x = 0; break;
+#else
 	case Ostosi: x = w ? (int64_t)cl->bits.s : (int32_t)cl->bits.s; break;
 	case Ostoui: x = w ? (uint64_t)cl->bits.s : (uint32_t)cl->bits.s; break;
 	case Odtosi: x = w ? (int64_t)cl->bits.d : (int32_t)cl->bits.d; break;
 	case Odtoui: x = w ? (uint64_t)cl->bits.d : (uint32_t)cl->bits.d; break;
+#endif
 	case Ocast:
 		x = l.u;
 		if (cl->type == CAddr) {
@@ -432,6 +437,7 @@ foldint(Con *res, int op, int w, Con *cl, Con *cr)
 			default: die("unreachable");
 			}
 		}
+#ifndef QBE_BITS32
 		else if (Ocmps <= op && op <= Ocmps1) {
 			switch (op - Ocmps) {
 			case Cfle: x = l.fs <= r.fs; break;
@@ -458,6 +464,7 @@ foldint(Con *res, int op, int w, Con *cl, Con *cr)
 			default: die("unreachable");
 			}
 		}
+#endif
 		else
 			die("unreachable");
 	}
@@ -468,6 +475,13 @@ foldint(Con *res, int op, int w, Con *cl, Con *cr)
 static void
 foldflt(Con *res, int op, int w, Con *cl, Con *cr)
 {
+#ifdef QBE_BITS32
+	/* B32P3 has NFPR=0 — no float constant folding needed */
+	(void)op; (void)w; (void)cl; (void)cr;
+	*res = (Con){.type = CBits};
+	memset(&res->bits, 0, sizeof(res->bits));
+	res->flt = w ? 2 : 1;
+#else
 	float xs, ls, rs;
 	double xd, ld, rd;
 
@@ -514,6 +528,7 @@ foldflt(Con *res, int op, int w, Con *cl, Con *cr)
 		res->bits.s = xs;
 		res->flt = 1;
 	}
+#endif /* !QBE_BITS32 */
 }
 
 static int

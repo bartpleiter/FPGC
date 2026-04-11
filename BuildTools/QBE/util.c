@@ -31,13 +31,26 @@ enum {
 };
 
 Typ *typ;
-Ins insb[NIns], *curi;
+Ins *insb;
+Ins *curi;
 
 static void *ptr[NPtr];
 static void **pool = ptr;
 static int nptr = 1;
 
-static Bucket itbl[IMask+1]; /* string interning table */
+static Bucket *itbl; /* string interning table — heap allocated */
+
+void
+utilinit(void)
+{
+	insb = calloc(NIns, sizeof(Ins));
+	if (!insb)
+		die("out of memory (insb)");
+	curi = insb;
+	itbl = calloc(IMask+1, sizeof(Bucket));
+	if (!itbl)
+		die("out of memory (itbl)");
+}
 
 uint32_t
 hash(char *s)
@@ -452,10 +465,17 @@ bsinit(BSet *bs, uint n)
 	bs->t = alloc(n * sizeof bs->t[0]);
 }
 
-MAKESURE(NBit_is_64, NBit == 64);
 inline static uint
 popcnt(bits b)
 {
+#ifdef QBE_BITS32
+	b = (b & 0x55555555) + ((b>>1) & 0x55555555);
+	b = (b & 0x33333333) + ((b>>2) & 0x33333333);
+	b = (b & 0x0f0f0f0f) + ((b>>4) & 0x0f0f0f0f);
+	b += (b>>8);
+	b += (b>>16);
+	return b & 0x3f;
+#else
 	b = (b & 0x5555555555555555) + ((b>>1) & 0x5555555555555555);
 	b = (b & 0x3333333333333333) + ((b>>2) & 0x3333333333333333);
 	b = (b & 0x0f0f0f0f0f0f0f0f) + ((b>>4) & 0x0f0f0f0f0f0f0f0f);
@@ -463,6 +483,7 @@ popcnt(bits b)
 	b += (b>>16);
 	b += (b>>32);
 	return b & 0xff;
+#endif
 }
 
 inline static int
@@ -471,10 +492,12 @@ firstbit(bits b)
 	int n;
 
 	n = 0;
+#ifndef QBE_BITS32
 	if (!(b & 0xffffffff)) {
 		n += 32;
 		b >>= 32;
 	}
+#endif
 	if (!(b & 0xffff)) {
 		n += 16;
 		b >>= 16;
