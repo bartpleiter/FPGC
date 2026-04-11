@@ -38,10 +38,17 @@ int vfprintf(FILE *stream, const char *format, va_list ap);
 int vsprintf(char *str, const char *format, va_list ap);
 int vsnprintf(char *str, size_t size, const char *format, va_list ap);
 
+/* Formatted input */
+int fscanf(FILE *stream, const char *format, ...);
+int sscanf(const char *str, const char *format, ...);
+int scanf(const char *format, ...);
+
 /* Character I/O */
 int fputc(int c, FILE *stream);
 int fputs(const char *s, FILE *stream);
 int putchar(int c);
+int putc(int c, FILE *stream);
+int fputc(int c, FILE *stream);
 int puts(const char *s);
 int fgetc(FILE *stream);
 #define getc(f) fgetc(f)
@@ -70,5 +77,8 @@ int sscanf(const char *str, const char *format, ...);
 /* Remove file */
 int remove(const char *pathname);
 int rename(const char *oldpath, const char *newpath);
+
+/* Error reporting */
+void perror(const char *s);
 
 #endif /* _STDIO_H */

@@ -147,7 +147,9 @@ emitfin(FILE *f, char *sec[3])
 	Asmbits *b;
 	char *p;
 	int lg, i;
+#ifndef QBE_BITS32
 	double d;
+#endif
 
 	if (!stash)
 		return;
@@ -164,6 +166,7 @@ emitfin(FILE *f, char *sec[3])
 				for (p=b->bits; p<&b->bits[b->size]; p+=4)
 					fprintf(f, "\n\t.int %"PRId32,
 						*(int32_t *)p);
+#ifndef QBE_BITS32
 				if (lg <= 3) {
 					if (lg == 2)
 						d = *(float *)b->bits;
@@ -171,6 +174,7 @@ emitfin(FILE *f, char *sec[3])
 						d = *(double *)b->bits;
 					fprintf(f, " /* %f */\n\n", d);
 				} else
+#endif
 					fprintf(f, "\n\n");
 			}
 		}

@@ -256,13 +256,21 @@ lex()
 	case '+':
 		return Tplus;
 	case 's':
+#ifndef QBE_BITS32
 		if (fscanf(inf, "_%f", &tokval.flts) != 1)
 			break;
 		return Tflts;
+#else
+		break; /* no float support on 32-bit target */
+#endif
 	case 'd':
+#ifndef QBE_BITS32
 		if (fscanf(inf, "_%lf", &tokval.fltd) != 1)
 			break;
 		return Tfltd;
+#else
+		break; /* no float support on 32-bit target */
+#endif
 	case '%':
 		t = Ttmp;
 		c = fgetc(inf);
@@ -427,15 +435,23 @@ parseref()
 		c.bits.i = tokval.num;
 		break;
 	case Tflts:
+#ifndef QBE_BITS32
 		c.type = CBits;
 		c.bits.s = tokval.flts;
 		c.flt = 1;
 		break;
+#else
+		err("float constants not supported on 32-bit target");
+#endif
 	case Tfltd:
+#ifndef QBE_BITS32
 		c.type = CBits;
 		c.bits.d = tokval.fltd;
 		c.flt = 2;
 		break;
+#else
+		err("float constants not supported on 32-bit target");
+#endif
 	case Tthread:
 		c.sym.type = SThr;
 		expect(Tglo);
@@ -1133,9 +1149,17 @@ parsedat(void cb(Dat *), Lnk *lnk)
 			d.isref = 0;
 			memset(&d.u, 0, sizeof d.u);
 			if (t == Tflts)
+#ifndef QBE_BITS32
 				d.u.flts = tokval.flts;
+#else
+				err("float data not supported on 32-bit target");
+#endif
 			else if (t == Tfltd)
+#ifndef QBE_BITS32
 				d.u.fltd = tokval.fltd;
+#else
+				err("float data not supported on 32-bit target");
+#endif
 			else if (t == Tint)
 				d.u.num = tokval.num;
 			else if (t == Tglo)
@@ -1246,9 +1270,17 @@ printcon(Con *c, FILE *f)
 		break;
 	case CBits:
 		if (c->flt == 1)
+#ifndef QBE_BITS32
 			fprintf(f, "s_%f", c->bits.s);
+#else
+			fprintf(f, "s_<float>");
+#endif
 		else if (c->flt == 2)
+#ifndef QBE_BITS32
 			fprintf(f, "d_%lf", c->bits.d);
+#else
+			fprintf(f, "d_<double>");
+#endif
 		else
 			fprintf(f, "%"PRIi64, c->bits.i);
 		break;

@@ -1,5 +1,15 @@
 #include "all.h"
 
+#ifdef QBE_BITS32
+/* cproc doesn't support __builtin_popcountl */
+static int popcnt32(unsigned long x) {
+	int c = 0;
+	for (; x; x &= x - 1) c++;
+	return c;
+}
+#define __builtin_popcountl(x) popcnt32(x)
+#endif
+
 #ifdef TEST_PMOV
 	#undef assert
 	#define assert(x) assert_test(#x, x)
@@ -92,7 +102,7 @@ radd(RMap *m, int t, int r)
 		&& "invalid register");
 	assert(!bshas(m->b, t) && "temporary has mapping");
 	assert(!bshas(m->b, r) && "register already allocated");
-	assert(m->n <= T.ngpr+T.nfpr+__builtin_popcountl(T.rglob) && "too many mappings");
+	assert(m->n <= T.ngpr+T.nfpr+(int)__builtin_popcountl(T.rglob) && "too many mappings");
 	bsset(m->b, t);
 	bsset(m->b, r);
 	m->t[m->n] = t;

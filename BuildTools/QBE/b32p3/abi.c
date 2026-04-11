@@ -260,9 +260,14 @@ selcall(Fn *fn, Ins *i0, Ins *i1, Insl **ilp)
 		emit(Ocopy, Kw, R, TMP(R1), R);
 		cty |= 0;
 	} else if (cr.class & Cval) {
-		/* small aggregate return: value in R1, store to alloc'd space */
+		/* small aggregate return: value in R1, store to alloc'd space.
+		 * Must use a regcpy (Ocopy from R1) so the spiller's dopm
+		 * detects the preceding call and handles register effects. */
+		Ref tmp;
 		stkblob(i1->to, &typ[i1->arg[1].val], fn, ilp);
-		emit(Ostorew, Kw, R, TMP(R1), i1->to);
+		tmp = newtmp("abi", Kw, fn);
+		emit(Ostorew, Kw, R, tmp, i1->to);
+		emit(Ocopy, Kw, tmp, TMP(R1), R);
 		cty |= 1;
 	} else {
 		emit(Ocopy, i1->cls == Kl ? Kw : i1->cls,
@@ -327,8 +332,8 @@ selcall(Fn *fn, Ins *i0, Ins *i1, Insl **ilp)
 	}
 }
 
-static Params
-selpar(Fn *fn, Ins *i0, Ins *i1)
+static void
+selpar(Fn *fn, Ins *i0, Ins *i1, Params *outp)
 {
 	Class *ca, *c, cr;
 	Insl *il;
@@ -358,8 +363,6 @@ selpar(Fn *fn, Ins *i0, Ins *i1)
 			stkblob(i->to, c->type, fn, &il);
 		}
 	}
-	for (; il; il=il->link)
-		emiti(il->i);
 
 	/* incoming frame layout:
 	 * slot -1, -2: saved fp, saved ra (pushed by callee prologue)
@@ -375,10 +378,13 @@ selpar(Fn *fn, Ins *i0, Ins *i1)
 				s++;
 				continue;
 			}
-			/* store reg to stack blob */
+			/* store reg value to stack blob via temp
+			 * (physical regs can't be storew args directly) */
+			Ref val = newtmp("abi", Kw, fn);
 			r = newtmp("abi", Kw, fn);
-			emit(Ostorew, Kw, R, TMP(c->reg), r);
+			emit(Ostorew, Kw, R, val, r);
 			emit(Ocopy, Kw, r, i->to, R);
+			emit(Ocopy, Kw, val, TMP(c->reg), R);
 		} else if (c->class & Cstk) {
 			emit(Oload, c->cls == Kl ? Kw : c->cls,
 				i->to, SLOT(-s), R);
@@ -389,10 +395,13 @@ selpar(Fn *fn, Ins *i0, Ins *i1)
 		}
 	}
 
-	return (Params){
-		.stk = s,
-		.ngp = (cty >> 4) & 15,
-	};
+	/* emit allocs AFTER param copies (emit builds backward,
+	 * so allocs will appear first in execution order) */
+	for (; il; il=il->link)
+		emiti(il->i);
+
+	outp->stk = s;
+	outp->ngp = (cty >> 4) & 15;
 }
 
 static void
@@ -420,29 +429,73 @@ selvastart(Fn *fn, Params p, Ref ap)
 	emit(Oaddr, Kw, rsave, SLOT(-s), R);
 }
 
-void
-b32p3_abi(Fn *fn)
+static void
+lowerblk(Fn *fn, Blk *b, Insl **ilp, Params *p)
+{
+	Ins *i, *i0;
+
+	curi = &insb[NIns];
+	selret(b, fn);
+	for (i=&b->ins[b->nins]; i!=b->ins;)
+		switch ((--i)->op) {
+		default:
+			emiti(*i);
+			break;
+		case Ocall:
+			for (i0=i; i0>b->ins; i0--)
+				if (!isarg((i0-1)->op))
+					break;
+			selcall(fn, i0, i, ilp);
+			i = i0;
+			break;
+		case Ovastart:
+			selvastart(fn, *p, i->arg[0]);
+			break;
+		case Ovaarg:
+			selvaarg(fn, i);
+			break;
+		case Oarg:
+		case Oargc:
+			die("unreachable");
+		}
+	if (b == fn->start)
+		for (; *ilp; *ilp=(*ilp)->link)
+			emiti((*ilp)->i);
+	b->nins = &insb[NIns] - curi;
+	idup(&b->ins, curi, b->nins);
+}
+
+static void
+lowerparams(Fn *fn, Params *outp)
 {
 	Blk *b;
 	Ins *i, *i0, *ip;
-	Insl *il;
 	int n;
-	Params p;
 
-	for (b=fn->start; b; b=b->link)
-		b->visit = 0;
-
-	/* lower parameters */
-	for (b=fn->start, i=b->ins; i<&b->ins[b->nins]; i++)
+	b = fn->start;
+	for (i=b->ins; i<&b->ins[b->nins]; i++)
 		if (!ispar(i->op))
 			break;
-	p = selpar(fn, b->ins, i);
+	selpar(fn, b->ins, i, outp);
 	n = b->nins - (i - b->ins) + (&insb[NIns] - curi);
 	i0 = alloc(n * sizeof(Ins));
 	ip = icpy(ip = i0, curi, &insb[NIns] - curi);
 	ip = icpy(ip, i, &b->ins[b->nins] - i);
 	b->nins = n;
 	b->ins = i0;
+}
+
+void
+b32p3_abi(Fn *fn)
+{
+	Blk *b;
+	Insl *il;
+	Params p;
+
+	for (b=fn->start; b; b=b->link)
+		b->visit = 0;
+
+	lowerparams(fn, &p);
 
 	/* lower calls, returns, and vararg instructions */
 	il = 0;
@@ -452,35 +505,7 @@ b32p3_abi(Fn *fn)
 			b = fn->start;
 		if (b->visit)
 			continue;
-		curi = &insb[NIns];
-		selret(b, fn);
-		for (i=&b->ins[b->nins]; i!=b->ins;)
-			switch ((--i)->op) {
-			default:
-				emiti(*i);
-				break;
-			case Ocall:
-				for (i0=i; i0>b->ins; i0--)
-					if (!isarg((i0-1)->op))
-						break;
-				selcall(fn, i0, i, &il);
-				i = i0;
-				break;
-			case Ovastart:
-				selvastart(fn, p, i->arg[0]);
-				break;
-			case Ovaarg:
-				selvaarg(fn, i);
-				break;
-			case Oarg:
-			case Oargc:
-				die("unreachable");
-			}
-		if (b == fn->start)
-			for (; il; il=il->link)
-				emiti(il->i);
-		b->nins = &insb[NIns] - curi;
-		idup(&b->ins, curi, b->nins);
+		lowerblk(fn, b, &il, &p);
 	} while (b != fn->start);
 
 	if (debug['A']) {
