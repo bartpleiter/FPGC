@@ -1,26 +1,45 @@
 # FPGC
 
-FPGC (FPGA Computer) is my gigantic personal FPGA hobby project where I build an entire computer (CPU, GPU, I/O, etc) around an FPGA from scratch, meaning I do not use any existing design for the main components. This project starts at the lowest level, where you define what happens at every clock cycle of the system, up to high level software where you interact with the operating system without having to think about the lower levels anymore. Every layer is designed from scratch: Hardware design, Assembly languange, Bootloader, File System, OS, Network Protocol, and more. Furthermore, this project also covers other parts needed to create a fully functional physical computer, such as PCB design and programming tools. As the goal is to learn about all the different parts of a computer, even things as the filesystem are designed and built from scratch. The FPGC repo is the final iteration of the project, the successor of FPGC6.
+![FPGC Logo](Docs/docs/images/logo_big_alpha.png)
 
-## Key features of the project
+## What is FPGC?
 
-- FPGA Logic Design: A custom CPU, GPU, Memory Unit and I/O, all written in Verilog, including simulation with video frame capture.
-- Hardware: PCB design with I/O and memory, and a 3D-printed case and small monitor for a complete, physical computer.
-- Software: Bootloaders, assembler, C compiler (only part that is not built from scratch but modified instead), custom filesystem, network protocol and operating system designed specifically for FPGC, with the compilers being able to run on the FPGC itself.
-- Programming Tools: A full toolchain with development tools to program and interact with the system, via UART or network.
+FPGC (FPGA Computer) is a personal hobby project where I build an entire computer around an FPGA from scratch. None of the main components (CPU, GPU, Memory controllers, PCB, Assembler, OS, FS, Network protocol) use existing designs. Only the C compiler toolchain is modified from an existing codebase (QBE + cproc, libc). The project goes from clock-by-clock hardware logic all the way up to running machine learning algorithms as user programs on a fully custom software stack.
 
-## End goal of the project
+This project is the successor of the FPGC6 project. Building abstraction layers only works if the foundation is solid, and it took a few restarts to get here.
 
-This project is considered finished when:
+**Why?**: It is the only way to truely understand how computers work, and it is fun to take "full-stack developer" to the extreme.
 
-- The FPGC can be used as a fully portable standalone PC that can be used to write, compile and run software without the need for an external PC or programmer.
-- The FPGC can run its own web server.
-- The FPGC can run DOOM, either the original or a simplified but similar version, compiled and assembled into machine code for my own instruction set architecture, to use system calls of a self designed operating system, running from a self designed file system.
-    - Preferably with a playable framerate, and if not then the CPU of the FPGC should run the code in <2 cycles per instruction, which should only be possible with a proper CPU pipeline design and caching.
-- The project is properly documented
+**How fast is it?**: About as fast as an Intel 486 CPU from the early 90s. Modern CPUs are too complex to build from scratch for a single person's hobby project. The 486 already is quite complex with its pipelining, caching, etc, so creating something that is in the same ballpark performance-wise is already quite the achievement!
 
-## Third-Party Components
+## What does it cover?
 
-### B32CC
+- **FPGA logic design**: Custom CPU, GPU, Memory Unit, and I/O, all in Verilog
+- **PCB design**: A fully custom board with FPGA, SDRAM, SRAM (as VRAM), SPI Flash, Ethernet, USB, HDMI, and more
+- **Software**: Bootloaders, Assembler, C compiler toolchain, Filesystem, Operating System, Networking Protocol, Set of user programs
+- **Toolchain**: Development tools for programming and interacting with the system via UART and Ethernet, lots of testing frameworks as well
+- **Physical design**: 3D-printed case and monitor for a standalone desktop computer
 
-Located in `BuildTools/B32CC/`, this is a modified version of SmallerC by Alexey Frunze to compile C code to B32P3 assembly.
+## Project goals
+
+### Main goals
+
+- [ ] Use the FPGC as a fully portable standalone PC that can write, compile, and run software without an external computer [Note: this was achieved with the legacy B32CC compiler, but the modern toolchain is not yet self-hosted, so this is still a goal]
+- [x] Run DOOM at a playable framerate, which requires the CPU to be efficient and fast enough, and a solid software stack as it is a relatively complex program [Achieved with 20-30 FPS in low-detail mode without border]
+- [x] Run a demo in a cluster setup of 5 FPGCs networked together, with one acting as a server and the other four rendering different parts of the screen in parallel [Achieved with a distributed mandelbrot renderer, and distributed Tetris genetic algorithm]
+- [x] Properly document the entire project [Achieved by this docs site, which I try to keep up to date]
+
+### Sub goals
+
+- [x] Custom RAM-optimized filesystem (BRFS)
+- [x] Fully custom PCB without a development board
+- [x] Custom OS with system calls and a proper architecture for user programs (position independent code with a relocation table, separate user memory slots, etc)
+- [x] Mini server rack setup with 5 FPGCs networked together cleanly
+- [ ] 3D-printed case and monitor for a single standalone physical computer
+- [x] Self-hosted assembler and C compiler running on the FPGC
+- [x] Ethernet communication via custom layer 2 protocol
+- [ ] SD card mass storage
+- [x] Modern C compiler setup with linker support in toolchain, and a proper standard library (libc) to make porting existing C code easier
+- [x] Modify the CPU design and software stack to become byte-addressable instead of the word-addressable design I have been using since the start of FPGC
+- [x] Efficient CPU design to allow 100 MHz execution
+- [ ] DMA support for faster data transfers
