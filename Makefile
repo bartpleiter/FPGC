@@ -2,6 +2,8 @@
 # FPGC Project Makefile
 # =============================================================================
 
+SHELL := /bin/bash
+
 # -----------------------------------------------------------------------------
 # B32CC (C Compiler) Variables
 # -----------------------------------------------------------------------------
@@ -35,9 +37,10 @@ CPROC_OUTPUT = $(CPROC_DIR)/output/cproc-qbe
 .PHONY: test-cpu test-cpu-single debug-cpu quartus-timing
 .PHONY: test-c test-c-single
 .PHONY: compile-asm compile-bootloader compile-c-baremetal compile-bdos
-.PHONY: compile-userbdos compile-userbdos-all
+.PHONY: compile-userbdos compile-userbdos-all compile-doom
 .PHONY: compile-userbdos-b32cc compile-userbdos-all-b32cc
 .PHONY: run-uart uart-monitor run-asm-uart run-c-baremetal-uart run-bdos
+.PHONY: run-userbdos run-doom
 .PHONY: flash-c-baremetal-spi flash-bdos
 .PHONY: b32cc test-b32cc test-b32cc-single debug-b32cc clean-b32cc
 .PHONY: qbe clean-qbe
@@ -461,7 +464,8 @@ DOOM_SOURCES = \
 
 DOOM_FLAGS = --libc -I Software/C/userlib/include -I $(DOOM_DIR) -h -i
 
-.PHONY: compile-doom
+# NOTE: Doom uses a subset of USERLIB_SOURCES (omits io_stubs, fixedmath, fixed64,
+# plot, fnp, and the standard stdio.c since it provides its own via DOOM_SOURCES).
 compile-doom: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	@mkdir -p Software/ASM/Output
 	./Scripts/BCC/compile_modern_c.sh \
@@ -580,7 +584,7 @@ run-uart:
 	./Scripts/Programmer/UART/run_uart.sh
 
 uart-monitor:
-	python3 Scripts/Programmer/UART/uart_monitor.py -p $(uart_port)
+	.venv/bin/python3 Scripts/Programmer/UART/uart_monitor.py -p $(uart_port)
 
 run-asm-uart: compile-asm run-uart
 
@@ -680,18 +684,21 @@ fnp-run:
 	@.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py --mac $(FNP_MAC) key "$(cmd)"
 	@.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py --mac $(FNP_MAC) keycode 0x0A
 
-# Doom: compile, upload, and run in one step
-.PHONY: run-doom
+# Compile, upload, and run a userBDOS program in one step
+run-userbdos: compile-userbdos
+	@echo "Uploading $(file) to /bin/$(file) on device $(dev) ($(FNP_MAC))"
+	@.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py --mac $(FNP_MAC) upload Software/ASM/Output/code.bin /bin/$(file)
+	@echo "Launching $(file)..."
+	@.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py --mac $(FNP_MAC) key "$(file)"
+	@.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py --mac $(FNP_MAC) keycode 0x0A
+
+# Compile, upload, and run Doom in one step
 run-doom: compile-doom
 	@echo "Uploading doom binary to /bin/doom on device $(dev) ($(FNP_MAC))"
 	@.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py --mac $(FNP_MAC) upload Software/ASM/Output/code.bin /bin/doom
 	@echo "Launching doom..."
 	@.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py --mac $(FNP_MAC) key "doom"
 	@.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py --mac $(FNP_MAC) keycode 0x0A
-
-# =============================================================================
-# Cleanup
-# =============================================================================
 
 # UART port and debug capture duration (seconds)
 uart_port ?= /dev/ttyUSB0
@@ -704,6 +711,10 @@ fnp-debug-userbdos: compile-userbdos
 		--mac $(FNP_MAC) --cmd $(file) \
 		--bin Software/ASM/Output/code.bin --dest /bin/$(file) \
 		--duration $(duration) --port $(uart_port)
+
+# =============================================================================
+# Cleanup
+# =============================================================================
 
 clean:
 	@echo "Cleaning all build artifacts and environments..."
@@ -733,7 +744,8 @@ help:
 	@echo "FPGC Project Makefile"
 	@echo "==================================================================="
 	@echo ""
-	@echo "--- Python Development Environment ---"
+	@echo "--- Setup ---"
+	@echo "  all                 - Build all tools (venv, compilers, assembler, run checks)"
 	@echo "  venv                - Create or sync virtual environment"
 	@echo ""
 	@echo "--- ASMPY Assembler ---"
@@ -801,6 +813,7 @@ help:
 	@echo "  compile-userbdos    - Compile a single userBDOS program"
 	@echo "                        Usage: make compile-userbdos file=<filename>"
 	@echo "  compile-userbdos-all - Compile ALL userBDOS programs"
+	@echo "  compile-doom        - Compile Doom"
 	@echo ""
 	@echo "  B32CC (legacy — userBDOS only, until self-hosting):"
 	@echo "  compile-userbdos-b32cc    - Compile userBDOS program with B32CC"
@@ -808,12 +821,17 @@ help:
 	@echo ""
 	@echo "--- Hardware Programming ---"
 	@echo "  run-uart              - Run compiled binary via UART"
+	@echo "  uart-monitor          - Launch UART monitor"
+	@echo "                          Usage: make uart-monitor [uart_port=/dev/ttyUSB0]"
 	@echo "  run-asm-uart          - Compile and run ASM binary via UART"
 	@echo "  run-c-baremetal-uart  - Compile and run C binary via UART"
 	@echo "  run-bdos              - Compile and run BDOS via UART"
 	@echo "  flash-c-baremetal-spi - Flash C binary to SPI flash"
 	@echo "                          Usage: make flash-c-baremetal-spi file=<filename>"
 	@echo "  flash-bdos            - Flash BDOS to SPI flash"
+	@echo ""
+	@echo "--- Asset Conversion ---"
+	@echo "  convert-w3d-textures  - Convert W3D textures to binary"
 	@echo ""
 	@echo "--- FNP (Network Programming) ---"
 	@echo "  All FNP commands accept dev=1-5 to select target device (default: 1)"
@@ -831,6 +849,10 @@ help:
 	@echo "                          Usage: make fnp-sync-files [dev=N]"
 	@echo "  fnp-run               - Run a shell command on an FPGC device"
 	@echo "                          Usage: make fnp-run cmd=<command> [dev=N]"
+	@echo "  run-userbdos          - Compile, upload, and run a userBDOS program on FPGC"
+	@echo "                          Usage: make run-userbdos file=<name> [dev=N]"
+	@echo "  run-doom              - Compile, upload, and run Doom on FPGC"
+	@echo "                          Usage: make run-doom [dev=N]"
 	@echo "  fnp-debug-userbdos    - Compile, upload, run and capture UART debug output"
 	@echo "                          Usage: make fnp-debug-userbdos file=<name> [dev=N] [duration=3] [uart_port=/dev/ttyUSB0]"
 	@echo ""
