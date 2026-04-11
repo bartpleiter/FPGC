@@ -34,7 +34,7 @@ Contains the BDOS binary (code + data). Three stacks grow downward from the top:
 
 ### User Program Region (0x2000000)
 
-Divided into 8 slots of 2 MiB each. Programs (when compiled using the B32CC `-user-bdos` flag and assembled with ASMPY `-h -i`) are loaded into slots and execute with their stack at the top of their allocated slot. This should allow up to 8 concurrent user programs, although that would require a scheduler to manage them, which has yet to be implemented. Programs with lots of data should use the heap for dynamic allocation, and load data from BRFS into the heap at runtime.
+Divided into 8 slots of 2 MiB each. Programs are compiled with the modern C toolchain and assembled with ASMPY using `-h -i` flags, which produces a relocatable binary with a relocation table. BDOS loads the binary into a slot and applies relocations at load time. The stack is placed at the top of the allocated slot. This allows up to 8 concurrent user programs, although that would require a scheduler to manage them, which has yet to be implemented. Programs with lots of data should use the heap for dynamic allocation, and load data from BRFS into the heap at runtime.
 
 | Slot | Address Range | Stack Top |
 |------|---------------|-----------|
@@ -87,12 +87,13 @@ Before execution, the shell stores `argc` and `argv` in kernel globals so the pr
 1. **Path resolution**: If the name has no `/`, BDOS looks in `/bin/` automatically, then falls back to cwd
 2. **Slot allocation**: A free slot is allocated via `bdos_slot_alloc()`
 3. **Read binary**: The file is read from BRFS in 256-word chunks into the slot's memory region
-4. **Cache flush**: The `ccache` instruction clears L1I/L1D caches to ensure the CPU fetches fresh instructions
-5. **Register setup**:
+4. **Apply relocations**: BDOS reads `program_size` from header word 2. If the file is larger than `program_size`, a relocation table is present after the program data. The loader reads the table and patches every absolute address reference by adding the slot's base address. This handles data pointers (`.int label`), `load`+`loadhi` address-loading instruction pairs, and header `jump` instructions. See [Assembler — Relocatable Code](Assembler.md#relocatable-code) for the binary layout and entry encoding.
+5. **Cache flush**: The `ccache` instruction clears L1I/L1D caches to ensure the CPU fetches fresh instructions
+6. **Register setup**:
       - `r13` (stack pointer) = top of slot
       - `r15` (return address) = BDOS return trampoline
-6. **Jump**: Execution transfers to offset 0 of the slot, which contains the ASMPY header `jump Main`
-7. **Return**: When the program's `main()` returns (via `r15`), BDOS restores its own registers, frees the slot (including heap cleanup), and prints the exit code
+7. **Jump**: Execution transfers to offset 0 of the slot, which contains the header `jump Main` (now relocated to the correct absolute address)
+8. **Return**: When the program's `main()` returns (via `r15`), BDOS restores its own registers, frees the slot (including heap cleanup), and prints the exit code
 
 ## Heap
 
@@ -163,13 +164,10 @@ The syscall ABI allows a maximum of 3 arguments (`a1`–`a3` in `r5`–`r7`), wi
 
 ### User-Side Library
 
-User programs include the user syscall library. When compiled with B32CC, this is done via the user library orchestrator with feature flags:
+User programs link against the user syscall library (`Software/C/userlib/`), which provides convenience wrappers around the raw syscall interface. Example:
 
 ```c
-#define USER_SYSCALL
-#define USER_FNP       // Optional: FNP frame build/parse/reliable-send helpers
-#define USER_FIXED64   // Optional: Q32.32 fixed-point math via FP64 coprocessor
-#include "libs/user/user.h"
+#include <syscall.h>
 
 int main()
 {

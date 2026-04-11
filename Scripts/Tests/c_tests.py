@@ -175,9 +175,7 @@ class CTestRunner:
         raise ResultParsingError("No UART transmission found in simulation output")
 
     def _run_simulation(self) -> str:
-        testbench = (
-            self.testbench_path if self.temp_dir else self.config.TESTBENCH_PATH
-        )
+        testbench = self.testbench_path if self.temp_dir else self.config.TESTBENCH_PATH
 
         compile_cmd = f"iverilog -o {self.config.VERILOG_OUTPUT_PATH} {testbench}"
         exit_code, output = self._run_command(compile_cmd, "Compiling testbench")
@@ -229,9 +227,7 @@ class CTestRunner:
             compile_cmd, f"Compiling {c_path} (modern C)"
         )
         if exit_code != 0:
-            raise CompilerError(
-                f"Modern C compilation failed for {c_path}: {output}"
-            )
+            raise CompilerError(f"Modern C compilation failed for {c_path}: {output}")
 
     def _prepare_simulation_environment(self, list_path: str) -> None:
         """Prepare simulation: ROM bootloader + SDRAM from compiled test."""
@@ -466,9 +462,7 @@ class ParallelCTestRunner:
         tests = runner.get_test_files()
         total = len(tests)
 
-        test_args = [
-            (test, temp_base_dir, i) for i, test in enumerate(tests)
-        ]
+        test_args = [(test, temp_base_dir, i) for i, test in enumerate(tests)]
 
         passed_tests: list[str] = []
         failed_tests: list[tuple[str, str]] = []

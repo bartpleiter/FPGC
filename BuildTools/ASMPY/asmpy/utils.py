@@ -39,7 +39,7 @@ def parse_args() -> argparse.Namespace:
         "-i",
         "--independent",
         action="store_true",
-        help="Generate position independent output: ignore --offset, use relative jumps, and rewrite addr2reg as PC-relative code",
+        help="Generate relocatable output with relocation table: assemble at base 0, append relocation entries for load-time patching",
     )
     parser.add_argument(
         "-s",

@@ -346,7 +346,7 @@ def test_assembler_label_in_data_section():
 
 
 def test_assembler_independent_header_does_not_require_int_label():
-    """Test that independent+header mode replaces jump Int with nop."""
+    """Test that independent+header mode replaces jump Int with nop and adds relocation table."""
     source_lines = [
         SourceLine(line=".code", source_line_number=1, source_file_name="test.asm"),
         SourceLine(line="Main:", source_line_number=2, source_file_name="test.asm"),
@@ -364,9 +364,19 @@ def test_assembler_independent_header_does_not_require_int_label():
             lines = [line.strip() for line in f.readlines()]
 
         # header jump Main + header nop + header line count + halt
-        assert len(lines) == 4
+        # + reloc_count(1) + reloc_entry (header jump = Type 2, offset 0)
+        assert len(lines) == 6
         # second instruction is NOP
         assert lines[1].startswith("00000000000000000000000000000000")
+        # program_size in header word 2 should be 4 (the program without reloc table)
+        program_size = int(lines[2].split()[0], 2)
+        assert program_size == 4
+        # reloc_count = 1
+        reloc_count = int(lines[4].split()[0], 2)
+        assert reloc_count == 1
+        # reloc entry: byte_offset=0, type=2 → packed = (0 << 8) | 2 = 2
+        reloc_entry = int(lines[5].split()[0], 2)
+        assert reloc_entry == 2
     finally:
         os.unlink(temp_file.name)
 
@@ -395,8 +405,8 @@ def test_assembler_independent_jump_label_becomes_jumpo():
         os.unlink(temp_file.name)
 
 
-def test_assembler_independent_addr2reg_becomes_savpc_add():
-    """Test that addr2reg label rewrites to savpc+add sequence in independent mode."""
+def test_assembler_independent_addr2reg_becomes_load_loadhi_with_reloc():
+    """Test that addr2reg label expands to load+loadhi with relocation entry in independent mode."""
     source_lines = [
         SourceLine(line=".code", source_line_number=1, source_file_name="test.asm"),
         SourceLine(line="Main:", source_line_number=2, source_file_name="test.asm"),
@@ -418,9 +428,16 @@ def test_assembler_independent_addr2reg_becomes_savpc_add():
         with open(temp_file.name, "r") as f:
             lines = [line.strip() for line in f.readlines()]
 
-        # savpc + add + halt + halt
-        assert len(lines) == 4
-        assert lines[0].startswith("0101")
-        assert lines[1].startswith("0001")
+        # load + loadhi + halt + halt + reloc_count(1) + reloc_entry
+        assert len(lines) == 6
+        # load (ARITHC=0001 + ArithOpcode.LOAD=1100) and loadhi (ARITHC=0001 + ArithOpcode.LOADHI=1101)
+        assert lines[0].split()[0].startswith("00011100")
+        assert lines[1].split()[0].startswith("00011101")
+        # reloc_count = 1
+        reloc_count = int(lines[4].split()[0], 2)
+        assert reloc_count == 1
+        # reloc entry: byte_offset=0, type=1 → packed = (0 << 8) | 1 = 1
+        reloc_entry = int(lines[5].split()[0], 2)
+        assert reloc_entry == 1
     finally:
         os.unlink(temp_file.name)

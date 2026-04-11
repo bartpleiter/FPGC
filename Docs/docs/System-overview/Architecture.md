@@ -53,7 +53,7 @@ On power-up, the CPU starts executing from ROM. The ROM bootloader displays a lo
 
 ### OS (BDOS)
 
-BDOS is the operating system, loaded from SPI Flash. It provides a shell, filesystem access (BRFS), hardware drivers, and syscalls for user programs. User programs are loaded into dedicated memory slots and run position-independent code. See [OS](../Software/OS.md).
+BDOS is the operating system, loaded from SPI Flash. It provides a shell, filesystem access (BRFS), hardware drivers, and syscalls for user programs. User programs are loaded into dedicated memory slots and relocated at load time via a relocation table. See [OS](../Software/OS.md).
 
 ### Toolchain
 

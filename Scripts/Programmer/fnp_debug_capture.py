@@ -58,7 +58,9 @@ def main() -> int:
     parser.add_argument("--mac", required=True, help="Target FPGC MAC address")
     parser.add_argument("--cmd", required=True, help="Program name to run on FPGC")
     parser.add_argument("--bin", required=True, help="Path to compiled binary")
-    parser.add_argument("--dest", required=True, help="FPGC destination path (e.g. /bin/hello)")
+    parser.add_argument(
+        "--dest", required=True, help="FPGC destination path (e.g. /bin/hello)"
+    )
     parser.add_argument(
         "--duration",
         type=float,
@@ -66,7 +68,9 @@ def main() -> int:
         help="Seconds to capture UART output (default: 5)",
     )
     parser.add_argument(
-        "--port", default="/dev/ttyUSB0", help="UART serial port (default: /dev/ttyUSB0)"
+        "--port",
+        default="/dev/ttyUSB0",
+        help="UART serial port (default: /dev/ttyUSB0)",
     )
     parser.add_argument(
         "--baudrate", type=int, default=1000000, help="UART baudrate (default: 1000000)"

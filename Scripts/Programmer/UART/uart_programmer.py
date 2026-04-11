@@ -123,7 +123,9 @@ class UARTProgrammer:
         if word_list and len(word_list[-1]) < word_size:
             word_list[-1].extend(bytes(word_size - len(word_list[-1])))
 
-        logging.info(f"Parsed {len(word_list) * 4} bytes ({len(word_list)} words) from data")
+        logging.info(
+            f"Parsed {len(word_list) * 4} bytes ({len(word_list)} words) from data"
+        )
         return word_list
 
     def send_program(self, file_path: Path, test_mode: bool = False) -> int:

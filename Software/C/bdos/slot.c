@@ -262,6 +262,74 @@ int bdos_exec_program(char *resolved_path)
 
   brfs_close(fd);
 
+  /* Apply load-time relocations if present */
+  {
+    unsigned int *slot_base;
+    unsigned int program_size;
+
+    slot_base = (unsigned int *)bdos_slot_entry_addr(slot);
+    program_size = slot_base[2]; /* header word 2: program size in words */
+
+    if ((unsigned int)file_size > program_size)
+    {
+      /* Relocation table present after program data */
+      unsigned int delta;
+      unsigned int reloc_count;
+      unsigned int i;
+
+      delta = (unsigned int)slot_base; /* programs assembled with base 0 */
+      reloc_count = slot_base[program_size];
+
+      for (i = 0; i < reloc_count; i++)
+      {
+        unsigned int entry;
+        unsigned int byte_offset;
+        unsigned int rtype;
+        unsigned int word_idx;
+
+        entry = slot_base[program_size + 1 + i];
+        byte_offset = entry >> 8;
+        rtype = entry & 0xFF;
+        word_idx = byte_offset / 4;
+
+        if (rtype == 0)
+        {
+          /* Type 0: data word — add delta to full 32-bit value */
+          slot_base[word_idx] = slot_base[word_idx] + delta;
+        }
+        else if (rtype == 1)
+        {
+          /* Type 1: load/loadhi pair */
+          unsigned int load_instr;
+          unsigned int loadhi_instr;
+          unsigned int low16;
+          unsigned int high16;
+          unsigned int addr;
+
+          load_instr = slot_base[word_idx];
+          loadhi_instr = slot_base[word_idx + 1];
+          low16 = (load_instr >> 8) & 0xFFFF;
+          high16 = (loadhi_instr >> 8) & 0xFFFF;
+          addr = (high16 << 16) | low16;
+          addr = addr + delta;
+          slot_base[word_idx] = (load_instr & 0xFF0000FFu) | ((addr & 0xFFFF) << 8);
+          slot_base[word_idx + 1] = (loadhi_instr & 0xFF0000FFu) | (((addr >> 16) & 0xFFFF) << 8);
+        }
+        else if (rtype == 2)
+        {
+          /* Type 2: jump instruction — 27-bit byte address in bits [27:1] */
+          unsigned int instr;
+          unsigned int addr27;
+
+          instr = slot_base[word_idx];
+          addr27 = (instr >> 1) & 0x7FFFFFFu;
+          addr27 = addr27 + delta;
+          slot_base[word_idx] = (instr & 0xF0000001u) | ((addr27 & 0x7FFFFFFu) << 1);
+        }
+      }
+    }
+  }
+
   bdos_ccache();
 
   /* Set up globals for the assembly trampoline */

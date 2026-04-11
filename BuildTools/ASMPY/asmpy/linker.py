@@ -98,7 +98,11 @@ def _collect_symbols(
         if stripped.endswith(":") and not stripped.startswith((".", ";", "/*")):
             label_name = stripped[:-1].strip()
             local_defs.add(label_name)
-        elif stripped.endswith(":") and stripped.startswith(".") and not stripped.startswith((".data", ".bss", ".text", ".code")):
+        elif (
+            stripped.endswith(":")
+            and stripped.startswith(".")
+            and not stripped.startswith((".data", ".bss", ".text", ".code"))
+        ):
             label_name = stripped[:-1].strip()
             local_defs.add(label_name)
 
@@ -184,8 +188,9 @@ def link_asm_files(
                 if stripped.startswith((".globl ", ".global ")):
                     renamed_lines.append(line)
                     continue
-                renamed_lines.append(pattern.sub(
-                    lambda m: f"__{prefix}__{m.group(1)}", line))
+                renamed_lines.append(
+                    pattern.sub(lambda m: f"__{prefix}__{m.group(1)}", line)
+                )
             file_data[idx] = (file_path, renamed_lines, prefix)
 
     # Phase 5: concatenate and assemble
@@ -235,27 +240,32 @@ def main():
         help="Output binary file path",
     )
     parser.add_argument(
-        "-o", "--offset",
+        "-o",
+        "--offset",
         default="0",
         help="Base address offset (default: 0)",
     )
     parser.add_argument(
-        "-H", "--header",
+        "-H",
+        "--header",
         action="store_true",
         help="Add program header (jump Main, jump Int, filesize)",
     )
     parser.add_argument(
-        "-i", "--independent",
+        "-i",
+        "--independent",
         action="store_true",
-        help="Generate position-independent code",
+        help="Generate relocatable code with relocation table",
     )
     parser.add_argument(
-        "-s", "--syscall",
+        "-s",
+        "--syscall",
         action="store_true",
         help="Add syscall vector to header",
     )
     parser.add_argument(
-        "-l", "--log-level",
+        "-l",
+        "--log-level",
         default="info",
         choices=["debug", "info", "warning", "error", "critical"],
         help="Log level (default: info)",

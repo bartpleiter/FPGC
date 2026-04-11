@@ -88,7 +88,7 @@ file2.c → cproc → QBE → file2.asm ─┼→ linker → combined.asm → AS
 crt0.asm ───────────────────────────┘
 ```
 
-Compile script: `Scripts/BCC/compile_modern_c.sh` handles the full pipeline including preprocessing, compilation, linking, and assembly. Supports mixed `.c` and `.asm` inputs, `-h` (header), `-i` (PIC), `-s` (syscall vector), `--libc`, and `-I` include paths.
+Compile script: `Scripts/BCC/compile_modern_c.sh` handles the full pipeline including preprocessing, compilation, linking, and assembly. Supports mixed `.c` and `.asm` inputs, `-h` (header), `-i` (relocatable), `-s` (syscall vector), `--libc`, and `-I` include paths.
 
 ### B32CC (Legacy)
 

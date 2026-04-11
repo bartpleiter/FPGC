@@ -34,9 +34,7 @@ def main() -> int:
 
     try:
         if args.port.startswith("rfc2217://"):
-            ser = serial.serial_for_url(
-                args.port, baudrate=args.baudrate, timeout=0.1
-            )
+            ser = serial.serial_for_url(args.port, baudrate=args.baudrate, timeout=0.1)
         else:
             ser = serial.Serial(args.port, baudrate=args.baudrate, timeout=0.1)
     except SerialException as e:

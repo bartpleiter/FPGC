@@ -123,7 +123,7 @@ format-check: ruff-format-check
 # Full Check (Format, Lint, All Tests)
 # =============================================================================
 
-check: format-check lint test-asmpy test-cpu test-b32cc
+check: format-check lint test-asmpy test-cpu test-c
 	@echo "All checks passed!"
 
 # =============================================================================
@@ -459,7 +459,7 @@ DOOM_SOURCES = \
 	$(DOOM_DIR)/gusconf.c \
 	$(DOOM_DIR)/mus2mid.c
 
-DOOM_FLAGS = --libc -I Software/C/userlib/include -I $(DOOM_DIR) -h --offset 0x2000000
+DOOM_FLAGS = --libc -I Software/C/userlib/include -I $(DOOM_DIR) -h -i
 
 .PHONY: compile-doom
 compile-doom: $(QBE_OUTPUT) $(CPROC_OUTPUT)

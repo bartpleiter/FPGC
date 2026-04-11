@@ -9,7 +9,7 @@
 #   # Bare metal program (with crt0 startup):
 #   ./compile_modern_c.sh Software/ASM/crt0/crt0_baremetal.asm program.c -h -o output.bin
 #
-#   # UserBDOS program (position-independent):
+#   # UserBDOS program (relocatable):
 #   ./compile_modern_c.sh Software/ASM/crt0/crt0_userbdos.asm program.c -h -i -o output.bin
 #
 #   # BDOS kernel (with syscall vector):

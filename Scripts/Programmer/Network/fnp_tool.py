@@ -308,9 +308,7 @@ class FNPConnection:
 
     # ---- Public API ----
 
-    def upload_file(
-        self, local_path: str, fpgc_path: str
-    ) -> bool:
+    def upload_file(self, local_path: str, fpgc_path: str) -> bool:
         """
         Upload a file to the FPGC using the FNP file transfer protocol.
 
@@ -654,9 +652,7 @@ def main():
     try:
         if cmd == "upload":
             if len(cmd_args) < 2:
-                print(
-                    "Usage: fnp_tool.py [<iface>] upload <local_file> <fpgc_path>"
-                )
+                print("Usage: fnp_tool.py [<iface>] upload <local_file> <fpgc_path>")
                 sys.exit(1)
             local_file = cmd_args[0]
             fpgc_path = cmd_args[1]

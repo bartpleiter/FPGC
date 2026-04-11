@@ -1,6 +1,6 @@
 # Assembler (ASMPY)
 
-ASMPY is an assembler for the B32P3 ISA written in Python and allows the user to write and assemble code for the FPGC. While the main focus of the assembler is to assemble the output of the C compiler (B32CC), and therefore might not be great for large hand-written assembly projects, it can still be used for small assembly programs like bootloaders, or to create functional tests for the CPU/FPGC.
+ASMPY is an assembler for the B32P3 ISA written in Python and allows the user to write and assemble code for the FPGC. While the main focus of the assembler is to assemble the output of the C compiler toolchain (cproc + QBE), and therefore might not be great for large hand-written assembly projects, it can still be used for small assembly programs like bootloaders, or to create functional tests for the CPU/FPGC.
 
 !!! note
     ASMPY is **not** the same as the assembler that runs on the FPGC itself, as Python cannot run on the FPGC. ASMPY's focus is to have a developer-friendly assembler on the development machine that can be easily extended, modified, debugged and improved. Eventually, when FPGC becomes a more self-contained system, a native assembler running on the FPGC will be created, just like in FPGC6.
@@ -32,28 +32,43 @@ make assemble file=input
 - `-d, --log-details` - Enable detailed logging with timestamps and line numbers
 - `-h, --header` - Add header instructions (`jump Main`, `jump Int`, `.dw line_count`)
 - `-o, --offset` - Set address offset for absolute label placement (ignored with `--independent`)
-- `-i, --independent` - Enable position-independent code (PIC)
+- `-i, --independent` - Generate relocatable code with a relocation table
 
-## Position-Independent Code (PIC)
+## Relocatable Code
 
-When a program is loaded at an address that is not known at assembly time (e.g. user programs loaded by BDOS into a program slot), it must not contain absolute addresses. This is, because the FPGC does not support memory paging, dynamic linking or similar. The `-i` flag makes the assembler produce position-independent code by transforming three constructs:
+When a program is loaded at an address that is not known at assembly time (e.g. user programs loaded by BDOS into a program slot), the binary must be patched at load time. The FPGC does not support memory paging, dynamic linking, or an MMU. The `-i` flag makes the assembler produce a **relocatable binary** assembled at base address 0, with a relocation table appended after the program data.
 
-**1. Jumps to labels** — `jump Label` becomes `jumpo offset`, which adds a signed offset to the program counter instead of loading an absolute address.
+### How It Works
 
-**2. Label address loading** — `addr2reg Label r1` (which normally loads an absolute address into a register) is rewritten as a `savpc` + `add`/`sub` sequence:
+The assembler resolves all labels to absolute addresses starting from 0. Three types of references contain absolute addresses that need fixing at load time:
 
-```asm
-; Before (-i):
-addr2reg Label r1      ; r1 = absolute address of Label
+| Reference Type | Example | Relocation |
+|----------------|---------|------------|
+| Data word (`.int label`) | Initialized pointer in `.data` | Add load-base to the full 32-bit word |
+| `addr2reg` → `load`+`loadhi` pair | Loading a label address into a register | Reconstruct 32-bit address from both instruction fields, add load-base, re-encode |
+| Header `jump Main` | Entry point jump in header | Add load-base to the 27-bit byte address field |
 
-; After (-i):
-savpc r1               ; r1 = current PC
-add r1 <offset> r1     ; r1 = PC + offset to Label
+Jumps within the program body are converted to relative `jumpo` instructions and need no relocation. Branch instructions already use relative offsets.
+
+### Binary Layout
+
+```
+Word 0:   jump Main           ; entry point (relocated by loader)
+Word 1:   nop                 ; interrupt vector (nop for user programs)
+Word 2:   .dw program_size    ; word count of code+data (including header)
+Word P:   .dw reloc_count     ; number of relocation entries (P = program_size)
+Word P+1: reloc_entry[0]      ; first relocation entry
+...
+Word P+N: reloc_entry[N-1]    ; last relocation entry
 ```
 
-This computes the label's address relative to the current program counter, so it works regardless of where the program is loaded in memory.
+Each relocation entry is a 32-bit word: `[31:8] byte_offset, [7:0] type` (Type 0 = data word, Type 1 = load/loadhi pair, Type 2 = jump).
 
-**3. Interrupt vector** — With `-h`, the header normally contains `jump Int` at offset 1. With `-i`, this becomes `nop` because user programs don't handle interrupts (BDOS handles them). This removes the need for an `Int:` label in the program.
+The BDOS loader reads `program_size` from header word 2. If the file is larger than `program_size`, it applies the relocation table by adding the slot base address to each referenced location.
+
+### Interrupt Vector
+
+With `-h`, the header normally contains `jump Int` at offset 1. With `-i`, this becomes `nop` because user programs don't handle interrupts (BDOS handles them). This removes the need for an `Int:` label in the program.
 
 ## Assembly Language Syntax
 
@@ -172,7 +187,7 @@ The following table provides a complete overview of all B32P3 instructions suppo
 Multiple data entries can be defined in a single directive by separating them with spaces.
 
 !!! note
-    Currently only `.dw` and `.dsw` are supported as these are the only ones produced by the C compiler (B32CC). The other directives could be useful for hand-written assembly, but in this revision of the project I am more focused on writing C code with inline assembly for performance-critical sections, which generally do not need these other directives.
+    Currently only `.dw` and `.dsw` are supported for the legacy B32CC compiler. The modern C compiler toolchain (cproc + QBE) uses ELF-style directives (`.eint`, `.ebyte`, `.eshort`, `.eascii`, `.efill`) which are packed into 32-bit words by the assembler.
 
 | Directive | Description | Example |
 |-----------|-------------|---------|
@@ -187,14 +202,12 @@ Multiple data entries can be defined in a single directive by separating them wi
 ### Section Directives
 
 !!! note
-    These directives are produced by the C compiler (B32CC), and are reordered in the following order to make sure the executable code is not interleaved with data:
+    These directives are produced by the C compiler toolchain, and are reordered in the following order to make sure the executable code is not interleaved with data:
 
     1. `.code`
     2. `.data`
     3. `.rdata`
     4. `.bss`
-    
-    Note that data, rdata and bss sections are conceptually the same for the FPGC, and are there mostly because they were already produced by B32CC, as it is not a fully from scratch designed compiler for this project.
 
 | Directive | Purpose |
 |-----------|---------|
@@ -219,7 +232,7 @@ The B32P3 has 16 general-purpose registers:
 - `r1` to `r15` - General-purpose registers
 
 !!! note
-    For the assembler, the general-purpose registers are identical. For the C compiler, there are further conventions. See the [B32CC documentation](OS.md) for details.
+    For the assembler, the general-purpose registers are identical. For the C compiler, there are further conventions. See the [C compiler documentation](C-compiler.md) for details.
 
 
 ## Preprocessor Features

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Script to compile a userBDOS C program for execution under BDOS.
-# Uses B32CC with -user-bdos flag, then ASMPY with -h -i (position-independent header).
+# Uses B32CC with -user-bdos flag, then ASMPY with -h -i (relocatable header).
 # The resulting binary can be loaded by the BDOS 'run' command.
 
 # Check for required argument
@@ -56,7 +56,7 @@ cd ../..
 
 # Step 2: Assemble to binary using ASMPY
 # -h: add header (jump Main, nop for interrupt, filesize)
-# -i: position-independent code (user programs are loaded at runtime addresses)
+# -i: relocatable code with relocation table (user programs are loaded at runtime addresses)
 echo "Assembling to binary..."
 if asmpy "$ASM_OUTPUT" "$LIST_OUTPUT" -h -i
 then

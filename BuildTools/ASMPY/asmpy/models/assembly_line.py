@@ -199,16 +199,16 @@ class AlignDirectiveLine(AssemblyLine):
     def _parse_code(self):
         parts = self.code_str.split()
         if len(parts) != 2:
-            raise ValueError(
-                f"Expected alignment value for .balign: {self.code_str}"
-            )
+            raise ValueError(f"Expected alignment value for .balign: {self.code_str}")
         self.alignment = int(parts[1])
 
     def expand(self) -> list["AssemblyLine"]:
         return [self]
 
     def to_binary_string(self) -> str:
-        raise NotImplementedError("Alignment directives do not have a binary representation")
+        raise NotImplementedError(
+            "Alignment directives do not have a binary representation"
+        )
 
     def __repr__(self):
         return f".balign {self.alignment}"
@@ -229,7 +229,9 @@ class GlobalDirectiveLine(AssemblyLine):
         return [self]
 
     def to_binary_string(self) -> str:
-        raise NotImplementedError("Global directives do not have a binary representation")
+        raise NotImplementedError(
+            "Global directives do not have a binary representation"
+        )
 
     def __repr__(self):
         return f".globl {self.symbol_name}"
@@ -808,14 +810,14 @@ class DataAssemblyLine(AssemblyLine):
         """Parse .int VALUE or .int SYMBOL+OFFSET."""
         rest_of_line = rest_of_line.strip()
         # Check if it's a label reference (not starting with digit, minus, or 0x/0b)
-        if rest_of_line and not rest_of_line[0].isdigit() and rest_of_line[0] != '-':
+        if rest_of_line and not rest_of_line[0].isdigit() and rest_of_line[0] != "-":
             # Parse SYMBOL+OFFSET or SYMBOL-OFFSET or just SYMBOL
-            if '+' in rest_of_line:
-                parts = rest_of_line.split('+', 1)
+            if "+" in rest_of_line:
+                parts = rest_of_line.split("+", 1)
                 self.label_ref = Label(parts[0].strip())
                 self.label_ref_offset = int(parts[1].strip())
-            elif '-' in rest_of_line and not rest_of_line.startswith('-'):
-                parts = rest_of_line.split('-', 1)
+            elif "-" in rest_of_line and not rest_of_line.startswith("-"):
+                parts = rest_of_line.split("-", 1)
                 self.label_ref = Label(parts[0].strip())
                 self.label_ref_offset = -int(parts[1].strip())
             else:
@@ -824,11 +826,16 @@ class DataAssemblyLine(AssemblyLine):
             self.elf_bytes = None  # resolved later
         else:
             v = self._parse_int_value(rest_of_line) & 0xFFFFFFFF
-            self.elf_bytes = [v & 0xFF, (v >> 8) & 0xFF, (v >> 16) & 0xFF, (v >> 24) & 0xFF]
+            self.elf_bytes = [
+                v & 0xFF,
+                (v >> 8) & 0xFF,
+                (v >> 16) & 0xFF,
+                (v >> 24) & 0xFF,
+            ]
 
     def _parse_elf_fill(self, rest_of_line: str) -> None:
         """Parse .fill N,S,V (repeat N, size S, value V)."""
-        parts = rest_of_line.split(',')
+        parts = rest_of_line.split(",")
         if len(parts) == 3:
             n = int(parts[0].strip())
             s = int(parts[1].strip())

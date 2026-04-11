@@ -282,12 +282,12 @@ class Label:
     def __init__(self, label: str, target_address: int | None = None) -> None:
         # Parse SYMBOL+OFFSET or SYMBOL-OFFSET
         self.offset = 0
-        if '+' in label:
-            parts = label.split('+', 1)
+        if "+" in label:
+            parts = label.split("+", 1)
             self.label = parts[0]
             self.offset = int(parts[1])
-        elif '-' in label and not label.startswith('-'):
-            parts = label.split('-', 1)
+        elif "-" in label and not label.startswith("-"):
+            parts = label.split("-", 1)
             self.label = parts[0]
             self.offset = -int(parts[1])
         else:

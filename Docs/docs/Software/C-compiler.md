@@ -42,7 +42,7 @@ make run-bdos
 make compile-userbdos file=snake
 ```
 
-The build script `Scripts/BCC/compile_modern_c.sh` handles the full pipeline. It accepts mixed `.c` and `.asm` source files, supports `-I` include paths, and passes through flags like `--libc`, `-h` (add header), `-i` (position-independent), and `-s` (syscall vector) to the assembler.
+The build script `Scripts/BCC/compile_modern_c.sh` handles the full pipeline. It accepts mixed `.c` and `.asm` source files, supports `-I` include paths, and passes through flags like `--libc`, `-h` (add header), `-i` (relocatable), and `-s` (syscall vector) to the assembler.
 
 ### Standard Library (libc)
 
