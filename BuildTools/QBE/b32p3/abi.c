@@ -255,10 +255,12 @@ selcall(Fn *fn, Ins *i0, Ins *i1, Insl **ilp)
 		emit(Osalloc, Kl, R, getcon(-stk, fn), R);
 
 	if (cr.class & Cptr) {
-		/* large aggregate return: allocate space, pass pointer in R4 */
+		/* large aggregate return: allocate space, pass pointer in R4.
+		 * We must emit a dummy regcpy from R1 so the spiller's dopm()
+		 * detects the call and handles arg register liveness. */
 		stkblob(i1->to, &typ[i1->arg[1].val], fn, ilp);
 		emit(Ocopy, Kw, R, TMP(R1), R);
-		cty |= 0;
+		cty |= 1;
 	} else if (cr.class & Cval) {
 		/* small aggregate return: value in R1, store to alloc'd space.
 		 * Must use a regcpy (Ocopy from R1) so the spiller's dopm

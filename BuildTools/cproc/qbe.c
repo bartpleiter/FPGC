@@ -25,7 +25,11 @@ struct value {
 	union {
 		char *name;
 		unsigned long long i;
+#ifdef __B32P3__
+		unsigned long f;
+#else
 		double f;
+#endif
 	} u;
 };
 
@@ -164,7 +168,11 @@ mkintconst(unsigned long long n)
 }
 
 static struct value *
+#ifdef __B32P3__
+mkfltconst(int kind, unsigned long n)
+#else
 mkfltconst(int kind, double n)
+#endif
 {
 	struct value *v;
 
@@ -471,7 +479,11 @@ funcstore(struct func *f, struct type *t, enum typequal tq, struct lvalue lval, 
 		qt = qbetype(t);
 		bits = lval.bits.before + lval.bits.after;
 		if (bits) {
+#ifdef __B32P3__
+			mask = 0xffffffffu >> 32 - t->size * 8 + bits << lval.bits.before;
+#else
 			mask = 0xffffffffffffffffu >> 64 - t->size * 8 + bits << lval.bits.before;
+#endif
 			v = funcinst(f, ISHL, qt.base, v, mkintconst(lval.bits.before));
 			r = funcbits(f, t, v, lval.bits);
 			v = funcinst(f, IAND, qt.base, v, mkintconst(mask));
@@ -1126,10 +1138,18 @@ emitvalue(struct value *v)
 		printf("%llu", v->u.i);
 		break;
 	case VALUE_FLTCONST:
+#ifdef __B32P3__
+		fatal("floating point not supported on this target");
+#else
 		printf("s_%.17g", v->u.f);
+#endif
 		break;
 	case VALUE_DBLCONST:
+#ifdef __B32P3__
+		fatal("floating point not supported on this target");
+#else
 		printf("d_%.17g", v->u.f);
+#endif
 		break;
 	case VALUE_GLOBAL:
 		if (v->kind & VALUE_THREAD)

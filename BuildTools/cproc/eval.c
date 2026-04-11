@@ -17,8 +17,10 @@ cast(struct expr *expr)
 
 	size = expr->type->size;
 	if (expr->type->prop & PROPFLOAT) {
+#ifndef __B32P3__
 		if (size == 4)
 			expr->u.constant.f = (float)expr->u.constant.f;
+#endif
 	} else if (expr->type->prop & PROPINT) {
 		expr->u.constant.u &= -1ull >> CHAR_BIT * sizeof(unsigned long long) - size * 8;
 		if (expr->type->u.basic.issigned) {
@@ -160,6 +162,9 @@ eval(struct expr *expr)
 				else
 					expr->u.constant.f = l->u.constant.u;
 			} else if (l->type->prop & PROPFLOAT && t->prop & PROPINT) {
+#ifdef __B32P3__
+				expr->u.constant.u = l->u.constant.f;
+#else
 				if (t->u.basic.issigned) {
 					if (l->u.constant.f < -0x1p63 || l->u.constant.f >= 0x1p63)
 						error(&tok.loc, "integer part of floating-point constant %g cannot be represented as signed integer", l->u.constant.f);
@@ -169,6 +174,7 @@ eval(struct expr *expr)
 						error(&tok.loc, "integer part of floating-point constant %g cannot be represented as unsigned integer", l->u.constant.f);
 					expr->u.constant.u = l->u.constant.f;
 				}
+#endif
 			} else {
 				expr->u.constant = l->u.constant;
 			}

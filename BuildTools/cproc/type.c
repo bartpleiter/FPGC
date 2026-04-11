@@ -265,7 +265,13 @@ bool
 typehasint(struct type *t, unsigned long long i, bool sign)
 {
 	assert(t->prop & PROPINT);
+#ifdef __B32P3__
+	if (sign && i >= -1ull << 31)
+		return t->u.basic.issigned && i >= -1ull << (t->size << 3) - 1;
+	return i <= 0xfffffffful >> (4 - t->size << 3) + t->u.basic.issigned;
+#else
 	if (sign && i >= -1ull << 63)
 		return t->u.basic.issigned && i >= -1ull << (t->size << 3) - 1;
 	return i <= 0xffffffffffffffffull >> (8 - t->size << 3) + t->u.basic.issigned;
+#endif
 }

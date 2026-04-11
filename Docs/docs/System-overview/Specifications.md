@@ -7,7 +7,7 @@ A quick-reference summary of the FPGC's hardware and software specifications.
 | Spec | Value |
 |---|---|
 | Architecture | 32-bit RISC, custom ISA |
-| Pipeline | 5-stage (IF, ID, EX, MEM, WB) |
+| Pipeline | Classic 5-stage (IF, ID, EX, MEM, WB) |
 | Clock | 100 MHz |
 | Registers | 16 (r0 hardwired to zero) |
 | Hardware stack | 256 entries |

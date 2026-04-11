@@ -693,6 +693,9 @@ primaryexpr(struct scope *s)
 			base = 10;
 		}
 		if (strpbrk(tok.lit, base == 16 ? ".pP" : ".eE")) {
+#ifdef __B32P3__
+			error(&tok.loc, "floating point constants not supported on this target");
+#else
 			/* floating constant */
 			e->u.constant.f = strtod(tok.lit, &end);
 			if (end == tok.lit)
@@ -705,6 +708,7 @@ primaryexpr(struct scope *s)
 				e->type = &typeldouble;
 			else
 				error(&tok.loc, "invalid floating constant suffix '%s'", end);
+#endif
 		} else {
 			src = tok.lit;
 			if (base == 2)
@@ -806,17 +810,25 @@ builtinfunc(struct scope *s, enum builtinkind kind)
 		delexpr(assignexpr(s));
 		break;
 	case BUILTININFF:
+#ifdef __B32P3__
+		error(&tok.loc, "floating point not supported on this target");
+#else
 		e = mkexpr(EXPRCONST, &typefloat, NULL);
 		/* TODO: use INFINITY here when we can handle musl's math.h */
 		e->u.constant.f = strtod("inf", NULL);
+#endif
 		break;
 	case BUILTINNANF:
+#ifdef __B32P3__
+		error(&tok.loc, "floating point not supported on this target");
+#else
 		e = assignexpr(s);
 		if (!e->decayed || e->base->kind != EXPRSTRING || e->base->u.string.size > 1)
 			error(&tok.loc, "__builtin_nanf currently only supports empty string literals");
 		e = mkexpr(EXPRCONST, &typefloat, NULL);
 		/* TODO: use NAN here when we can handle musl's math.h */
 		e->u.constant.f = strtod("nan", NULL);
+#endif
 		break;
 	case BUILTINOFFSETOF:
 		t = typename(s, NULL, NULL);

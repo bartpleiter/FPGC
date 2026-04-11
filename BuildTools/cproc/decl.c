@@ -257,7 +257,11 @@ tagspec(struct scope *s)
 					et = typehasint(&typeint, value, e->type->u.basic.issigned) ? &typeint : e->type;
 				else if (!typehasint(et, value, e->type->u.basic.issigned))
 					goto invalid;
+			#ifdef __B32P3__
+			} else if (value == 0 && !et->u.basic.issigned || value == 1ul << 31 && et->u.basic.issigned) {
+#else
 			} else if (value == 0 && !et->u.basic.issigned || value == 1ull << 63 && et->u.basic.issigned) {
+#endif
 				error(&tok.loc, "no %ssigned integer type can represent enumerator value", et->u.basic.issigned ? "" : "un");
 			} else if (!typehasint(et, value, et->u.basic.issigned)) {
 				if (t->base) {
@@ -278,7 +282,11 @@ tagspec(struct scope *s)
 			d->value = mkintconst(value);
 			d->next = enumconsts;
 			enumconsts = d;
+			#ifdef __B32P3__
+			if (et->u.basic.issigned && value >= 1ul << 31) {
+#else
 			if (et->u.basic.issigned && value >= 1ull << 63) {
+#endif
 				if (-value > min)
 					min = -value;
 			} else if (value > max) {

@@ -359,7 +359,11 @@ struct expr {
 		union {
 			unsigned long long u;
 			long long i;
+#ifdef __B32P3__
+			unsigned long f;
+#else
 			double f;
+#endif
 		} constant;
 		struct stringlit string;
 		struct {
