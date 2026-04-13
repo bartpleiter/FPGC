@@ -113,94 +113,13 @@ dbgfile(char *fn)
 int
 main(void)
 {
-	Target **t;
-	FILE *inf, *hf;
-	char *f, *sep;
-	int c;
 	int ac = sys_shell_argc();
 	char **av = sys_shell_argv();
-
-	utilinit();
-	parseinit();
-	T = Deftgt;
-	outf = stdout;
-	while ((c = getopt(ac, av, "hd:o:t:")) != -1)
-		switch (c) {
-		case 'd':
-			for (; *optarg; optarg++)
-				if (isalpha(*optarg)) {
-					debug[toupper(*optarg)] = 1;
-					dbg = 1;
-				}
-			break;
-		case 'o':
-			if (strcmp(optarg, "-") != 0) {
-				outf = fopen(optarg, "w");
-				if (!outf) {
-					fprintf(stderr, "cannot open '%s'\n", optarg);
-					exit(1);
-				}
-			}
-			break;
-		case 't':
-			if (strcmp(optarg, "?") == 0) {
-				puts(T.name);
-				exit(0);
-			}
-			for (t=tlist;; t++) {
-				if (!*t) {
-					fprintf(stderr, "unknown target '%s'\n", optarg);
-					exit(1);
-				}
-				if (strcmp(optarg, (*t)->name) == 0) {
-					T = **t;
-					break;
-				}
-			}
-			break;
-		case 'h':
-		default:
-			hf = c != 'h' ? stderr : stdout;
-			fprintf(hf, "%s [OPTIONS] {file.ssa, -}\n", av[0]);
-			fprintf(hf, "\t%-11s prints this help\n", "-h");
-			fprintf(hf, "\t%-11s output to file\n", "-o file");
-			fprintf(hf, "\t%-11s generate for a target among:\n", "-t <target>");
-			fprintf(hf, "\t%-11s ", "");
-			for (t=tlist, sep=""; *t; t++, sep=", ") {
-				fprintf(hf, "%s%s", sep, (*t)->name);
-				if (*t == &Deftgt)
-					fputs(" (default)", hf);
-			}
-			fprintf(hf, "\n");
-			fprintf(hf, "\t%-11s dump debug information\n", "-d <flags>");
-			exit(c != 'h');
-		}
-
-	do {
-		f = av[optind];
-		if (!f || strcmp(f, "-") == 0) {
-			inf = stdin;
-			f = "-";
-		} else {
-			inf = fopen(f, "r");
-			if (!inf) {
-				fprintf(stderr, "cannot open '%s'\n", f);
-				exit(1);
-			}
-		}
-		parse(inf, f, dbgfile, data, func);
-		fclose(inf);
-	} while (++optind < ac);
-
-	if (!dbg)
-		T.emitfin(outf);
-
-	exit(0);
-}
 #else
 int
 main(int ac, char *av[])
 {
+#endif
 	Target **t;
 	FILE *inf, *hf;
 	char *f, *sep;
@@ -283,4 +202,3 @@ main(int ac, char *av[])
 
 	exit(0);
 }
-#endif
