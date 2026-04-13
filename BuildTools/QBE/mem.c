@@ -153,7 +153,7 @@ slot(Slot **ps, int64_t *off, Ref r, Fn *fn, Slot *sl)
 }
 
 static void
-load(Ref r, bits x, int ip, Fn *fn, Slot *sl)
+loadref(Ref r, bits x, int ip, Fn *fn, Slot *sl)
 {
 	int64_t off;
 	Slot *s;
@@ -266,16 +266,16 @@ coalesce(Fn *fn)
 			}
 		}
 		if (b->jmp.type == Jretc)
-			load(b->jmp.arg, -1, --ip, fn, sl);
+			loadref(b->jmp.arg, -1, --ip, fn, sl);
 		for (i=&b->ins[b->nins]; i!=b->ins;) {
 			--i;
 			arg = i->arg;
 			if (i->op == Oargc) {
-				load(arg[1], -1, --ip, fn, sl);
+				loadref(arg[1], -1, --ip, fn, sl);
 			}
 			if (isload(i->op)) {
 				x = BIT(loadsz(i)) - 1;
-				load(arg[0], x, --ip, fn, sl);
+				loadref(arg[0], x, --ip, fn, sl);
 			}
 			if (isstore(i->op)) {
 				x = BIT(storesz(i)) - 1;
@@ -287,7 +287,7 @@ coalesce(Fn *fn)
 				sz = abs(rsval((i+1)->arg[0]));
 				x = sz >= NBit ? (bits)-1 : BIT(sz) - 1;
 				store(arg[1], x, ip--, i, fn, sl);
-				load(arg[0], x, ip, fn, sl);
+				loadref(arg[0], x, ip, fn, sl);
 				vgrow(&bl, ++nbl);
 				bl[nbl-1] = i;
 			}

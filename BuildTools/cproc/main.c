@@ -4,6 +4,9 @@
 #include "util.h"
 #include "arg.h"
 #include "cc.h"
+#ifdef __B32P3__
+#include <syscall.h>
+#endif
 
 static void
 usage(void)
@@ -12,11 +15,21 @@ usage(void)
 	exit(2);
 }
 
+#ifdef __B32P3__
+int
+main(void)
+{
+	bool pponly = false;
+	char *output = NULL, *target = NULL;
+	int argc = sys_shell_argc();
+	char **argv = sys_shell_argv();
+#else
 int
 main(int argc, char *argv[])
 {
 	bool pponly = false;
 	char *output = NULL, *target = NULL;
+#endif
 
 	argv0 = progname(argv[0], "cproc-qbe");
 	ARGBEGIN {

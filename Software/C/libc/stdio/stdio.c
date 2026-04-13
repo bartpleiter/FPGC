@@ -416,6 +416,12 @@ putchar(int c)
     return fputc(c, stdout);
 }
 
+int
+putc(int c, FILE *stream)
+{
+    return fputc(c, stream);
+}
+
 /*------------------------------------------------------------------------
  * fputs / puts
  *----------------------------------------------------------------------*/
@@ -713,13 +719,44 @@ rename(const char *oldpath, const char *newpath)
 }
 
 /*------------------------------------------------------------------------
+ * perror — print error message
+ *----------------------------------------------------------------------*/
+void
+perror(const char *s)
+{
+    if (s && *s) {
+        fputs(s, stderr);
+        fputs(": ", stderr);
+    }
+    fputs("error\n", stderr);
+}
+
+/*------------------------------------------------------------------------
  * exit / abort — program termination
  *----------------------------------------------------------------------*/
 extern void _exit(int code);
 
+static void
+_closeall(void)
+{
+    int i;
+    /* Close any file pool entries */
+    for (i = 0; i < STDIO_MAX_FILES; i++) {
+        if (file_pool_used[i]) {
+            _close(file_pool[i].fd);
+            file_pool_used[i] = 0;
+        }
+    }
+    /* Close stdin/stdout/stderr if they were redirected to real files */
+    if (stdin->fd >= 0) { _close(stdin->fd); stdin->fd = -1; }
+    if (stdout->fd >= 0) { _close(stdout->fd); stdout->fd = -1; }
+    if (stderr->fd >= 0) { _close(stderr->fd); stderr->fd = -2; }
+}
+
 void
 exit(int status)
 {
+    _closeall();
     _exit(status);
 }
 
@@ -735,6 +772,6 @@ abort(void)
 void
 __assert_fail(const char *expr, const char *file, int line)
 {
-    printf("Assertion failed: %s at %s:%d\n", expr, file, line);
+    fprintf(stderr, "Assertion failed: %s at %s:%d\n", expr, file, line);
     abort();
 }

@@ -1095,6 +1095,24 @@ int brfs_close(int fd)
   return BRFS_OK;
 }
 
+/*
+ * brfs_close_all — close all open file descriptors.
+ * Called by BDOS after a user program exits (normally or via crash)
+ * to ensure no stale file handles remain.
+ */
+void brfs_close_all(void)
+{
+  int i;
+  if (!brfs.initialized)
+    return;
+  for (i = 0; i < BRFS_MAX_OPEN_FILES; i++)
+  {
+    brfs.open_files[i].fat_idx = 0;
+    brfs.open_files[i].cursor = 0;
+    brfs.open_files[i].dir_entry = NULL;
+  }
+}
+
 /* ---- File Read ---- */
 
 int brfs_read(int fd, unsigned int *buffer, unsigned int length)

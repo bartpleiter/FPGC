@@ -22,5 +22,6 @@ void term_set_palette(unsigned int palette_index);
 int  term_scroll_view_up(void);
 int  term_scroll_view_down(void);
 int  term_is_scrolled_back(void);
+void term_set_uart_mirror(int enable);
 
 #endif /* FPGC_TERM_H */

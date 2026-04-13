@@ -1,7 +1,16 @@
 #include "gpu_hal.h"
 #include "term.h"
+#include "uart.h"
 #include <stdio.h>
 #include <stddef.h>
+
+static int uart_mirror = 1; /* mirror terminal output to UART by default */
+
+void
+term_set_uart_mirror(int enable)
+{
+    uart_mirror = enable;
+}
 
 static unsigned int cursor_x = 0;
 static unsigned int cursor_y = 0;
@@ -132,6 +141,9 @@ term_newline(void)
 void
 term_putchar(char c)
 {
+    if (uart_mirror)
+        uart_putchar(c);
+
     if (scroll_view_offset > 0)
         term_snap_to_bottom();
 

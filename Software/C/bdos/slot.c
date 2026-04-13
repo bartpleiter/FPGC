@@ -232,6 +232,17 @@ int bdos_exec_program(char *resolved_path)
   }
 
   dest = (unsigned int *)bdos_slot_entry_addr(slot);
+
+  /* Zero the slot memory so BSS starts clean (statics default to 0) */
+  {
+    unsigned int *p;
+    unsigned int *end;
+
+    end = dest + (MEM_SLOT_SIZE / 4);
+    for (p = dest; p < end; p++)
+      *p = 0;
+  }
+
   words_remaining = file_size;
 
   while (words_remaining > 0)
@@ -340,6 +351,7 @@ int bdos_exec_program(char *resolved_path)
   /* Execute via asm trampoline — returns when user program exits */
   bdos_exec_trampoline();
 
+  brfs_close_all();
   bdos_ccache();
 
   bdos_active_slot = BDOS_SLOT_NONE;
@@ -382,6 +394,7 @@ void bdos_resume_program(int slot)
   bdos_resume_trampoline(slot);
 
   /* Reached when user program exits normally via trampoline return */
+  brfs_close_all();
   bdos_ccache();
 
   bdos_active_slot = BDOS_SLOT_NONE;

@@ -12,7 +12,7 @@ emitlnk(char *n, Lnk *l, int s, FILE *f)
 	static char *sec[2][3] = {
 		[0][SecText] = ".text",
 		[0][SecData] = ".data",
-		[0][SecBss] = ".bss",
+		[0][SecBss] = ".data",
 		[1][SecText] = ".abort \"unreachable\"",
 		[1][SecData] = ".section .tdata,\"awT\"",
 		[1][SecBss] = ".section .tbss,\"awT\"",

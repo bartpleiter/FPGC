@@ -64,8 +64,11 @@ targinit(const char *name)
 	enum typequal qual;
 
 	if (!name) {
-		/* TODO: provide a way to set this default */
+#ifdef __B32P3__
+		name = "b32p3";
+#else
 		targ = &alltargs[0];
+#endif
 	}
 	for (i = 0; i < LEN(alltargs) && !targ; ++i) {
 		if (strcmp(alltargs[i].name, name) == 0)

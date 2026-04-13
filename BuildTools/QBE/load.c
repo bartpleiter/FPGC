@@ -8,8 +8,8 @@ typedef struct Insert Insert;
 
 struct Loc {
 	enum {
-		LRoot,   /* right above the original load */
-		LLoad,   /* inserting a load is allowed */
+		LRoot,   /* right above the original loadref */
+		LLoad,   /* inserting a loadref is allowed */
 		LNoLoad, /* only scalar operations allowed */
 	} type;
 	uint off;
@@ -20,7 +20,7 @@ struct Slice {
 	Ref ref;
 	int off;
 	short sz;
-	short cls; /* load class */
+	short cls; /* loadref class */
 };
 
 struct Insert {
@@ -114,7 +114,7 @@ mask(int cls, Ref *r, bits msk, Loc *l)
 }
 
 static Ref
-load(Slice sl, bits msk, Loc *l)
+loadref(Slice sl, bits msk, Loc *l)
 {
 	Alias *a;
 	Ref r, r1;
@@ -208,11 +208,11 @@ def(Slice sl, bits msk, Blk *b, Ins *i, Loc *il)
 	 * -1- b dominates il->blk; so we can use
 	 *     temporaries of b in il->blk
 	 * -2- if il->type != LNoLoad, then il->blk
-	 *     postdominates the original load; so it
-	 *     is safe to load in il->blk
+	 *     postdominates the original loadref; so it
+	 *     is safe to loadref in il->blk
 	 * -3- if il->type != LNoLoad, then b
 	 *     postdominates il->blk (and by 2, the
-	 *     original load)
+	 *     original loadref)
 	 */
 	assert(dom(b, il->blk));
 	oldl = nlog;
@@ -223,7 +223,7 @@ def(Slice sl, bits msk, Blk *b, Ins *i, Loc *il)
 		nlog = oldl;
 		if (il->type != LLoad)
 			return R;
-		return load(sl, msk, il);
+		return loadref(sl, msk, il);
 	}
 
 	if (!i)
@@ -487,7 +487,7 @@ loadopt(Fn *fn)
 	vfree(ib);
 	vfree(ilog);
 	if (debug['M']) {
-		fprintf(stderr, "\n> After load elimination:\n");
+		fprintf(stderr, "\n> After loadref elimination:\n");
 		printfn(fn, stderr);
 	}
 }

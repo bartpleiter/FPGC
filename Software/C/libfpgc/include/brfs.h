@@ -111,6 +111,7 @@ int  brfs_sync(void);
 int brfs_create_file(const char *path);
 int brfs_open(const char *path);
 int brfs_close(int fd);
+void brfs_close_all(void);
 int brfs_read(int fd, unsigned int *buffer, unsigned int length);
 int brfs_write(int fd, const unsigned int *buffer, unsigned int length);
 int brfs_seek(int fd, unsigned int offset);

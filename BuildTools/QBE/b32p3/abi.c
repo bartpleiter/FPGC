@@ -239,7 +239,7 @@ selcall(Fn *fn, Ins *i0, Ins *i1, Insl **ilp)
 		if (c->class & Cptr) {
 			i->arg[0] = newtmp("abi", Kw, fn);
 			stkblob(i->arg[0], c->type, fn, ilp);
-			i->op = Oarg;
+			/* keep i->op as Oargc so blit runs later */
 		}
 		if (c->class & Cstk)
 			stk += 4;
@@ -319,6 +319,12 @@ selcall(Fn *fn, Ins *i0, Ins *i1, Insl **ilp)
 			emit(Ostorew, Kw, R, val, r1);
 			emit(Oadd, Kw, r1, r, getcon(off, fn));
 			emit(Oload, Kw, val, i->arg[1], R);
+		} else if (i->op == Oargc) {
+			/* large struct on stack: blit to stkblob, store pointer */
+			emit(Ostorew, Kw, R, i->arg[0], r1);
+			emit(Oadd, Kw, r1, r, getcon(off, fn));
+			emit(Oblit1, 0, R, INT(c->type->size), R);
+			emit(Oblit0, 0, R, i->arg[1], i->arg[0]);
 		} else {
 			emit(Ostorew, Kw, R, i->arg[0], r1);
 			emit(Oadd, Kw, r1, r, getcon(off, fn));
