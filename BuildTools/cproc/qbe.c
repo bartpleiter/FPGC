@@ -778,6 +778,8 @@ funcexpr(struct func *f, struct expr *e)
 			t = arg->type;
 			funcinst(f, IARG, qbetype(t).base, argvals[i], t->value);
 		}
+		if (functype->u.func.isvararg && i <= functype->u.func.nparam)
+			funcinst(f, IVARARG, 0, NULL, NULL);
 		e = e->base;
 		if (e->kind == EXPRUNARY && e->op == TBAND) {
 			e = e->base;
