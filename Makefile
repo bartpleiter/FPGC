@@ -45,6 +45,7 @@ CPROC_OUTPUT = $(CPROC_DIR)/output/cproc-qbe
 .PHONY: b32cc test-b32cc test-b32cc-single debug-b32cc clean-b32cc
 .PHONY: qbe clean-qbe
 .PHONY: cproc clean-cproc
+.PHONY: selfhost-qbe selfhost-cproc selfhost-all
 .PHONY: check
 .PHONY: fnp-upload-text fnp-upload-userbdos fnp-upload-userbdos-b32cc
 .PHONY: fnp-keyboard fnp-detect-iface fnp-sync-files fnp-run
@@ -210,6 +211,90 @@ $(CPROC_OUTPUT):
 
 clean-cproc:
 	$(MAKE) -C $(CPROC_DIR) clean
+
+# =============================================================================
+# Self-Hosting: QBE & cproc as BDOS UserBDOS Binaries
+# =============================================================================
+
+# Minimal libc/userlib subset for compiler tools (no graphics, no fixed-point)
+SELFHOST_LIBC = \
+	Software/ASM/crt0/crt0_userbdos.asm \
+	Software/C/libc/string/string.c \
+	Software/C/libc/stdlib/stdlib.c \
+	Software/C/libc/stdlib/malloc.c \
+	Software/C/libc/ctype/ctype.c \
+	Software/C/libc/stdio/stdio.c \
+	Software/C/userlib/src/syscall_asm.asm \
+	Software/C/userlib/src/syscall.c \
+	Software/C/userlib/src/io_stubs.c
+
+SELFHOST_FLAGS = --libc -I Software/C/userlib/include -h -i
+
+# Cross-compilation: C source → B32P3 assembly via cproc + QBE
+# Uses temp files to avoid clobbering output on failure
+XCOMPILE = bash -o pipefail -c 'cpp -nostdinc -P -I Software/C/libc/include -I Software/C/userlib/include -I $(QBE_DIR) -I $(QBE_DIR)/b32p3 -DQBE_BITS32 -D__B32P3__ $< | \
+	$(CPROC_OUTPUT) -t b32p3 | $(QBE_OUTPUT) > $@.tmp' && mv $@.tmp $@
+XCOMPILE_CPROC = bash -o pipefail -c 'cpp -nostdinc -P -I Software/C/libc/include -I Software/C/userlib/include -I $(CPROC_DIR) -D__B32P3__ $< | \
+	$(CPROC_OUTPUT) -t b32p3 | $(QBE_OUTPUT) > $@.tmp' && mv $@.tmp $@
+
+QBE_ASM_DIR = BuildTools/QBE/output/asm
+
+# QBE cross-compiled .asm files (generated from .c sources)
+QBE_C_SOURCES = abi.c alias.c cfg.c copy.c emit.c fold.c live.c load.c main.c \
+	mem.c parse.c rega.c simpl.c spill.c ssa.c util.c
+QBE_B32P3_SOURCES = b32p3/abi.c b32p3/emit.c b32p3/isel.c b32p3/targ.c
+
+QBE_ASM_FILES = \
+	$(patsubst %.c,$(QBE_ASM_DIR)/%.asm,$(QBE_C_SOURCES)) \
+	$(patsubst b32p3/%.c,$(QBE_ASM_DIR)/b32p3_%.asm,$(QBE_B32P3_SOURCES))
+
+# Pattern rules: rebuild .asm when .c changes
+$(QBE_ASM_DIR)/%.asm: $(QBE_DIR)/%.c $(QBE_OUTPUT) $(CPROC_OUTPUT)
+	@mkdir -p $(QBE_ASM_DIR)
+	@echo "  XCOMPILE $< → $@"
+	@$(XCOMPILE)
+
+$(QBE_ASM_DIR)/b32p3_%.asm: $(QBE_DIR)/b32p3/%.c $(QBE_OUTPUT) $(CPROC_OUTPUT)
+	@mkdir -p $(QBE_ASM_DIR)
+	@echo "  XCOMPILE $< → $@"
+	@$(XCOMPILE)
+
+CPROC_ASM_DIR = BuildTools/cproc/output/asm
+
+CPROC_C_SOURCES = attr.c decl.c eval.c expr.c init.c main.c map.c pp.c \
+	qbe.c scan.c scope.c stmt.c targ.c token.c tree.c type.c utf.c util.c
+
+CPROC_ASM_FILES = $(patsubst %.c,$(CPROC_ASM_DIR)/%.asm,$(CPROC_C_SOURCES))
+
+$(CPROC_ASM_DIR)/%.asm: $(CPROC_DIR)/%.c $(QBE_OUTPUT) $(CPROC_OUTPUT)
+	@mkdir -p $(CPROC_ASM_DIR)
+	@echo "  XCOMPILE $< → $@"
+	@$(XCOMPILE_CPROC)
+
+selfhost-qbe: $(QBE_ASM_FILES)
+	@mkdir -p BuildTools/QBE/output
+	./Scripts/BCC/compile_modern_c.sh \
+		$(SELFHOST_LIBC) \
+		Software/C/libc/stdlib/getopt.c \
+		$(QBE_ASM_FILES) \
+		$(SELFHOST_FLAGS) \
+		-o BuildTools/QBE/output/qbe.bin
+	@mkdir -p Files/BRFS-init/bin
+	@cp BuildTools/QBE/output/qbe.bin Files/BRFS-init/bin/qbe
+	@echo "Binary copied to Files/BRFS-init/bin/qbe"
+
+selfhost-cproc: $(CPROC_ASM_FILES)
+	@mkdir -p BuildTools/cproc/output
+	./Scripts/BCC/compile_modern_c.sh \
+		$(SELFHOST_LIBC) \
+		$(CPROC_ASM_FILES) \
+		$(SELFHOST_FLAGS) \
+		-o BuildTools/cproc/output/cproc.bin
+	@mkdir -p Files/BRFS-init/bin
+	@cp BuildTools/cproc/output/cproc.bin Files/BRFS-init/bin/cproc
+	@echo "Binary copied to Files/BRFS-init/bin/cproc"
+
+selfhost-all: selfhost-qbe selfhost-cproc
 
 # =============================================================================
 # Documentation

@@ -332,8 +332,7 @@ selcall(Fn *fn, Ins *i0, Ins *i1, Insl **ilp)
 		off += 4;
 	}
 	if (off == (vararg ? 24 : 8)) {
-		/* no stack args were stored; use R as dest to
-		 * prevent the alloc from being optimized away */
+		/* no stack args were stored */
 		emit(Osalloc, Kl, R, getcon(stk, fn), R);
 	} else {
 		emit(Osalloc, Kl, r, getcon(stk, fn), R);

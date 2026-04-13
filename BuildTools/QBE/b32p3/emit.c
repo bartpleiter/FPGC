@@ -291,6 +291,9 @@ emitins(Ins *i, Fn *fn, FILE *f)
 	int64_t s;
 	Con *con;
 
+	fprintf(stderr, "[emit] op=%d cls=%d i=%p to=%d a0=%d a1=%d\n",
+		i->op, i->cls, (void*)i, i->to.val, i->arg[0].val, i->arg[1].val);
+
 	switch (i->op) {
 	default:
 		if (isload(i->op)) {
@@ -500,6 +503,8 @@ b32p3_emitfn(Fn *fn, FILE *f)
 	Blk *b, *s;
 	Ins *i;
 
+	fprintf(stderr, "[emitfn] %s nblk=%d slot=%d start=%p\n", fn->name, fn->nblk, fn->slot, (void*)fn->start);
+
 	/* emit function label */
 	fprintf(f, "\n.text\n");
 	fprintf(f, "; function %s\n", fn->name);
@@ -547,6 +552,8 @@ b32p3_emitfn(Fn *fn, FILE *f)
 
 	/* emit blocks */
 	for (lbl=0, b=fn->start; b; b=b->link) {
+		fprintf(stderr, "[blk] id=%d nins=%d ins=%p link=%p\n",
+			b->id, b->nins, (void*)b->ins, (void*)b->link);
 		if (lbl || b->npred > 1)
 			fprintf(f, ".L%d:\n", id0+b->id);
 		for (i=b->ins; i!=&b->ins[b->nins]; i++)

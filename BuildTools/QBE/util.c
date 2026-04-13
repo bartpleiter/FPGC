@@ -90,6 +90,7 @@ void *
 alloc(size_t n)
 {
 	void **pp;
+	void *ret;
 
 	if (n == 0)
 		return 0;
@@ -99,7 +100,8 @@ alloc(size_t n)
 		pool = pp;
 		nptr = 1;
 	}
-	return pool[nptr++] = emalloc(n);
+	ret = emalloc(n);
+	return pool[nptr++] = ret;
 }
 
 void

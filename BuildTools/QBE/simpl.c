@@ -10,22 +10,30 @@ blit(Ref sd[2], int sz, Fn *fn)
 		{ Ostoreb, Oloadub, Kw, 1 }
 	};
 	Ref r, r1, ro;
-	int off, fwd, n;
+	int off, fwd, n, skip8;
+
+	/* B32P3 (and any 32-bit target) cannot do 8-byte loads/stores;
+	 * isel silently converts Kl→Kw, copying only 4 of 8 bytes.
+	 * Skip the 8-byte entry when the target pointer class is Kw. */
+	skip8 = (T.km == Kw);
 
 	fwd = sz >= 0;
 	sz = abs(sz);
 	off = fwd ? sz : 0;
 	for (p=tbl; sz; p++)
 		for (n=p->size; sz>=n; sz-=n) {
+			if (skip8 && n == 8) {
+				break;
+			}
 			off -= fwd ? n : 0;
-			r = newtmp("blt", Kl, fn);
-			r1 = newtmp("blt", Kl, fn);
+			r = newtmp("blt", T.km, fn);
+			r1 = newtmp("blt", T.km, fn);
 			ro = getcon(off, fn);
 			emit(p->st, 0, R, r, r1);
-			emit(Oadd, Kl, r1, sd[1], ro);
-			r1 = newtmp("blt", Kl, fn);
+			emit(Oadd, T.km, r1, sd[1], ro);
+			r1 = newtmp("blt", T.km, fn);
 			emit(p->ld, p->cls, r, r1, R);
-			emit(Oadd, Kl, r1, sd[0], ro);
+			emit(Oadd, T.km, r1, sd[0], ro);
 			off += fwd ? 0 : n;
 		}
 }
