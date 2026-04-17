@@ -32,7 +32,7 @@ CPROC_OUTPUT = $(CPROC_DIR)/output/cproc-qbe
 .PHONY: venv
 .PHONY: lint format format-check mypy ruff-lint ruff-format ruff-format-check
 .PHONY: asmpy-install asmpy-uninstall test-asmpy asmpy-clean
-.PHONY: test-asm-link test-cpp
+.PHONY: test-asm-link test-cpp test-term2
 .PHONY: docs-serve docs-deploy
 .PHONY: sim-cpu sim-sdram sim-bootloader
 .PHONY: test-cpu test-cpu-single debug-cpu quartus-timing
@@ -96,6 +96,10 @@ test-asm-link:
 test-cpp:
 	@echo "Running cpp byte-for-byte regression tests vs gcc cpp..."
 	uv run pytest Scripts/Tests/cpp_tests.py -v
+
+test-term2:
+	@echo "Running libterm v2 host unit tests..."
+	uv run pytest Scripts/Tests/term2_tests.py -v
 
 asmpy-clean:
 	@echo "Cleaning ASMPY build artifacts..."
@@ -848,6 +852,7 @@ help:
 	@echo "  test-asmpy          - Run ASMPY-specific tests"
 	@echo "  test-asm-link       - Run asm-link byte-for-byte regression tests vs ASMPY"
 	@echo "  test-cpp            - Run cpp byte-for-byte regression tests vs gcc cpp"
+	@echo "  test-term2          - Run libterm v2 host unit tests"
 	@echo "  asmpy-clean         - Clean ASMPY build artifacts"
 	@echo ""
 	@echo "--- Python Code Quality & Testing ---"
