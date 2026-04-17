@@ -10,20 +10,22 @@ void bdos_heap_init(void)
 unsigned int *bdos_heap_alloc(unsigned int size_words)
 {
   unsigned int addr;
+  unsigned int size_bytes;
 
   if (size_words == 0)
   {
     return (unsigned int *)0;
   }
 
+  size_bytes = size_words * sizeof(unsigned int);
   addr = bdos_heap_next;
 
-  if (addr + size_words > MEM_HEAP_END)
+  if (addr + size_bytes > MEM_HEAP_END)
   {
     return (unsigned int *)0;
   }
 
-  bdos_heap_next = addr + size_words;
+  bdos_heap_next = addr + size_bytes;
   return (unsigned int *)addr;
 }
 
