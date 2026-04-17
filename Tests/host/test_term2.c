@@ -278,6 +278,168 @@ static void test_ed_modes(void) {
 
 /* ---------------------------------------------------------------- */
 
+/* Mock input source: a queue of pre-loaded events. */
+#define INPUT_QUEUE_MAX 256
+static int input_queue[INPUT_QUEUE_MAX];
+static int input_head = 0;
+static int input_tail = 0;
+
+static int input_pop(void) {
+    if (input_head == input_tail) return -1;
+    int ev = input_queue[input_head];
+    input_head = (input_head + 1) % INPUT_QUEUE_MAX;
+    return ev;
+}
+
+static void input_push(int ev) {
+    int next = (input_tail + 1) % INPUT_QUEUE_MAX;
+    if (next == input_head) return;  /* full */
+    input_queue[input_tail] = ev;
+    input_tail = next;
+}
+
+static void input_reset(void) { input_head = input_tail = 0; }
+
+static void input_push_str(const char *s) {
+    while (*s) input_push((unsigned char)*s++);
+}
+
+static void test_cooked_basic_line(void) {
+    reset();
+    input_reset();
+    term2_set_input_source(input_pop);
+    input_push_str("hello\n");
+    char buf[64];
+    int n = term2_read(buf, sizeof(buf), 1);
+    CHECK(n == 6, "cooked line len=%d", n);
+    CHECK(buf[0] == 'h' && buf[5] == '\n', "buf=%c..%c", buf[0], buf[5]);
+    /* Echo should have written 'hello' to screen */
+    CHECK(g_render_tiles[0][0] == 'h', "echoed h=%d", g_render_tiles[0][0]);
+    CHECK(g_render_tiles[0][4] == 'o', "echoed o=%d", g_render_tiles[0][4]);
+}
+
+static void test_cooked_backspace(void) {
+    reset();
+    input_reset();
+    term2_set_input_source(input_pop);
+    input_push_str("ab");
+    input_push(127);    /* backspace */
+    input_push('c');
+    input_push('\n');
+    char buf[64];
+    int n = term2_read(buf, sizeof(buf), 1);
+    CHECK(n == 3, "cooked bs len=%d", n);
+    CHECK(buf[0] == 'a' && buf[1] == 'c' && buf[2] == '\n',
+          "buf=[%c%c%c]", buf[0], buf[1], buf[2]);
+}
+
+static void test_cooked_ctrl_u(void) {
+    reset();
+    input_reset();
+    term2_set_input_source(input_pop);
+    input_push_str("garbage");
+    input_push(21);     /* Ctrl-U */
+    input_push_str("ok\n");
+    char buf[64];
+    int n = term2_read(buf, sizeof(buf), 1);
+    CHECK(n == 3, "ctrl-u: len=%d", n);
+    CHECK(buf[0] == 'o' && buf[1] == 'k' && buf[2] == '\n',
+          "ctrl-u buf=[%c%c%c]", buf[0], buf[1], buf[2]);
+}
+
+static void test_cooked_ctrl_d_eof(void) {
+    reset();
+    input_reset();
+    term2_set_input_source(input_pop);
+    input_push(4);      /* Ctrl-D on empty */
+    char buf[64];
+    int n = term2_read(buf, sizeof(buf), 1);
+    CHECK(n == 0, "EOF returns 0, got %d", n);
+}
+
+static void test_cooked_nonblocking(void) {
+    reset();
+    input_reset();
+    term2_set_input_source(input_pop);
+    input_push_str("ab"); /* no newline */
+    char buf[64];
+    int n = term2_read(buf, sizeof(buf), 0);
+    CHECK(n == 0, "no complete line, got %d", n);
+    /* Buffer should still hold 'ab' for next read */
+    input_push('\n');
+    n = term2_read(buf, sizeof(buf), 0);
+    CHECK(n == 3, "after \\n, len=%d", n);
+}
+
+static void test_cooked_drain_in_chunks(void) {
+    reset();
+    input_reset();
+    term2_set_input_source(input_pop);
+    input_push_str("abcdefgh\n");
+    char buf[4];
+    int n = term2_read(buf, sizeof(buf), 1);
+    CHECK(n == 4, "first chunk=%d", n);
+    CHECK(buf[0] == 'a' && buf[3] == 'd', "chunk1");
+    n = term2_read(buf, sizeof(buf), 0);
+    CHECK(n == 4, "second chunk=%d", n);
+    CHECK(buf[0] == 'e' && buf[3] == 'h', "chunk2");
+    n = term2_read(buf, sizeof(buf), 0);
+    CHECK(n == 1 && buf[0] == '\n', "remainder len=%d", n);
+}
+
+static void test_cooked_no_echo(void) {
+    reset();
+    input_reset();
+    term2_set_input_source(input_pop);
+    term2_set_echo(0);
+    input_push_str("hi\n");
+    char buf[64];
+    term2_read(buf, sizeof(buf), 1);
+    /* No echo: row 0 col 0 should still be 0 */
+    CHECK(g_render_tiles[0][0] == 0, "no-echo: cell=%d", g_render_tiles[0][0]);
+}
+
+static void test_raw_event(void) {
+    reset();
+    input_reset();
+    term2_set_input_source(input_pop);
+    term2_set_cooked(0);
+    input_push(TERM2_KEY_UP);
+    input_push('a');
+    int ev = term2_read_event(0);
+    CHECK(ev == TERM2_KEY_UP, "first event=%d", ev);
+    ev = term2_read_event(0);
+    CHECK(ev == 'a', "second event=%d", ev);
+    ev = term2_read_event(0);
+    CHECK(ev == -1, "empty=-1, got %d", ev);
+}
+
+static void test_raw_read_drops_special(void) {
+    reset();
+    input_reset();
+    term2_set_input_source(input_pop);
+    term2_set_cooked(0);
+    input_push('a');
+    input_push(TERM2_KEY_F1);
+    input_push('b');
+    char buf[8];
+    int n = term2_read(buf, sizeof(buf), 0);
+    CHECK(n == 2, "raw read len=%d", n);
+    CHECK(buf[0] == 'a' && buf[1] == 'b', "raw read=[%c%c]", buf[0], buf[1]);
+}
+
+static void test_no_input_source(void) {
+    reset();
+    /* term2_init resets input_pop to NULL. */
+    char buf[8];
+    int n = term2_read(buf, sizeof(buf), 0);
+    CHECK(n == -1, "no source = -1, got %d", n);
+    int ev = term2_read_event(0);
+    CHECK(ev == -1, "no source event = -1, got %d", ev);
+}
+
+/* ---------------------------------------------------------------- */
+
 #define RUN(t) do { printf("  %s\n", #t); t(); } while (0)
 
 int main(void) {
@@ -299,6 +461,16 @@ int main(void) {
     RUN(test_carriage_return);
     RUN(test_unknown_csi_swallowed);
     RUN(test_ed_modes);
+    RUN(test_cooked_basic_line);
+    RUN(test_cooked_backspace);
+    RUN(test_cooked_ctrl_u);
+    RUN(test_cooked_ctrl_d_eof);
+    RUN(test_cooked_nonblocking);
+    RUN(test_cooked_drain_in_chunks);
+    RUN(test_cooked_no_echo);
+    RUN(test_raw_event);
+    RUN(test_raw_read_drops_special);
+    RUN(test_no_input_source);
     printf("\n");
     if (g_failures == 0) {
         printf("OK — all tests passed\n");

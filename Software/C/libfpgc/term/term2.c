@@ -66,6 +66,18 @@ static int g_hist_head = 0;
 static int g_hist_count = 0;
 static int g_scroll_view_offset = 0;   /* 0 = looking at live; >0 = N rows back */
 
+/* Input (line discipline) */
+static term2_input_pop_fn g_input_pop = NULL;
+static int g_cooked = 1;
+static int g_echo   = 1;
+
+#define LINEBUF_MAX 256
+static char g_line[LINEBUF_MAX];
+static int  g_line_len = 0;       /* current number of chars in g_line */
+static int  g_line_complete = 0;  /* 1 once user pressed Enter / Ctrl-D */
+static int  g_line_eof = 0;       /* 1 once Ctrl-D on empty buffer */
+static int  g_line_drain = 0;     /* read offset into g_line during drain */
+
 /* ANSI parser state */
 typedef enum {
     PS_NORMAL,
@@ -509,6 +521,14 @@ void term2_init(int width, int height,
     g_hist_head = 0;
     g_hist_count = 0;
     g_scroll_view_offset = 0;
+    /* Input state */
+    g_input_pop = NULL;
+    g_cooked = 1;
+    g_echo = 1;
+    g_line_len = 0;
+    g_line_complete = 0;
+    g_line_eof = 0;
+    g_line_drain = 0;
     /* Paint blank screen */
     {
         int x, y;
@@ -681,4 +701,170 @@ void term2_snap_to_bottom(void) {
     if (g_scroll_view_offset == 0) return;
     g_scroll_view_offset = 0;
     term2_repaint();
+}
+
+/* ============================================================ Input ===== */
+
+/* (state declared up top with the rest of g_*) */
+
+void term2_set_input_source(term2_input_pop_fn pop) { g_input_pop = pop; }
+void term2_set_cooked(int cooked) { g_cooked = cooked ? 1 : 0; }
+int  term2_get_cooked(void)       { return g_cooked; }
+void term2_set_echo(int echo)     { g_echo = echo ? 1 : 0; }
+int  term2_get_echo(void)         { return g_echo; }
+
+/* Echo a single typed character. Backspace erases the previous cell. */
+static void echo_char(int c) {
+    if (!g_echo) return;
+    if (c == '\n' || c == '\r') {
+        term2_putchar('\n');
+        return;
+    }
+    if (c == 127 || c == 8) {
+        /* Erase previous cell visually: backspace + space + backspace. */
+        term2_screen_t *s = ACTIVE();
+        if (s->cursor_x > 0) {
+            s->cursor_x--;
+            put_at(s->cursor_x, s->cursor_y, 0, s->palette);
+        } else if (s->cursor_y > 0) {
+            s->cursor_y--;
+            s->cursor_x = g_width - 1;
+            put_at(s->cursor_x, s->cursor_y, 0, s->palette);
+        }
+        return;
+    }
+    if (c < 0x20 || c > 0x7E) return;   /* don't echo other control chars */
+    term2_putchar((char)c);
+}
+
+/* Process one event in cooked mode. Returns 1 if the line was completed. */
+static int cooked_process_event(int ev) {
+    if (ev < 0) return 0;
+    /* Only ASCII events are meaningful in cooked mode; drop special keys. */
+    if (ev >= 0x100) return 0;
+
+    if (ev == '\n' || ev == '\r') {
+        if (g_line_len < LINEBUF_MAX - 1)
+            g_line[g_line_len++] = '\n';
+        g_line[g_line_len] = '\0';
+        g_line_complete = 1;
+        g_line_drain = 0;
+        echo_char('\n');
+        return 1;
+    }
+    if (ev == 127 || ev == 8) {        /* Backspace */
+        if (g_line_len > 0) {
+            g_line_len--;
+            echo_char(127);
+        }
+        return 0;
+    }
+    if (ev == 21) {                    /* Ctrl-U: erase line */
+        while (g_line_len > 0) {
+            g_line_len--;
+            echo_char(127);
+        }
+        return 0;
+    }
+    if (ev == 4) {                     /* Ctrl-D */
+        if (g_line_len == 0) {
+            g_line_eof = 1;
+            g_line_complete = 1;
+            g_line_drain = 0;
+            return 1;
+        }
+        /* non-empty: treat as Enter */
+        g_line[g_line_len] = '\0';
+        g_line_complete = 1;
+        g_line_drain = 0;
+        return 1;
+    }
+    if (ev == 3) {                     /* Ctrl-C: clear and complete with empty */
+        while (g_line_len > 0) {
+            g_line_len--;
+            echo_char(127);
+        }
+        if (g_line_len < LINEBUF_MAX - 1) g_line[g_line_len++] = '\n';
+        g_line[g_line_len] = '\0';
+        g_line_complete = 1;
+        g_line_drain = 0;
+        echo_char('\n');
+        return 1;
+    }
+    if (ev >= 0x20 && ev <= 0x7E) {
+        if (g_line_len < LINEBUF_MAX - 1) {
+            g_line[g_line_len++] = (char)ev;
+            echo_char(ev);
+        }
+        return 0;
+    }
+    /* Other control chars: ignore */
+    return 0;
+}
+
+int term2_read(char *buf, int max, int blocking) {
+    if (!g_input_pop) return -1;
+    if (max <= 0)     return 0;
+
+    if (g_cooked) {
+        /* If a line is queued for drain, copy out the next chunk. */
+        if (g_line_complete) {
+            int remaining = g_line_len - g_line_drain;
+            int n = remaining < max ? remaining : max;
+            int i;
+            for (i = 0; i < n; i++)
+                buf[i] = g_line[g_line_drain + i];
+            g_line_drain += n;
+            if (g_line_drain >= g_line_len) {
+                /* Line fully drained — reset state */
+                int eof = g_line_eof;
+                g_line_complete = 0;
+                g_line_len = 0;
+                g_line_drain = 0;
+                g_line_eof = 0;
+                if (n == 0 && eof) return 0; /* EOF */
+            }
+            return n;
+        }
+        /* Otherwise, pull events until line completes (or non-blocking gives up). */
+        for (;;) {
+            int ev = g_input_pop();
+            if (ev < 0) {
+                if (!blocking) return 0;
+                continue;
+            }
+            if (cooked_process_event(ev)) break;
+        }
+        /* Now drain the just-completed line. */
+        return term2_read(buf, max, 0);
+    }
+
+    /* Raw mode: return up to max ASCII bytes; drop non-ASCII events. */
+    {
+        int written = 0;
+        for (;;) {
+            int ev = g_input_pop();
+            if (ev < 0) {
+                if (written > 0 || !blocking) return written;
+                continue;
+            }
+            if (ev >= 0x100) continue;       /* skip special keys */
+            buf[written++] = (char)ev;
+            if (written >= max) return written;
+            /* In raw mode, don't keep blocking once we have data. */
+            if (!blocking) {
+                /* Loop once more non-blocking to drain a burst. */
+                blocking = 0;
+            }
+        }
+    }
+}
+
+int term2_read_event(int blocking) {
+    if (!g_input_pop) return -1;
+    for (;;) {
+        int ev = g_input_pop();
+        if (ev >= 0) return ev;
+        if (!blocking) return -1;
+    }
 }
