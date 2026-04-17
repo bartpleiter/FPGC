@@ -1032,6 +1032,8 @@ int main(void)
   running = 1;
   total_lines = count_lines();
 
+  /* Enter alternate screen so the prior shell view is restored on exit. */
+  sys_print_str("\033[?1049h");
   sys_term_clear();
   render_all();
 
@@ -1159,8 +1161,8 @@ int main(void)
     render_all();
   }
 
-  sys_term_clear();
-  sys_term_set_cursor(0, 0);
+  /* Leave alternate screen — restores whatever was on screen before. */
+  sys_print_str("\033[?1049l");
 
   return 0;
 }

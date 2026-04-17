@@ -83,22 +83,22 @@ int syscall(int num, int a1, int a2, int a3);
 
 /* ---- Convenience wrappers: I/O ---- */
 void sys_print_char(int ch);
-void sys_print_str(char *s);
+void sys_print_str(const char *s);
 int  sys_read_key(void);
 int  sys_key_available(void);
 
 /* ---- Convenience wrappers: Filesystem ---- */
-int  sys_fs_open(char *path);
+int  sys_fs_open(const char *path);
 int  sys_fs_close(int fd);
 int  sys_fs_read(int fd, void *buf, int count);
 int  sys_fs_write(int fd, void *buf, int count);
 int  sys_fs_seek(int fd, int offset);
-int  sys_fs_stat(char *path, void *entry_buf);
-int  sys_fs_delete(char *path);
-int  sys_fs_create(char *path);
+int  sys_fs_stat(const char *path, void *entry_buf);
+int  sys_fs_delete(const char *path);
+int  sys_fs_create(const char *path);
 int  sys_fs_filesize(int fd);
-int  sys_fs_readdir(char *path, void *entry_buf, int max_entries);
-int  sys_fs_mkdir(char *path);
+int  sys_fs_readdir(const char *path, void *entry_buf, int max_entries);
+int  sys_fs_mkdir(const char *path);
 
 /* ---- Convenience wrappers: Shell ---- */
 int    sys_shell_argc(void);

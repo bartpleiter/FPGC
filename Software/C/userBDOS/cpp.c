@@ -45,8 +45,11 @@
 #define MAX_INCLUDE_DIRS   16
 #define MAX_INCLUDE_DEPTH  16
 #define MAX_COND_DEPTH     64
-#define LINE_BUF_BYTES     (32 * 1024)
-#define EXPAND_BUF_BYTES   (64 * 1024)
+#define LINE_BUF_BYTES     (4 * 1024)
+/* expand_pass uses several stack-allocated buffers of this size and recurses,
+ * so keep the total frame under what b32p3's 16-bit signed immediates can
+ * encode for `sub r13 imm` (~32 KB). 4 KB per buffer × 6 ≈ 24 KB. */
+#define EXPAND_BUF_BYTES   (4 * 1024)
 #define ID_MAX_LEN         128
 
 /* Per-macro string storage budget; lives in a single bump allocator. */

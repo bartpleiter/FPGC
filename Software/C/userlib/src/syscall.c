@@ -58,7 +58,7 @@ void sys_print_char(int ch)
     syscall(SYSCALL_PRINT_CHAR, ch, 0, 0);
 }
 
-void sys_print_str(char *s)
+void sys_print_str(const char *s)
 {
     syscall(SYSCALL_PRINT_STR, (int)s, 0, 0);
 }
@@ -75,7 +75,7 @@ int sys_key_available(void)
 
 /* ---- Filesystem ---- */
 
-int sys_fs_open(char *path)
+int sys_fs_open(const char *path)
 {
     return syscall(SYSCALL_FS_OPEN, (int)path, 0, 0);
 }
@@ -100,17 +100,17 @@ int sys_fs_seek(int fd, int offset)
     return syscall(SYSCALL_FS_SEEK, fd, offset, 0);
 }
 
-int sys_fs_stat(char *path, void *entry_buf)
+int sys_fs_stat(const char *path, void *entry_buf)
 {
     return syscall(SYSCALL_FS_STAT, (int)path, (int)entry_buf, 0);
 }
 
-int sys_fs_delete(char *path)
+int sys_fs_delete(const char *path)
 {
     return syscall(SYSCALL_FS_DELETE, (int)path, 0, 0);
 }
 
-int sys_fs_create(char *path)
+int sys_fs_create(const char *path)
 {
     return syscall(SYSCALL_FS_CREATE, (int)path, 0, 0);
 }
@@ -120,12 +120,12 @@ int sys_fs_filesize(int fd)
     return syscall(SYSCALL_FS_FILESIZE, fd, 0, 0);
 }
 
-int sys_fs_readdir(char *path, void *entry_buf, int max_entries)
+int sys_fs_readdir(const char *path, void *entry_buf, int max_entries)
 {
     return syscall(SYSCALL_FS_READDIR, (int)path, (int)entry_buf, max_entries);
 }
 
-int sys_fs_mkdir(char *path)
+int sys_fs_mkdir(const char *path)
 {
     return syscall(SYSCALL_FS_MKDIR, (int)path, 0, 0);
 }

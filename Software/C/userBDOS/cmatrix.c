@@ -150,7 +150,8 @@ int main(void)
   // Green = 0b00011100 = 28, Black = 0
   sys_set_palette(0, (0 << 8) | 28);
 
-  // Clear screen
+  /* Enter alternate screen so the prior shell view is restored on exit. */
+  sys_print_str("\033[?1049h");
   sys_term_clear();
 
   // Main loop
@@ -181,10 +182,10 @@ int main(void)
     sys_delay(RAIN_DELAY_MS);
   }
 
-  // Restore default palette (white-on-black) and clear screen
-  // White = 0xFF (0b11111111), Black = 0
+  // Restore default palette (white-on-black). Leaving the alt screen
+  // restores whatever was visible before cmatrix ran.
   sys_set_palette(0, (0 << 8) | 0xFF);
-  sys_term_clear();
+  sys_print_str("\033[?1049l");
 
   return 0;
 }
