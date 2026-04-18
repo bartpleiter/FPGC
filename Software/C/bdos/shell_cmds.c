@@ -235,7 +235,7 @@ static int bdos_shell_cmd_ls(int argc, char **argv)
   {
     term_puts(file_names[i]);
 
-    size_len = bdos_shell_format_word_size(file_sizes[i], size_buf);
+    size_len = bdos_shell_format_byte_size(file_sizes[i], size_buf);
     prefix_len = 2 + strlen(file_names[i]);
     spaces = size_col - prefix_len;
     if (spaces < 1)
@@ -489,12 +489,12 @@ static int bdos_shell_cmd_cat(int argc, char **argv)
 static int bdos_shell_cmd_write(int argc, char **argv)
 {
   char resolved[BDOS_SHELL_PATH_MAX];
-  unsigned int words[BDOS_SHELL_INPUT_MAX];
+  unsigned char buf[BDOS_SHELL_INPUT_MAX];
   int result;
   int fd;
   int i;
   int j;
-  int write_index;
+  int byte_count;
 
   if (!bdos_shell_require_fs_ready())
   {
@@ -544,83 +544,45 @@ static int bdos_shell_cmd_write(int argc, char **argv)
     return 0;
   }
 
-  write_index = 0;
+  byte_count = 0;
+  for (i = 2; i < argc; i++)
   {
-    int byte_count;
-    unsigned int current_word;
-    int byte_pos;
-
-    byte_count = 0;
-    current_word = 0;
-    byte_pos = 0;
-
-    for (i = 2; i < argc; i++)
+    if (i > 2)
     {
-      if (i > 2)
-      {
-        current_word = (current_word << 8) | (unsigned int)' ';
-        byte_pos++;
-        byte_count++;
-        if (byte_pos == 4)
-        {
-          if (write_index >= BDOS_SHELL_INPUT_MAX)
-          {
-            term_puts("error: text too long\n");
-            brfs_close(fd);
-            return 0;
-          }
-          words[write_index++] = current_word;
-          current_word = 0;
-          byte_pos = 0;
-        }
-      }
-
-      for (j = 0; argv[i][j] != '\0'; j++)
-      {
-        current_word = (current_word << 8) | (unsigned int)(unsigned char)argv[i][j];
-        byte_pos++;
-        byte_count++;
-        if (byte_pos == 4)
-        {
-          if (write_index >= BDOS_SHELL_INPUT_MAX)
-          {
-            term_puts("error: text too long\n");
-            brfs_close(fd);
-            return 0;
-          }
-          words[write_index++] = current_word;
-          current_word = 0;
-          byte_pos = 0;
-        }
-      }
-    }
-
-    if (byte_pos > 0)
-    {
-      current_word = current_word << (8 * (4 - byte_pos));
-      if (write_index >= BDOS_SHELL_INPUT_MAX)
+      if (byte_count >= BDOS_SHELL_INPUT_MAX)
       {
         term_puts("error: text too long\n");
         brfs_close(fd);
         return 0;
       }
-      words[write_index++] = current_word;
+      buf[byte_count++] = ' ';
     }
 
-    result = brfs_write(fd, words, (unsigned int)write_index);
-    if (result < 0)
+    for (j = 0; argv[i][j] != '\0'; j++)
     {
-      bdos_shell_print_fs_error("write", result);
-      brfs_close(fd);
-      return 0;
+      if (byte_count >= BDOS_SHELL_INPUT_MAX)
+      {
+        term_puts("error: text too long\n");
+        brfs_close(fd);
+        return 0;
+      }
+      buf[byte_count++] = (unsigned char)argv[i][j];
     }
-
-    brfs_close(fd);
-
-    term_puts("wrote ");
-    term_putint(byte_count);
-    term_puts(" bytes\n");
   }
+
+  result = brfs_write(fd, buf, (unsigned int)byte_count);
+  if (result < 0)
+  {
+    bdos_shell_print_fs_error("write", result);
+    brfs_close(fd);
+    return 0;
+  }
+
+  brfs_close(fd);
+
+  term_puts("wrote ");
+  term_putint(byte_count);
+  term_puts(" bytes\n");
   return 0;
 }
 
@@ -628,14 +590,14 @@ static int bdos_shell_cmd_cp(int argc, char **argv)
 {
   char src_resolved[BDOS_SHELL_PATH_MAX];
   char dst_resolved[BDOS_SHELL_PATH_MAX];
-  unsigned int chunk[BDOS_SHELL_IO_CHUNK_WORDS];
+  unsigned char chunk[BDOS_SHELL_IO_CHUNK_WORDS * 4];
   int result;
   int src_fd;
   int dst_fd;
   int remaining;
   int chunk_len;
-  int words_read;
-  int words_written;
+  int bytes_read;
+  int bytes_written;
   char *slash;
 
   if (!bdos_shell_require_fs_ready())
@@ -726,29 +688,29 @@ static int bdos_shell_cmd_cp(int argc, char **argv)
   while (remaining > 0)
   {
     chunk_len = remaining;
-    if (chunk_len > BDOS_SHELL_IO_CHUNK_WORDS)
+    if (chunk_len > (int)sizeof(chunk))
     {
-      chunk_len = BDOS_SHELL_IO_CHUNK_WORDS;
+      chunk_len = (int)sizeof(chunk);
     }
 
-    words_read = brfs_read(src_fd, chunk, (unsigned int)chunk_len);
-    if (words_read <= 0)
+    bytes_read = brfs_read(src_fd, chunk, (unsigned int)chunk_len);
+    if (bytes_read <= 0)
     {
-      if (words_read < 0)
+      if (bytes_read < 0)
       {
-        bdos_shell_print_fs_error("cp: read", words_read);
+        bdos_shell_print_fs_error("cp: read", bytes_read);
       }
       break;
     }
 
-    words_written = brfs_write(dst_fd, chunk, (unsigned int)words_read);
-    if (words_written < 0)
+    bytes_written = brfs_write(dst_fd, chunk, (unsigned int)bytes_read);
+    if (bytes_written < 0)
     {
-      bdos_shell_print_fs_error("cp: write", words_written);
+      bdos_shell_print_fs_error("cp: write", bytes_written);
       break;
     }
 
-    remaining -= words_read;
+    remaining -= bytes_read;
   }
 
   brfs_close(src_fd);
@@ -760,14 +722,14 @@ static int bdos_shell_cmd_mv(int argc, char **argv)
 {
   char src_resolved[BDOS_SHELL_PATH_MAX];
   char dst_resolved[BDOS_SHELL_PATH_MAX];
-  unsigned int chunk[BDOS_SHELL_IO_CHUNK_WORDS];
+  unsigned char chunk[BDOS_SHELL_IO_CHUNK_WORDS * 4];
   int result;
   int src_fd;
   int dst_fd;
   int remaining;
   int chunk_len;
-  int words_read;
-  int words_written;
+  int bytes_read;
+  int bytes_written;
   char *slash;
 
   if (!bdos_shell_require_fs_ready())
@@ -858,29 +820,29 @@ static int bdos_shell_cmd_mv(int argc, char **argv)
   while (remaining > 0)
   {
     chunk_len = remaining;
-    if (chunk_len > BDOS_SHELL_IO_CHUNK_WORDS)
+    if (chunk_len > (int)sizeof(chunk))
     {
-      chunk_len = BDOS_SHELL_IO_CHUNK_WORDS;
+      chunk_len = (int)sizeof(chunk);
     }
 
-    words_read = brfs_read(src_fd, chunk, (unsigned int)chunk_len);
-    if (words_read <= 0)
+    bytes_read = brfs_read(src_fd, chunk, (unsigned int)chunk_len);
+    if (bytes_read <= 0)
     {
-      if (words_read < 0)
+      if (bytes_read < 0)
       {
-        bdos_shell_print_fs_error("mv: read", words_read);
+        bdos_shell_print_fs_error("mv: read", bytes_read);
       }
       break;
     }
 
-    words_written = brfs_write(dst_fd, chunk, (unsigned int)words_read);
-    if (words_written < 0)
+    bytes_written = brfs_write(dst_fd, chunk, (unsigned int)bytes_read);
+    if (bytes_written < 0)
     {
-      bdos_shell_print_fs_error("mv: write", words_written);
+      bdos_shell_print_fs_error("mv: write", bytes_written);
       break;
     }
 
-    remaining -= words_read;
+    remaining -= bytes_read;
   }
 
   brfs_close(src_fd);

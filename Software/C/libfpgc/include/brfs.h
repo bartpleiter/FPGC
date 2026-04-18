@@ -12,7 +12,12 @@ typedef void (*brfs_progress_callback_t)(const char *phase, unsigned int current
 #include "brfs_cache.h"
 
 /* ---- Configuration Constants ---- */
-#define BRFS_VERSION 1
+#define BRFS_VERSION 2
+
+/* On-disk magic 'BRF2' stored as a little-endian word in the
+ * superblock. The character bytes B,R,F,2 land at offsets 0..3,
+ * which in little-endian becomes 0x32465242. */
+#define BRFS_MAGIC   0x32465242u
 
 #define BRFS_MAX_PATH_LENGTH    127
 #define BRFS_MAX_FILENAME_LENGTH 16
@@ -68,13 +73,15 @@ typedef void (*brfs_progress_callback_t)(const char *phase, unsigned int current
 
 struct brfs_superblock
 {
+  unsigned int magic;            /* BRFS_MAGIC ('BRF2' LE) */
   unsigned int total_blocks;
   unsigned int words_per_block;
   unsigned int label[10];
-  unsigned int brfs_version;
-  unsigned int reserved[3];
+  unsigned int brfs_version;     /* BRFS_VERSION */
+  unsigned int reserved[2];
 };
 
+/* dir_entry.filesize is in BYTES in v2. */
 struct brfs_dir_entry
 {
   unsigned int filename[4];
@@ -114,8 +121,9 @@ int brfs_create_file(const char *path);
 int brfs_open(const char *path);
 int brfs_close(int fd);
 void brfs_close_all(void);
-int brfs_read(int fd, unsigned int *buffer, unsigned int length);
-int brfs_write(int fd, const unsigned int *buffer, unsigned int length);
+/* v2: read/write/seek operate on BYTES, not words. */
+int brfs_read(int fd, void *buffer, unsigned int length);
+int brfs_write(int fd, const void *buffer, unsigned int length);
 int brfs_seek(int fd, unsigned int offset);
 int brfs_tell(int fd);
 int brfs_file_size(int fd);

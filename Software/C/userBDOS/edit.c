@@ -664,16 +664,14 @@ int file_load(void)
   int fd;
   int fsize;
   int alloc_size;
-  int words_remaining;
+  int bytes_remaining;
   int chunk;
-  int words_read;
-  unsigned int read_buf[256];
+  int bytes_read;
+  unsigned char read_buf[256];
   int char_count;
   int dest_idx;
   int ri;
-  int b;
   int c;
-  int done;
 
   fd = sys_fs_open(filepath);
   if (fd < 0)
@@ -688,8 +686,8 @@ int file_load(void)
     fsize = 0;
   }
 
-  // Each BRFS word holds 4 packed bytes
-  alloc_size = fsize * 4 + GAP_INITIAL + 256;
+  /* BRFS v2: filesize is in bytes. */
+  alloc_size = fsize + GAP_INITIAL + 256;
   buf = sys_heap_alloc(alloc_size);
   if (buf == (unsigned int *)0)
   {
@@ -703,42 +701,32 @@ int file_load(void)
   gap_end = GAP_INITIAL;
 
   dest_idx = gap_end;
-  words_remaining = fsize;
+  bytes_remaining = fsize;
   char_count = 0;
-  done = 0;
 
-  while (words_remaining > 0 && !done)
+  while (bytes_remaining > 0)
   {
-    chunk = words_remaining;
-    if (chunk > 256)
+    chunk = bytes_remaining;
+    if (chunk > (int)sizeof(read_buf))
     {
-      chunk = 256;
+      chunk = (int)sizeof(read_buf);
     }
 
-    words_read = sys_fs_read(fd, read_buf, chunk);
-    if (words_read <= 0)
+    bytes_read = sys_fs_read(fd, read_buf, chunk);
+    if (bytes_read <= 0)
     {
       break;
     }
 
-    // Unpack each word into up to 4 characters (big-endian)
-    for (ri = 0; ri < words_read && !done; ri++)
+    for (ri = 0; ri < bytes_read; ri++)
     {
-      for (b = 3; b >= 0; b--)
-      {
-        c = (read_buf[ri] >> (b * 8)) & 0xFF;
-        if (c == 0)
-        {
-          done = 1;
-          break;
-        }
-        buf[dest_idx] = (unsigned int)c;
-        dest_idx++;
-        char_count++;
-      }
+      c = read_buf[ri];
+      buf[dest_idx] = (unsigned int)c;
+      dest_idx++;
+      char_count++;
     }
 
-    words_remaining = words_remaining - words_read;
+    bytes_remaining = bytes_remaining - bytes_read;
   }
 
   sys_fs_close(fd);
@@ -752,10 +740,8 @@ int file_save(void)
 {
   int fd;
   int i;
-  unsigned int chunk_buf[64];
+  unsigned char chunk_buf[256];
   int chunk_idx;
-  unsigned int current_word;
-  int byte_pos;
 
   sys_fs_delete(filepath);
   sys_fs_create(filepath);
@@ -767,24 +753,14 @@ int file_save(void)
   }
 
   chunk_idx = 0;
-  current_word = 0;
-  byte_pos = 0;
 
   for (i = 0; i < gap_start; i++)
   {
-    current_word = (current_word << 8) | (buf[i] & 0xFF);
-    byte_pos++;
-    if (byte_pos == 4)
+    chunk_buf[chunk_idx++] = (unsigned char)(buf[i] & 0xFF);
+    if (chunk_idx == (int)sizeof(chunk_buf))
     {
-      chunk_buf[chunk_idx] = current_word;
-      chunk_idx++;
-      current_word = 0;
-      byte_pos = 0;
-      if (chunk_idx == 64)
-      {
-        sys_fs_write(fd, chunk_buf, 64);
-        chunk_idx = 0;
-      }
+      sys_fs_write(fd, chunk_buf, chunk_idx);
+      chunk_idx = 0;
     }
   }
 
@@ -794,27 +770,12 @@ int file_save(void)
     {
       break;
     }
-    current_word = (current_word << 8) | (buf[i] & 0xFF);
-    byte_pos++;
-    if (byte_pos == 4)
+    chunk_buf[chunk_idx++] = (unsigned char)(buf[i] & 0xFF);
+    if (chunk_idx == (int)sizeof(chunk_buf))
     {
-      chunk_buf[chunk_idx] = current_word;
-      chunk_idx++;
-      current_word = 0;
-      byte_pos = 0;
-      if (chunk_idx == 64)
-      {
-        sys_fs_write(fd, chunk_buf, 64);
-        chunk_idx = 0;
-      }
+      sys_fs_write(fd, chunk_buf, chunk_idx);
+      chunk_idx = 0;
     }
-  }
-
-  if (byte_pos > 0)
-  {
-    current_word = current_word << (8 * (4 - byte_pos));
-    chunk_buf[chunk_idx] = current_word;
-    chunk_idx++;
   }
 
   if (chunk_idx > 0)

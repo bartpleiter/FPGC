@@ -48,11 +48,6 @@ struct bdos_fd_s {
     int          dev;          /* BDOS_DEV_* */
     int          flags;        /* BDOS_O_*  */
     int          handle;       /* device-specific (BRFS fd, …) */
-    unsigned int byte_pos;     /* byte cursor for files */
-
-    /* Write-side byte→word accumulator for file devs. */
-    unsigned int wr_buf;
-    unsigned int wr_fill;      /* 0..3 bytes pending */
 };
 
 /* ---- Lifecycle ---- */

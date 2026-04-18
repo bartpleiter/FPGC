@@ -246,20 +246,23 @@ static void brfs_mark_block_dirty(unsigned int block_idx)
   brfs_cache_mark_dirty(&brfs.cache_state, block_idx);
 }
 
-/* ---- FAT Chain Navigation ---- */
+/* ---- FAT Chain Navigation ----
+ * v2: byte_offset selects a block via byte_offset / (words_per_block*4). */
 
-static int brfs_get_fat_idx_at_offset(unsigned int start_fat_idx, unsigned int offset)
+static int brfs_get_fat_idx_at_offset(unsigned int start_fat_idx, unsigned int byte_offset)
 {
   struct brfs_superblock *sb;
   unsigned int *fat;
   unsigned int current_idx;
   unsigned int blocks_to_skip;
+  unsigned int bytes_per_block;
 
   sb = (struct brfs_superblock *)brfs_get_superblock();
   fat = brfs_get_fat();
 
   current_idx = start_fat_idx;
-  blocks_to_skip = offset / sb->words_per_block;
+  bytes_per_block = sb->words_per_block * 4u;
+  blocks_to_skip = byte_offset / bytes_per_block;
 
   while (blocks_to_skip > 0)
   {
@@ -418,11 +421,11 @@ static void brfs_init_directory_block(unsigned int *block_addr, unsigned int dir
   memset(block_addr, 0, sb->words_per_block * sizeof(unsigned int));
 
   brfs_create_dir_entry(&entry, ".", dir_fat_idx,
-                        max_entries * BRFS_DIR_ENTRY_SIZE, BRFS_FLAG_DIRECTORY);
+                        max_entries * BRFS_DIR_ENTRY_SIZE * 4u, BRFS_FLAG_DIRECTORY);
   memcpy(block_addr, &entry, sizeof(entry));
 
   brfs_create_dir_entry(&entry, "..", parent_fat_idx,
-                        max_entries * BRFS_DIR_ENTRY_SIZE, BRFS_FLAG_DIRECTORY);
+                        max_entries * BRFS_DIR_ENTRY_SIZE * 4u, BRFS_FLAG_DIRECTORY);
   memcpy(block_addr + BRFS_DIR_ENTRY_SIZE, &entry, sizeof(entry));
 }
 
@@ -500,6 +503,7 @@ int brfs_format(unsigned int total_blocks, unsigned int words_per_block,
   sb = (struct brfs_superblock *)brfs_get_superblock();
   memset(sb, 0, sizeof(struct brfs_superblock));
 
+  sb->magic = BRFS_MAGIC;
   sb->total_blocks = total_blocks;
   sb->words_per_block = words_per_block;
   sb->brfs_version = BRFS_VERSION;
@@ -560,6 +564,11 @@ int brfs_format(unsigned int total_blocks, unsigned int words_per_block,
 
 static int brfs_validate_superblock(struct brfs_superblock *sb)
 {
+  if (sb->magic != BRFS_MAGIC)
+  {
+    return BRFS_ERR_INVALID_SUPERBLOCK;
+  }
+
   if (sb->brfs_version != BRFS_VERSION)
   {
     return BRFS_ERR_INVALID_SUPERBLOCK;
@@ -794,7 +803,7 @@ int brfs_create_dir(const char *path)
   max_entries = sb->words_per_block / BRFS_DIR_ENTRY_SIZE;
 
   brfs_create_dir_entry(&new_entry, dirname, free_block,
-                        max_entries * BRFS_DIR_ENTRY_SIZE, BRFS_FLAG_DIRECTORY);
+                        max_entries * BRFS_DIR_ENTRY_SIZE * 4u, BRFS_FLAG_DIRECTORY);
 
   entry = (struct brfs_dir_entry *)(parent_dir_block + (free_entry_idx * BRFS_DIR_ENTRY_SIZE));
   memcpy(entry, &new_entry, sizeof(struct brfs_dir_entry));
@@ -924,143 +933,106 @@ void brfs_close_all(void)
   }
 }
 
-/* ---- File Read ---- */
+/* ---- File Read (byte-mode) ---- */
 
-int brfs_read(int fd, unsigned int *buffer, unsigned int length)
+int brfs_read(int fd, void *buffer, unsigned int length)
 {
   struct brfs_superblock *sb;
   struct brfs_file *file;
-  unsigned int *data_block;
+  unsigned char *out;
+  unsigned char *block_bytes;
   unsigned int *fat;
   unsigned int current_fat_idx;
   unsigned int cursor_in_block;
-  unsigned int words_to_read;
-  unsigned int words_until_end;
+  unsigned int bytes_per_block;
+  unsigned int bytes_to_read;
+  unsigned int bytes_until_end;
   unsigned int total_read;
   unsigned int remaining;
 
-  if (!brfs.initialized)
-  {
-    return BRFS_ERR_NOT_INITIALIZED;
-  }
-
-  if (fd < 0 || fd >= BRFS_MAX_OPEN_FILES)
-  {
-    return BRFS_ERR_INVALID_PARAM;
-  }
+  if (!brfs.initialized) return BRFS_ERR_NOT_INITIALIZED;
+  if (fd < 0 || fd >= BRFS_MAX_OPEN_FILES) return BRFS_ERR_INVALID_PARAM;
 
   file = &brfs.open_files[fd];
-
-  if (file->dir_entry == NULL)
-  {
-    return BRFS_ERR_NOT_OPEN;
-  }
-
-  if (buffer == NULL)
-  {
-    return BRFS_ERR_INVALID_PARAM;
-  }
+  if (file->dir_entry == NULL) return BRFS_ERR_NOT_OPEN;
+  if (buffer == NULL) return BRFS_ERR_INVALID_PARAM;
 
   sb = (struct brfs_superblock *)brfs_get_superblock();
   fat = brfs_get_fat();
+  bytes_per_block = sb->words_per_block * 4u;
 
-  if (file->cursor >= file->dir_entry->filesize)
-  {
-    return 0;
-  }
+  if (file->cursor >= file->dir_entry->filesize) return 0;
 
   remaining = file->dir_entry->filesize - file->cursor;
-  if (length > remaining)
-  {
-    length = remaining;
-  }
+  if (length > remaining) length = remaining;
 
   current_fat_idx = brfs_get_fat_idx_at_offset(file->fat_idx, file->cursor);
-  if ((int)current_fat_idx < 0)
-  {
-    return BRFS_ERR_READ_ERROR;
-  }
+  if ((int)current_fat_idx < 0) return BRFS_ERR_READ_ERROR;
 
+  out = (unsigned char *)buffer;
   total_read = 0;
 
   while (length > 0)
   {
-    cursor_in_block = file->cursor % sb->words_per_block;
-    words_until_end = sb->words_per_block - cursor_in_block;
-    words_to_read = (words_until_end < length) ? words_until_end : length;
+    cursor_in_block = file->cursor % bytes_per_block;
+    bytes_until_end = bytes_per_block - cursor_in_block;
+    bytes_to_read = (bytes_until_end < length) ? bytes_until_end : length;
 
-    data_block = brfs_get_data_block(current_fat_idx);
-    memcpy(buffer, data_block + cursor_in_block, words_to_read * sizeof(unsigned int));
+    block_bytes = (unsigned char *)brfs_get_data_block(current_fat_idx);
+    memcpy(out, block_bytes + cursor_in_block, bytes_to_read);
 
-    buffer += words_to_read;
-    file->cursor += words_to_read;
-    total_read += words_to_read;
-    length -= words_to_read;
+    out += bytes_to_read;
+    file->cursor += bytes_to_read;
+    total_read += bytes_to_read;
+    length -= bytes_to_read;
 
     if (length > 0)
     {
       current_fat_idx = fat[current_fat_idx];
-      if (current_fat_idx == BRFS_FAT_EOF)
-      {
-        break;
-      }
+      if (current_fat_idx == BRFS_FAT_EOF) break;
     }
   }
 
   return (int)total_read;
 }
 
-/* ---- File Write ---- */
+/* ---- File Write (byte-mode) ---- */
 
-int brfs_write(int fd, const unsigned int *buffer, unsigned int length)
+int brfs_write(int fd, const void *buffer, unsigned int length)
 {
   struct brfs_superblock *sb;
   struct brfs_file *file;
-  unsigned int *data_block;
+  const unsigned char *in;
+  unsigned char *block_bytes;
   unsigned int *fat;
   unsigned int current_fat_idx;
   unsigned int cursor_in_block;
-  unsigned int words_to_write;
-  unsigned int words_until_end;
+  unsigned int bytes_per_block;
+  unsigned int bytes_to_write;
+  unsigned int bytes_until_end;
   unsigned int total_written;
   int next_block;
   int result;
 
-  if (!brfs.initialized)
-  {
-    return BRFS_ERR_NOT_INITIALIZED;
-  }
-
-  if (fd < 0 || fd >= BRFS_MAX_OPEN_FILES)
-  {
-    return BRFS_ERR_INVALID_PARAM;
-  }
+  if (!brfs.initialized) return BRFS_ERR_NOT_INITIALIZED;
+  if (fd < 0 || fd >= BRFS_MAX_OPEN_FILES) return BRFS_ERR_INVALID_PARAM;
 
   file = &brfs.open_files[fd];
-
-  if (file->dir_entry == NULL)
-  {
-    return BRFS_ERR_NOT_OPEN;
-  }
-
-  if (buffer == NULL && length > 0)
-  {
-    return BRFS_ERR_INVALID_PARAM;
-  }
-
-  if (length == 0)
-  {
-    return 0;
-  }
+  if (file->dir_entry == NULL) return BRFS_ERR_NOT_OPEN;
+  if (buffer == NULL && length > 0) return BRFS_ERR_INVALID_PARAM;
+  if (length == 0) return 0;
 
   sb = (struct brfs_superblock *)brfs_get_superblock();
   fat = brfs_get_fat();
+  bytes_per_block = sb->words_per_block * 4u;
 
   result = brfs_get_fat_idx_at_offset(file->fat_idx, file->cursor);
   if (result < 0)
   {
+    /* Cursor sits exactly at the end of the last block (filesize is a
+     * multiple of bytes_per_block). Allocate a fresh block. */
     if (file->cursor == file->dir_entry->filesize &&
-        (file->cursor % sb->words_per_block) == 0 &&
+        (file->cursor % bytes_per_block) == 0 &&
         file->cursor > 0)
     {
       unsigned int last_idx;
@@ -1070,10 +1042,7 @@ int brfs_write(int fd, const unsigned int *buffer, unsigned int length)
         last_idx = fat[last_idx];
       }
       next_block = brfs_find_free_block();
-      if (next_block < 0)
-      {
-        return BRFS_ERR_NO_SPACE;
-      }
+      if (next_block < 0) return BRFS_ERR_NO_SPACE;
       fat[last_idx] = next_block;
       fat[next_block] = BRFS_FAT_EOF;
       memset(brfs_get_data_block(next_block), 0, sb->words_per_block * sizeof(unsigned int));
@@ -1090,23 +1059,24 @@ int brfs_write(int fd, const unsigned int *buffer, unsigned int length)
     current_fat_idx = (unsigned int)result;
   }
 
+  in = (const unsigned char *)buffer;
   total_written = 0;
 
   while (length > 0)
   {
-    cursor_in_block = file->cursor % sb->words_per_block;
-    words_until_end = sb->words_per_block - cursor_in_block;
-    words_to_write = (words_until_end < length) ? words_until_end : length;
+    cursor_in_block = file->cursor % bytes_per_block;
+    bytes_until_end = bytes_per_block - cursor_in_block;
+    bytes_to_write = (bytes_until_end < length) ? bytes_until_end : length;
 
-    data_block = brfs_get_data_block(current_fat_idx);
-    memcpy(data_block + cursor_in_block, buffer, words_to_write * sizeof(unsigned int));
+    block_bytes = (unsigned char *)brfs_get_data_block(current_fat_idx);
+    memcpy(block_bytes + cursor_in_block, in, bytes_to_write);
 
     brfs_mark_block_dirty(current_fat_idx);
 
-    buffer += words_to_write;
-    file->cursor += words_to_write;
-    total_written += words_to_write;
-    length -= words_to_write;
+    in += bytes_to_write;
+    file->cursor += bytes_to_write;
+    total_written += bytes_to_write;
+    length -= bytes_to_write;
 
     if (length > 0)
     {
@@ -1121,13 +1091,10 @@ int brfs_write(int fd, const unsigned int *buffer, unsigned int length)
           }
           return (int)total_written;
         }
-
         fat[current_fat_idx] = next_block;
         fat[next_block] = BRFS_FAT_EOF;
-
         memset(brfs_get_data_block(next_block), 0, sb->words_per_block * sizeof(unsigned int));
         brfs_mark_block_dirty(next_block);
-
         current_fat_idx = next_block;
       }
       else
@@ -1395,7 +1362,7 @@ int brfs_stat(const char *path, struct brfs_dir_entry *entry)
     memset(entry, 0, sizeof(struct brfs_dir_entry));
     entry->flags = BRFS_FLAG_DIRECTORY;
     entry->fat_idx = 0;
-    entry->filesize = sb->words_per_block;
+    entry->filesize = sb->words_per_block * 4u;
     brfs_compress_string(entry->filename, "/");
     return BRFS_OK;
   }

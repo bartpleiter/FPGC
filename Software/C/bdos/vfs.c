@@ -162,184 +162,52 @@ static int tty_lseek(bdos_fd_t *f, int off, int whence)
 
 /* ============================================================ File dev ==
  *
- * BRFS v1 talks 32-bit words; the VFS exposes a byte stream. The whole
- * adaptation lives in the `byteview_*` helpers below. BRFS v2 (see
- * Docs/plans/BRFS-v2.md) makes BRFS itself byte-native, at which point
- * this entire helper block disappears and the file_* ops become direct
- * pass-throughs to the BRFS calls.
+ * BRFS v2 is byte-native: file_* ops are direct pass-throughs.
+ * The byteview byte→word shim used in v1 is gone (BRFS-v2 Phase 3).
  */
-
-static unsigned int byteview_size(bdos_fd_t *f)
-{
-    int wsz = brfs_file_size(f->handle);
-    if (wsz < 0) return 0;
-    return (unsigned int)wsz * 4u;
-}
-
-static int byteview_read(bdos_fd_t *f, void *buf, int len)
-{
-    unsigned char *out = (unsigned char *)buf;
-    unsigned int   pos = f->byte_pos;
-    int            done = 0;
-    unsigned int   word_idx, byte_off;
-    int            words_need, wr;
-    /* Static scratch — fine for single-threaded BDOS. */
-    static unsigned int wbuf[64];
-
-    if (len <= 0) return 0;
-
-    while (done < len) {
-        word_idx = (pos + (unsigned int)done) / 4u;
-        byte_off = (pos + (unsigned int)done) % 4u;
-
-        words_need = (len - done + (int)byte_off + 3) / 4;
-        if (words_need > 64) words_need = 64;
-
-        if (brfs_seek(f->handle, word_idx) < 0) break;
-        wr = brfs_read(f->handle, wbuf, (unsigned int)words_need);
-        if (wr <= 0) break;
-
-        {
-            int wi = 0;
-            int bo = (int)byte_off;
-            unsigned int w;
-            while (wi < wr && done < len) {
-                w = wbuf[wi];
-                while (bo < 4 && done < len) {
-                    out[done++] = (unsigned char)((w >> (24 - bo * 8)) & 0xFF);
-                    bo++;
-                }
-                bo = 0;
-                wi++;
-            }
-        }
-    }
-
-    f->byte_pos = pos + (unsigned int)done;
-    return done;
-}
-
-static int byteview_flush_partial(bdos_fd_t *f)
-{
-    unsigned int word_idx;
-    unsigned int wbuf[1];
-
-    if (f->wr_fill == 0) return 0;
-
-    word_idx = f->byte_pos / 4u;
-    /* Partial trailing word: pad with zeros. The byte_pos already
-       points past what we've buffered; align to word_idx + 1 boundary. */
-    wbuf[0] = f->wr_buf << (8u * (4u - f->wr_fill));
-    if (brfs_seek(f->handle, word_idx) < 0) return -1;
-    if (brfs_write(f->handle, wbuf, 1u) < 0) return -1;
-    f->wr_buf  = 0;
-    f->wr_fill = 0;
-    return 0;
-}
-
-static int byteview_write(bdos_fd_t *f, const void *buf, int len)
-{
-    const unsigned char *p = (const unsigned char *)buf;
-    int                  done = 0;
-    unsigned int         word_idx;
-    unsigned int         wbuf[1];
-
-    if (len <= 0) return 0;
-
-    /* If there's an existing wr_fill, top it up to a full word and commit. */
-    while (done < len && f->wr_fill > 0 && f->wr_fill < 4) {
-        f->wr_buf = (f->wr_buf << 8) | p[done++];
-        f->wr_fill++;
-    }
-    if (f->wr_fill == 4) {
-        word_idx = f->byte_pos / 4u;
-        wbuf[0]  = f->wr_buf;
-        if (brfs_seek(f->handle, word_idx) < 0) return done == 0 ? -1 : done;
-        if (brfs_write(f->handle, wbuf, 1u) < 0) return done == 0 ? -1 : done;
-        f->byte_pos += 4u;
-        f->wr_buf = 0;
-        f->wr_fill = 0;
-    }
-
-    /* If we're not on a word boundary (mid-file write) read the existing
-     * head word so partial-byte writes don't corrupt neighbouring bytes. */
-    if (done < len && (f->byte_pos & 3u) != 0u) {
-        unsigned int rbuf[1];
-        unsigned int bo = f->byte_pos & 3u;
-        word_idx = f->byte_pos / 4u;
-        if (brfs_seek(f->handle, word_idx) < 0) return done == 0 ? -1 : done;
-        if (brfs_read(f->handle, rbuf, 1u) <= 0) rbuf[0] = 0;
-        f->wr_buf  = rbuf[0] >> (8u * (4u - bo));
-        f->wr_fill = bo;
-        while (done < len && f->wr_fill < 4) {
-            f->wr_buf = (f->wr_buf << 8) | p[done++];
-            f->wr_fill++;
-        }
-        if (f->wr_fill == 4) {
-            wbuf[0] = f->wr_buf;
-            if (brfs_seek(f->handle, word_idx) < 0) return done;
-            if (brfs_write(f->handle, wbuf, 1u) < 0) return done;
-            f->byte_pos = (word_idx + 1u) * 4u;
-            f->wr_buf = 0;
-            f->wr_fill = 0;
-        }
-    }
-
-    /* Bulk-commit complete words from the input. */
-    while (len - done >= 4) {
-        wbuf[0] = ((unsigned int)p[done    ] << 24)
-                | ((unsigned int)p[done + 1] << 16)
-                | ((unsigned int)p[done + 2] << 8)
-                |  (unsigned int)p[done + 3];
-        word_idx = f->byte_pos / 4u;
-        if (brfs_seek(f->handle, word_idx) < 0) return done;
-        if (brfs_write(f->handle, wbuf, 1u) < 0) return done;
-        f->byte_pos += 4u;
-        done += 4;
-    }
-
-    /* Stash the remaining 0..3 trailing bytes. */
-    while (done < len) {
-        f->wr_buf = (f->wr_buf << 8) | p[done++];
-        f->wr_fill++;
-    }
-    return done;
-}
-
-/* ---- file_* dev_table thunks (BRFS v1 byte-view shims) ---- */
 
 static int file_read(bdos_fd_t *f, void *buf, int len)
 {
-    return byteview_read(f, buf, len);
+    if (len <= 0) return 0;
+    return brfs_read(f->handle, buf, (unsigned int)len);
 }
 
 static int file_write(bdos_fd_t *f, const void *buf, int len)
 {
-    return byteview_write(f, buf, len);
+    if (len <= 0) return 0;
+    return brfs_write(f->handle, buf, (unsigned int)len);
 }
 
 static int file_close(bdos_fd_t *f)
 {
-    byteview_flush_partial(f);
     return brfs_close(f->handle);
 }
 
 static int file_lseek(bdos_fd_t *f, int off, int whence)
 {
     int newpos;
-
-    /* Flush any partial word before moving — otherwise we'd drop bytes. */
-    byteview_flush_partial(f);
+    int cur;
+    int sz;
 
     switch (whence) {
-        case BDOS_SEEK_SET: newpos = off;                            break;
-        case BDOS_SEEK_CUR: newpos = (int)f->byte_pos + off;         break;
-        case BDOS_SEEK_END: newpos = (int)byteview_size(f) + off;    break;
-        default: return -1;
+        case BDOS_SEEK_SET:
+            newpos = off;
+            break;
+        case BDOS_SEEK_CUR:
+            cur = brfs_tell(f->handle);
+            if (cur < 0) return -1;
+            newpos = cur + off;
+            break;
+        case BDOS_SEEK_END:
+            sz = brfs_file_size(f->handle);
+            if (sz < 0) return -1;
+            newpos = sz + off;
+            break;
+        default:
+            return -1;
     }
     if (newpos < 0) newpos = 0;
-    f->byte_pos = (unsigned int)newpos;
-    return newpos;
+    return brfs_seek(f->handle, (unsigned int)newpos);
 }
 
 /* ============================================================ Null dev == */
@@ -370,9 +238,6 @@ void bdos_vfs_init(void)
         t[i].dev      = BDOS_DEV_TTY;
         t[i].flags    = (i == 0) ? BDOS_O_RDONLY : BDOS_O_WRONLY;
         t[i].handle   = 0;
-        t[i].byte_pos = 0;
-        t[i].wr_buf   = 0;
-        t[i].wr_fill  = 0;
     }
 }
 
@@ -424,9 +289,6 @@ int bdos_vfs_open(const char *path, int flags)
     f->dev      = dev;
     f->flags    = flags;
     f->handle   = handle;
-    f->byte_pos = 0;
-    f->wr_buf   = 0;
-    f->wr_fill  = 0;
     return fd;
 }
 

@@ -161,7 +161,7 @@ int load_textures_from_file(void)
   }
 
   fsize = sys_fs_filesize(fd);
-  if (fsize < expected)
+  if (fsize < expected * 4)
   {
     sys_fs_close(fd);
     return 0;
@@ -183,7 +183,8 @@ int load_textures_from_file(void)
     {
       chunk = 256;
     }
-    words_read = sys_fs_read(fd, &textures[dest_idx], chunk);
+    /* BRFS v2: byte-counted reads. */
+    words_read = sys_fs_read(fd, &textures[dest_idx], chunk * 4) / 4;
     if (words_read <= 0)
     {
       break;

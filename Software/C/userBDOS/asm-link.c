@@ -100,7 +100,7 @@ static int host_close(int fd)
   return 0;
 }
 
-static int host_filesize_words(int fd)
+static int host_filesize_bytes(int fd)
 {
   long pos;
   long end;
@@ -109,8 +109,14 @@ static int host_filesize_words(int fd)
   fseek(host_files[fd], 0, SEEK_END);
   end = ftell(host_files[fd]);
   fseek(host_files[fd], pos, SEEK_SET);
-  /* round up to whole words for word-count semantics */
-  return (int)((end + 3) / 4);
+  return (int)end;
+}
+
+static int host_filesize_words(int fd)
+{
+  int b = host_filesize_bytes(fd);
+  if (b < 0) return -1;
+  return (b + 3) / 4;
 }
 
 static int host_read_words(int fd, void *buf, int count_words)
@@ -133,6 +139,7 @@ static int host_write_words(int fd, const void *buf, int count_words)
 #define IO_CREATE(p)          host_create(p)
 #define IO_DELETE(p)          host_delete(p)
 #define IO_CLOSE(fd)          host_close(fd)
+#define IO_FILESIZE_BYTES(fd) host_filesize_bytes(fd)
 #define IO_FILESIZE_WORDS(fd) host_filesize_words(fd)
 #define IO_READ_WORDS(fd, b, n)  host_read_words(fd, b, n)
 #define IO_WRITE_WORDS(fd, b, n) host_write_words(fd, b, n)
@@ -151,9 +158,12 @@ static char **host_argv;
 #define IO_CREATE(p)          sys_fs_create(p)
 #define IO_DELETE(p)          sys_fs_delete(p)
 #define IO_CLOSE(fd)          sys_fs_close(fd)
-#define IO_FILESIZE_WORDS(fd) sys_fs_filesize(fd)
-#define IO_READ_WORDS(fd, b, n)  sys_fs_read(fd, b, n)
-#define IO_WRITE_WORDS(fd, b, n) sys_fs_write(fd, b, n)
+/* BRFS v2 is byte-native. Wrap the byte API so the rest of the code can
+ * keep speaking in 32-bit words. */
+#define IO_FILESIZE_BYTES(fd) sys_fs_filesize(fd)
+#define IO_FILESIZE_WORDS(fd) ((sys_fs_filesize(fd) + 3) / 4)
+#define IO_READ_WORDS(fd, b, n)  ((sys_fs_read(fd, b, (n) * 4) + 3) / 4)
+#define IO_WRITE_WORDS(fd, b, n) (sys_fs_write(fd, b, (n) * 4) / 4)
 #define IO_PRINT(s)           sys_putstr(s)
 #define IO_HEAP_ALLOC(n)      sys_heap_alloc(n)
 #define IO_ARGC()             sys_shell_argc()
@@ -717,6 +727,12 @@ static char *read_file(const char *path, int *out_bytes)
     IO_CLOSE(fd);
     emsg("out of memory reading file");
     return NULL;
+  }
+  /* Zero the buffer so any over-allocation from word rounding is benign
+   * to the NUL-trim pass below. */
+  {
+    int z;
+    for (z = 0; z < size_b + 4; z++) buf[z] = 0;
   }
 
   total = 0;
@@ -2554,7 +2570,9 @@ static int write_output(const char *path)
     return output_count;
   }
 #else
-  /* On BDOS: write words directly. BRFS stores them as 32-bit words. */
+  /* On BDOS: write words via the byte-mode wrapper. The CPU is little-endian
+   * so writing output_words directly puts bytes on disk in LE-word order,
+   * which is what the slot loader expects when it reads them back. */
   total = 0;
   rem = output_count;
   while (rem > 0)

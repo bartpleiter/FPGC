@@ -24,10 +24,10 @@ int bdos_syscall_dispatch(int num, int a1, int a2, int a3)
       return brfs_close(a1);
 
     case SYSCALL_FS_READ:
-      return brfs_read(a1, (unsigned int *)a2, (unsigned int)a3);
+      return brfs_read(a1, (void *)a2, (unsigned int)a3);
 
     case SYSCALL_FS_WRITE:
-      return brfs_write(a1, (unsigned int *)a2, (unsigned int)a3);
+      return brfs_write(a1, (const void *)a2, (unsigned int)a3);
 
     case SYSCALL_FS_SEEK:
       return brfs_seek(a1, (unsigned int)a2);

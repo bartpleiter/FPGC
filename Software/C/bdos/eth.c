@@ -228,7 +228,6 @@ static void fnp_handle_file_data(char *data, int data_len, int seq)
   int word_count;
   int i;
   unsigned int word;
-  unsigned int word_buf[256];
   int write_result;
 
   if (fnp_transfer_state != FNP_STATE_RECEIVING)
@@ -257,16 +256,17 @@ static void fnp_handle_file_data(char *data, int data_len, int seq)
     return;
   }
 
+  /* Update wire-protocol checksum (sum of big-endian u32s). */
   i = 0;
   while (i < word_count)
   {
     word = fnp_read_u32(data, i * 4);
-    word_buf[i] = word;
     fnp_transfer_checksum = fnp_transfer_checksum + word;
     i = i + 1;
   }
 
-  write_result = brfs_write(fnp_transfer_fd, word_buf, word_count);
+  /* BRFS v2 stores raw bytes; write the wire bytes directly. */
+  write_result = brfs_write(fnp_transfer_fd, data, (unsigned int)data_len);
   if (write_result < 0)
   {
     fnp_send_nack(seq, FNP_ERR_GENERIC, "Write failed");

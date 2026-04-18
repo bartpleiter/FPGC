@@ -98,13 +98,10 @@ void bdos_shell_print_field_prefix(char *name, int value_col)
   }
 }
 
-int bdos_shell_format_word_size(unsigned int words, char *out)
+int bdos_shell_format_byte_size(unsigned int bytes, char *out)
 {
   int len;
-  unsigned int bytes;
   unsigned int kib_1dp;
-
-  bytes = words * 4;
 
   if (bytes >= 1024)
   {

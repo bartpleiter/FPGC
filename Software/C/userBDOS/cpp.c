@@ -106,48 +106,14 @@ static int host_read_bytes(int fd, void *buf, int n)
 #define IO_HEAP_ALLOC(n)      malloc((size_t)(n))
 #define IO_PRINT_ERR(s)       fputs((s), stderr)
 
-#else /* BDOS build: file storage is word-based; we read words then unpack. */
+#else /* BDOS build: BRFS v2 is byte-native, so I/O is plain pass-through. */
 
 #define IO_OPEN(p)            sys_fs_open(p)
 #define IO_CLOSE(fd)          sys_fs_close(fd)
-/* IO_FILESIZE_BYTES / IO_READ_BYTES are emulated below using sys_fs_*. */
+#define IO_FILESIZE_BYTES(fd) sys_fs_filesize(fd)
+#define IO_READ_BYTES(fd, b, n) sys_fs_read(fd, b, n)
 #define IO_HEAP_ALLOC(n)      sys_heap_alloc(n)
 #define IO_PRINT_ERR(s)       sys_putstr(s)
-
-static int bdos_filesize_bytes(int fd)
-{
-  /* sys_fs_filesize returns words; we don't know the exact byte length
-   * (last-word padding is unknown). For source code that's fine — trailing
-   * NULs are harmless because we treat them as whitespace.
-   */
-  int w = sys_fs_filesize(fd);
-  if (w < 0) return -1;
-  return w * 4;
-}
-
-static int bdos_read_bytes(int fd, void *buf, int nbytes)
-{
-  /* Read full words, then byte-swap from BE word to native byte order. */
-  unsigned int *wbuf = (unsigned int *)buf;
-  int nwords = (nbytes + 3) / 4;
-  int got = sys_fs_read(fd, wbuf, nwords);
-  int i;
-  if (got < 0) return -1;
-  /* big-endian unpack into byte buffer */
-  for (i = 0; i < got; i++)
-  {
-    unsigned int w = wbuf[i];
-    unsigned char *p = (unsigned char *)buf + i * 4;
-    p[0] = (unsigned char)(w >> 24);
-    p[1] = (unsigned char)(w >> 16);
-    p[2] = (unsigned char)(w >> 8);
-    p[3] = (unsigned char)(w);
-  }
-  return got * 4;
-}
-
-#define IO_FILESIZE_BYTES(fd)    bdos_filesize_bytes(fd)
-#define IO_READ_BYTES(fd, b, n)  bdos_read_bytes(fd, b, n)
 
 #endif
 
@@ -184,8 +150,6 @@ static int cond_depth;
 static FILE *out_fp;            /* host output stream */
 #ifndef CPP_HOST
 static int   out_fd;            /* BDOS output fd */
-static unsigned int out_word_buf;
-static int          out_word_fill; /* bytes pending in out_word_buf (0..3) */
 #endif
 
 static int has_error;
@@ -206,30 +170,9 @@ static void out_flush(void) { if (out_fp) fflush(out_fp); else fflush(stdout); }
 #else
 static void out_write(const char *s, int n)
 {
-  int i;
-  for (i = 0; i < n; i++)
-  {
-    out_word_buf = (out_word_buf << 8) | (unsigned char)s[i];
-    out_word_fill++;
-    if (out_word_fill == 4)
-    {
-      sys_fs_write(out_fd, &out_word_buf, 1);
-      out_word_buf = 0;
-      out_word_fill = 0;
-    }
-  }
+  if (n > 0) sys_fs_write(out_fd, (void *)s, n);
 }
-static void out_flush(void)
-{
-  /* Pad final word with zeros (treated as trailing NULs by readers). */
-  if (out_word_fill > 0)
-  {
-    out_word_buf <<= 8 * (4 - out_word_fill);
-    sys_fs_write(out_fd, &out_word_buf, 1);
-    out_word_buf = 0;
-    out_word_fill = 0;
-  }
-}
+static void out_flush(void) { /* BRFS v2 is byte-native, nothing to flush. */ }
 #endif
 
 static void out_str(const char *s)

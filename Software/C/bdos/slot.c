@@ -179,10 +179,10 @@ int bdos_exec_program(char *resolved_path)
   int slot;
   int fd;
   int file_size;
-  int words_remaining;
+  int bytes_remaining;
   int chunk_len;
-  int words_read;
-  unsigned int *dest;
+  int bytes_read;
+  unsigned char *dest;
   char *basename;
 
   slot = bdos_slot_alloc();
@@ -221,54 +221,54 @@ int bdos_exec_program(char *resolved_path)
     return -1;
   }
 
-  if ((unsigned int)file_size > MEM_SLOT_SIZE / 4)
+  if ((unsigned int)file_size > MEM_SLOT_SIZE)
   {
     term_puts("error: binary too large for slot (max ");
-    term_putint((int)(MEM_SLOT_SIZE / 4));
-    term_puts(" words)\n");
+    term_putint((int)MEM_SLOT_SIZE);
+    term_puts(" bytes)\n");
     brfs_close(fd);
     bdos_slot_free(slot);
     return -1;
   }
 
-  dest = (unsigned int *)bdos_slot_entry_addr(slot);
+  dest = (unsigned char *)bdos_slot_entry_addr(slot);
 
   /* Zero the slot memory so BSS starts clean (statics default to 0) */
   {
     unsigned int *p;
     unsigned int *end;
 
-    end = dest + (MEM_SLOT_SIZE / 4);
-    for (p = dest; p < end; p++)
+    end = (unsigned int *)bdos_slot_entry_addr(slot) + (MEM_SLOT_SIZE / 4);
+    for (p = (unsigned int *)bdos_slot_entry_addr(slot); p < end; p++)
       *p = 0;
   }
 
-  words_remaining = file_size;
+  bytes_remaining = file_size;
 
-  while (words_remaining > 0)
+  while (bytes_remaining > 0)
   {
-    chunk_len = words_remaining;
-    if (chunk_len > 256)
+    chunk_len = bytes_remaining;
+    if (chunk_len > 1024)
     {
-      chunk_len = 256;
+      chunk_len = 1024;
     }
 
-    words_read = brfs_read(fd, dest, (unsigned int)chunk_len);
-    if (words_read < 0)
+    bytes_read = brfs_read(fd, dest, (unsigned int)chunk_len);
+    if (bytes_read < 0)
     {
-      bdos_shell_print_fs_error("read", words_read);
+      bdos_shell_print_fs_error("read", bytes_read);
       brfs_close(fd);
       bdos_slot_free(slot);
       return -1;
     }
 
-    if (words_read == 0)
+    if (bytes_read == 0)
     {
       break;
     }
 
-    dest = dest + words_read;
-    words_remaining = words_remaining - words_read;
+    dest = dest + bytes_read;
+    bytes_remaining = bytes_remaining - bytes_read;
   }
 
   brfs_close(fd);
@@ -281,7 +281,8 @@ int bdos_exec_program(char *resolved_path)
     slot_base = (unsigned int *)bdos_slot_entry_addr(slot);
     program_size = slot_base[2]; /* header word 2: program size in words */
 
-    if ((unsigned int)file_size > program_size)
+    /* file_size is bytes (BRFS v2), program_size is words. */
+    if ((unsigned int)file_size > program_size * 4u)
     {
       /* Relocation table present after program data */
       unsigned int delta;
