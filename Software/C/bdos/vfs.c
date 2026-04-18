@@ -298,6 +298,12 @@ int bdos_vfs_open(const char *path, int flags)
         dev = BDOS_DEV_NULL;
     } else {
         dev = BDOS_DEV_FILE;
+        /* Honor O_TRUNC: if the file exists and the caller asked to
+         * truncate, delete it first so the recreation below starts from
+         * an empty file. (BRFS has no in-place truncate.) */
+        if ((flags & BDOS_O_TRUNC) && (flags & BDOS_O_WRONLY)) {
+            if (brfs_exists(path) > 0) brfs_delete(path);
+        }
         handle = brfs_open(path);
         if (handle < 0 && (flags & BDOS_O_CREAT)) {
             if (brfs_create_file(path) < 0) return -1;
