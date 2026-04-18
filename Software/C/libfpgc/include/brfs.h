@@ -4,7 +4,12 @@
 #include <stddef.h>
 #include "brfs_storage.h"
 
+#ifndef BRFS_PROGRESS_CALLBACK_T_DEFINED
+#define BRFS_PROGRESS_CALLBACK_T_DEFINED
 typedef void (*brfs_progress_callback_t)(const char *phase, unsigned int current, unsigned int total);
+#endif
+
+#include "brfs_cache.h"
 
 /* ---- Configuration Constants ---- */
 #define BRFS_VERSION 1
@@ -91,12 +96,8 @@ struct brfs_state
   unsigned int *cache;
   unsigned int cache_size;
   unsigned int initialized;
-  brfs_storage_t *storage;
-  unsigned int flash_superblock_addr;
-  unsigned int flash_fat_addr;
-  unsigned int flash_data_addr;
+  brfs_cache_t cache_state;
   struct brfs_file open_files[BRFS_MAX_OPEN_FILES];
-  unsigned int dirty_blocks[(BRFS_MAX_BLOCKS + 31) / 32];
 };
 
 /* ---- Initialization ---- */

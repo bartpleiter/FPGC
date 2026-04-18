@@ -184,20 +184,17 @@ int brfs_parse_path(const char *path, char *dir_path, char *filename,
 
 static unsigned int *brfs_get_superblock(void)
 {
-  return brfs.cache;
+  return brfs_cache_superblock(&brfs.cache_state);
 }
 
 static unsigned int *brfs_get_fat(void)
 {
-  return brfs.cache + BRFS_SUPERBLOCK_SIZE;
+  return brfs_cache_fat(&brfs.cache_state);
 }
 
 static unsigned int *brfs_get_data_block(unsigned int block_idx)
 {
-  struct brfs_superblock *sb;
-  sb = (struct brfs_superblock *)brfs_get_superblock();
-  return brfs.cache + BRFS_SUPERBLOCK_SIZE + sb->total_blocks +
-         (block_idx * sb->words_per_block);
+  return brfs_cache_data(&brfs.cache_state, block_idx);
 }
 
 /* ---- Block Allocation Functions ---- */
@@ -246,12 +243,7 @@ static int brfs_find_free_dir_entry(unsigned int *dir_block)
 
 static void brfs_mark_block_dirty(unsigned int block_idx)
 {
-  brfs.dirty_blocks[block_idx >> 5] |= (1u << (block_idx & 31));
-}
-
-static int brfs_is_block_dirty(unsigned int block_idx)
-{
-  return (brfs.dirty_blocks[block_idx >> 5] >> (block_idx & 31)) & 1;
+  brfs_cache_mark_dirty(&brfs.cache_state, block_idx);
 }
 
 /* ---- FAT Chain Navigation ---- */
@@ -443,21 +435,18 @@ int brfs_init(brfs_storage_t *storage, unsigned int *cache_addr, unsigned int ca
   brfs.cache = cache_addr;
   brfs.cache_size = cache_size;
   brfs.initialized = 0;
-  brfs.storage = storage;
-  brfs.flash_superblock_addr = BRFS_FLASH_SUPERBLOCK_ADDR;
-  brfs.flash_fat_addr = BRFS_FLASH_FAT_ADDR;
-  brfs.flash_data_addr = BRFS_FLASH_DATA_ADDR;
+
+  brfs_cache_init(&brfs.cache_state, storage, cache_addr, cache_size);
+  brfs_cache_set_layout(&brfs.cache_state,
+                        BRFS_FLASH_SUPERBLOCK_ADDR,
+                        BRFS_FLASH_FAT_ADDR,
+                        BRFS_FLASH_DATA_ADDR);
 
   for (i = 0; i < BRFS_MAX_OPEN_FILES; i++)
   {
     brfs.open_files[i].fat_idx = 0;
     brfs.open_files[i].cursor = 0;
     brfs.open_files[i].dir_entry = NULL;
-  }
-
-  for (i = 0; i < sizeof(brfs.dirty_blocks) / sizeof(brfs.dirty_blocks[0]); i++)
-  {
-    brfs.dirty_blocks[i] = 0;
   }
 
   return BRFS_OK;
@@ -515,6 +504,9 @@ int brfs_format(unsigned int total_blocks, unsigned int words_per_block,
   sb->words_per_block = words_per_block;
   sb->brfs_version = BRFS_VERSION;
 
+  /* Cache geometry must be known before any brfs_get_fat/data call below. */
+  brfs_cache_configure(&brfs.cache_state, total_blocks, words_per_block);
+
   if (label != NULL)
   {
     for (i = 0; i < 10 && label[i] != '\0'; i++)
@@ -557,9 +549,7 @@ int brfs_format(unsigned int total_blocks, unsigned int words_per_block,
     brfs_mark_block_dirty(i);
   }
 
-  brfs.storage->erase_sector(brfs.storage, brfs.flash_superblock_addr);
-  brfs.storage->write_words(brfs.storage, brfs.flash_superblock_addr,
-                            (unsigned int *)sb, BRFS_SUPERBLOCK_SIZE);
+  brfs_cache_flush_superblock(&brfs.cache_state);
 
   brfs.initialized = 1;
 
@@ -598,23 +588,14 @@ static int brfs_validate_superblock(struct brfs_superblock *sb)
 int brfs_mount(void)
 {
   struct brfs_superblock *sb;
-  unsigned int *fat;
-  unsigned int *data;
   unsigned int data_size;
   unsigned int i;
   int result;
-  unsigned int words_remaining;
-  unsigned int words_this_sector;
-  unsigned int fat_sectors;
-  unsigned int data_sectors;
-  unsigned int sector;
-  unsigned int progress_total;
-  unsigned int progress_step;
+
+  result = brfs_cache_load_superblock(&brfs.cache_state);
+  if (result != BRFS_OK) return result;
 
   sb = (struct brfs_superblock *)brfs_get_superblock();
-  brfs.storage->read_words(brfs.storage, brfs.flash_superblock_addr,
-                           (unsigned int *)sb, BRFS_SUPERBLOCK_SIZE);
-
   result = brfs_validate_superblock(sb);
   if (result != BRFS_OK)
   {
@@ -628,58 +609,10 @@ int brfs_mount(void)
     return BRFS_ERR_NO_SPACE;
   }
 
-  fat = brfs_get_fat();
-  words_remaining = sb->total_blocks;
-  fat_sectors = (words_remaining + BRFS_FLASH_WORDS_PER_SECTOR - 1) / BRFS_FLASH_WORDS_PER_SECTOR;
-  data_sectors = (sb->total_blocks * sb->words_per_block + BRFS_FLASH_WORDS_PER_SECTOR - 1) / BRFS_FLASH_WORDS_PER_SECTOR;
-  progress_total = fat_sectors + data_sectors;
-  progress_step = 0;
+  brfs_cache_configure(&brfs.cache_state, sb->total_blocks, sb->words_per_block);
 
-  for (sector = 0; sector < fat_sectors; sector++)
-  {
-    words_this_sector = BRFS_FLASH_WORDS_PER_SECTOR;
-    if (words_this_sector > words_remaining)
-    {
-      words_this_sector = words_remaining;
-    }
-
-    brfs.storage->read_words(brfs.storage,
-                             brfs.flash_fat_addr + (sector * BRFS_FLASH_SECTOR_SIZE),
-                             fat + (sector * BRFS_FLASH_WORDS_PER_SECTOR),
-                             words_this_sector);
-
-    words_remaining -= words_this_sector;
-    progress_step++;
-    brfs_report_progress("mount", progress_step, progress_total);
-  }
-
-  data = brfs_get_data_block(0);
-  data_size = sb->total_blocks * sb->words_per_block;
-  words_remaining = data_size;
-  data_sectors = (words_remaining + BRFS_FLASH_WORDS_PER_SECTOR - 1) / BRFS_FLASH_WORDS_PER_SECTOR;
-
-  for (sector = 0; sector < data_sectors; sector++)
-  {
-    words_this_sector = BRFS_FLASH_WORDS_PER_SECTOR;
-    if (words_this_sector > words_remaining)
-    {
-      words_this_sector = words_remaining;
-    }
-
-    brfs.storage->read_words(brfs.storage,
-                             brfs.flash_data_addr + (sector * BRFS_FLASH_SECTOR_SIZE),
-                             data + (sector * BRFS_FLASH_WORDS_PER_SECTOR),
-                             words_this_sector);
-
-    words_remaining -= words_this_sector;
-    progress_step++;
-    brfs_report_progress("mount", progress_step, progress_total);
-  }
-
-  for (i = 0; i < sizeof(brfs.dirty_blocks) / sizeof(brfs.dirty_blocks[0]); i++)
-  {
-    brfs.dirty_blocks[i] = 0;
-  }
+  result = brfs_cache_load(&brfs.cache_state, brfs_progress_callback);
+  if (result != BRFS_OK) return result;
 
   for (i = 0; i < BRFS_MAX_OPEN_FILES; i++)
   {
@@ -721,138 +654,17 @@ int brfs_unmount(void)
   return BRFS_OK;
 }
 
-/* ---- Flash Sync Functions ---- */
-
-static void brfs_write_fat_sector(unsigned int sector_idx)
-{
-  unsigned int flash_addr;
-  unsigned int *fat;
-  unsigned int fat_offset;
-  unsigned int page;
-
-  fat = brfs_get_fat();
-  flash_addr = brfs.flash_fat_addr + (sector_idx * BRFS_FLASH_SECTOR_SIZE);
-  fat_offset = sector_idx * BRFS_FLASH_WORDS_PER_SECTOR;
-
-  brfs.storage->erase_sector(brfs.storage, flash_addr);
-
-  for (page = 0; page < 16; page++)
-  {
-    brfs.storage->write_words(brfs.storage,
-                              flash_addr + (page * BRFS_FLASH_PAGE_SIZE),
-                              fat + fat_offset + (page * BRFS_FLASH_WORDS_PER_PAGE),
-                              BRFS_FLASH_WORDS_PER_PAGE);
-  }
-}
-
-static void brfs_write_data_sector(unsigned int sector_idx)
-{
-  struct brfs_superblock *sb;
-  unsigned int flash_addr;
-  unsigned int *data;
-  unsigned int page;
-
-  sb = (struct brfs_superblock *)brfs_get_superblock();
-  data = brfs_get_data_block(0);
-
-  flash_addr = brfs.flash_data_addr + (sector_idx * BRFS_FLASH_SECTOR_SIZE);
-
-  brfs.storage->erase_sector(brfs.storage, flash_addr);
-
-  for (page = 0; page < 16; page++)
-  {
-    brfs.storage->write_words(brfs.storage,
-                              flash_addr + (page * BRFS_FLASH_PAGE_SIZE),
-                              data + (sector_idx * BRFS_FLASH_WORDS_PER_SECTOR) +
-                                  (page * BRFS_FLASH_WORDS_PER_PAGE),
-                              BRFS_FLASH_WORDS_PER_PAGE);
-  }
-}
+/* ---- Flash Sync Functions ----
+ * Per-sector write helpers and brfs_sync's dirty-walking now live in
+ * brfs_cache.c. brfs_sync is a thin wrapper. */
 
 int brfs_sync(void)
 {
-  struct brfs_superblock *sb;
-  unsigned int blocks_per_sector;
-  unsigned int sector;
-  unsigned int block;
-  unsigned int i;
-  unsigned int fat_sectors;
-  unsigned int data_sectors;
-  int sector_dirty;
-  unsigned int progress_total;
-  unsigned int progress_step;
-
   if (!brfs.initialized)
   {
     return BRFS_ERR_NOT_INITIALIZED;
   }
-
-  sb = (struct brfs_superblock *)brfs_get_superblock();
-
-  blocks_per_sector = BRFS_FLASH_WORDS_PER_SECTOR / sb->words_per_block;
-  if (blocks_per_sector == 0)
-  {
-    blocks_per_sector = 1;
-  }
-
-  fat_sectors = (sb->total_blocks + BRFS_FLASH_WORDS_PER_SECTOR - 1) /
-                BRFS_FLASH_WORDS_PER_SECTOR;
-  data_sectors = (sb->total_blocks * sb->words_per_block +
-                  BRFS_FLASH_WORDS_PER_SECTOR - 1) /
-                 BRFS_FLASH_WORDS_PER_SECTOR;
-  progress_total = fat_sectors + data_sectors;
-  progress_step = 0;
-
-  for (sector = 0; sector < fat_sectors; sector++)
-  {
-    sector_dirty = 0;
-
-    for (i = 0; i < BRFS_FLASH_WORDS_PER_SECTOR && !sector_dirty; i++)
-    {
-      block = sector * BRFS_FLASH_WORDS_PER_SECTOR + i;
-      if (block < sb->total_blocks && brfs_is_block_dirty(block))
-      {
-        sector_dirty = 1;
-      }
-    }
-
-    if (sector_dirty)
-    {
-      brfs_write_fat_sector(sector);
-    }
-
-    progress_step++;
-    brfs_report_progress("sync-fat", progress_step, progress_total);
-  }
-
-  for (sector = 0; sector < data_sectors; sector++)
-  {
-    sector_dirty = 0;
-
-    for (i = 0; i < blocks_per_sector && !sector_dirty; i++)
-    {
-      block = sector * blocks_per_sector + i;
-      if (block < sb->total_blocks && brfs_is_block_dirty(block))
-      {
-        sector_dirty = 1;
-      }
-    }
-
-    if (sector_dirty)
-    {
-      brfs_write_data_sector(sector);
-    }
-
-    progress_step++;
-    brfs_report_progress("sync-data", progress_step, progress_total);
-  }
-
-  for (i = 0; i < sizeof(brfs.dirty_blocks) / sizeof(brfs.dirty_blocks[0]); i++)
-  {
-    brfs.dirty_blocks[i] = 0;
-  }
-
-  return BRFS_OK;
+  return brfs_cache_flush(&brfs.cache_state, brfs_progress_callback);
 }
 
 /* ---- File Creation ---- */
