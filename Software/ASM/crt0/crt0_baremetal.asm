@@ -9,8 +9,9 @@
 ;   void interrupt()    — interrupt handler (can be empty)
 ;
 ; Memory layout:
-;   Stack: 0x1DFFFFC (top of SDRAM, grows down)
-;   Int stack: same (bare metal has no OS stack separation)
+;   Main stack:      0x1DFFFFC (grows down)
+;   Interrupt stack: 0x1FFFFFC (separate from main stack to avoid corruption —
+;                               see comment in Int below)
 
 .text
 
@@ -42,7 +43,16 @@ Int:
     push r14
     push r15
 
-    load32 0x1DFFFFC r13        ; interrupt stack
+    load32 0x1FFFFFC r13        ; interrupt stack (DISTINCT from main stack at
+                                ; 0x1DFFFFC — using the same address makes the
+                                ; C interrupt() prologue write its caller-frame
+                                ; save slots over main's saved return PC, which
+                                ; on return causes execution to jump to a
+                                ; corrupted PC and (typically) restart Main:.
+                                ; Only matters when interrupts are enabled and
+                                ; an IRQ fires inside main(), but it does
+                                ; happen — e.g. spurious UART RX bytes during
+                                ; flash_writer caused random re-flash loops.)
     load32 0 r14                ; clear frame pointer
     savpc r15
     add r15 12 r15
