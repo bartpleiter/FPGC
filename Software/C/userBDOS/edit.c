@@ -1089,6 +1089,9 @@ int main(void)
 
   /* Enter alternate screen so the prior shell view is restored on exit. */
   ansi_write("\x1b[?1049h");
+  /* Disable auto-wrap (DECAWM): prevents the bottom-right cell write
+     from triggering a scroll that would shift the header off-screen. */
+  ansi_write("\x1b[?7l");
 
   tty_fd = sys_tty_open_raw(0 /* blocking */);
   if (tty_fd < 0)
@@ -1227,7 +1230,9 @@ int main(void)
     render_all();
   }
 
-  /* Leave alternate screen — restores whatever was on screen before. */
+  /* Re-enable auto-wrap and leave the alternate screen — restores
+   * whatever was on screen before. */
+  ansi_write("\x1b[?7h");
   ansi_write("\x1b[?1049l");
   if (tty_fd >= 0) sys_close(tty_fd);
 

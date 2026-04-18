@@ -1,294 +1,206 @@
 # FPGC Project Context
 
-This document provides a complete context for understanding the FPGC (FPGA Computer) project architecture. This file is mainly intended for AI tooling like Github Copilot.
+This document is a high-level orientation file for AI coding tools
+(GitHub Copilot, automated agents) working on the FPGC repo. Keep
+edits short, factual, and link out to the canonical docs in
+`Docs/docs/` rather than duplicating them here.
 
-## Project Overview
+## What FPGC is
 
-FPGC is a complete custom computer system implemented on FPGA hardware, featuring:
+FPGC ("FPGA Computer") is a from-scratch computer system built around
+a custom 32-bit RISC CPU implemented on FPGA. The repo contains
+hardware, toolchain, and software:
 
-- Custom 32-bit RISC CPU (B32P3)
-- Modern C toolchain: cproc (C11 frontend) → QBE (optimizing backend) → ASMPY (assembler)
-- Legacy C compiler (B32CC) — still used for B32CC test suite and self-hosting on BDOS
-- GPU with pixel rendering capabilities
-- SDRAM controller with L1 instruction and data caches
-- Custom File System (BRFS)
-- Operating System (BDOS) — fully functional with shell, filesystem, multitasking, networking
+- **CPU**: B32P3 — 5-stage pipelined, byte-addressable, 32-bit
+  general-purpose registers, hardware fixed-point multiply/divide,
+  optional FP64 coprocessor.
+- **GPU**: tile + pixel framebuffer (320×240), VRAM-mapped.
+- **Storage**: SDRAM with L1 I/D caches, SPI flash, BRFS filesystem
+  (v2 — byte-native, RAM-cached, pluggable storage backend).
+- **OS**: BDOS — a single-user, single-foreground OS with shell,
+  filesystem, job control, USB-keyboard input, and ENC28J60 Ethernet.
+- **Toolchain**: cproc (C11 frontend) → QBE (optimising backend) →
+  ASMPY (Python assembler with linker). The legacy B32CC compiler
+  is retained only until the modern toolchain can be run (with asm-link.c) from BDOS.
+- **Goal**: run Doom on real hardware — done. Future work: SD-card
+  storage, more userBDOS programs, robust OS features, general extensions and improvements to the project -> going from custom POC to more established implementations like a proper terminal, C toolchain, FS layers, etc. to make porting existing code easier.
 
-The goal of this project is to create a fully functional computer system from the ground up, including hardware design, CPU architecture, compiler toolchain, and software libraries, with the end goal of running Doom on BDOS.
-
-## CPU Architecture (B32P3)
-
-### Pipeline Stages
-
-B32P3 is a classic 5-stage pipelined CPU:
-- 32-bit pipelined CPU with classic 5-stage pipeline
-- Third iteration of B32P with focus on simplified hazard handling
-
-Features:
-- 5 stage pipeline (Classic MIPS-style)
-  - IF:  Instruction Fetch
-  - ID:  Instruction Decode & Register Read
-  - EX:  Execute (ALU operations, branch resolution)
-  - MEM: Memory Access (Load/Store)
-  - WB:  Write Back
-- Simple hazard detection (load-use only)
-- Data forwarding (EX→EX, MEM→EX)
-- 32 bits, byte-addressable (char=1 byte, short=2 bytes, int=4 bytes, pointer=4 bytes)
-- 32 bit address space for 4 GiB of addressable memory
-  - 27 bits jump constant for 512 MiB of easily jumpable instruction memory
-- Hardware byte/halfword/word load/store: `read`/`write` (word), `readb`/`writeb` (byte), `readh`/`writeh` (halfword)
-- No branch prediction (taken branches flush the 5-stage pipeline)
-- No MMU or virtual memory
-- Hardware fixed-point: `multfp`/`divfp` (16.16) on GPRs; FP64 coprocessor (Q32.32) with 8 dedicated 64-bit registers
-
-Memory Map (byte addresses):
-- SDRAM:  0x0000000 - 0x3FFFFFF (64 MiB)
-- I/O:    0x1C000000 - 0x1C0000FF
-- ROM:    0x1E000000 - 0x1E000FFF (4 KiB) - CPU starts here
-- VRAM32: 0x1E400000 - 0x1E40107F (pattern + palette tables)
-- VRAM8:  0x1E800000 - 0x1E808007 (tile + color tables)
-- VRAMPX: 0x1EC00000 - 0x1EC4AFFF (320×240 pixel framebuffer)
-- PC/HW:  0x1F000000 - 0x1F000007 (PC backup, HW stack pointer)
-
-### ISA (Instruction Set Architecture)
-
-All instructions are 32 bits. See ISA.md for full instruction set details.
-All assembly related information in Assembler.md.
-
-### Registers
-
-There are 16 registers, but r0 is hardwired to 0.
-- r0: hardwired zero
-- r1–r12: general purpose (r1=return value, r4–r7=function args)
-- r13: stack pointer (SP)
-- r14: frame pointer (FP)
-- r15: return address (RA)
-
-
-## C Toolchain
-
-### Modern Toolchain (Primary)
-
-The primary C toolchain uses three components in a pipeline:
+## Repo layout
 
 ```
-source.c → cpp (preprocessor) → cproc (C11 frontend) → QBE IR → QBE (backend) → B32P3 assembly → ASMPY (assembler) → binary
+Hardware/          FPGA Verilog + PCB
+BuildTools/        cproc/, QBE/, ASMPY/, B32CC/
+Software/
+  ASM/             crt0 startup files + raw assembly programs
+  C/
+    libc/          picolibc-derived freestanding libc
+    libfpgc/       hardware abstraction (drivers + libterm v2 + BRFS)
+    bdos/          BDOS kernel sources
+    userlib/       userland syscall wrappers + helpers
+    userBDOS/      user programs (modern toolchain)
+    bareMetal/     bare-metal test programs
+    b32cc/         archived B32CC-era code (deprecated)
+Tests/             CPU sims, B32CC tests, modern-C tests, host tests
+Scripts/           Build / programming / asset helpers
+Docs/              MkDocs site (docs/) + plans (plans/) + this file
+Files/             Default BRFS image staged into SPI flash
 ```
 
-- **cproc**: C11-compliant frontend that emits QBE intermediate representation. Supports full C11 including structs, variadics, separate compilation. Located at `BuildTools/cproc/`.
-- **QBE**: Optimizing compiler backend with graph-coloring register allocation, SSA, constant folding, instruction selection. B32P3 backend in `BuildTools/QBE/b32p3/`. Produces ASMPY-compatible assembly.
-- **ASMPY**: Python assembler that produces flat binaries. Supports ELF-style data directives, label offsets, and an assembly-level linker for multi-file compilation. Located at `BuildTools/ASMPY/asmpy/`.
+## CPU (B32P3)
 
-Build: `make qbe cproc` from project root.
+5-stage pipeline (IF/ID/EX/MEM/WB). Byte-addressable
+(`char`=1, `short`=2, `int`=4, pointer=4). 32-bit address space; 27-bit
+jump constant gives 512 MiB of easily-jumpable instruction space.
 
-Pipeline with linker (multi-file):
-```
-file1.c → cproc → QBE → file1.asm ─┐
-file2.c → cproc → QBE → file2.asm ─┼→ linker → combined.asm → ASMPY → .list → .bin
-crt0.asm ───────────────────────────┘
-```
+| Region | Address range | Notes |
+|--------|---------------|-------|
+| SDRAM   | `0x00000000`–`0x03FFFFFF` | 64 MiB, cached |
+| I/O     | `0x1C000000`–`0x1C0000FF` | MMIO peripherals |
+| ROM     | `0x1E000000`–`0x1E000FFF` | 4 KiB; CPU resets here |
+| VRAM32  | `0x1E400000`–`0x1E40107F` | pattern + palette tables |
+| VRAM8   | `0x1E800000`–`0x1E808007` | tile + colour tables |
+| VRAMPX  | `0x1EC00000`–`0x1EC4AFFF` | 320×240 pixel framebuffer |
+| PC/HW   | `0x1F000000`–`0x1F000007` | PC backup + HW stack ptr |
 
-Compile script: `Scripts/BCC/compile_modern_c.sh` handles the full pipeline including preprocessing, compilation, linking, and assembly. Supports mixed `.c` and `.asm` inputs, `-h` (header), `-i` (relocatable), `-s` (syscall vector), `--libc`, and `-I` include paths.
+16 GP registers (`r0`–`r15`); `r0` is hard-wired zero, `r13` = SP,
+`r14` = FP, `r15` = RA. ABI: `r1` = return value, `r4`–`r7` = first
+four args.
 
-### B32CC (Legacy)
+ISA reference: [Docs/docs/Hardware/ISA.md](../docs/Hardware/ISA.md).
 
-B32CC is a single-pass C compiler based on Smaller C, targeting the B32P3 ISA. It was the original compiler for the project and is still used for:
-- B32CC test suite (`Tests/B32CC/`) — validates B32CC itself
-- Self-hosting on BDOS (compiling user programs on the FPGC itself)
-- userBDOS compilation via B32CC (until the new toolchain handles this)
+## C toolchain
 
-Key limitations: no linker (single compilation unit via orchestrator pattern), no C11 features, limited struct handling, no optimization.
-
-### Location
-
-- Modern toolchain: `BuildTools/cproc/`, `BuildTools/QBE/`, `BuildTools/ASMPY/`
-- B32CC: `BuildTools/B32CC/smlrc.c` (compiler), `BuildTools/B32CC/cgB32P3.inc` (backend)
-
-## Assembler (ASMPY)
-
-ASMPY is written in Python and assembles B32P3 assembly into binary.
-
-### Assembler Location
-
-- Source: `BuildTools/ASMPY/asmpy/`
-- Tests: `BuildTools/ASMPY/tests/`
-
-### Key Features
-
-**Pseudo-instructions** (expand to multiple real instructions):
-
-- `load32 constant reg` → `load low16 reg` + `loadhi high16 reg`
-- `addr2reg label reg` → `load label_low reg` + `loadhi label_high reg`
-
-**Sections:**
-
-- There is support for different sections, but all they do is that .code sections are compiled first and all the other sections (like .data) are moved below the .code section in memory.
-
-**ELF-style directives** (for QBE output):
-
-- `.int`, `.byte`, `.short`, `.ascii`, `.fill` — data directives with byte-level packing
-- `.balign`, `.globl`/`.global`, `.text` — alignment and symbol visibility
-- Label offset syntax: `SYMBOL+OFFSET` in instructions and data
-
-**Assembly-level linker** (`asmpy/linker.py`):
-
-- Combines multiple `.asm` files into one assembly
-- Renames local labels (`.L*`) to avoid cross-file conflicts
-- Validates global symbol uniqueness
-
-**Directives:**
-
-- Labels: `Label_name:`
-- Comments: `;` or `/* */`
-
-## Software Structure
-
-### Directory Layout
+The **modern** toolchain is the default for everything except the
+legacy B32CC suite:
 
 ```
-Software/C/
-├── libc/                    # Standard C library (picolibc-derived subset)
-│   ├── include/             # Standard headers: string.h, stdlib.h, stdio.h, etc.
-│   ├── string/string.c     # String functions
-│   ├── stdlib/stdlib.c      # Standard library + malloc.c
-│   ├── stdio/stdio.c       # printf/sprintf (tinystdio-based)
-│   ├── ctype/ctype.c       # Character classification
-│   └── sys/                 # System stubs: syscalls.c, _exit.asm
-│
-├── libfpgc/                 # FPGC hardware abstraction library
-│   ├── include/             # fpgc.h (mem map + I/O), gpu_hal.h, term.h, uart.h, etc.
-│   └── src/                 # Drivers: spi.c, uart.c, timer.c, ch376.c, enc28j60.c,
-│                            #   gpu_hal.c, gpu_fb.c, term.c, brfs.c, sys.c, sys_asm.asm
-│
-├── bdos/                    # BDOS kernel (modern C, separately compiled)
-│   ├── include/             # Kernel headers: bdos.h, bdos_syscall.h, bdos_hid.h, etc.
-│   └── src files            # main.c, init.c, syscall.c, shell.c, hid.c, eth.c, etc.
-│
-├── userlib/                 # User program library (syscalls, FNP, plot, fixed-point)
-│   ├── include/             # syscall.h, fnp.h, plot.h, fixed64.h, fixedmath.h, time.h
-│   └── src/                 # syscall.c, syscall_asm.asm, fnp.c, plot.c, etc.
-│
-├── userBDOS/                # User programs (compiled with modern toolchain)
-│
-├── bareMetal/               # Bare-metal test programs
-│
-└── b32cc/                   # Archived B32CC-era code
-    ├── BDOS/                # Old B32CC BDOS (archived)
-    ├── libs/                # Old orchestrator libraries (archived)
-    └── userBDOS/            # Old B32CC user programs (being ported)
+src.c → cpp → cproc → QBE → b32p3 .asm → ASMPY linker → .list/.bin
 ```
 
-### Startup Files (crt0)
+- **cproc** ([BuildTools/cproc/](../../BuildTools/cproc/)) — C11
+  frontend, emits QBE IR. Limitations: no inline asm, no `volatile`
+  (use `__builtin_store{,b,h}` / `__builtin_load{,b,h}` for MMIO).
+- **QBE** ([BuildTools/QBE/](../../BuildTools/QBE/)) — SSA optimiser
+  + b32p3 backend.
+- **ASMPY** ([BuildTools/ASMPY/](../../BuildTools/ASMPY/)) — Python
+  assembler with an assembly-level linker, ELF-style data directives,
+  pseudo-instructions (`load32`, `addr2reg`), and reloc-table support
+  for PIC user programs.
 
-Located at `Software/ASM/crt0/`:
+Build orchestration is `Scripts/BCC/compile_modern_c.sh`, invoked by
+the top-level `Makefile` (`make compile-bdos`,
+`make compile-userbdos file=<n>`, `make compile-userbdos-all`,
+`make compile-bootloader`, etc.).
 
-| File | Program Type | Stack Init | Return Behavior |
-|------|-------------|------------|-----------------|
-| `crt0_baremetal.asm` | Bare metal (tests, flash_writer) | SP=0x1DFFFFC, FP=0 | UART TX r1, halt |
-| `crt0_bdos.asm` | BDOS kernel | SP=0x3DFFFC, FP=0 | UART TX r1, halt |
-| `crt0_userbdos.asm` | User programs under BDOS | FP=0, push/pop r15 | Return to BDOS |
+Self-hosting is in progress: the asm linker is being ported to run on
+BDOS itself ([Docs/plans/asm-selfhost.md](../plans/asm-selfhost.md));
+cproc + QBE will follow.
 
-## Testing Infrastructure
+**B32CC** is the original single-pass C compiler. It survives only
+because it is still required to build the B32CC test suite and the
+archived `Software/C/b32cc/` programs. New code should not target it.
 
-### Make Commands
+## BRFS v2 (filesystem)
 
-**When you change Verilog code:**
+- Byte-native API (`brfs_read`/`brfs_write` take byte counts;
+  on-disk `filesize` is bytes).
+- FAT-based with per-file linked chains.
+- RAM cache over a `brfs_storage_t` vtable; today only the SPI-flash
+  backend ships. SD-card backend is a v2.1 follow-up.
+- LE on disk; magic `BRF2`; superblock version `2`.
+- Persistence is explicit (`brfs_sync()`); a power loss between syncs
+  rolls back to the last synced state.
+- See [BRFS docs](../docs/Software/BRFS.md) and
+  [BRFS-v2 plan](../plans/BRFS-v2.md).
 
-Run `make test-cpu` to run all CPU tests, followed by `make test-b32cc` and `make test-modern-c` to run all C compiler tests. If a test fails, you can run it individually using `make test-cpu-single file=<path>` or `make test-b32cc-single file=<path>`. To debug with Verilog display output, run `make debug-cpu file=<path>` or `make debug-b32cc file=<path>`.
+## BDOS
 
-**When you change the modern C toolchain (cproc, QBE, ASMPY):**
+Single-foreground OS with the v2 shell + libterm v2 terminal that
+landed in 2025 ([shell-terminal-v2 plan](../plans/shell-terminal-v2.md)).
+See [BDOS-context.md](BDOS-context.md) for the full source-file map,
+syscall table, and subsystem detail.
 
-Run `make test-modern-c` to run all modern C tests. If a test fails, run individually with `make test-modern-c-single file=<path>`.
+Key facts useful for any change:
 
-**When you change B32CC compiler code:**
+- All terminal I/O is ANSI-escape-driven on `fd 1`. There is no
+  per-cell tile syscall any more — programs `sys_write(1, "\x1b[..."`.
+- Raw keyboard events come from `/dev/tty` opened with
+  `O_RDONLY|O_RAW[|O_NONBLOCK]`; each `read` returns 4 bytes
+  (little-endian event code: ASCII or `KEY_*`). See `snake.c` and
+  `edit.c` for reference ports.
+- `format` is a userland program (`/bin/format`) — not a built-in.
+- VFS exposes file / `/dev/tty` / `/dev/null` / pipe under one
+  `open`/`read`/`write`/`close`/`lseek`/`dup2` API.
 
-Run `make test-b32cc` to run all B32CC compiler tests.
+## User programs
 
-**When you change BDOS or a user program:**
+Located in [Software/C/userBDOS/](../../Software/C/userBDOS/). All
+new programs use:
 
-Just compile the code (`make compile-bdos` or `make compile-userbdos file=<name>`). No need to run test suites.
-
-### How the testing framework works
-
-- The C code is compiled to B32P3 assembly (via cproc+QBE or B32CC).
-- ASMPY assembles the assembly into .list files, which initialize the memories in the Verilog testbench.
-- The Verilog testbench simulates the CPU running the program, capturing UART output.
-- The test framework checks the UART output against expected values.
-
-Note that the tests use `cpu_tests_tb.v` as simulation testbench, while the `make debug` commands use `cpu_tb.v` as simulation testbench.
-
----
-
-## C Programming Guide
-
-### Modern Toolchain (Recommended)
-
-The modern toolchain supports full C11:
-
-- All standard data types including proper `char` (1 byte), `short` (2 bytes), `int` (4 bytes)
-- Full struct/union support including return by value
-- Standard `#include <header.h>` with picolibc-derived standard library
-- Separate compilation with linker — each `.c` file compiled independently
-- No inline assembly — assembly code goes in separate `.asm` files
-- Variadics, complex initializers, function pointers — all work correctly
-
-**UserBDOS program template:**
 ```c
 #include <syscall.h>
 
 int main(void)
 {
-    sys_print_str("Hello from BDOS!\n");
+    sys_putstr("Hello from userBDOS!\n");   /* fd 1 */
     return 0;
 }
 ```
 
-Compile: `make compile-userbdos file=hello`
+`sys_putstr` / `sys_putc` are convenience wrappers over
+`sys_write(1, ...)`; redirection (`>`, `>>`, `|`) just works because
+the shell rewrites `fd 1`/`fd 0` before calling the program.
 
-**Multi-file program:**
-```c
-// main.c
-#include <string.h>
-#include <stdlib.h>
-#include <syscall.h>
-#include <fnp.h>
+Build: `make compile-userbdos file=<name>`. Output binary lands in
+`Files/BRFS-init/bin/<name>` and can be staged into the BRFS image.
 
-int main(void) { ... }
-```
+The previous B32CC userBDOS programs are archived under
+`Software/C/b32cc/userBDOS/`. The Phase E shell-terminal-v2 work left
+some of the modern-toolchain ports incomplete; see the FIXME header
+comment at the top of each broken `userBDOS/*.c` for the migration
+checklist.
 
-### B32CC Compiler (Legacy)
+## Testing
 
-B32CC is a single-pass C compiler with significant limitations. See `Docs/plans/modern-c-compiler-support.md` for details on why the modern toolchain was created.
+| Make target | What it runs |
+|-------------|--------------|
+| `make test-cpu`        | All CPU Verilog testbenches |
+| `make test-modern-c`   | All cproc+QBE+ASMPY end-to-end tests |
+| `make test-b32cc`      | B32CC test suite |
+| `make test-asmpy`      | Python unit tests for ASMPY |
+| `make test-host`       | Host-side BDOS / shell unit tests under `Tests/host/` |
 
-Key limitations: no linker (orchestrator pattern required), no C11, limited struct handling, no optimization, limited variadics.
+Single-test variants exist (`make test-cpu-single file=…`,
+`make test-modern-c-single file=…`, `make test-b32cc-single file=…`)
+and there are debug variants that pipe Verilog `$display` output
+(`make debug-cpu file=…`, `make debug-b32cc file=…`).
 
-### Testing C Code
+When working on:
 
-**Modern C test file format:**
+- Verilog → `make test-cpu` then `make test-modern-c` and
+  `make test-b32cc`.
+- Modern toolchain (cproc/QBE/ASMPY) → `make test-modern-c`.
+- BDOS or a userBDOS program → just compile (`make compile-bdos` or
+  `make compile-userbdos file=<n>`); there is no per-feature test
+  harness yet beyond the host tests.
 
-```c
-// Test file: Tests/C/XX_category/test_name.c
-#include <string.h>  // if needed
+## House style
 
-int main(void)
-{
-    int result = 42;
-    return result; // expected=42
-}
+- C11 with cproc/QBE limits (no inline asm, no `volatile`). Use
+  `__builtin_load*` / `__builtin_store*` for MMIO.
+- Each `.c` file is compiled independently; standard
+  `#include <header.h>` with `-I` paths set by the build script.
+- New assembly goes in dedicated `.asm` files alongside the C — never
+  inline.
+- Keep header changes in lock-step: the BDOS `bdos_syscall.h` and the
+  userland `syscall.h` must match. Removed syscalls stay reserved
+  (commented in the header, returning `-1` from the dispatcher).
 
-void interrupt(void) {}
-```
+## Where to look next
 
-**B32CC test file format (legacy):**
-
-```c
-// Test file: Tests/B32CC/XX_category/test_name.c
-#define COMMON_STDLIB
-#include "libs/common/common.h"
-
-int main() {
-    return 5; // expected=5
-}
-
-void interrupt() {}
-```
+- [Docs/docs/](../docs/) — mkdocs site, the canonical user-facing docs.
+- [Docs/plans/](../plans/) — design plans for in-flight work
+  (`shell-terminal-v2.md`, `BRFS-v2.md`, `asm-selfhost.md`,
+  `selfhost-modern-c.md`, …).
+- [Docs/context/BDOS-context.md](BDOS-context.md) — deep dive into
+  BDOS sources, syscalls, slots, hotkeys.

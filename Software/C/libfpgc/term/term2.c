@@ -48,6 +48,7 @@ typedef struct {
     int scroll_top;      /* 0-based inclusive */
     int scroll_bot;      /* 0-based inclusive */
     int cursor_visible;
+    int wrap_mode;       /* DECAWM: 1 = auto-wrap on, 0 = clamp at last column */
 } term2_screen_t;
 
 static int g_width  = 40;
@@ -249,7 +250,13 @@ static void emit_printable(unsigned char c) {
     put_at(s->cursor_x, s->cursor_y, c, s->palette);
     s->cursor_x++;
     if (s->cursor_x >= g_width) {
-        newline();
+        if (s->wrap_mode) {
+            newline();
+        } else {
+            /* DECAWM off: clamp at last column. The next printable
+               character overwrites the last cell. */
+            s->cursor_x = g_width - 1;
+        }
     }
 }
 
@@ -367,6 +374,9 @@ static void parser_dispatch_csi(unsigned char final) {
         } else if (mode == 25) {  /* cursor visibility */
             if (final == 'h')      s->cursor_visible = 1;
             else if (final == 'l') s->cursor_visible = 0;
+        } else if (mode == 7) {   /* DECAWM — auto-wrap mode */
+            if (final == 'h')      s->wrap_mode = 1;
+            else if (final == 'l') s->wrap_mode = 0;
         }
         return;
     }
@@ -518,6 +528,7 @@ void term2_init(int width, int height,
         g_screens[i].scroll_top = 0;
         g_screens[i].scroll_bot = g_height - 1;
         g_screens[i].cursor_visible = 1;
+        g_screens[i].wrap_mode = 1;
     }
     g_hist_head = 0;
     g_hist_count = 0;
@@ -671,6 +682,7 @@ void term2_alt_enter(void) {
         a->scroll_top = 0;
         a->scroll_bot = g_height - 1;
         a->cursor_visible = 1;
+        a->wrap_mode = 1;
     }
     term2_repaint();
 }

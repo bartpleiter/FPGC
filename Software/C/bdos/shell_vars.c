@@ -12,7 +12,11 @@
  *           by the lexer, not here)
  */
 
+#ifdef SHELL_HOST_TEST
+#include "shell_host_stubs.h"
+#else
 #include "bdos.h"
+#endif
 
 typedef struct {
     int  in_use;

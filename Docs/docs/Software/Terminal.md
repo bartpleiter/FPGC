@@ -65,6 +65,7 @@ ncurses-style fullscreen apps and conventional terminal output:
 | `[ Pn m` | SGR | Palette / attribute select (see below) |
 | `[ s` / `[ u` | SCP / RCP | Save / restore cursor + palette |
 | `[ ? 25 h` / `l` | DECTCEM | Show / hide cursor |
+| `[ ? 7 h` / `l` | DECAWM | Auto-wrap on (default) / off. With wrap off, writing to the last column clamps the cursor there instead of advancing — useful for full-screen apps that draw to the bottom-right cell without triggering a scroll. |
 | `[ ? 1049 h` / `l` | xterm alt screen | Push / pop the entire screen + cursor |
 
 ### Single-byte controls

@@ -11,7 +11,11 @@
  * runs to end of line (only outside quotes).
  */
 
+#ifdef SHELL_HOST_TEST
+#include "shell_host_stubs.h"
+#else
 #include "bdos.h"
+#endif
 
 static int store_putc(char *store, int *off, int store_size, char c)
 {

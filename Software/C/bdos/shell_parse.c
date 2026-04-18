@@ -9,7 +9,11 @@
  *   redir    := < WORD | > WORD | >> WORD
  */
 
+#ifdef SHELL_HOST_TEST
+#include "shell_host_stubs.h"
+#else
 #include "bdos.h"
+#endif
 
 static void parse_error(const char *msg)
 {
