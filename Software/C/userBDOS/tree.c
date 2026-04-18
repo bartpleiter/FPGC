@@ -43,12 +43,12 @@ int file_count;            // Total files found
 
 void print_char(int ch)
 {
-  sys_print_char(ch);
+  sys_putc(ch);
 }
 
 void print_str(char *s)
 {
-  sys_print_str(s);
+  sys_putstr(s);
 }
 
 /* Simple integer to string */

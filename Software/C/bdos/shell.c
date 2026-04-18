@@ -1,551 +1,394 @@
+/*
+ * shell.c \u2014 BDOS interactive shell front-end.
+ *
+ * Owns the cwd, the input-line buffer, command history (8 entries),
+ * and the per-keypress UI loop. Parsing/execution is delegated to
+ * shell_exec.c. Visual behaviour (welcome banner, "cwd> " prompt,
+ * software cursor, line wrap, history nav, F1-F8 resume,
+ * Ctrl+C / Ctrl+L / Ctrl+Arrow) is preserved from v1.x.
+ *
+ * The cursor is drawn manually by inverting one cell because the
+ * underlying terminal has no hardware cursor in alt-screen mode.
+ */
+
 #include "bdos.h"
 
-static char bdos_shell_input[BDOS_SHELL_INPUT_MAX];
-static int bdos_shell_input_len;
-static int bdos_shell_input_overflow;
-static char bdos_shell_prompt[BDOS_SHELL_PROMPT_MAX];
-char bdos_shell_cwd[BDOS_SHELL_PATH_MAX] = "/";
-static unsigned int bdos_shell_prompt_x;
-static unsigned int bdos_shell_prompt_y;
-static int bdos_shell_last_render_len;
-static int bdos_shell_cursor_index;
-static int bdos_shell_cursor_visible;
-static unsigned int bdos_shell_cursor_draw_x;
-static unsigned int bdos_shell_cursor_draw_y;
-static unsigned char bdos_shell_cursor_saved_tile;
-static unsigned char bdos_shell_cursor_saved_palette;
+/* ---- State ---- */
+
+char         bdos_shell_cwd[BDOS_SHELL_PATH_MAX] = "/";
 unsigned int bdos_shell_start_micros;
 
-#define BDOS_SHELL_HISTORY_SIZE 8
-static char bdos_shell_history[BDOS_SHELL_HISTORY_SIZE][BDOS_SHELL_INPUT_MAX];
-static int bdos_shell_history_head;
-static int bdos_shell_history_count;
-static int bdos_shell_history_nav_offset;
-static char bdos_shell_history_saved_input[BDOS_SHELL_INPUT_MAX];
+/* Line editor state \u2014 kept in one struct to make the lifecycle obvious. */
+typedef struct {
+    char         buf[BDOS_SHELL_INPUT_MAX];
+    int          len;
+    int          cursor;
+    int          overflow;
 
-/* ---- Prompt and cursor rendering ---- */
+    /* Saved render extent so we can erase the previous line cheaply. */
+    unsigned int prompt_x;
+    unsigned int prompt_y;
+    int          last_render;
 
-static void bdos_shell_build_prompt(void)
+    /* Software cursor (we draw it ourselves on top of the rendered text). */
+    int           visible;
+    unsigned int  draw_x;
+    unsigned int  draw_y;
+    unsigned char saved_tile;
+    unsigned char saved_palette;
+
+    char         prompt[BDOS_SHELL_PROMPT_MAX];
+} editor_t;
+
+static editor_t E;
+
+/* ---- History ring ---- */
+
+#define HIST_N 8
+typedef struct {
+    char buf[HIST_N][BDOS_SHELL_INPUT_MAX];
+    int  head;        /* next slot to write */
+    int  count;       /* number of valid entries (<= HIST_N) */
+    int  nav_offset;  /* -1 = editing fresh line; >=0 = browsing */
+    char saved[BDOS_SHELL_INPUT_MAX];  /* current input snapshot */
+} history_t;
+
+static history_t H;
+
+/* ---- Forward decls ---- */
+
+static void render(void);
+static void start_line_internal(void);
+
+/* ---- Cursor (software, single-cell inverse) ---- */
+
+static void cursor_clear(void)
 {
-  bdos_shell_prompt[0] = '\0';
-  strcat(bdos_shell_prompt, bdos_shell_cwd);
-  strcat(bdos_shell_prompt, "> ");
+    if (!E.visible) return;
+    term_put_cell(E.draw_x, E.draw_y, E.saved_tile, E.saved_palette);
+    E.visible = 0;
 }
 
-static int bdos_shell_prompt_len(void)
+static void cursor_draw(void)
 {
-  return strlen(bdos_shell_prompt);
+    unsigned int  x, y;
+    unsigned char tile, pal;
+    term_get_cursor(&x, &y);
+    term_get_cell(x, y, &tile, &pal);
+    E.draw_x = x;
+    E.draw_y = y;
+    E.saved_tile = tile;
+    E.saved_palette = pal;
+    E.visible = 1;
+    term_put_cell(x, y, tile, PALETTE_BLACK_ON_WHITE);
 }
 
-static void bdos_shell_draw_cursor(void)
+/* ---- Prompt ---- */
+
+static void build_prompt(void)
 {
-  unsigned int x;
-  unsigned int y;
-  unsigned char tile;
-  unsigned char palette;
-
-  term_get_cursor(&x, &y);
-  term_get_cell(x, y, &tile, &palette);
-
-  bdos_shell_cursor_draw_x = x;
-  bdos_shell_cursor_draw_y = y;
-  bdos_shell_cursor_saved_tile = tile;
-  bdos_shell_cursor_saved_palette = palette;
-  bdos_shell_cursor_visible = 1;
-
-  term_put_cell(x, y, tile, PALETTE_BLACK_ON_WHITE);
+    E.prompt[0] = 0;
+    strcat(E.prompt, bdos_shell_cwd);
+    strcat(E.prompt, "> ");
 }
 
-static void bdos_shell_clear_cursor(void)
+static int prompt_len(void) { return strlen(E.prompt); }
+
+/* If our last render exceeded the screen height, scroll the prompt up
+ * so the input always remains on-screen. */
+static void scroll_into_view(int rendered)
 {
-  if (!bdos_shell_cursor_visible)
-  {
-    return;
-  }
-
-  term_put_cell(
-    bdos_shell_cursor_draw_x,
-    bdos_shell_cursor_draw_y,
-    bdos_shell_cursor_saved_tile,
-    bdos_shell_cursor_saved_palette);
-  bdos_shell_cursor_visible = 0;
-}
-
-static void bdos_shell_move_cursor_to_input_index(void)
-{
-  int prompt_len;
-  int absolute_char_index;
-  int cursor_row;
-  int cursor_col;
-
-  prompt_len = bdos_shell_prompt_len();
-
-  if (bdos_shell_cursor_index < 0)
-  {
-    bdos_shell_cursor_index = 0;
-  }
-  if (bdos_shell_cursor_index > bdos_shell_input_len)
-  {
-    bdos_shell_cursor_index = bdos_shell_input_len;
-  }
-
-  absolute_char_index = prompt_len + bdos_shell_cursor_index;
-  cursor_row = (int)bdos_shell_prompt_y + ((int)bdos_shell_prompt_x + absolute_char_index) / TERM_WIDTH;
-  cursor_col = ((int)bdos_shell_prompt_x + absolute_char_index) % TERM_WIDTH;
-
-  if (cursor_row < 0)
-  {
-    cursor_row = 0;
-  }
-  if (cursor_row >= TERM_HEIGHT)
-  {
-    cursor_row = TERM_HEIGHT - 1;
-  }
-
-  term_set_cursor((unsigned int)cursor_col, (unsigned int)cursor_row);
-}
-
-static void bdos_shell_adjust_prompt_after_render(int rendered_chars)
-{
-  int rows_used;
-  int overflow_rows;
-  int prompt_y;
-
-  rows_used = (bdos_shell_prompt_x + rendered_chars) / TERM_WIDTH;
-  overflow_rows = ((int)bdos_shell_prompt_y + rows_used) - (TERM_HEIGHT - 1);
-
-  if (overflow_rows > 0)
-  {
-    prompt_y = (int)bdos_shell_prompt_y - overflow_rows;
-    if (prompt_y < 0)
-    {
-      prompt_y = 0;
+    int rows_used  = (E.prompt_x + rendered) / TERM_WIDTH;
+    int overflow   = (int)E.prompt_y + rows_used - (TERM_HEIGHT - 1);
+    if (overflow > 0) {
+        int py = (int)E.prompt_y - overflow;
+        if (py < 0) py = 0;
+        E.prompt_y = (unsigned int)py;
     }
-    bdos_shell_prompt_y = (unsigned int)prompt_y;
-  }
 }
 
-static void bdos_shell_render_line(void)
+static void move_cursor_to_input(void)
 {
-  int i;
-  int new_render_len;
+    int  pl = prompt_len();
+    int  abs;
+    int  row, col;
 
-  bdos_shell_clear_cursor();
-  term_set_palette(PALETTE_WHITE_ON_BLACK);
-  term_set_cursor(bdos_shell_prompt_x, bdos_shell_prompt_y);
-  for (i = 0; i < bdos_shell_last_render_len; i++)
-  {
-    term_putchar(' ');
-  }
+    if (E.cursor < 0)        E.cursor = 0;
+    if (E.cursor > E.len)    E.cursor = E.len;
 
-  bdos_shell_adjust_prompt_after_render(bdos_shell_last_render_len);
-
-  term_set_cursor(bdos_shell_prompt_x, bdos_shell_prompt_y);
-  term_puts(bdos_shell_prompt);
-  term_write(bdos_shell_input, bdos_shell_input_len);
-  new_render_len = bdos_shell_prompt_len() + bdos_shell_input_len;
-  bdos_shell_last_render_len = new_render_len;
-  bdos_shell_adjust_prompt_after_render(new_render_len);
-
-  bdos_shell_move_cursor_to_input_index();
-  bdos_shell_draw_cursor();
+    abs = pl + E.cursor;
+    row = (int)E.prompt_y + ((int)E.prompt_x + abs) / TERM_WIDTH;
+    col = ((int)E.prompt_x + abs) % TERM_WIDTH;
+    if (row < 0)             row = 0;
+    if (row >= TERM_HEIGHT)  row = TERM_HEIGHT - 1;
+    term_set_cursor((unsigned int)col, (unsigned int)row);
 }
 
-/* ---- History management ---- */
-
-static int bdos_shell_history_index_from_offset(int nav_offset)
+static void render(void)
 {
-  int idx;
+    int new_len;
+    int i;
 
-  idx = bdos_shell_history_head - 1 - nav_offset;
-  while (idx < 0)
-  {
-    idx += BDOS_SHELL_HISTORY_SIZE;
-  }
-  return idx % BDOS_SHELL_HISTORY_SIZE;
+    cursor_clear();
+
+    /* Erase old render. */
+    term_set_palette(PALETTE_WHITE_ON_BLACK);
+    term_set_cursor(E.prompt_x, E.prompt_y);
+    for (i = 0; i < E.last_render; i++) term_putchar(' ');
+    scroll_into_view(E.last_render);
+
+    /* Re-emit prompt + input. */
+    term_set_cursor(E.prompt_x, E.prompt_y);
+    term_puts(E.prompt);
+    term_write(E.buf, E.len);
+
+    new_len = prompt_len() + E.len;
+    E.last_render = new_len;
+    scroll_into_view(new_len);
+
+    move_cursor_to_input();
+    cursor_draw();
 }
 
-static void bdos_shell_set_input(char *source)
+/* ---- Editor primitives ---- */
+
+static void editor_clear(void)
 {
-  int len;
-
-  len = strlen(source);
-  if (len >= BDOS_SHELL_INPUT_MAX)
-  {
-    len = BDOS_SHELL_INPUT_MAX - 1;
-  }
-
-  memcpy(bdos_shell_input, source, len);
-  bdos_shell_input[len] = '\0';
-  bdos_shell_input_len = len;
-  bdos_shell_cursor_index = bdos_shell_input_len;
-  bdos_shell_input_overflow = 0;
+    E.len = 0;
+    E.cursor = 0;
+    E.buf[0] = 0;
+    E.overflow = 0;
+    H.nav_offset = -1;
+    H.saved[0] = 0;
 }
 
-static void bdos_shell_history_add(char *line)
+static void editor_set(const char *src)
 {
-  int len;
-
-  len = strlen(line);
-  if (len == 0)
-  {
-    return;
-  }
-
-  if (len >= BDOS_SHELL_INPUT_MAX)
-  {
-    len = BDOS_SHELL_INPUT_MAX - 1;
-  }
-
-  memcpy(bdos_shell_history[bdos_shell_history_head], line, len);
-  bdos_shell_history[bdos_shell_history_head][len] = '\0';
-
-  bdos_shell_history_head = (bdos_shell_history_head + 1) % BDOS_SHELL_HISTORY_SIZE;
-  if (bdos_shell_history_count < BDOS_SHELL_HISTORY_SIZE)
-  {
-    bdos_shell_history_count++;
-  }
+    int n = strlen(src);
+    if (n >= BDOS_SHELL_INPUT_MAX) n = BDOS_SHELL_INPUT_MAX - 1;
+    memcpy(E.buf, (char *)src, n);
+    E.buf[n] = 0;
+    E.len = n;
+    E.cursor = n;
+    E.overflow = 0;
 }
 
-static void bdos_shell_history_nav_up(void)
+static void editor_insert(char c)
 {
-  int idx;
-
-  if (bdos_shell_history_count == 0)
-  {
-    return;
-  }
-
-  if (bdos_shell_history_nav_offset < 0)
-  {
-    memcpy(bdos_shell_history_saved_input, bdos_shell_input, bdos_shell_input_len);
-    bdos_shell_history_saved_input[bdos_shell_input_len] = '\0';
-    bdos_shell_history_nav_offset = 0;
-  }
-  else if (bdos_shell_history_nav_offset < (bdos_shell_history_count - 1))
-  {
-    bdos_shell_history_nav_offset++;
-  }
-
-  idx = bdos_shell_history_index_from_offset(bdos_shell_history_nav_offset);
-  bdos_shell_set_input(bdos_shell_history[idx]);
+    int i;
+    if (E.len >= BDOS_SHELL_INPUT_MAX - 1) { E.overflow = 1; return; }
+    for (i = E.len; i >= E.cursor; i--) E.buf[i + 1] = E.buf[i];
+    E.buf[E.cursor++] = c;
+    E.len++;
+    E.overflow = 0;
 }
 
-static void bdos_shell_history_nav_down(void)
+static void editor_backspace(void)
 {
-  int idx;
-
-  if (bdos_shell_history_nav_offset < 0)
-  {
-    return;
-  }
-
-  if (bdos_shell_history_nav_offset == 0)
-  {
-    bdos_shell_history_nav_offset = -1;
-    bdos_shell_set_input(bdos_shell_history_saved_input);
-    return;
-  }
-
-  bdos_shell_history_nav_offset--;
-  idx = bdos_shell_history_index_from_offset(bdos_shell_history_nav_offset);
-  bdos_shell_set_input(bdos_shell_history[idx]);
+    int i;
+    if (E.cursor <= 0) return;
+    for (i = E.cursor - 1; i < E.len; i++) E.buf[i] = E.buf[i + 1];
+    E.len--; E.cursor--;
+    E.overflow = 0;
 }
 
-/* ---- Line editor ---- */
-
-static void bdos_shell_insert_char(char c)
+static void editor_delete(void)
 {
-  int i;
-
-  if (bdos_shell_input_len >= (BDOS_SHELL_INPUT_MAX - 1))
-  {
-    bdos_shell_input_overflow = 1;
-    return;
-  }
-
-  for (i = bdos_shell_input_len; i >= bdos_shell_cursor_index; i--)
-  {
-    bdos_shell_input[i + 1] = bdos_shell_input[i];
-  }
-
-  bdos_shell_input[bdos_shell_cursor_index] = c;
-  bdos_shell_input_len++;
-  bdos_shell_cursor_index++;
-  bdos_shell_input_overflow = 0;
+    int i;
+    if (E.cursor >= E.len) return;
+    for (i = E.cursor; i < E.len; i++) E.buf[i] = E.buf[i + 1];
+    E.len--;
+    E.overflow = 0;
 }
 
-static void bdos_shell_backspace_char(void)
+/* ---- History ---- */
+
+static int hist_index(int off)
 {
-  int i;
-
-  if (bdos_shell_cursor_index <= 0)
-  {
-    return;
-  }
-
-  for (i = bdos_shell_cursor_index - 1; i < bdos_shell_input_len; i++)
-  {
-    bdos_shell_input[i] = bdos_shell_input[i + 1];
-  }
-
-  bdos_shell_input_len--;
-  bdos_shell_cursor_index--;
-  bdos_shell_input_overflow = 0;
+    int i = H.head - 1 - off;
+    while (i < 0) i += HIST_N;
+    return i % HIST_N;
 }
 
-static void bdos_shell_delete_char(void)
+static void hist_add(const char *line)
 {
-  int i;
-
-  if (bdos_shell_cursor_index >= bdos_shell_input_len)
-  {
-    return;
-  }
-
-  for (i = bdos_shell_cursor_index; i < bdos_shell_input_len; i++)
-  {
-    bdos_shell_input[i] = bdos_shell_input[i + 1];
-  }
-
-  bdos_shell_input_len--;
-  bdos_shell_input_overflow = 0;
+    int n = strlen(line);
+    if (n == 0) return;
+    if (n >= BDOS_SHELL_INPUT_MAX) n = BDOS_SHELL_INPUT_MAX - 1;
+    memcpy(H.buf[H.head], (char *)line, n);
+    H.buf[H.head][n] = 0;
+    H.head = (H.head + 1) % HIST_N;
+    if (H.count < HIST_N) H.count++;
 }
 
-void bdos_shell_start_line(void)
+static void hist_up(void)
 {
-  bdos_shell_build_prompt();
-  term_get_cursor(&bdos_shell_prompt_x, &bdos_shell_prompt_y);
-  bdos_shell_last_render_len = 0;
-  bdos_shell_render_line();
+    if (H.count == 0) return;
+    if (H.nav_offset < 0) {
+        memcpy(H.saved, E.buf, E.len);
+        H.saved[E.len] = 0;
+        H.nav_offset = 0;
+    } else if (H.nav_offset < H.count - 1) {
+        H.nav_offset++;
+    }
+    editor_set(H.buf[hist_index(H.nav_offset)]);
 }
+
+static void hist_down(void)
+{
+    if (H.nav_offset < 0) return;
+    if (H.nav_offset == 0) {
+        H.nav_offset = -1;
+        editor_set(H.saved);
+        return;
+    }
+    H.nav_offset--;
+    editor_set(H.buf[hist_index(H.nav_offset)]);
+}
+
+/* ---- Public lifecycle ---- */
+
+static void start_line_internal(void)
+{
+    build_prompt();
+    term_get_cursor(&E.prompt_x, &E.prompt_y);
+    E.last_render = 0;
+    render();
+}
+
+void bdos_shell_start_line(void) { start_line_internal(); }
 
 void bdos_shell_reset_and_prompt(void)
 {
-  bdos_shell_input_len = 0;
-  bdos_shell_cursor_index = 0;
-  bdos_shell_input[0] = '\0';
-  bdos_shell_input_overflow = 0;
-  bdos_shell_history_nav_offset = -1;
-  bdos_shell_history_saved_input[0] = '\0';
-  bdos_shell_start_line();
+    editor_clear();
+    start_line_internal();
 }
 
-static void bdos_shell_print_welcome(void)
+static void print_welcome(void)
 {
-  term_puts(" ___ ___   ___  ___ \n");
-  term_puts("| _ )   \\ / _ \\/ __|\n");
-  term_puts("| _ \\ |) | (_) \\__ \\\n");
-  term_puts("|___/___/ \\___/|___/v3.0\n\n");
+    term_puts(" ___ ___   ___  ___ \n");
+    term_puts("| _ )   \\ / _ \\/ __|\n");
+    term_puts("| _ \\ |) | (_) \\__ \\\n");
+    term_puts("|___/___/ \\___/|___/v3.0\n\n");
 }
 
-/* ---- Command submit lifecycle ---- */
+/* ---- Submit ---- */
 
-static void bdos_shell_submit_input(void)
+static void submit(void)
 {
-  bdos_shell_clear_cursor();
-  term_putchar('\n');
+    cursor_clear();
+    term_putchar('\n');
 
-  if (bdos_shell_input_overflow)
-  {
-    term_puts("error: input too long\n");
-  }
-  else
-  {
-    bdos_shell_input[bdos_shell_input_len] = '\0';
-
-    if (bdos_shell_handle_special_mode_line(bdos_shell_input))
-    {
-      /* Special-mode line consumed */
+    if (E.overflow) {
+        term_puts("error: input too long\n");
+    } else {
+        E.buf[E.len] = 0;
+        if (!bdos_shell_handle_special_mode_line(E.buf)) {
+            hist_add(E.buf);
+            bdos_shell_execute_line(E.buf);
+        }
     }
-    else
-    {
-      bdos_shell_history_add(bdos_shell_input);
-      bdos_shell_execute_line(bdos_shell_input);
-    }
-  }
-
-  bdos_shell_input_len = 0;
-  bdos_shell_cursor_index = 0;
-  bdos_shell_input[0] = '\0';
-  bdos_shell_input_overflow = 0;
-  bdos_shell_history_nav_offset = -1;
-  bdos_shell_history_saved_input[0] = '\0';
-  bdos_shell_start_line();
+    editor_clear();
+    start_line_internal();
 }
 
-/* ---- Event handling and lifecycle ---- */
+/* ---- Key dispatch ---- */
 
-static void bdos_shell_handle_key_event(int key_event)
+static void handle_key(int k)
 {
-  if (key_event == '\n' || key_event == '\r')
-  {
-    bdos_shell_submit_input();
-    return;
-  }
+    if (k == '\n' || k == '\r') { submit(); return; }
+    if (k == '\b' || k == 127)  { editor_backspace();  render(); return; }
+    if (k == BDOS_KEY_DELETE)   { editor_delete();     render(); return; }
+    if (k == BDOS_KEY_LEFT)     { if (E.cursor > 0)     E.cursor--; render(); return; }
+    if (k == BDOS_KEY_RIGHT)    { if (E.cursor < E.len) E.cursor++; render(); return; }
+    if (k == BDOS_KEY_UP)       { hist_up();   render(); return; }
+    if (k == BDOS_KEY_DOWN)     { hist_down(); render(); return; }
 
-  if (key_event == '\b' || key_event == 127)
-  {
-    bdos_shell_backspace_char();
-    bdos_shell_render_line();
-    return;
-  }
-
-  if (key_event == BDOS_KEY_DELETE)
-  {
-    bdos_shell_delete_char();
-    bdos_shell_render_line();
-    return;
-  }
-
-  if (key_event == BDOS_KEY_LEFT)
-  {
-    if (bdos_shell_cursor_index > 0)
-    {
-      bdos_shell_cursor_index--;
+    if (k == 3) {                       /* Ctrl+C */
+        editor_clear();
+        render();
+        return;
     }
-    bdos_shell_render_line();
-    return;
-  }
-
-  if (key_event == BDOS_KEY_RIGHT)
-  {
-    if (bdos_shell_cursor_index < bdos_shell_input_len)
-    {
-      bdos_shell_cursor_index++;
+    if (k == 12) {                      /* Ctrl+L */
+        term_clear();
+        editor_clear();
+        start_line_internal();
+        return;
     }
-    bdos_shell_render_line();
-    return;
-  }
 
-  if (key_event == BDOS_KEY_UP)
-  {
-    bdos_shell_history_nav_up();
-    bdos_shell_render_line();
-    return;
-  }
-
-  if (key_event == BDOS_KEY_DOWN)
-  {
-    bdos_shell_history_nav_down();
-    bdos_shell_render_line();
-    return;
-  }
-
-  /* Ctrl+C: clear input */
-  if (key_event == 3)
-  {
-    bdos_shell_input_len = 0;
-    bdos_shell_cursor_index = 0;
-    bdos_shell_input[0] = '\0';
-    bdos_shell_input_overflow = 0;
-    bdos_shell_history_nav_offset = -1;
-    bdos_shell_render_line();
-    return;
-  }
-
-  /* Ctrl+L: clear screen and redraw */
-  if (key_event == 12)
-  {
-    term_clear();
-    bdos_shell_input_len = 0;
-    bdos_shell_cursor_index = 0;
-    bdos_shell_input[0] = '\0';
-    bdos_shell_input_overflow = 0;
-    bdos_shell_history_nav_offset = -1;
-    bdos_shell_start_line();
-    return;
-  }
-
-  /* F1-F8: resume suspended program */
-  if (key_event >= BDOS_KEY_F1 && key_event <= BDOS_KEY_F8)
-  {
-    int slot;
-    slot = key_event - BDOS_KEY_F1;
-    if (slot < MEM_SLOT_COUNT &&
-        bdos_slot_status[slot] == BDOS_SLOT_STATUS_SUSPENDED)
-    {
-      bdos_shell_clear_cursor();
-      term_puts("\n[");
-      term_putint(slot);
-      term_puts("] resuming: ");
-      term_puts(bdos_slot_name[slot]);
-      term_putchar('\n');
-      bdos_resume_program(slot);
-      bdos_shell_reset_and_prompt();
+    if (k >= BDOS_KEY_F1 && k <= BDOS_KEY_F8) {
+        int slot = k - BDOS_KEY_F1;
+        if (slot < MEM_SLOT_COUNT &&
+            bdos_slot_status[slot] == BDOS_SLOT_STATUS_SUSPENDED) {
+            cursor_clear();
+            term_puts("\n[");
+            term_putint(slot);
+            term_puts("] resuming: ");
+            term_puts(bdos_slot_name[slot]);
+            term_putchar('\n');
+            bdos_resume_program(slot);
+            bdos_shell_reset_and_prompt();
+        }
+        return;
     }
-    return;
-  }
 
-  /* Printable ASCII */
-  if (key_event >= 32 && key_event <= 126)
-  {
-    bdos_shell_insert_char((char)key_event);
-    bdos_shell_render_line();
-    return;
-  }
+    if (k >= 32 && k <= 126) { editor_insert((char)k); render(); }
 }
+
+/* ---- Init / tick ---- */
 
 void bdos_shell_init(void)
 {
-  term_set_palette(PALETTE_WHITE_ON_BLACK);
-  term_clear();
+    term_set_palette(PALETTE_WHITE_ON_BLACK);
+    term_clear();
 
-  bdos_shell_input_len = 0;
-  bdos_shell_cursor_index = 0;
-  bdos_shell_input[0] = '\0';
-  bdos_shell_input_overflow = 0;
-  bdos_shell_last_render_len = 0;
-  bdos_shell_cursor_visible = 0;
-  bdos_shell_cursor_draw_x = 0;
-  bdos_shell_cursor_draw_y = 0;
-  bdos_shell_cursor_saved_tile = 0;
-  bdos_shell_cursor_saved_palette = PALETTE_WHITE_ON_BLACK;
-  bdos_shell_history_head = 0;
-  bdos_shell_history_count = 0;
-  bdos_shell_history_nav_offset = -1;
-  bdos_shell_history_saved_input[0] = '\0';
+    /* Zero out editor + history. */
+    {
+        int i, j;
+        E.len = E.cursor = E.overflow = 0;
+        E.buf[0] = 0;
+        E.last_render = 0;
+        E.visible = 0;
+        E.draw_x = E.draw_y = 0;
+        E.saved_tile = 0;
+        E.saved_palette = PALETTE_WHITE_ON_BLACK;
+        H.head = H.count = 0;
+        H.nav_offset = -1;
+        H.saved[0] = 0;
+        for (i = 0; i < HIST_N; i++)
+            for (j = 0; j < BDOS_SHELL_INPUT_MAX; j++)
+                H.buf[i][j] = 0;
+    }
 
-  bdos_shell_start_micros = get_micros();
+    bdos_shell_start_micros = get_micros();
+    bdos_shell_vars_init();
 
-  bdos_shell_print_welcome();
-  bdos_shell_on_startup();
-  bdos_shell_start_line();
+    print_welcome();
+    bdos_shell_on_startup();
+    start_line_internal();
 }
 
-/* Minimum interval between scroll events */
-#define BDOS_SCROLL_REPEAT_INTERVAL_US 30000U
-static unsigned int bdos_scroll_last_us = 0;
+#define SCROLL_REPEAT_US 30000U
+static unsigned int g_scroll_last_us = 0;
 
 void bdos_shell_tick(void)
 {
-  int key_event;
-  unsigned int now;
+    int          k;
+    unsigned int now;
 
-  if (bdos_key_state_bitmap & KEYSTATE_CTRL)
-  {
-    now = get_micros();
-    if ((unsigned int)(now - bdos_scroll_last_us) >= BDOS_SCROLL_REPEAT_INTERVAL_US)
-    {
-      if (bdos_key_state_bitmap & KEYSTATE_UP)
-      {
-        term_scroll_view_up();
-        bdos_scroll_last_us = now;
-      }
-      else if (bdos_key_state_bitmap & KEYSTATE_DOWN)
-      {
-        term_scroll_view_down();
-        bdos_scroll_last_us = now;
-      }
+    if (bdos_key_state_bitmap & KEYSTATE_CTRL) {
+        now = get_micros();
+        if ((unsigned int)(now - g_scroll_last_us) >= SCROLL_REPEAT_US) {
+            if (bdos_key_state_bitmap & KEYSTATE_UP)   {
+                term_scroll_view_up();   g_scroll_last_us = now;
+            } else if (bdos_key_state_bitmap & KEYSTATE_DOWN) {
+                term_scroll_view_down(); g_scroll_last_us = now;
+            }
+        }
     }
-  }
 
-  while (bdos_keyboard_event_available())
-  {
-    key_event = bdos_keyboard_event_read();
-    if (key_event != -1)
-    {
-      bdos_shell_handle_key_event(key_event);
+    while (bdos_keyboard_event_available()) {
+        k = bdos_keyboard_event_read();
+        if (k != -1) handle_key(k);
     }
-  }
 }

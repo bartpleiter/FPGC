@@ -3,9 +3,7 @@
 #define BDOS_SHELL_LS_MAX_ENTRIES 32
 #define BDOS_SHELL_IO_CHUNK_WORDS 64
 
-/* Program argc/argv storage (accessible to user programs via syscall) */
-int bdos_shell_prog_argc = 0;
-char *bdos_shell_prog_argv[BDOS_SHELL_ARGV_MAX];
+/* (bdos_shell_prog_argc / argv now live in shell_exec.c.) */
 
 /* ---- Built-in commands ---- */
 
@@ -1039,24 +1037,44 @@ static int bdos_shell_cmd_df(int argc, char **argv)
 
 int bdos_shell_resolve_program(char *name, char *out_path)
 {
-  char bin_path[BDOS_SHELL_PATH_MAX];
-  int result;
+  char         search[BDOS_SHELL_PATH_MAX];
+  const char  *path;
+  const char  *p;
+  int          result;
 
+  /* Explicit path (contains '/' or starts with '.') skips $PATH. */
   if (strchr(name, '/') != 0 || name[0] == '.')
   {
     return bdos_shell_resolve_path(name, out_path);
   }
 
-  strcpy(bin_path, "/bin/");
-  strcat(bin_path, name);
-  result = bdos_shell_resolve_path(bin_path, out_path);
-  if (result == BRFS_OK && brfs_exists(out_path))
+  path = bdos_shell_var_get("PATH");
+  if (path == 0 || path[0] == 0) path = "/bin";
+
+  /* Walk PATH, splitting on ':'. For each entry build "<entry>/<name>"
+   * and try to resolve. First hit wins. */
+  p = path;
+  while (*p)
   {
-    return BRFS_OK;
+    int n = 0;
+    while (*p && *p != ':' && n < BDOS_SHELL_PATH_MAX - 2)
+      search[n++] = *p++;
+    if (n == 0) { if (*p == ':') p++; continue; }
+    if (search[n - 1] != '/') search[n++] = '/';
+    search[n] = 0;
+    if ((int)strlen(name) + n >= BDOS_SHELL_PATH_MAX) {
+      if (*p == ':') p++;
+      continue;
+    }
+    strcat(search, name);
+    result = bdos_shell_resolve_path(search, out_path);
+    if (result == BRFS_OK && brfs_exists(out_path) && !brfs_is_dir(out_path))
+      return BRFS_OK;
+    if (*p == ':') p++;
   }
 
-  result = bdos_shell_resolve_path(name, out_path);
-  return result;
+  /* Fallback: resolve as-is against cwd. */
+  return bdos_shell_resolve_path(name, out_path);
 }
 
 static int bdos_shell_cmd_jobs(int argc, char **argv)
@@ -1207,56 +1225,109 @@ static int bdos_shell_cmd_format(int argc, char **argv)
 
 /* ---- Command dispatcher ---- */
 
-void bdos_shell_execute_line(char *line)
+/* ---- New built-ins (variables / control) ---- */
+
+static int bi_export_impl(int argc, char **argv)
 {
-  int argc;
-  char *argv[BDOS_SHELL_ARGV_MAX];
-  char prog_path[BDOS_SHELL_PATH_MAX];
-  int resolve_result;
-
-  if (bdos_shell_parse_line(line, &argc, argv) != 0)
-  {
-    term_puts("error: too many arguments\n");
-    return;
+  int i;
+  if (argc < 2) {
+    /* Print all exported vars. */
+    bdos_shell_vars_print(1);
+    return 0;
   }
-
-  if (argc == 0)
-  {
-    return;
-  }
-
-  if (strcmp(argv[0], "help") == 0) { bdos_shell_cmd_help(argc, argv); return; }
-  if (strcmp(argv[0], "clear") == 0) { bdos_shell_cmd_clear(argc, argv); return; }
-  if (strcmp(argv[0], "echo") == 0) { bdos_shell_cmd_echo(argc, argv); return; }
-  if (strcmp(argv[0], "uptime") == 0) { bdos_shell_cmd_uptime(argc, argv); return; }
-  if (strcmp(argv[0], "pwd") == 0) { bdos_shell_cmd_pwd(argc, argv); return; }
-  if (strcmp(argv[0], "cd") == 0) { bdos_shell_cmd_cd(argc, argv); return; }
-  if (strcmp(argv[0], "ls") == 0) { bdos_shell_cmd_ls(argc, argv); return; }
-  if (strcmp(argv[0], "mkdir") == 0) { bdos_shell_cmd_mkdir(argc, argv); return; }
-  if (strcmp(argv[0], "mkfile") == 0) { bdos_shell_cmd_mkfile(argc, argv); return; }
-  if (strcmp(argv[0], "rm") == 0) { bdos_shell_cmd_rm(argc, argv); return; }
-  if (strcmp(argv[0], "cat") == 0) { bdos_shell_cmd_cat(argc, argv); return; }
-  if (strcmp(argv[0], "write") == 0) { bdos_shell_cmd_write(argc, argv); return; }
-  if (strcmp(argv[0], "cp") == 0) { bdos_shell_cmd_cp(argc, argv); return; }
-  if (strcmp(argv[0], "mv") == 0) { bdos_shell_cmd_mv(argc, argv); return; }
-  if (strcmp(argv[0], "format") == 0) { bdos_shell_cmd_format(argc, argv); return; }
-  if (strcmp(argv[0], "sync") == 0) { bdos_shell_cmd_sync(argc, argv); return; }
-  if (strcmp(argv[0], "df") == 0) { bdos_shell_cmd_df(argc, argv); return; }
-  if (strcmp(argv[0], "jobs") == 0) { bdos_shell_cmd_jobs(argc, argv); return; }
-  if (strcmp(argv[0], "kill") == 0) { bdos_shell_cmd_kill(argc, argv); return; }
-  if (strcmp(argv[0], "fg") == 0) { bdos_shell_cmd_fg(argc, argv); return; }
-
-  /* Not a built-in command: try to find and execute a program */
-  if (bdos_fs_ready)
-  {
-    resolve_result = bdos_shell_resolve_program(argv[0], prog_path);
-    if (resolve_result == BRFS_OK && brfs_exists(prog_path) && !brfs_is_dir(prog_path))
-    {
-      bdos_proc_spawn(prog_path, argc, argv);
-      return;
+  for (i = 1; i < argc; i++) {
+    char *eq = strchr(argv[i], '=');
+    if (eq) {
+      char name[BDOS_SHELL_VAR_NAME];
+      int  k;
+      int  len = (int)(eq - argv[i]);
+      if (len <= 0 || len >= BDOS_SHELL_VAR_NAME) continue;
+      for (k = 0; k < len; k++) name[k] = argv[i][k];
+      name[len] = 0;
+      bdos_shell_var_set(name, eq + 1);
+      bdos_shell_var_export(name);
+    } else {
+      bdos_shell_var_export(argv[i]);
     }
   }
-
-  term_puts(argv[0]);
-  term_puts(": command not found\n");
+  return 0;
 }
+
+static int bi_set_impl(int argc, char **argv)
+{
+  int i;
+  if (argc < 2) {
+    bdos_shell_vars_print(0);
+    return 0;
+  }
+  for (i = 1; i < argc; i++) {
+    char *eq = strchr(argv[i], '=');
+    if (!eq) continue;
+    {
+      char name[BDOS_SHELL_VAR_NAME];
+      int  k;
+      int  len = (int)(eq - argv[i]);
+      if (len <= 0 || len >= BDOS_SHELL_VAR_NAME) continue;
+      for (k = 0; k < len; k++) name[k] = argv[i][k];
+      name[len] = 0;
+      bdos_shell_var_set(name, eq + 1);
+    }
+  }
+  return 0;
+}
+
+static int bi_unset_impl(int argc, char **argv)
+{
+  int i;
+  for (i = 1; i < argc; i++) bdos_shell_var_unset(argv[i]);
+  return 0;
+}
+
+static int bi_env_impl(int argc, char **argv)
+{
+  (void)argc; (void)argv;
+  bdos_shell_vars_print(1);
+  return 0;
+}
+
+static int bi_exit_impl(int argc, char **argv)
+{
+  (void)argc; (void)argv;
+  term_puts("shell: exit not supported (BDOS shell is the system console)\n");
+  return 1;
+}
+
+static int bi_true_impl (int argc, char **argv) { (void)argc; (void)argv; return 0; }
+static int bi_false_impl(int argc, char **argv) { (void)argc; (void)argv; return 1; }
+
+/* ---- bi_* wrappers exposed to shell_exec.c builtin registry ---- */
+
+int bi_help   (int argc, char **argv) { return bdos_shell_cmd_help   (argc, argv); }
+int bi_clear  (int argc, char **argv) { return bdos_shell_cmd_clear  (argc, argv); }
+int bi_echo   (int argc, char **argv) { return bdos_shell_cmd_echo   (argc, argv); }
+int bi_uptime (int argc, char **argv) { return bdos_shell_cmd_uptime (argc, argv); }
+int bi_pwd    (int argc, char **argv) { return bdos_shell_cmd_pwd    (argc, argv); }
+int bi_cd     (int argc, char **argv) { return bdos_shell_cmd_cd     (argc, argv); }
+int bi_ls     (int argc, char **argv) { return bdos_shell_cmd_ls     (argc, argv); }
+int bi_mkdir  (int argc, char **argv) { return bdos_shell_cmd_mkdir  (argc, argv); }
+int bi_mkfile (int argc, char **argv) { return bdos_shell_cmd_mkfile (argc, argv); }
+int bi_rm     (int argc, char **argv) { return bdos_shell_cmd_rm     (argc, argv); }
+int bi_cat    (int argc, char **argv) { return bdos_shell_cmd_cat    (argc, argv); }
+int bi_write  (int argc, char **argv) { return bdos_shell_cmd_write  (argc, argv); }
+int bi_cp     (int argc, char **argv) { return bdos_shell_cmd_cp     (argc, argv); }
+int bi_mv     (int argc, char **argv) { return bdos_shell_cmd_mv     (argc, argv); }
+int bi_format (int argc, char **argv) { return bdos_shell_cmd_format (argc, argv); }
+int bi_sync   (int argc, char **argv) { return bdos_shell_cmd_sync   (argc, argv); }
+int bi_df     (int argc, char **argv) { return bdos_shell_cmd_df     (argc, argv); }
+int bi_jobs   (int argc, char **argv) { return bdos_shell_cmd_jobs   (argc, argv); }
+int bi_kill   (int argc, char **argv) { return bdos_shell_cmd_kill   (argc, argv); }
+int bi_fg     (int argc, char **argv) { return bdos_shell_cmd_fg     (argc, argv); }
+
+int bi_export (int argc, char **argv) { return bi_export_impl(argc, argv); }
+int bi_set    (int argc, char **argv) { return bi_set_impl   (argc, argv); }
+int bi_unset  (int argc, char **argv) { return bi_unset_impl (argc, argv); }
+int bi_env    (int argc, char **argv) { return bi_env_impl   (argc, argv); }
+int bi_exit   (int argc, char **argv) { return bi_exit_impl  (argc, argv); }
+int bi_true   (int argc, char **argv) { return bi_true_impl  (argc, argv); }
+int bi_false  (int argc, char **argv) { return bi_false_impl (argc, argv); }
+

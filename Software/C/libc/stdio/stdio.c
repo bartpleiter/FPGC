@@ -369,14 +369,15 @@ sprintf(char *str, const char *fmt, ...)
 
 /* Internal FILE structure */
 struct __stdio_file {
-    int fd;          /* underlying file descriptor (-1=stdout, -2=stderr, -3=stdin) */
+    int fd;          /* underlying file descriptor (BDOS pre-opens 0/1/2) */
     int flags;       /* SRD, SWR, SERR, SEOF */
     int ungetc_buf;  /* ungetc buffer (-1 = empty) */
 };
 
-#define STDIO_FD_STDIN  (-3)
-#define STDIO_FD_STDOUT (-1)
-#define STDIO_FD_STDERR (-2)
+/* The kernel pre-opens fds 0/1/2 for every process. */
+#define STDIO_FD_STDIN   0
+#define STDIO_FD_STDOUT  1
+#define STDIO_FD_STDERR  2
 
 #define STDIO_SRD  0x01
 #define STDIO_SWR  0x02
@@ -555,12 +556,14 @@ int
 fclose(FILE *stream)
 {
     int i;
-    int ret;
+    int ret = 0;
 
     if (!stream)
         return EOF;
 
-    ret = _close(stream->fd);
+    /* Don't close the kernel-owned standard streams. */
+    if (stream != stdin && stream != stdout && stream != stderr)
+        ret = _close(stream->fd);
 
     /* Return slot to pool */
     for (i = 0; i < STDIO_MAX_FILES; i++) {
@@ -581,8 +584,9 @@ freopen(const char *path, const char *mode, FILE *stream)
     if (!stream)
         return NULL;
 
-    /* Close existing fd (unless it's a special stdin/stdout/stderr fd) */
-    if (stream->fd >= 0)
+    /* Close existing fd, but never close the kernel-owned std streams
+     * — freopen on stdin/out/err just rebinds the fd field. */
+    if (stream != stdin && stream != stdout && stream != stderr)
         _close(stream->fd);
 
     if (mode[0] == 'r')      flags = STDIO_SRD;

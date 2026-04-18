@@ -42,7 +42,7 @@ void print_int(int n)
     buf[j++] = tmp[--i];
   }
   buf[j] = 0;
-  sys_print_str(buf);
+  sys_putstr(buf);
 }
 
 void print_uint(unsigned int n)
@@ -70,7 +70,7 @@ void print_uint(unsigned int n)
     buf[j++] = tmp[--i];
   }
   buf[j] = 0;
-  sys_print_str(buf);
+  sys_putstr(buf);
 }
 
 // ---------- PiBench256 ----------
@@ -141,11 +141,11 @@ void spigotPiBench(void)
           --j;
           if (x >= 10)
           {
-            sys_print_str("0");
+            sys_putstr("0");
           }
           else
           {
-            sys_print_str("9");
+            sys_putstr("9");
           }
         }
       }
@@ -157,9 +157,9 @@ void spigotPiBench(void)
   unsigned int elapsed_us = get_micros() - start_us;
   unsigned int elapsed_ms = elapsed_us / 1000;
 
-  sys_print_str("\nPiBench256 took    ");
+  sys_putstr("\nPiBench256 took    ");
   print_uint(elapsed_ms);
-  sys_print_str(" ms\n");
+  sys_putstr(" ms\n");
 }
 
 // ---------- LoopBench ----------
@@ -199,21 +199,21 @@ int main(void)
   int score;
   unsigned int us;
 
-  sys_print_str("----------------FPGCbench---------------\n");
+  sys_putstr("----------------FPGCbench---------------\n");
 
-  sys_print_str("LoopBench (5 s):   ");
+  sys_putstr("LoopBench (5 s):   ");
   score = loopBench();
   print_int(score);
-  sys_print_str(" iterations\n");
+  sys_putstr(" iterations\n");
 
-  sys_print_str("\nCountMillionBench: ");
+  sys_putstr("\nCountMillionBench: ");
   us = countMillionBench();
   print_uint(us / 1000);
-  sys_print_str(" ms (");
+  sys_putstr(" ms (");
   print_uint(us);
-  sys_print_str(" us)\n");
+  sys_putstr(" us)\n");
 
-  sys_print_str("\nPiBench256:\n");
+  sys_putstr("\nPiBench256:\n");
   spigotPiBench();
 
   return 0;

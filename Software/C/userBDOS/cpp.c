@@ -112,7 +112,7 @@ static int host_read_bytes(int fd, void *buf, int n)
 #define IO_CLOSE(fd)          sys_fs_close(fd)
 /* IO_FILESIZE_BYTES / IO_READ_BYTES are emulated below using sys_fs_*. */
 #define IO_HEAP_ALLOC(n)      sys_heap_alloc(n)
-#define IO_PRINT_ERR(s)       sys_print_str(s)
+#define IO_PRINT_ERR(s)       sys_putstr(s)
 
 static int bdos_filesize_bytes(int fd)
 {
@@ -1278,7 +1278,7 @@ int main()
 
   str_pool_size = STR_POOL_BYTES;
   str_pool = (char *)sys_heap_alloc(STR_POOL_BYTES);
-  if (!str_pool) { sys_print_str("cpp: out of memory\n"); return 1; }
+  if (!str_pool) { sys_putstr("cpp: out of memory\n"); return 1; }
 
   for (i = 1; i < argc; i++)
   {
@@ -1310,7 +1310,7 @@ int main()
     sys_fs_delete(output_path);
     sys_fs_create(output_path);
     out_fd = sys_fs_open(output_path);
-    if (out_fd < 0) { sys_print_str("cpp: cannot open output\n"); return 1; }
+    if (out_fd < 0) { sys_putstr("cpp: cannot open output\n"); return 1; }
   }
   else
   {
@@ -1321,7 +1321,7 @@ int main()
   {
     char *txt = load_file(input_path, NULL);
     char dir[256];
-    if (!txt) { sys_print_str("cpp: cannot read input\n"); return 1; }
+    if (!txt) { sys_putstr("cpp: cannot read input\n"); return 1; }
     path_dirname(input_path, dir, sizeof(dir));
     quote_dir_stack[include_depth++] = pool_strdup(dir);
     process_text(txt, input_path);

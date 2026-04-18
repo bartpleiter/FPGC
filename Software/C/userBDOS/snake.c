@@ -430,7 +430,7 @@ void init_game(void)
   food_y = (BOARD_HEIGHT / 2) - (BOARD_HEIGHT / 4);
 
   /* Enter alternate screen so the prior shell view is restored on exit. */
-  sys_print_str("\033[?1049h");
+  sys_putstr("\033[?1049h");
   sys_term_clear();
   draw_border();
   draw_score();
@@ -475,6 +475,6 @@ int main(void)
   }
 
   // Cleanup — leave alternate screen, restoring the previous view.
-  sys_print_str("\033[?1049l");
+  sys_putstr("\033[?1049l");
   return 0;
 }

@@ -134,7 +134,7 @@ int main(void)
   rain_status = (int *)sys_heap_alloc(SCREEN_WIDTH * SCREEN_HEIGHT);
   if (rain_status == (int *)0)
   {
-    sys_print_str("cmatrix: out of memory\n");
+    sys_putstr("cmatrix: out of memory\n");
     return 1;
   }
 
@@ -151,7 +151,7 @@ int main(void)
   sys_set_palette(0, (0 << 8) | 28);
 
   /* Enter alternate screen so the prior shell view is restored on exit. */
-  sys_print_str("\033[?1049h");
+  sys_putstr("\033[?1049h");
   sys_term_clear();
 
   // Main loop
@@ -185,7 +185,7 @@ int main(void)
   // Restore default palette (white-on-black). Leaving the alt screen
   // restores whatever was visible before cmatrix ran.
   sys_set_palette(0, (0 << 8) | 0xFF);
-  sys_print_str("\033[?1049l");
+  sys_putstr("\033[?1049l");
 
   return 0;
 }

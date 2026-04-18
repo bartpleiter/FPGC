@@ -2,8 +2,8 @@
 #define BDOS_SYSCALL_H
 
 /* Syscall numbers */
-#define SYSCALL_PRINT_CHAR       0
-#define SYSCALL_PRINT_STR        1
+/* 0 and 1 reserved (formerly SYSCALL_PRINT_CHAR / SYSCALL_PRINT_STR;
+ * userland now goes through SYSCALL_WRITE on fd 1). */
 #define SYSCALL_READ_KEY         2
 #define SYSCALL_KEY_AVAILABLE    3
 #define SYSCALL_FS_OPEN          4

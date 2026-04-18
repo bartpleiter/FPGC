@@ -53,14 +53,24 @@ void *_sbrk(int incr)
 
 /* ---- I/O ---- */
 
-void sys_print_char(int ch)
+/*
+ * Console I/O. These wrap sys_write(1, …) so they honour any output
+ * redirection installed by the shell. They replace the obsolete
+ * SYSCALL_PRINT_CHAR / SYSCALL_PRINT_STR codes which wrote straight
+ * to the terminal regardless of fd state.
+ */
+
+void sys_putc(int ch)
 {
-    syscall(SYSCALL_PRINT_CHAR, ch, 0, 0);
+    char c = (char)ch;
+    sys_write(1, &c, 1);
 }
 
-void sys_print_str(const char *s)
+void sys_putstr(const char *s)
 {
-    syscall(SYSCALL_PRINT_STR, (int)s, 0, 0);
+    int n = 0;
+    while (s[n]) n++;
+    sys_write(1, s, n);
 }
 
 int sys_read_key(void)

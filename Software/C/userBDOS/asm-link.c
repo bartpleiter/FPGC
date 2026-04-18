@@ -154,7 +154,7 @@ static char **host_argv;
 #define IO_FILESIZE_WORDS(fd) sys_fs_filesize(fd)
 #define IO_READ_WORDS(fd, b, n)  sys_fs_read(fd, b, n)
 #define IO_WRITE_WORDS(fd, b, n) sys_fs_write(fd, b, n)
-#define IO_PRINT(s)           sys_print_str(s)
+#define IO_PRINT(s)           sys_putstr(s)
 #define IO_HEAP_ALLOC(n)      sys_heap_alloc(n)
 #define IO_ARGC()             sys_shell_argc()
 #define IO_ARGV()             sys_shell_argv()

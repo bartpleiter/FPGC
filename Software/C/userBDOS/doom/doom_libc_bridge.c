@@ -160,7 +160,7 @@ int _write(int fd, const char *buf, int len)
             for (j = 0; j < chunk; j++)
                 tmp[j] = buf[offset + j];
             tmp[chunk] = '\0';
-            sys_print_str(tmp);
+            sys_putstr(tmp);
             sys_uart_print_str(tmp);
             offset += chunk;
         }

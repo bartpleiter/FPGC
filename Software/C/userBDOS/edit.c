@@ -678,7 +678,7 @@ int file_load(void)
   fd = sys_fs_open(filepath);
   if (fd < 0)
   {
-    sys_print_str("edit: cannot open file\n");
+    sys_putstr("edit: cannot open file\n");
     return -1;
   }
 
@@ -693,7 +693,7 @@ int file_load(void)
   buf = sys_heap_alloc(alloc_size);
   if (buf == (unsigned int *)0)
   {
-    sys_print_str("edit: out of memory\n");
+    sys_putstr("edit: out of memory\n");
     sys_fs_close(fd);
     return -1;
   }
@@ -1000,7 +1000,7 @@ int main(void)
 
   if (argc < 2)
   {
-    sys_print_str("Usage: edit <file>\n");
+    sys_putstr("Usage: edit <file>\n");
     return 1;
   }
 
@@ -1033,7 +1033,7 @@ int main(void)
   total_lines = count_lines();
 
   /* Enter alternate screen so the prior shell view is restored on exit. */
-  sys_print_str("\033[?1049h");
+  sys_putstr("\033[?1049h");
   sys_term_clear();
   render_all();
 
@@ -1162,7 +1162,7 @@ int main(void)
   }
 
   /* Leave alternate screen — restores whatever was on screen before. */
-  sys_print_str("\033[?1049l");
+  sys_putstr("\033[?1049l");
 
   return 0;
 }

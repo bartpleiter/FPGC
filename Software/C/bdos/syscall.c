@@ -8,14 +8,8 @@ int bdos_syscall_dispatch(int num, int a1, int a2, int a3)
   switch (num)
   {
     /* ---- I/O ---- */
-    case SYSCALL_PRINT_CHAR:
-      term_putchar(a1);
-      return 0;
-
-    case SYSCALL_PRINT_STR:
-      term_puts((char *)a1);
-      return 0;
-
+    /* SYSCALL_PRINT_CHAR (0) and SYSCALL_PRINT_STR (1) have been
+     * retired; userland writes go through SYSCALL_WRITE on fd 1. */
     case SYSCALL_READ_KEY:
       return bdos_keyboard_event_read();
 

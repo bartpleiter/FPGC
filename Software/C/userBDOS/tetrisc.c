@@ -732,7 +732,7 @@ void print_int(int val)
 
   if (val == 0)
   {
-    sys_print_char('0');
+    sys_putc('0');
     return;
   }
   neg = 0;
@@ -758,7 +758,7 @@ void print_int(int val)
     i = i - 1;
     buf[i] = '-';
   }
-  sys_print_str(buf + i);
+  sys_putstr(buf + i);
 }
 
 // ===========================================================================
@@ -788,8 +788,8 @@ int main(void)
   has_assign = 0;
   game_count = 0;
 
-  sys_print_str("Tetris GA Worker ready\n");
-  sys_print_str("Waiting for assignments...\n");
+  sys_putstr("Tetris GA Worker ready\n");
+  sys_putstr("Waiting for assignments...\n");
 
   // ---- Main loop ----
   while (1)
@@ -810,11 +810,11 @@ int main(void)
     has_assign = 0;
     game_count = game_count + 1;
 
-    sys_print_str("Game ");
+    sys_putstr("Game ");
     print_int(game_count);
-    sys_print_str(" (chromo ");
+    sys_putstr(" (chromo ");
     print_int(chromo_id);
-    sys_print_str(")...");
+    sys_putstr(")...");
 
     init_game();
     spawn_piece();
@@ -850,13 +850,13 @@ int main(void)
       send_board_snapshot();
       send_result();
 
-      sys_print_str(" score=");
+      sys_putstr(" score=");
       print_int(game_score);
-      sys_print_str(" lines=");
+      sys_putstr(" lines=");
       print_int(game_lines);
-      sys_print_str(" pieces=");
+      sys_putstr(" pieces=");
       print_int(game_pieces);
-      sys_print_str("\n");
+      sys_putstr("\n");
     }
   }
 

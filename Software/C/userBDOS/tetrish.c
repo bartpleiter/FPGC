@@ -736,7 +736,7 @@ void print_int(int val)
 
   if (val == 0)
   {
-    sys_print_char('0');
+    sys_putc('0');
     return;
   }
   neg = 0;
@@ -762,7 +762,7 @@ void print_int(int val)
     i = i - 1;
     buf[i] = '-';
   }
-  sys_print_str(buf + i);
+  sys_putstr(buf + i);
 }
 
 // Pad integer to a fixed width with spaces (right-aligned)
@@ -776,8 +776,8 @@ void print_int_pad(int val, int width)
 
   if (val == 0)
   {
-    for (i = 0; i < width - 1; i++) sys_print_char(' ');
-    sys_print_char('0');
+    for (i = 0; i < width - 1; i++) sys_putc(' ');
+    sys_putc('0');
     return;
   }
 
@@ -809,10 +809,10 @@ void print_int_pad(int val, int width)
   len = 11 - i;
   while (len < width)
   {
-    sys_print_char(' ');
+    sys_putc(' ');
     len = len + 1;
   }
-  sys_print_str(buf + i);
+  sys_putstr(buf + i);
 }
 
 // Print integer compactly: if it fits in 'width' chars, print normally.
@@ -858,14 +858,14 @@ void print_int_compact(int val, int width)
   pad = width - 5;
   while (pad > 0)
   {
-    sys_print_char(' ');
+    sys_putc(' ');
     pad = pad - 1;
   }
-  sys_print_char('0' + (sig / 10));
-  sys_print_char('.');
-  sys_print_char('0' + (sig % 10));
-  sys_print_char('E');
-  sys_print_char('0' + exp);
+  sys_putc('0' + (sig / 10));
+  sys_putc('.');
+  sys_putc('0' + (sig % 10));
+  sys_putc('E');
+  sys_putc('0' + exp);
 }
 
 // Print a Q16.16 fixed-point value as 5 chars: " X.XX" or "-X.XX"
@@ -892,37 +892,37 @@ void print_q16(int val)
 
   if (neg)
   {
-    sys_print_char('-');
+    sys_putc('-');
   }
   else
   {
-    sys_print_char(' ');
+    sys_putc(' ');
   }
 
-  sys_print_char('0' + int_part);
-  sys_print_char('.');
-  sys_print_char('0' + (frac / 10));
-  sys_print_char('0' + (frac % 10));
+  sys_putc('0' + int_part);
+  sys_putc('.');
+  sys_putc('0' + (frac / 10));
+  sys_putc('0' + (frac % 10));
 }
 
 void print_gene_name_short(int g)
 {
-  if (g == 0) sys_print_str("Lines");
-  else if (g == 1) sys_print_str("dHght");
-  else if (g == 2) sys_print_str("Holes");
-  else if (g == 3) sys_print_str("Wells");
-  else if (g == 4) sys_print_str("HoleD");
-  else if (g == 5) sys_print_str("Bumpy");
+  if (g == 0) sys_putstr("Lines");
+  else if (g == 1) sys_putstr("dHght");
+  else if (g == 2) sys_putstr("Holes");
+  else if (g == 3) sys_putstr("Wells");
+  else if (g == 4) sys_putstr("HoleD");
+  else if (g == 5) sys_putstr("Bumpy");
 }
 
 void print_gene_name_full(int g)
 {
-  if (g == 0) sys_print_str("Lines Cleared");
-  else if (g == 1) sys_print_str("Delta Height");
-  else if (g == 2) sys_print_str("Holes");
-  else if (g == 3) sys_print_str("Big Wells");
-  else if (g == 4) sys_print_str("Max Hole Dist");
-  else if (g == 5) sys_print_str("Bumpiness");
+  if (g == 0) sys_putstr("Lines Cleared");
+  else if (g == 1) sys_putstr("Delta Height");
+  else if (g == 2) sys_putstr("Holes");
+  else if (g == 3) sys_putstr("Big Wells");
+  else if (g == 4) sys_putstr("Max Hole Dist");
+  else if (g == 5) sys_putstr("Bumpiness");
 }
 
 void log_add(int type, int value)
@@ -960,7 +960,7 @@ void draw_status(void)
   {
     // Row 11: Scores under each board with label
     sys_term_set_cursor(0, 11);
-    sys_print_str("Score");
+    sys_putstr("Score");
     for (w = 0; w < NUM_WORKERS; w++)
     {
       sys_term_set_cursor(score_col[w], 11);
@@ -982,9 +982,9 @@ void draw_status(void)
 
     // Row 20: Games progress
     sys_term_set_cursor(0, 20);
-    sys_print_str("Games ");
+    sys_putstr("Games ");
     print_int_pad(total_results, 2);
-    sys_print_str("/");
+    sys_putstr("/");
     print_int(TOTAL_CHROMOS);
 
     // Row 22: Round high score
@@ -997,22 +997,22 @@ void draw_status(void)
       }
     }
     sys_term_set_cursor(0, 22);
-    sys_print_str("Round HiScore ");
+    sys_putstr("Round HiScore ");
     print_int_compact(round_hi, 6);
   }
   else if (current_page == 1)
   {
     // GA Overview page
     sys_term_set_cursor(0, 11);
-    sys_print_str("Generation   ");
+    sys_putstr("Generation   ");
     print_int_pad(generation, 4);
 
     sys_term_set_cursor(0, 13);
-    sys_print_str("HiScore      ");
+    sys_putstr("HiScore      ");
     print_int_compact(best_ever_score, 6);
 
     sys_term_set_cursor(0, 15);
-    sys_print_str("Best Genes:");
+    sys_putstr("Best Genes:");
     for (g = 0; g < NUM_GENES; g++)
     {
       sys_term_set_cursor(2, 16 + g);
@@ -1035,7 +1035,7 @@ void draw_status(void)
       for (li = 0; li < LOG_LINES; li++)
       {
         sys_term_set_cursor(0, 11 + li);
-        sys_print_str("                                        ");
+        sys_putstr("                                        ");
       }
 
       if (log_used < LOG_LINES)
@@ -1054,27 +1054,27 @@ void draw_status(void)
 
         if (log_type[idx] == LOG_TYPE_HISCORE)
         {
-          sys_print_str("New HiScore: ");
+          sys_putstr("New HiScore: ");
           print_int(log_value[idx]);
         }
         else if (log_type[idx] == LOG_TYPE_GEN_DONE)
         {
-          sys_print_str("Gen ");
+          sys_putstr("Gen ");
           print_int(log_value[idx]);
-          sys_print_str(" is finished");
+          sys_putstr(" is finished");
         }
         else if (log_type[idx] == LOG_TYPE_UPDATING)
         {
-          sys_print_str("Updating population");
+          sys_putstr("Updating population");
         }
         else if (log_type[idx] == LOG_TYPE_MUTATIONS)
         {
           print_int(log_value[idx]);
-          sys_print_str(" Mutations occurred");
+          sys_putstr(" Mutations occurred");
         }
         else if (log_type[idx] == LOG_TYPE_GEN_START)
         {
-          sys_print_str("Started gen ");
+          sys_putstr("Started gen ");
           print_int(log_value[idx]);
         }
       }
@@ -1128,7 +1128,7 @@ void draw_status(void)
       else
       {
         sys_term_set_cursor(2, 18);
-        sys_print_str("Waiting for data...");
+        sys_putstr("Waiting for data...");
       }
     }
   }
@@ -1137,22 +1137,22 @@ void draw_status(void)
   sys_term_set_cursor(0, 0);
   if (current_page > 0)
   {
-    sys_print_char('<');
+    sys_putc('<');
   }
   else
   {
-    sys_print_char(' ');
+    sys_putc(' ');
   }
-  sys_print_char('1' + current_page);
-  sys_print_char('/');
-  sys_print_char('0' + NUM_PAGES);
+  sys_putc('1' + current_page);
+  sys_putc('/');
+  sys_putc('0' + NUM_PAGES);
   if (current_page < NUM_PAGES - 1)
   {
-    sys_print_char('>');
+    sys_putc('>');
   }
   else
   {
-    sys_print_char(' ');
+    sys_putc(' ');
   }
 }
 

@@ -256,7 +256,7 @@ void print_int(int val)
 
   if (val == 0)
   {
-    sys_print_char('0');
+    sys_putc('0');
     return;
   }
 
@@ -286,7 +286,7 @@ void print_int(int val)
     buf[i] = '-';
   }
 
-  sys_print_str(buf + i);
+  sys_putstr(buf + i);
 }
 
 int main(void)
@@ -312,14 +312,14 @@ int main(void)
   max_iter = DEFAULT_MAX_ITER;
   frame_count = 0;
 
-  sys_print_str("Mandelbrot Worker ");
+  sys_putstr("Mandelbrot Worker ");
   {
     char id_char;
     id_char = '0' + our_worker_id;
-    sys_print_char(id_char);
+    sys_putc(id_char);
   }
-  sys_print_str(" ready\n");
-  sys_print_str("Waiting for assignments...\n");
+  sys_putstr(" ready\n");
+  sys_putstr("Waiting for assignments...\n");
 
   while (1)
   {
@@ -368,17 +368,17 @@ int main(void)
             if (has_params && has_assign)
             {
               frame_count = frame_count + 1;
-              sys_print_str("Frame ");
+              sys_putstr("Frame ");
               print_int(frame_count);
-              sys_print_str(": rows ");
+              sys_putstr(": rows ");
               print_int(assign_y_start);
-              sys_print_str("-");
+              sys_putstr("-");
               print_int(assign_y_end);
-              sys_print_str("...");
+              sys_putstr("...");
 
               compute_and_send();
 
-              sys_print_str(" done\n");
+              sys_putstr(" done\n");
 
               has_assign = 0;
             }

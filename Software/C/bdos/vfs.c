@@ -447,14 +447,14 @@ int bdos_vfs_lseek(int fd, int offset, int whence)
 
 /*
  * dup2(oldfd, newfd): make newfd refer to the same underlying object
- * as oldfd. If newfd is currently open it is closed first. Used by
- * the shell (Phase D) to wire pipeline stdio into pre-opened files.
+ * as oldfd. If newfd is currently open it is closed first.
  *
- * For DEV_FILE we duplicate the file's BDOS-side state but share the
- * underlying BRFS handle. That means closing one of the two fds will
- * brfs_close() the shared handle, breaking the other; the shell
- * pipeline executor takes care to dup2 then close oldfd in the right
- * order to avoid that. Refcounting is a v2.1 follow-up.
+ * Implementation note: there is no refcount on the underlying BRFS
+ * handle, so we use *move* semantics rather than *duplicate*: the
+ * source slot is vacated (in_use = 0) so a subsequent close(oldfd)
+ * is a no-op and the BRFS handle stays alive in newfd. The shell's
+ * pipeline executor relies on this when wiring redirects with the
+ * `dup2(fd, 1); close(fd);` idiom.
  */
 int bdos_vfs_dup2(int oldfd, int newfd)
 {
@@ -469,5 +469,6 @@ int bdos_vfs_dup2(int oldfd, int newfd)
     if (t[newfd].in_use) bdos_vfs_close(newfd);
 
     t[newfd] = *src;
+    t[oldfd].in_use = 0;
     return newfd;
 }

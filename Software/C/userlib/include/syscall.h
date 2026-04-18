@@ -2,8 +2,8 @@
 #define SYSCALL_H
 
 /* Syscall numbers — must match BDOS bdos_syscall.h */
-#define SYSCALL_PRINT_CHAR       0
-#define SYSCALL_PRINT_STR        1
+/* 0 and 1 reserved (formerly SYSCALL_PRINT_CHAR / SYSCALL_PRINT_STR;
+ * use sys_write(1, …) instead). */
 #define SYSCALL_READ_KEY         2
 #define SYSCALL_KEY_AVAILABLE    3
 #define SYSCALL_FS_OPEN          4
@@ -103,9 +103,9 @@
 int syscall(int num, int a1, int a2, int a3);
 
 /* ---- Convenience wrappers: I/O ---- */
-void sys_print_char(int ch);
-void sys_print_str(const char *s);
-int  sys_read_key(void);
+void sys_putc(int ch);              /* fd 1 (honours redirection) */
+void sys_putstr(const char *s);     /* fd 1 (honours redirection) */
+int  sys_read_key(void);            /* raw keyboard event ring */
 int  sys_key_available(void);
 
 /* ---- Convenience wrappers: Filesystem ---- */

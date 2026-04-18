@@ -438,7 +438,12 @@ BDOS_V3_SOURCES = \
 	Software/C/bdos/shell_cmds.c \
 	Software/C/bdos/shell_path.c \
 	Software/C/bdos/shell_util.c \
-	Software/C/bdos/shell_format.c
+	Software/C/bdos/shell_format.c \
+	Software/C/bdos/shell_vars.c \
+	Software/C/bdos/shell_lex.c \
+	Software/C/bdos/shell_parse.c \
+	Software/C/bdos/shell_exec.c \
+	Software/C/bdos/shell_script.c
 
 compile-bdos: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	@mkdir -p Software/ASM/Output
