@@ -445,14 +445,10 @@ static int bdos_shell_cmd_rm(int argc, char **argv)
 static int bdos_shell_cmd_cat(int argc, char **argv)
 {
   char resolved[BDOS_SHELL_PATH_MAX];
-  unsigned int chunk[BDOS_SHELL_IO_CHUNK_WORDS];
-  int result;
+  char buf[256];
   int fd;
-  int remaining;
-  int chunk_len;
-  int words_read;
-  int i;
-  char c;
+  int n;
+  int result;
 
   if (!bdos_shell_require_fs_ready())
   {
@@ -472,61 +468,21 @@ static int bdos_shell_cmd_cat(int argc, char **argv)
     return 0;
   }
 
-  fd = brfs_open(resolved);
+  fd = bdos_vfs_open(resolved, BDOS_O_RDONLY);
   if (fd < 0)
   {
     bdos_shell_print_fs_error("open", fd);
     return 0;
   }
 
-  remaining = brfs_file_size(fd);
-  while (remaining > 0)
+  for (;;)
   {
-    chunk_len = remaining;
-    if (chunk_len > BDOS_SHELL_IO_CHUNK_WORDS)
-    {
-      chunk_len = BDOS_SHELL_IO_CHUNK_WORDS;
-    }
-
-    words_read = brfs_read(fd, chunk, (unsigned int)chunk_len);
-    if (words_read < 0)
-    {
-      bdos_shell_print_fs_error("read", words_read);
-      brfs_close(fd);
-      return 0;
-    }
-
-    for (i = 0; i < words_read; i++)
-    {
-      int b;
-      for (b = 3; b >= 0; b--)
-      {
-        c = (char)((chunk[i] >> (b * 8)) & 0xFF);
-        if (c == '\0')
-        {
-          break;
-        }
-        if (c == '\n' || c == '\r' || c == '\t' || (c >= 32 && c <= 126))
-        {
-          term_putchar(c);
-        }
-        else
-        {
-          term_putchar('.');
-        }
-      }
-    }
-
-    remaining -= words_read;
-
-    if (words_read == 0)
-    {
-      break;
-    }
+    n = bdos_vfs_read(fd, buf, sizeof(buf));
+    if (n <= 0) break;
+    bdos_vfs_write(1, buf, n);
   }
 
-  term_putchar('\n');
-  brfs_close(fd);
+  bdos_vfs_close(fd);
   return 0;
 }
 
