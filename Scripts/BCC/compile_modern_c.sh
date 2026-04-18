@@ -172,7 +172,7 @@ else
 fi
 
 echo "=== Converting to binary ==="
-perl -ne 'print pack("B32", $_)' < "$LIST_OUTPUT" > "$OUTPUT"
+perl -ne 'chomp; print pack("V", oct("0b$_"))' < "$LIST_OUTPUT" > "$OUTPUT"
 
 deactivate
 

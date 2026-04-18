@@ -27,7 +27,7 @@ fi
 
 # Convert to binary
 echo "Converting output to binary"
-perl -ne 'print pack("B32", $_)' < Software/ASM/Output/code.list > Software/ASM/Output/code.bin
+perl -ne 'chomp; print pack("V", oct("0b$_"))' < Software/ASM/Output/code.list > Software/ASM/Output/code.bin
 echo "Converted to binary"
 
 # If you want to inspect the binary for debugging this script, you can use:

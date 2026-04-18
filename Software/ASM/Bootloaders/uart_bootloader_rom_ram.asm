@@ -168,18 +168,18 @@ Main:
             write 0x20 r1 r0    ; Send address byte 2
             write 0x20 r1 r3    ; Send address byte 3
             write 0x20 r1 r0    ; Dummy byte to read
-            read 0x20 r1 r4     ; Read byte 1
-            shiftl r4 24 r4     ; Shift to correct position
+            read 0x20 r1 r4     ; Read byte 1 (LSB)
             write 0x20 r1 r0    ; Dummy byte to read
             read 0x20 r1 r5     ; Read byte 2
-            shiftl r5 16 r5     ; Shift to correct position
-            add r4 r5 r4        ; Combine
-            write 0x20 r1 r0    ; Dummy byte to read
-            read 0x20 r1 r5     ; Read byte 3
             shiftl r5 8 r5      ; Shift to correct position
             add r4 r5 r4        ; Combine
             write 0x20 r1 r0    ; Dummy byte to read
-            read 0x20 r1 r5     ; Read byte 4
+            read 0x20 r1 r5     ; Read byte 3
+            shiftl r5 16 r5     ; Shift to correct position
+            add r4 r5 r4        ; Combine
+            write 0x20 r1 r0    ; Dummy byte to read
+            read 0x20 r1 r5     ; Read byte 4 (MSB)
+            shiftl r5 24 r5     ; Shift to correct position
             add r4 r5 r4        ; Combine
 
             load 1 r3
@@ -200,18 +200,18 @@ Main:
 
             SPIreadCopyLoop:
                 write 0x20 r1 r0    ; Dummy byte to read
-                read 0x20 r1 r5     ; Read byte
-                shiftl r5 24 r5     ; Shift to correct position
-                write 0x20 r1 r0    ; Dummy byte to read
-                read 0x20 r1 r6     ; Read byte
-                shiftl r6 16 r6     ; Shift to correct position
-                add r5 r6 r5        ; Combine
+                read 0x20 r1 r5     ; Read byte (LSB)
                 write 0x20 r1 r0    ; Dummy byte to read
                 read 0x20 r1 r6     ; Read byte
                 shiftl r6 8 r6      ; Shift to correct position
                 add r5 r6 r5        ; Combine
                 write 0x20 r1 r0    ; Dummy byte to read
                 read 0x20 r1 r6     ; Read byte
+                shiftl r6 16 r6     ; Shift to correct position
+                add r5 r6 r5        ; Combine
+                write 0x20 r1 r0    ; Dummy byte to read
+                read 0x20 r1 r6     ; Read byte (MSB)
+                shiftl r6 24 r6     ; Shift to correct position
                 add r5 r6 r5        ; Combine
 
                 write 0 r3 r5        ; Write to RAM

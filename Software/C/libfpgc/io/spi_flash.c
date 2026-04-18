@@ -166,10 +166,11 @@ spi_flash_write_words(int spi_id, int address, unsigned int *data, int word_coun
     send_addr(spi_id, address);
     for (i = 0; i < word_count; i++) {
         word = data[i];
-        spi_transfer(spi_id, (word >> 24) & 0xFF);
-        spi_transfer(spi_id, (word >> 16) & 0xFF);
-        spi_transfer(spi_id, (word >> 8) & 0xFF);
+        /* Little-endian on disk: LSB first. */
         spi_transfer(spi_id, word & 0xFF);
+        spi_transfer(spi_id, (word >> 8) & 0xFF);
+        spi_transfer(spi_id, (word >> 16) & 0xFF);
+        spi_transfer(spi_id, (word >> 24) & 0xFF);
     }
     spi_deselect(spi_id);
     spi_flash_wait_busy(spi_id);
@@ -184,11 +185,12 @@ spi_flash_read_words(int spi_id, int address, unsigned int *buffer, int word_cou
     spi_transfer(spi_id, SPIFLASH_CMD_READ_DATA);
     send_addr(spi_id, address);
     for (i = 0; i < word_count; i++) {
+        /* Little-endian on disk: LSB first. */
         b0 = spi_transfer(spi_id, SPIFLASH_DUMMY);
         b1 = spi_transfer(spi_id, SPIFLASH_DUMMY);
         b2 = spi_transfer(spi_id, SPIFLASH_DUMMY);
         b3 = spi_transfer(spi_id, SPIFLASH_DUMMY);
-        buffer[i] = (b0 << 24) | (b1 << 16) | (b2 << 8) | b3;
+        buffer[i] = b0 | (b1 << 8) | (b2 << 16) | (b3 << 24);
     }
     spi_deselect(spi_id);
 }

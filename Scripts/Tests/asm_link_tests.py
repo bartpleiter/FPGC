@@ -115,7 +115,7 @@ def _list_to_bin(list_path: Path, bin_path: Path):
             bits = line.split()[0]
             assert len(bits) == 32, f"bad bit line: {line!r}"
             word = int(bits, 2)
-            out += word.to_bytes(4, "big")
+            out += word.to_bytes(4, "little")
     bin_path.write_bytes(out)
 
 

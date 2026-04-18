@@ -34,11 +34,11 @@ while IFS= read -r line; do
         byte1="${binary_32bit:16:8}"
         byte0="${binary_32bit:24:8}"  # Least significant byte
         
-        # Output bytes in order (MSB first for big-endian)
-        echo "$byte3"
-        echo "$byte2"
-        echo "$byte1"
+        # Output bytes in little-endian order (LSB first)
         echo "$byte0"
+        echo "$byte1"
+        echo "$byte2"
+        echo "$byte3"
     elif [[ $line =~ ^[01]{32}.*//.*$ ]]; then
         # Handle lines with comments
         binary_32bit="${line:0:32}"
@@ -50,10 +50,10 @@ while IFS= read -r line; do
         byte1="${binary_32bit:16:8}"
         byte0="${binary_32bit:24:8}"
         
-        # Output bytes with comment only on first byte
-        echo "$byte3$comment"
-        echo "$byte2"
+        # Output bytes (LSB first), comment on first byte
+        echo "$byte0$comment"
         echo "$byte1"
-        echo "$byte0"
+        echo "$byte2"
+        echo "$byte3"
     fi
 done < "$input_file" > "$output_file"

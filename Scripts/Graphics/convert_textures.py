@@ -68,10 +68,10 @@ def main():
         all_pixels.extend(pixels)
         print(f"  Converted {path} ({TEX_PIXELS} pixels)")
 
-    # Write as big-endian 32-bit words, one pixel per word
+    # Write as little-endian 32-bit words, one pixel per word
     with open(args.output, "wb") as f:
         for px in all_pixels:
-            f.write(struct.pack("!I", px))
+            f.write(struct.pack("<I", px))
 
     word_count = len(all_pixels)
     byte_count = word_count * 4

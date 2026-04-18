@@ -51,12 +51,12 @@ def binary_to_flash_c(input_path: Path, output_path: Path) -> int:
     words_on_line = []
     for i in range(num_words):
         offset = i * 4
-        # Read 4 bytes and convert to big-endian 32-bit word
+        # Read 4 bytes and convert to little-endian 32-bit word
         word = (
-            (binary_data[offset] << 24)
-            | (binary_data[offset + 1] << 16)
-            | (binary_data[offset + 2] << 8)
-            | binary_data[offset + 3]
+            binary_data[offset]
+            | (binary_data[offset + 1] << 8)
+            | (binary_data[offset + 2] << 16)
+            | (binary_data[offset + 3] << 24)
         )
         words_on_line.append(f"0x{word:08X}")
         if len(words_on_line) == 8 or i == num_words - 1:

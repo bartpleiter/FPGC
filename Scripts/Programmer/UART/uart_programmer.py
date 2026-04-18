@@ -154,9 +154,9 @@ class UARTProgrammer:
         if len(word_list) < 3:
             raise UARTProgrammerError("Binary file too small - needs at least 3 words")
 
-        # Get file size from address 2 (third word)
+        # Get file size from address 2 (third word) — little-endian on disk
         file_size_bytes = bytes(word_list[2])
-        file_size = int.from_bytes(file_size_bytes, "big")
+        file_size = int.from_bytes(file_size_bytes, "little")
 
         logging.info(f"Program size: {file_size * 4} bytes ({file_size} words)")
 

@@ -76,7 +76,7 @@ int  bdos_shell_resolve_program(char *name, char *out_path);
 
 void bdos_shell_print_2digit(unsigned int value);
 int  bdos_shell_u32_to_str(unsigned int value, char *out);
-void bdos_shell_print_kib(unsigned int words);
+void bdos_shell_print_kib(unsigned int bytes);
 void bdos_shell_print_hline(unsigned int length);
 void bdos_shell_print_field_prefix(char *name, int value_col);
 int  bdos_shell_format_byte_size(unsigned int bytes, char *out);
@@ -235,7 +235,7 @@ int bdos_shell_resolve_program(char *name, char *out_path);
 int bdos_shell_require_fs_ready(void);
 void bdos_shell_print_2digit(unsigned int value);
 int bdos_shell_u32_to_str(unsigned int value, char *out);
-void bdos_shell_print_kib(unsigned int words);
+void bdos_shell_print_kib(unsigned int bytes);
 void bdos_shell_print_hline(unsigned int length);
 void bdos_shell_print_field_prefix(char *name, int value_col);
 int bdos_shell_format_byte_size(unsigned int bytes, char *out);

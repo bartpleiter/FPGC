@@ -58,16 +58,16 @@ int bdos_shell_u32_to_str(unsigned int value, char *out)
   return len;
 }
 
-unsigned int bdos_shell_words_to_kib_1dp(unsigned int words)
+unsigned int bdos_shell_bytes_to_kib_1dp(unsigned int bytes)
 {
-  return (words * 4 * 10) / 1024;
+  return (bytes * 10) / 1024;
 }
 
-void bdos_shell_print_kib(unsigned int words)
+void bdos_shell_print_kib(unsigned int bytes)
 {
   unsigned int kib_1dp;
 
-  kib_1dp = bdos_shell_words_to_kib_1dp(words);
+  kib_1dp = bdos_shell_bytes_to_kib_1dp(bytes);
   term_putint((int)(kib_1dp / 10));
   term_putchar('.');
   term_putint((int)(kib_1dp % 10));

@@ -18,7 +18,7 @@ static int bdos_shell_format_full = 0;
 void bdos_shell_start_format_wizard(void)
 {
   bdos_shell_mode = BDOS_SHELL_MODE_FORMAT_BLOCKS;
-  term_puts("Filesystem format wizard\n");
+  term_puts("BRFS v2 format wizard\n");
   term_puts("Enter total blocks (multiple of 64):\n");
 }
 
@@ -83,7 +83,7 @@ int bdos_shell_handle_special_mode_line(char *line)
 
     bdos_shell_format_blocks = (unsigned int)value;
     bdos_shell_mode = BDOS_SHELL_MODE_FORMAT_WORDS;
-    term_puts("Enter words per block (multiple of 64):\n");
+    term_puts("Enter bytes per block (multiple of 256):\n");
     return 1;
   }
 
@@ -92,11 +92,17 @@ int bdos_shell_handle_special_mode_line(char *line)
     value = atoi(line);
     if (value <= 0)
     {
-      term_puts("Invalid words-per-block. Please enter a positive integer.\n");
+      term_puts("Invalid bytes-per-block. Please enter a positive integer.\n");
       return 1;
     }
 
-    bdos_shell_format_words = (unsigned int)value;
+    if ((value & 3) != 0)
+    {
+      term_puts("Bytes per block must be a multiple of 4.\n");
+      return 1;
+    }
+
+    bdos_shell_format_words = (unsigned int)value / 4u;
     bdos_shell_mode = BDOS_SHELL_MODE_FORMAT_LABEL;
     term_puts("Enter label (max 10 chars):\n");
     return 1;

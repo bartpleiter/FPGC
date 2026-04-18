@@ -882,8 +882,8 @@ static int bdos_shell_cmd_df(int argc, char **argv)
   unsigned int free_blocks;
   unsigned int words_per_block;
   unsigned int used_blocks;
-  unsigned int total_words;
-  unsigned int used_words;
+  unsigned int total_bytes;
+  unsigned int used_bytes;
   unsigned int usage_percent;
   char label[11];
   char line_header[20];
@@ -909,8 +909,8 @@ static int bdos_shell_cmd_df(int argc, char **argv)
   }
 
   used_blocks = total_blocks - free_blocks;
-  total_words = total_blocks * words_per_block;
-  used_words = used_blocks * words_per_block;
+  total_bytes = total_blocks * words_per_block * 4u;
+  used_bytes  = used_blocks  * words_per_block * 4u;
   usage_percent = (total_blocks == 0) ? 0 : ((used_blocks * 100) / total_blocks);
 
   result_label = brfs_get_label(label, sizeof(label));
@@ -929,11 +929,11 @@ static int bdos_shell_cmd_df(int argc, char **argv)
   bdos_shell_print_hline((unsigned int)line_len);
 
   bdos_shell_print_field_prefix("Total:", value_col);
-  bdos_shell_print_kib(total_words);
+  bdos_shell_print_kib(total_bytes);
   term_putchar('\n');
 
   bdos_shell_print_field_prefix("Used:", value_col);
-  bdos_shell_print_kib(used_words);
+  bdos_shell_print_kib(used_bytes);
   term_puts(" (");
   term_putint((int)usage_percent);
   term_puts("%)\n");

@@ -30,20 +30,20 @@ ReceiveLength:
     load32 0x1C000000 r3 ; UART tx address
     read 4 r3 r1        ; Read data from UART (tx + 4 = rx)
 
-    ; Check bitshift
-    load 0 r2
-    bne r2 r12 8
-        shiftl r1 24 r1 ; First byte, shift to highest byte
-
+    ; Little-endian: first byte = lowest, fourth byte = highest
     load 1 r2
     bne r2 r12 8
-        shiftl r1 16 r1 ; Second byte, shift to second highest byte
-    
+        shiftl r1 8 r1 ; Second byte
+
     load 2 r2
     bne r2 r12 8
-        shiftl r1 8 r1 ; Third byte, shift to second lowest byte
+        shiftl r1 16 r1 ; Third byte
 
-    ; Fourth byte, no shift needed
+    load 3 r2
+    bne r2 r12 8
+        shiftl r1 24 r1 ; Fourth byte (highest)
+
+    ; First byte (counter==0), no shift needed
 
     add r15 r1 r15 ; Add to length
     add r12 1 r12 ; Increment byte shift counter
@@ -77,20 +77,20 @@ ReceiveProgram:
     load32 0x1C000000 r3 ; UART tx address
     read 4 r3 r1        ; Read data from UART (tx + 4 = rx)
 
-    ; Check bitshift
-    load 0 r2
-    bne r2 r12 8
-        shiftl r1 24 r1 ; First byte, shift to highest byte
-
+    ; Little-endian: first byte = lowest, fourth byte = highest
     load 1 r2
     bne r2 r12 8
-        shiftl r1 16 r1 ; Second byte, shift to second highest byte
-    
+        shiftl r1 8 r1 ; Second byte
+
     load 2 r2
     bne r2 r12 8
-        shiftl r1 8 r1 ; Third byte, shift to second lowest byte
+        shiftl r1 16 r1 ; Third byte
 
-    ; Fourth byte, no shift needed
+    load 3 r2
+    bne r2 r12 8
+        shiftl r1 24 r1 ; Fourth byte (highest)
+
+    ; First byte (counter==0), no shift needed
 
     add r13 r1 r13 ; Add to current word
     add r12 1 r12 ; Increment byte shift counter
