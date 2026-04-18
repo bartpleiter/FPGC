@@ -160,16 +160,23 @@ static int tty_close(bdos_fd_t *f) { (void)f; return 0; }
 static int tty_lseek(bdos_fd_t *f, int off, int whence)
 { (void)f; (void)off; (void)whence; return -1; }
 
-/* ============================================================ File dev == */
+/* ============================================================ File dev ==
+ *
+ * BRFS v1 talks 32-bit words; the VFS exposes a byte stream. The whole
+ * adaptation lives in the `byteview_*` helpers below. BRFS v2 (see
+ * Docs/plans/BRFS-v2.md) makes BRFS itself byte-native, at which point
+ * this entire helper block disappears and the file_* ops become direct
+ * pass-throughs to the BRFS calls.
+ */
 
-static unsigned int file_size_bytes(bdos_fd_t *f)
+static unsigned int byteview_size(bdos_fd_t *f)
 {
     int wsz = brfs_file_size(f->handle);
     if (wsz < 0) return 0;
     return (unsigned int)wsz * 4u;
 }
 
-static int file_read(bdos_fd_t *f, void *buf, int len)
+static int byteview_read(bdos_fd_t *f, void *buf, int len)
 {
     unsigned char *out = (unsigned char *)buf;
     unsigned int   pos = f->byte_pos;
@@ -212,7 +219,7 @@ static int file_read(bdos_fd_t *f, void *buf, int len)
     return done;
 }
 
-static int file_flush_partial(bdos_fd_t *f)
+static int byteview_flush_partial(bdos_fd_t *f)
 {
     unsigned int word_idx;
     unsigned int wbuf[1];
@@ -230,7 +237,7 @@ static int file_flush_partial(bdos_fd_t *f)
     return 0;
 }
 
-static int file_write(bdos_fd_t *f, const void *buf, int len)
+static int byteview_write(bdos_fd_t *f, const void *buf, int len)
 {
     const unsigned char *p = (const unsigned char *)buf;
     int                  done = 0;
@@ -299,9 +306,21 @@ static int file_write(bdos_fd_t *f, const void *buf, int len)
     return done;
 }
 
+/* ---- file_* dev_table thunks (BRFS v1 byte-view shims) ---- */
+
+static int file_read(bdos_fd_t *f, void *buf, int len)
+{
+    return byteview_read(f, buf, len);
+}
+
+static int file_write(bdos_fd_t *f, const void *buf, int len)
+{
+    return byteview_write(f, buf, len);
+}
+
 static int file_close(bdos_fd_t *f)
 {
-    file_flush_partial(f);
+    byteview_flush_partial(f);
     return brfs_close(f->handle);
 }
 
@@ -310,12 +329,12 @@ static int file_lseek(bdos_fd_t *f, int off, int whence)
     int newpos;
 
     /* Flush any partial word before moving — otherwise we'd drop bytes. */
-    file_flush_partial(f);
+    byteview_flush_partial(f);
 
     switch (whence) {
-        case BDOS_SEEK_SET: newpos = off;                        break;
-        case BDOS_SEEK_CUR: newpos = (int)f->byte_pos + off;     break;
-        case BDOS_SEEK_END: newpos = (int)file_size_bytes(f) + off; break;
+        case BDOS_SEEK_SET: newpos = off;                            break;
+        case BDOS_SEEK_CUR: newpos = (int)f->byte_pos + off;         break;
+        case BDOS_SEEK_END: newpos = (int)byteview_size(f) + off;    break;
         default: return -1;
     }
     if (newpos < 0) newpos = 0;
