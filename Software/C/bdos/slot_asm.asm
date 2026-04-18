@@ -353,6 +353,13 @@ bdos_syscall_exit:
   load 13 r2
   write 0 r1 r2
 
+  ; bdos_exec_trampoline_return will do `write 0 (&retval) r1` — put the
+  ; exit code in r1 so that re-store matches what we just wrote above.
+  ; (Without this, r1 still holds the HW-stack-pointer address 0x1F000004
+  ;  and overwrites the real exit code, producing the famous
+  ;  "Program exited with code 520093700" garbage.)
+  or r4 r0 r1
+
   ; Jump to trampoline return
   jump bdos_exec_trampoline_return
 
