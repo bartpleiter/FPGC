@@ -74,7 +74,11 @@ void bdos_slot_free(int slot)
     {
       bdos_active_slot = BDOS_SLOT_NONE;
     }
-    bdos_heap_free_all();
+    /* NOTE: do NOT call bdos_heap_free_all() here. proc.c does its own
+     * bdos_heap_release(heap_mark) per-spawn to roll back the child's
+     * arena + sys_heap_alloc. A blanket free_all wipes any longer-lived
+     * BDOS heap allocations (e.g. shell_script.c's script_buf), which
+     * silently corrupts data across child program exits. */
   }
 }
 
