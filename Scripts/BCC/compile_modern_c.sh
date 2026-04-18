@@ -19,6 +19,8 @@
 #   ./compile_modern_c.sh program.c -o output.bin
 
 set -e
+set -o pipefail   # propagate errors from `cpp | cproc | qbe` so a cproc
+                  # error doesn't get silently swallowed by qbe's exit 0
 
 # Tool paths (relative to project root)
 CPROC="BuildTools/cproc/output/cproc-qbe"
