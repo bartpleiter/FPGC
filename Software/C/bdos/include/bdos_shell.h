@@ -102,7 +102,6 @@ int bi_cat     (int argc, char **argv);
 int bi_write   (int argc, char **argv);
 int bi_cp      (int argc, char **argv);
 int bi_mv      (int argc, char **argv);
-int bi_format  (int argc, char **argv);
 int bi_sync    (int argc, char **argv);
 int bi_df      (int argc, char **argv);
 int bi_jobs    (int argc, char **argv);

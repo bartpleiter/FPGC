@@ -1,3 +1,27 @@
+/*
+ * FIXME: shell-terminal-v2 Phase E migration TODO.
+ *
+ * This program still uses syscalls that were removed from BDOS in
+ * Phase E. It will currently fail to link or behave correctly. See
+ * the migration table at the top of Software/C/userlib/include/syscall.h.
+ *
+ * Quick checklist for porting:
+ *   sys_term_put_cell / sys_term_clear / sys_term_set_cursor
+ *      -> sys_write(1, "\x1b[<y+1>;<x+1>H...", n) ANSI escapes.
+ *      -> Glyphs that overlap C0 control codes (BEL, HT, LF, ESC, ...)
+ *         must be substituted with printable ASCII.
+ *   sys_read_key / sys_key_available
+ *      -> int fd = sys_tty_open_raw(1);            (non-blocking)
+ *         int ev = sys_tty_event_read(fd, 0);
+ *      -> snake.c is the reference port.
+ *   sys_set_palette / sys_set_pixel_palette
+ *      -> No replacement syscall yet. Either use ANSI SGR colors
+ *         (\x1b[30m..37m for tile palette 0..7) or wait for a
+ *         dedicated palette syscall to be added in a follow-up.
+ *   sys_uart_print_str / sys_uart_print_char
+ *      -> sys_write(2, s, n) (stderr; mirrored to UART by libterm v2).
+ */
+
 //
 // tetrish.c — Tetris GA coordinator (userBDOS).
 // Manages a 4-island genetic algorithm across 4 worker FPGCs.

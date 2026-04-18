@@ -107,15 +107,19 @@ static int str_eq(const char *a, const char *b)
 /* ============================================================ TTY dev === */
 
 /*
- * Reads ASCII bytes from the keyboard FIFO. Special keys (>= 0x100)
- * are skipped silently — programs that need them must use the raw
- * libterm v2 input API instead. Blocks until at least one byte arrives
- * or EOF (Ctrl-D pressed via libterm's line discipline).
+ * Reads from /dev/tty. Two modes:
  *
- * For now this is a pure pass-through: each call drains pending events.
- * Phase A.2's libterm cooked-mode line discipline is not wired here yet
- * (it would require a per-tty cooked/raw flag stored on the fd) — that
- * comes when shell v2 lands.
+ *   Cooked (default): each call returns ASCII bytes from the keyboard
+ *   FIFO. Special keys (>= 0x100) are dropped silently. Blocks until
+ *   at least one byte arrives. Used by libc stdio (printf/getchar/...)
+ *   and by the shell line editor.
+ *
+ *   Raw (BDOS_O_RAW): each call returns 4-byte little-endian event
+ *   packets, one per FIFO event, including special keys (arrows,
+ *   F-keys, ...). `len` should be a multiple of 4. With BDOS_O_NONBLOCK
+ *   set, returns 0 immediately if the FIFO is empty; otherwise blocks
+ *   until at least one event is available. This is the replacement
+ *   for the retired SYSCALL_READ_KEY / SYSCALL_KEY_AVAILABLE.
  */
 static int tty_read(bdos_fd_t *f, void *buf, int len)
 {
@@ -123,10 +127,33 @@ static int tty_read(bdos_fd_t *f, void *buf, int len)
     int n = 0;
     int ev;
 
-    (void)f;
     if (len <= 0) return 0;
 
-    /* Block for first byte */
+    if (f->flags & BDOS_O_RAW) {
+        int max_events = len / 4;
+        int got = 0;
+        if (max_events == 0) return 0;
+
+        /* Block (or not) for first event */
+        for (;;) {
+            if (bdos_keyboard_event_available()) break;
+            if (f->flags & BDOS_O_NONBLOCK) return 0;
+        }
+
+        while (got < max_events) {
+            if (!bdos_keyboard_event_available()) break;
+            ev = bdos_keyboard_event_read();
+            if (ev < 0) break;
+            out[got * 4 + 0] = (char)( (unsigned int)ev        & 0xFF);
+            out[got * 4 + 1] = (char)(((unsigned int)ev >>  8) & 0xFF);
+            out[got * 4 + 2] = (char)(((unsigned int)ev >> 16) & 0xFF);
+            out[got * 4 + 3] = (char)(((unsigned int)ev >> 24) & 0xFF);
+            got++;
+        }
+        return got * 4;
+    }
+
+    /* Cooked mode: ASCII pass-through */
     while (n == 0) {
         if (!bdos_keyboard_event_available())
             continue;
@@ -152,7 +179,7 @@ static int tty_write(bdos_fd_t *f, const void *buf, int len)
     int i;
     (void)f;
     for (i = 0; i < len; i++)
-        term_putchar(p[i]);
+        term2_putchar(p[i]);
     return len;
 }
 

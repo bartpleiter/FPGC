@@ -26,6 +26,14 @@
 #define TERM2_MAX_HEIGHT     30
 #define TERM2_HISTORY_LINES  200
 
+/* Default BDOS terminal dimensions (passed to term2_init by the kernel
+   bootstrap). Kept under the legacy TERM_* names so existing callers
+   that referenced these constants don't need to change. */
+#define TERM_WIDTH           40
+#define TERM_HEIGHT          25
+#define TERM_HISTORY_LINES   TERM2_HISTORY_LINES
+#define TAB_WIDTH            4
+
 /* Render callback: the library calls this whenever a single cell changes.
    Coordinates are 0-based. Caller is expected to push to the GPU. */
 typedef void (*term2_render_cell_fn)(int x, int y,
@@ -71,6 +79,12 @@ void term2_get_size(int *w, int *h);
 void term2_write(const char *buf, int len);    /* parses ANSI escapes */
 void term2_putchar(char c);                    /* convenience */
 void term2_puts(const char *s);                /* convenience */
+void term2_putint(int value);                  /* signed decimal */
+void term2_puthex(unsigned int value, int prefix); /* hex, optional "0x" */
+
+/* ---- UART mirror ---- */
+void term2_set_uart_mirror(int enable);
+int  term2_get_uart_mirror(void);
 
 /* ---- Direct cell access (bypasses the parser) ---- */
 void term2_put_cell(int x, int y, unsigned char tile, unsigned char palette);

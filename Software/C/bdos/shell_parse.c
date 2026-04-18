@@ -13,9 +13,9 @@
 
 static void parse_error(const char *msg)
 {
-    term_puts("shell: parse error: ");
-    term_puts(msg);
-    term_putchar('\n');
+    term2_puts("shell: parse error: ");
+    term2_puts(msg);
+    term2_putchar('\n');
 }
 
 static int parse_command(sh_tok_t *toks, int *i, sh_cmd_t *cmd)

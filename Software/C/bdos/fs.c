@@ -37,7 +37,7 @@ static void bdos_fs_render_progress(char *label, unsigned int current, unsigned 
   {
     if (bdos_fs_progress_label[0] != '\0' && bdos_fs_progress_last_pct != 100)
     {
-      term_putchar('\n');
+      term2_putchar('\n');
     }
     strcpy(bdos_fs_progress_label, label);
     bdos_fs_progress_last_pct = -1;
@@ -50,38 +50,38 @@ static void bdos_fs_render_progress(char *label, unsigned int current, unsigned 
 
   bdos_fs_progress_last_pct = percent;
 
-  term_putchar('\r');
-  term_puts(label);
-  term_puts(" [");
+  term2_putchar('\r');
+  term2_puts(label);
+  term2_puts(" [");
 
   fill = (percent * 20) / 100;
   for (i = 0; i < 20; i++)
   {
     if (i < fill)
     {
-      term_putchar('#');
+      term2_putchar('#');
     }
     else
     {
-      term_putchar('.');
+      term2_putchar('.');
     }
   }
 
-  term_puts("] ");
+  term2_puts("] ");
   if (percent < 10)
   {
-    term_puts("  ");
+    term2_puts("  ");
   }
   else if (percent < 100)
   {
-    term_putchar(' ');
+    term2_putchar(' ');
   }
-  term_putint(percent);
-  term_putchar('%');
+  term2_putint(percent);
+  term2_putchar('%');
 
   if (percent == 100)
   {
-    term_putchar('\n');
+    term2_putchar('\n');
   }
 }
 
@@ -112,7 +112,7 @@ void bdos_fs_boot_init(void)
 {
   int result;
 
-  term_puts("Initializing BRFS\n");
+  term2_puts("Initializing BRFS\n");
 
   brfs_storage_spi_flash_init(&bdos_fs_storage, BDOS_FS_FLASH_ID);
   result = brfs_init(&bdos_fs_storage.base, (unsigned int *)MEM_BRFS_START, MEM_BRFS_SIZE / sizeof(unsigned int));

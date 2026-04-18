@@ -19,7 +19,7 @@
 #include "gpu_hal.h"
 #include "gpu_fb.h"
 #include "gpu_data_ascii.h"
-#include "term.h"
+#include "term2.h"
 #include "ch376.h"
 #include "enc28j60.h"
 #include "brfs.h"

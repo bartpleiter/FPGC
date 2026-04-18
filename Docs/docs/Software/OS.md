@@ -46,32 +46,75 @@ Divided into 8 slots of 2 MiB each. Programs are compiled with the modern C tool
 
 ## Shell
 
-BDOS provides a basic interactive shell with the following commands:
+BDOS ships with a Bourne-style interactive shell (the v2 shell, landed by the
+[shell-terminal-v2 plan](../../plans/shell-terminal-v2.md)). It supports
+quoting, pipes (`|`, implemented over temporary files), redirection
+(`<`, `>`, `>>`), boolean chains (`&&`, `||`, `;`), variable expansion
+(`$VAR`, `${VAR}`), and `#!/bin/sh` script execution.
+
+Commonly used built-ins:
 
 | Command | Description |
 |---------|-------------|
-| `help` | List available commands |
+| `help` | List available built-in commands |
 | `clear` | Clear the terminal screen |
 | `echo <text>` | Print text to the terminal |
-| `uptime` | Show system uptime |
-| `pwd` | Print working directory |
-| `cd <path>` | Change directory |
+| `pwd` / `cd <path>` | Working-directory query / change |
 | `ls [path]` | List directory contents |
-| `cat <file>` | Display file contents |
-| `write <file> <text>` | Write text to a file |
-| `mkdir <path>` | Create a directory |
-| `mkfile <path>` | Create an empty file |
-| `rm <path>` | Remove a file or directory |
-| `cp <src> <dest>` | Copy a file |
-| `mv <src> <dest>` | Move/rename a file |
-| `df` | Show filesystem usage |
-| `sync` | Flush filesystem to flash |
-| `format` | Format the filesystem (interactive wizard) |
-| `jobs` | List running/suspended user programs |
-| `fg <slot>` | Resume a suspended program |
-| `kill <slot>` | Kill a running/suspended program |
+| `cat <file>` / `write <file> <text>` | File read / overwrite |
+| `mkdir`, `mkfile`, `rm`, `cp`, `mv` | File-tree manipulation |
+| `df` / `sync` | Filesystem usage / flush to flash |
+| `jobs`, `fg <id>`, `kill <id>` | Job control over user programs |
+| `export`, `set`, `unset`, `env` | Environment / shell variables |
+| `exit`, `true`, `false` | Process control & test helpers |
 
-Any non-built-in command is treated as a program name and resolved/executed automatically. Arguments are passed to the program via the `SHELL_ARGC` and `SHELL_ARGV` syscalls.
+Anything that is not a built-in is resolved as a program: bare names look in
+`/bin/<name>` first, then the cwd; names containing `/` or starting with `.`
+are resolved as paths. The previously-built-in `format` command was moved to
+the standalone binary `/bin/format` in Phase E (the boot-time mount-failure
+wizard still lives inside the kernel for first-boot recovery).
+
+For the full syntax reference and the up-to-date built-in list, see
+[Shell.md](Shell.md). For terminal capabilities (libterm v2, supported ANSI
+escapes), see [Terminal.md](Terminal.md).
+
+## Process model
+
+BDOS runs at most one foreground program plus a small number of suspended
+background jobs in the eight 2 MiB user slots (no preemption, no concurrent
+execution). Each running program has a process record in the PID table
+(`Software/C/bdos/proc.c`) carrying:
+
+- A monotonically increasing **PID** (user-visible; `jobs` / `fg` / `kill`
+  operate on PIDs).
+- Its **slot index** (0–7) and base address.
+- A **per-process file-descriptor table** (default `fd 0/1/2 = /dev/tty`,
+  inherited from the shell, redirected by `<`/`>`/`>>`/`|`).
+- A **per-process argv arena** allocated on the kernel heap and freed on exit
+  (so the child cannot corrupt the shell's buffers and so leaks across
+  invocations are impossible).
+
+Heap allocations made by a program through `HEAP_ALLOC` are also released as a
+group on exit — see the Heap section above.
+
+## Virtual file system (VFS)
+
+User-facing byte I/O goes through the VFS layer in
+`Software/C/bdos/vfs.c` rather than directly into BRFS. The VFS owns the
+per-process fd table and exposes a uniform `open` / `read` / `write` /
+`close` / `lseek` / `dup2` API over four device kinds:
+
+| Device | Backing | Notes |
+|--------|---------|-------|
+| `file` | BRFS v2 entry | Byte-addressable view over the word-oriented filesystem; honours `O_CREAT`, `O_TRUNC`, `O_APPEND`. |
+| `tty`  | libterm v2 + keyboard FIFO | `/dev/tty`. Cooked mode by default (line-buffered, ANSI emit on writes). Pass `O_RAW` to receive 4-byte little-endian key-event packets per `read`; combine with `O_NONBLOCK` for polling games. |
+| `pipe` | Temp file under `/tmp/` | Rewritten by the shell from `a | b` into `a >/tmp/p.N ; b </tmp/p.N`. No concurrency required by the execution model. |
+| `null` | — | `/dev/null`. Discards writes, returns EOF on reads. |
+
+`fd 0`, `fd 1`, and `fd 2` are pre-opened to `/dev/tty` for every spawned
+program. `printf` / `puts` / `sys_write(1, ...)` therefore route through the
+TTY driver, which means redirection and pipes work for *any* program that
+uses the standard I/O wrappers — no per-program changes are needed.
 
 ## Program Loading and Execution
 
@@ -116,67 +159,100 @@ The ASMPY assembler header places a `jump Syscall` instruction at absolute addre
 5. The C dispatcher handles the request, returns a result in `r1`
 6. The trampoline restores registers and returns to the user program
 
-### Available Syscalls
+### Available syscalls
 
 !!! note
-    See `bdos_syscall.h` for the up to date list of syscall numbers.
+    See [`bdos_syscall.h`](https://github.com/b4rt-dev/FPGC/blob/main/Software/C/bdos/include/bdos_syscall.h)
+    and [`syscall.h`](https://github.com/b4rt-dev/FPGC/blob/main/Software/C/userlib/include/syscall.h)
+    for the up-to-date list of syscall numbers and userland wrappers.
+    Slot numbers retired in shell-terminal-v2 Phase E are commented out in
+    `bdos_syscall.h` and the dispatcher returns `-1` for them.
 
 | Number | Name | Arguments | Returns | Description |
 |--------|------|-----------|---------|-------------|
-| 0 | `PRINT_CHAR` | `a1` = character | 0 | Print a character to the terminal |
-| 1 | `PRINT_STR` | `a1` = string pointer | 0 | Print a null-terminated string |
-| 2 | `READ_KEY` | — | key code | Read a key from the keyboard buffer (-1 if empty) |
-| 3 | `KEY_AVAILABLE` | — | 0 or 1 | Check if a key is available |
-| 4 | `FS_OPEN` | `a1` = path pointer | file descriptor | Open a file |
-| 5 | `FS_CLOSE` | `a1` = fd | 0 on success | Close a file |
-| 6 | `FS_READ` | `a1` = fd, `a2` = buffer, `a3` = count | words read | Read from a file |
-| 7 | `FS_WRITE` | `a1` = fd, `a2` = buffer, `a3` = count | words written | Write to a file |
-| 8 | `FS_SEEK` | `a1` = fd, `a2` = offset | 0 on success | Seek to a position in a file |
-| 9 | `FS_STAT` | `a1` = path, `a2` = entry_buf | 0 on success | Get file/directory metadata |
-| 10 | `FS_DELETE` | `a1` = path | 0 on success | Delete a file or directory |
-| 11 | `FS_CREATE` | `a1` = path | 0 on success | Create an empty file |
-| 12 | `FS_FILESIZE` | `a1` = fd | file size in words | Get the size of an open file |
-| 13 | `SHELL_ARGC` | — | argc | Get argument count for current program |
-| 14 | `SHELL_ARGV` | — | pointer to argv[] | Get argument vector for current program |
-| 15 | `SHELL_GETCWD` | — | pointer to cwd string | Get the shell's current working directory |
-| 16 | `TERM_PUT_CELL` | `a1` = x, `a2` = y, `a3` = (tile<<8)\|palette | 0 | Write a tile+palette to a terminal cell |
-| 17 | `TERM_CLEAR` | — | 0 | Clear the terminal screen |
-| 18 | `TERM_SET_CURSOR` | `a1` = x, `a2` = y | 0 | Set the terminal cursor position |
-| 19 | `TERM_GET_CURSOR` | — | (x<<8)\|y | Get the terminal cursor position (packed) |
-| 20 | `HEAP_ALLOC` | `a1` = size_words | pointer (or 0) | Allocate memory from the kernel heap |
-| 21 | `DELAY` | `a1` = milliseconds | 0 | Sleep for the given number of milliseconds |
-| 22 | `SET_PALETTE` | `a1` = index, `a2` = value | 0 | Set a BGW tile palette entry (value = (bg<<8)\|fg, 8-bit RRRGGGBB) |
-| 23 | `EXIT` | `a1` = exit code | *(does not return)* | Terminate the calling program immediately and return to BDOS |
-| 24 | `FS_READDIR` | `a1` = path, `a2` = entry_buf, `a3` = index | 0 on success | Read a directory entry by index |
-| 25 | `GET_KEY_STATE` | — | bitmap | Get the raw keyboard key-state bitmap |
-| 26 | `SET_PIXEL_PALETTE` | `a1` = index (0–255), `a2` = 24-bit RGB | 0 | Set a pixel-plane palette color (0x00RRGGBB) |
-| 27 | `NET_SEND` | `a1` = buffer, `a2` = length | 1 success, 0 error | Send a raw Ethernet frame (takes network ownership) |
-| 28 | `NET_RECV` | `a1` = buffer, `a2` = max length | bytes received (0 if none) | Pop a packet from the RX ring buffer (non-blocking, takes network ownership) |
-| 29 | `NET_PACKET_COUNT` | — | count | Number of packets in the RX ring buffer |
-| 30 | `NET_GET_MAC` | `a1` = buffer (6 words) | 0 | Copy our 6-byte MAC address to the buffer |
-| 31 | `UART_PRINT_CHAR` | `a1` = character | 0 | Print a character to UART |
-| 32 | `UART_PRINT_STR` | `a1` = string pointer | 0 | Print a null-terminated string to UART |
-| 33 | `FS_MKDIR` | `a1` = path | 0 on success | Create a directory |
+| 4  | `FS_OPEN`         | `a1` = path                                           | brfs fd          | Open a BRFS entry (raw word-oriented API; prefer `OPEN`) |
+| 5  | `FS_CLOSE`        | `a1` = fd                                             | 0 ok             | Close a BRFS fd |
+| 6  | `FS_READ`         | `a1` = fd, `a2` = buf, `a3` = words                   | words read       | Word-oriented BRFS read |
+| 7  | `FS_WRITE`        | `a1` = fd, `a2` = buf, `a3` = words                   | words written    | Word-oriented BRFS write |
+| 8  | `FS_SEEK`         | `a1` = fd, `a2` = word offset                         | 0 ok             | BRFS seek |
+| 9  | `FS_STAT`         | `a1` = path, `a2` = `brfs_dir_entry *`                | 0 ok             | Stat a path |
+| 10 | `FS_DELETE`       | `a1` = path                                           | 0 ok             | Delete a file or empty dir |
+| 11 | `FS_CREATE`       | `a1` = path                                           | 0 ok             | Create an empty file |
+| 12 | `FS_FILESIZE`     | `a1` = fd                                             | size in words    | Size of an open BRFS file |
+| 13 | `SHELL_ARGC`      | —                                                     | argc             | Argument count for current process |
+| 14 | `SHELL_ARGV`      | —                                                     | `char **argv`    | Argument vector pointer |
+| 15 | `SHELL_GETCWD`    | —                                                     | `char *cwd`      | Shell's current working directory |
+| 20 | `HEAP_ALLOC`      | `a1` = size in words                                  | pointer / 0      | Allocate from kernel heap (released on exit) |
+| 21 | `DELAY`           | `a1` = milliseconds                                   | 0                | Sleep for the given number of ms |
+| 23 | `EXIT`            | `a1` = exit code                                      | *(no return)*    | Terminate calling process |
+| 24 | `FS_READDIR`      | `a1` = path, `a2` = `brfs_dir_entry *`, `a3` = max    | entries returned | Enumerate a directory |
+| 25 | `GET_KEY_STATE`   | —                                                     | bitmap           | Held-key bitmap (see `KEYSTATE_*`) |
+| 27 | `NET_SEND`        | `a1` = buffer, `a2` = length                          | 1 ok / 0 err     | Send raw Ethernet frame (takes net ownership) |
+| 28 | `NET_RECV`        | `a1` = buffer, `a2` = max length                      | bytes received   | Pop a packet from RX ring (takes net ownership) |
+| 29 | `NET_PACKET_COUNT`| —                                                     | count            | Packets queued in RX ring |
+| 30 | `NET_GET_MAC`     | `a1` = 6-int buffer                                   | 0                | Copy our MAC address |
+| 33 | `FS_MKDIR`        | `a1` = path                                           | 0 ok             | Create a directory |
+| 34 | `OPEN`            | `a1` = path, `a2` = flags (`O_RDONLY` … `O_RAW` …)    | fd               | VFS `open()` (file / `/dev/tty` / `/dev/null` / pipe) |
+| 35 | `READ`            | `a1` = fd, `a2` = buf, `a3` = bytes                   | bytes read       | Byte-oriented VFS read |
+| 36 | `WRITE`           | `a1` = fd, `a2` = buf, `a3` = bytes                   | bytes written    | Byte-oriented VFS write |
+| 37 | `CLOSE`           | `a1` = fd                                             | 0 ok             | VFS close |
+| 38 | `LSEEK`           | `a1` = fd, `a2` = offset, `a3` = whence               | new offset       | VFS lseek |
+| 39 | `DUP2`            | `a1` = oldfd, `a2` = newfd                            | newfd / -1       | Duplicate a fd; used by the shell for `<`/`>`/`|` |
+| 40 | `FS_FORMAT`       | `a1` = blocks, `a2` = words/blk, `a3` = label         | 0 ok             | Format BRFS + sync (drives `/bin/format`) |
 
-The syscall ABI allows a maximum of 3 arguments (`a1`–`a3` in `r5`–`r7`), with the return value in `r1`. Where more data is needed, arguments are packed (e.g., `TERM_PUT_CELL` packs tile and palette into a single word) or pointers are used. The `EXIT` syscall is special: it never returns to the caller. Instead, it resets the hardware stack to the trampoline depth and jumps directly to the BDOS return path, cleanly unwinding the entire user program state.
+The syscall ABI allows a maximum of 3 arguments (`a1`–`a3` in `r5`–`r7`),
+with the return value in `r1`. Where more data is needed, pointers are
+passed. The `EXIT` syscall is special: it never returns to the caller —
+instead it resets the hardware stack to the trampoline depth and jumps
+directly to the BDOS return path, cleanly unwinding the entire user
+program state.
 
-**Network ownership:** The first call to `NET_SEND` or `NET_RECV` implicitly takes ownership of the Ethernet controller away from the kernel's FNP protocol handler. While a user program owns the network, the kernel will not consume any incoming packets from the ring buffer. Ownership is automatically released when the program exits (via `EXIT` or normal return), at which point the ring buffer is also reset.
+**Network ownership:** The first call to `NET_SEND` or `NET_RECV` implicitly
+takes ownership of the Ethernet controller away from the kernel's FNP
+protocol handler. While a user program owns the network, the kernel will
+not consume any incoming packets from the ring buffer. Ownership is
+automatically released when the program exits, at which point the ring
+buffer is also reset.
 
-### User-Side Library
+**Retired in Phase E:** the v3 syscalls `PRINT_CHAR` (0), `PRINT_STR` (1),
+`READ_KEY` (2), `KEY_AVAILABLE` (3), `TERM_PUT_CELL` (16), `TERM_CLEAR`
+(17), `TERM_SET_CURSOR` (18), `TERM_GET_CURSOR` (19), `SET_PALETTE` (22),
+`SET_PIXEL_PALETTE` (26), `UART_PRINT_CHAR` (31), and `UART_PRINT_STR`
+(32) were removed. Use `WRITE` on `fd 1` (with ANSI escapes for cursor /
+color / clear), `WRITE` on `fd 2` for stderr / UART-mirrored debug output,
+and `OPEN("/dev/tty", O_RDONLY|O_RAW[|O_NONBLOCK])` + `READ` for raw
+keyboard event packets.
 
-User programs link against the user syscall library (`Software/C/userlib/`), which provides convenience wrappers around the raw syscall interface. Example:
+### User-side library
+
+User programs link against the user syscall library (`Software/C/userlib/`),
+which provides convenience wrappers around the raw syscall interface. Phase E
+trimmed the wrapper set to match the trimmed syscall surface; see the
+migration table at the top of `syscall.h` if you are porting older code.
 
 ```c
 #include <syscall.h>
 
-int main()
+int main(void)
 {
-  sys_print_str("Hello from userBDOS!\n");
-  return 0;
+    sys_putstr("Hello from userBDOS!\n");      /* sys_write(1, ...) */
+    sys_write(2, "boot trace\n", 11);          /* mirrored to UART  */
+    return 0;
 }
 ```
 
-The convenience wrappers (`sys_print_char`, `sys_print_str`, etc.) call the low-level `syscall()` function, which contains the inline assembly that performs the jump to address 12.
+For raw key events (games), open `/dev/tty` in raw mode:
+
+```c
+int fd = sys_tty_open_raw(1 /* nonblocking */);
+int ev;
+while ((ev = sys_tty_event_read(fd, 0)) >= 0) { /* handle key */ }
+sys_close(fd);
+```
+
+The convenience wrappers ultimately call the low-level `syscall()`
+function, which contains the inline assembly that performs the jump to
+address 12.
 
 ## Interrupt Handling
 

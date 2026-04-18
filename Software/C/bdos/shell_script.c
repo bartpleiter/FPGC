@@ -73,16 +73,16 @@ int bdos_shell_run_script(const char *path,
 
     fd = bdos_vfs_open(path, BDOS_O_RDONLY);
     if (fd < 0) {
-        term_puts("script: cannot open ");
-        term_puts(path);
-        term_putchar('\n');
+        term2_puts("script: cannot open ");
+        term2_puts(path);
+        term2_putchar('\n');
         return 1;
     }
 
     while (1) {
         n = read_line(fd, line, sizeof(line));
         if (n < 0) {
-            term_puts("script: read error\n");
+            term2_puts("script: read error\n");
             rc = 1;
             break;
         }
@@ -92,7 +92,7 @@ int bdos_shell_run_script(const char *path,
             first_line = 0;
             if (line[0] == '#' && line[1] == '!') {
                 if (!is_sh_shebang(line)) {
-                    term_puts("script: only #!/bin/sh shebangs supported\n");
+                    term2_puts("script: only #!/bin/sh shebangs supported\n");
                     rc = 1;
                     break;
                 }
@@ -109,7 +109,7 @@ int bdos_shell_run_script(const char *path,
 
         if (bdos_shell_expand(line, expanded, sizeof(expanded),
                               script_argc, script_argv) < 0) {
-            term_puts("script: bad quoting / overflow\n");
+            term2_puts("script: bad quoting / overflow\n");
             rc = 1;
             break;
         }
@@ -117,7 +117,7 @@ int bdos_shell_run_script(const char *path,
         n = bdos_shell_lex(expanded, toks, BDOS_SHELL_TOK_MAX,
                            store, sizeof(store));
         if (n < 0) {
-            term_puts("script: lex error\n");
+            term2_puts("script: lex error\n");
             rc = 1;
             break;
         }

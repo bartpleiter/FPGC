@@ -9,10 +9,10 @@ extern unsigned int bdos_read_pc_backup(void);
 
 void bdos_panic(char *msg)
 {
-  term_set_palette(PALETTE_WHITE_ON_RED);
-  term_puts("BDOS PANIC:\n");
-  term_puts(msg);
-  term_puts("\n\nSystem halted.\n");
+  term2_set_palette(PALETTE_WHITE_ON_RED);
+  term2_puts("BDOS PANIC:\n");
+  term2_puts(msg);
+  term2_puts("\n\nSystem halted.\n");
 
   uart_puts("BDOS PANIC:\n");
   uart_puts(msg);

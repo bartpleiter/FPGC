@@ -54,6 +54,7 @@ static int g_width  = 40;
 static int g_height = 25;
 static term2_render_cell_fn g_render = NULL;
 static term2_uart_mirror_fn g_uart   = NULL;
+static int g_uart_mirror_enabled = 1;
 
 /* Two screens: primary [0], alt [1] */
 static term2_screen_t g_screens[2];
@@ -243,7 +244,7 @@ static void emit_printable(unsigned char c) {
     if (g_active == 0 && g_scroll_view_offset > 0)
         term2_snap_to_bottom();
 
-    if (g_uart) g_uart((char)c);
+    if (g_uart && g_uart_mirror_enabled) g_uart((char)c);
 
     put_at(s->cursor_x, s->cursor_y, c, s->palette);
     s->cursor_x++;
@@ -558,6 +559,38 @@ void term2_puts(const char *s) {
     if (!s) return;
     while (*s) parser_step((unsigned char)*s++);
 }
+
+/* Decimal/hex helpers (formerly in the term.c shim) — implemented here
+   so libterm v2 is self-contained and the shim can be deleted. */
+static void term2_putuint_dec(unsigned int v) {
+    char buf[12];
+    int n = 0;
+    if (v == 0) { term2_putchar('0'); return; }
+    while (v && n < (int)sizeof(buf)) { buf[n++] = (char)('0' + (v % 10)); v /= 10; }
+    while (n--) term2_putchar(buf[n]);
+}
+
+void term2_putint(int value) {
+    unsigned int u;
+    if (value < 0) { term2_putchar('-'); u = (unsigned int)(-value); }
+    else           { u = (unsigned int)value; }
+    term2_putuint_dec(u);
+}
+
+void term2_puthex(unsigned int value, int prefix) {
+    static const char hex[] = "0123456789abcdef";
+    char buf[8];
+    int n = 0;
+    if (prefix) { term2_putchar('0'); term2_putchar('x'); }
+    if (value == 0) { term2_putchar('0'); return; }
+    while (value && n < (int)sizeof(buf)) { buf[n++] = hex[value & 0xF]; value >>= 4; }
+    while (n--) term2_putchar(buf[n]);
+}
+
+/* UART-mirror toggle. The mirror callback itself is owned by the caller
+   (BDOS wires it to uart_putchar); this just enables/disables it. */
+void term2_set_uart_mirror(int enable) { g_uart_mirror_enabled = enable; }
+int  term2_get_uart_mirror(void)       { return g_uart_mirror_enabled; }
 
 void term2_put_cell(int x, int y, unsigned char tile, unsigned char palette) {
     put_at(x, y, tile, palette);

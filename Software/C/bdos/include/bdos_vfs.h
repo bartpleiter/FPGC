@@ -30,6 +30,21 @@
 #define BDOS_O_APPEND      0x04
 #define BDOS_O_CREAT       0x08
 #define BDOS_O_TRUNC       0x10
+/*
+ * Raw mode (only meaningful for /dev/tty). When set, read() returns
+ * 4-byte little-endian event packets straight from the keyboard FIFO,
+ * including special keys (arrows, F-keys, ...) encoded as their
+ * BDOS_KEY_* code (>= 0x100). Each event is exactly 4 bytes; reads
+ * therefore return multiples of 4 (or 0 in non-blocking mode if the
+ * FIFO is empty).
+ */
+#define BDOS_O_RAW         0x20
+/*
+ * Non-blocking flag. Currently only honoured by /dev/tty raw mode:
+ * read() returns 0 immediately if no event is queued. Without this
+ * flag, raw-mode read() blocks until at least one event arrives.
+ */
+#define BDOS_O_NONBLOCK    0x40
 
 /* lseek whence values (match POSIX). */
 #define BDOS_SEEK_SET      0

@@ -419,7 +419,6 @@ BDOS_V3_SOURCES = \
 	Software/C/libfpgc/gfx/gpu_hal.c \
 	Software/C/libfpgc/gfx/gpu_fb.c \
 	Software/C/libfpgc/gfx/gpu_data_ascii.c \
-	Software/C/libfpgc/term/term.c \
 	Software/C/libfpgc/term/term2.c \
 	Software/C/libfpgc/mem/debug.c \
 	Software/C/libfpgc/fs/brfs.c \
