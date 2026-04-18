@@ -395,13 +395,16 @@ stage-cc-toolchain: selfhost-all $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	@cp Scripts/BCC/cc.sh $(STAGE_BIN)/cc
 	@echo "--- Writing /bin/cc-min script ---"
 	@cp Scripts/BCC/cc-min.sh $(STAGE_BIN)/cc-min
+	@echo "--- Writing /bin/libc-build script ---"
+	@cp Scripts/BCC/libc-build.sh $(STAGE_BIN)/libc-build
 	@echo "--- Writing /user/hello.c sample ---"
 	@cp Scripts/BCC/hello.c $(STAGE_DIR)/user/hello.c
 	@echo ""
 	@echo "Staging complete. Next steps:"
 	@echo "  1. make fnp-sync-files dev=N        # push to FPGC over Ethernet"
-	@echo "  2. on-device:  cc /user/hello.c hello"
-	@echo "  3. on-device:  hello"
+	@echo "  2. on-device:  libc-build           # one-time: build /lib/asm-cache/"
+	@echo "  3. on-device:  cc /user/hello.c hello"
+	@echo "  4. on-device:  hello"
 
 # =============================================================================
 # Documentation

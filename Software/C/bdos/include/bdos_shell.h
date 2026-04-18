@@ -21,7 +21,7 @@
 /* ---- Tunables ---- */
 
 #define BDOS_SHELL_INPUT_MAX   512    /* big enough for long cc-style invocations */
-#define BDOS_SHELL_ARGV_MAX    8
+#define BDOS_SHELL_ARGV_MAX    32     /* asm-link cc.sh uses ~19 args */
 #define BDOS_SHELL_PIPE_MAX    4    /* commands per pipeline */
 #define BDOS_SHELL_CHAIN_MAX   8    /* pipelines per chain   */
 #define BDOS_SHELL_TOK_MAX     64   /* tokens per line       */

@@ -233,15 +233,10 @@ int bdos_exec_program(char *resolved_path)
 
   dest = (unsigned char *)bdos_slot_entry_addr(slot);
 
-  /* Zero the slot memory so BSS starts clean (statics default to 0) */
-  {
-    unsigned int *p;
-    unsigned int *end;
-
-    end = (unsigned int *)bdos_slot_entry_addr(slot) + (MEM_SLOT_SIZE / 4);
-    for (p = (unsigned int *)bdos_slot_entry_addr(slot); p < end; p++)
-      *p = 0;
-  }
+  /* No explicit BSS zero pass: cproc/qbe materialize zero-init globals
+   * as `.fill N,1,0` in the binary itself, and brfs_read below writes
+   * them into the slot. Memory beyond file_size is left uninitialized
+   * (heap/stack — caller's responsibility to init before use). */
 
   bytes_remaining = file_size;
 
