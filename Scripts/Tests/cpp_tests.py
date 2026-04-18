@@ -26,7 +26,7 @@ LIBC_INCLUDE = REPO_ROOT / "Software/C/libc/include"
 USERLIB_INCLUDE = REPO_ROOT / "Software/C/userlib/include"
 
 USERLIB_SOURCES = [
-    "Software/ASM/crt0/crt0_userbdos.asm",
+    "Software/ASM/crt0/crt0_ubdos.asm",
     "Software/C/libc/string/string.c",
     "Software/C/libc/stdlib/stdlib.c",
     "Software/C/libc/stdlib/malloc.c",

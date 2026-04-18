@@ -325,7 +325,7 @@ ANSI escapes (including DECAWM `?7h/l` for full-screen apps) see
 
 `Software/C/userBDOS/`. Compiled with
 `make compile-userbdos file=<name>` using the same modern toolchain
-plus `crt0_userbdos.asm` and the `userlib` library. Output binary
+plus `crt0_ubdos.asm` and the `userlib` library. Output binary
 lands in `Files/BRFS-init/bin/<name>`.
 
 Reference ports for the shell-terminal-v2 API:

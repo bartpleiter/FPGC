@@ -150,10 +150,9 @@ int bdos_proc_spawn(const char *path, int argc, char **argv)
         s_strncpy(child->name, base, sizeof(child->name));
     }
 
-    /* Allocate per-proc arena from BDOS heap and copy argv strings.
-     * arena_size is in words; convert. */
+    /* Allocate per-proc arena from BDOS heap and copy argv strings. */
     heap_mark = bdos_heap_mark();
-    arena_words = (BDOS_PROC_ARENA_SIZE + 3) / 4;
+    arena_words = BDOS_PROC_ARENA_SIZE;
     arena = (char *)bdos_heap_alloc(arena_words);
     if (!arena) {
         child->state = BDOS_PROC_FREE;
@@ -191,10 +190,13 @@ int bdos_proc_spawn(const char *path, int argc, char **argv)
 
     /* Mirror argv into the legacy shell-globals so the existing
      * SYSCALL_SHELL_ARGC/ARGV path keeps working unchanged.
-     * (Phase D shell v2 will read directly from current proc.) */
+     * Clear unused slots so a child cannot see stale pointers from a
+     * previous child's freed arena (some programs read past argc). */
     bdos_shell_prog_argc = child->argc;
     for (i = 0; i < child->argc && i < BDOS_SHELL_ARGV_MAX; i++)
         bdos_shell_prog_argv[i] = child->argv[i];
+    for (; i < BDOS_SHELL_ARGV_MAX; i++)
+        bdos_shell_prog_argv[i] = NULL;
 
     exit_code = bdos_exec_program(p);
 

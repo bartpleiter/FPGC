@@ -1,4 +1,4 @@
-; crt0_userbdos.asm — Startup code for userBDOS programs (runs under BDOS)
+; crt0_ubdos.asm — Startup code for userBDOS programs (runs under BDOS)
 ;
 ; Provides:
 ;   Main:  FP init → calls main() → returns to BDOS via r15

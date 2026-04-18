@@ -181,14 +181,24 @@ static char **host_argv;
 #define MAX_TOKENS        16
 #define MAX_PATH          256
 
-#define MAX_LINES         (256 * 1024)   /* total parsed lines across all files */
+/* On-device BDOS heap is 28 MiB shared. asm-link allocates 13 line arrays
+ * twice (input + output), each MAX_LINES * 4 bytes, plus the pools below.
+ * Keep BDOS limits small enough that everything fits comfortably; the host
+ * build keeps the larger limits used when linking big programs. */
+#ifdef ASMLINK_HOST
+  #define MAX_LINES         (256 * 1024)
+  #define STR_POOL_BYTES    (2 * 1024 * 1024)
+  #define BYTE_POOL_BYTES   (512 * 1024)
+  #define OUTPUT_WORDS      (256 * 1024)
+#else
+  #define MAX_LINES         (96 * 1024)        /* ~10 MiB for line arrays */
+  #define STR_POOL_BYTES    (1 * 1024 * 1024)  /* 1 MiB interned strings */
+  #define BYTE_POOL_BYTES   (256 * 1024)       /* 256 KiB ELF byte data */
+  #define OUTPUT_WORDS      (256 * 1024)       /* 1 MiB output */
+#endif
 #define LABEL_NAME_LEN    64
 #define MAX_LABELS        16384
 #define MAX_RELOCS        16384
-
-#define STR_POOL_BYTES    (2 * 1024 * 1024)  /* 2 MiB for interned strings */
-#define BYTE_POOL_BYTES   (512 * 1024)       /* 512 KiB for ELF byte data */
-#define OUTPUT_WORDS      (256 * 1024)       /* 1 MiB output */
 
 /*===========================================================================*/
 /*  Instruction encoding constants                                           */

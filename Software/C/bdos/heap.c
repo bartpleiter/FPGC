@@ -7,17 +7,18 @@ void bdos_heap_init(void)
   bdos_heap_next = MEM_HEAP_START;
 }
 
-unsigned int *bdos_heap_alloc(unsigned int size_words)
+unsigned int *bdos_heap_alloc(unsigned int size_bytes)
 {
   unsigned int addr;
-  unsigned int size_bytes;
 
-  if (size_words == 0)
+  if (size_bytes == 0)
   {
     return (unsigned int *)0;
   }
 
-  size_bytes = size_words * sizeof(unsigned int);
+  /* Round up to word alignment so subsequent allocations stay 4-aligned. */
+  size_bytes = (size_bytes + 3u) & ~3u;
+
   addr = bdos_heap_next;
 
   if (addr + size_bytes > MEM_HEAP_END)

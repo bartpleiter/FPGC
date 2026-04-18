@@ -46,7 +46,7 @@ CPROC_OUTPUT = $(CPROC_DIR)/output/cproc-qbe
 .PHONY: b32cc test-b32cc test-b32cc-single debug-b32cc clean-b32cc
 .PHONY: qbe clean-qbe
 .PHONY: cproc clean-cproc
-.PHONY: selfhost-qbe selfhost-cproc selfhost-all
+.PHONY: selfhost-qbe selfhost-cproc selfhost-all stage-cc-toolchain
 .PHONY: check
 .PHONY: fnp-upload-text fnp-upload-userbdos fnp-upload-userbdos-b32cc
 .PHONY: fnp-keyboard fnp-detect-iface fnp-sync-files fnp-run
@@ -238,7 +238,7 @@ clean-cproc:
 
 # Minimal libc/userlib subset for compiler tools (no graphics, no fixed-point)
 SELFHOST_LIBC = \
-	Software/ASM/crt0/crt0_userbdos.asm \
+	Software/ASM/crt0/crt0_ubdos.asm \
 	Software/C/libc/string/string.c \
 	Software/C/libc/stdlib/stdlib.c \
 	Software/C/libc/stdlib/malloc.c \
@@ -315,6 +315,93 @@ selfhost-cproc: $(CPROC_ASM_FILES)
 	@echo "Binary copied to Files/BRFS-init/bin/cproc"
 
 selfhost-all: selfhost-qbe selfhost-cproc
+
+# -----------------------------------------------------------------------------
+# stage-cc-toolchain: prepare Files/BRFS-init/ for an on-device `cc` flow.
+#
+# Lays out:
+#   /bin/cproc, /bin/qbe        — modern toolchain (built via selfhost-*)
+#   /bin/cpp,   /bin/asm-link   — preprocessor + assembler/linker (userBDOS)
+#   /bin/cc                     — shell script: cpp | cproc | qbe | asm-link
+#   /lib/include/*.h            — libc + userlib headers
+#   /lib/src/*.c                — libc + userlib C sources (compiled on device)
+#   /lib/asm/*.asm              — hand-written crt0 + asm helpers
+#   /tmp/.keep                  — ensure /tmp exists for shell pipes & cc
+#   /user/hello.c               — sample test program
+#
+# Everything is compiled ON-DEVICE: each `cc` invocation re-runs cpp|cproc|qbe
+# for every libc/userlib .c source as well as the user program, then links
+# everything together. This is slower but matches the self-hosting goal.
+#
+# After this completes, push it with:
+#   make fnp-sync-files dev=N
+# Then on the device:
+#   cc /user/hello.c hello && hello
+# -----------------------------------------------------------------------------
+
+# libc/userlib C sources, copied verbatim to /lib/src/ for on-device compile.
+# Keep in sync with USERLIB_SOURCES above (this is just the .c subset).
+STAGE_LIB_C_SOURCES = \
+	Software/C/libc/string/string.c \
+	Software/C/libc/stdlib/stdlib.c \
+	Software/C/libc/stdlib/malloc.c \
+	Software/C/libc/ctype/ctype.c \
+	Software/C/libc/stdio/stdio.c \
+	Software/C/userlib/src/syscall.c \
+	Software/C/userlib/src/io_stubs.c \
+	Software/C/userlib/src/time.c \
+	Software/C/userlib/src/fixedmath.c \
+	Software/C/userlib/src/fixed64.c \
+	Software/C/userlib/src/plot.c \
+	Software/C/userlib/src/fnp.c
+
+# Hand-written .asm files that ship verbatim (no cpp/cproc/qbe pass needed).
+STAGE_LIB_ASM_SOURCES = \
+	Software/ASM/crt0/crt0_ubdos.asm \
+	Software/C/userlib/src/syscall_asm.asm \
+	Software/C/userlib/src/fixed64_asm.asm
+
+STAGE_DIR        = Files/BRFS-init
+STAGE_LIB_INC    = $(STAGE_DIR)/lib/include
+STAGE_LIB_SRC    = $(STAGE_DIR)/lib/src
+STAGE_LIB_ASM    = $(STAGE_DIR)/lib/asm
+STAGE_BIN        = $(STAGE_DIR)/bin
+
+stage-cc-toolchain: selfhost-all $(QBE_OUTPUT) $(CPROC_OUTPUT)
+	@echo "=== Staging modern-C on-device toolchain into $(STAGE_DIR)/ ==="
+	@mkdir -p $(STAGE_BIN) $(STAGE_LIB_INC) $(STAGE_LIB_SRC) $(STAGE_LIB_ASM) \
+	          $(STAGE_DIR)/tmp $(STAGE_DIR)/user
+	@touch $(STAGE_DIR)/tmp/.keep
+	@echo "--- Building cpp + asm-link userBDOS programs ---"
+	@$(MAKE) compile-userbdos file=cpp      > /dev/null
+	@$(MAKE) compile-userbdos file=asm-link > /dev/null
+	@echo "--- Copying libc + userlib .c sources (compiled on device) ---"
+	@rm -f $(STAGE_LIB_SRC)/*.c $(STAGE_LIB_ASM)/*.asm
+	@for src in $(STAGE_LIB_C_SOURCES); do \
+		base=$$(basename "$$src"); \
+		echo "  $$src -> $(STAGE_LIB_SRC)/$$base"; \
+		cp "$$src" "$(STAGE_LIB_SRC)/$$base"; \
+	done
+	@echo "--- Copying hand-written .asm sources ---"
+	@for src in $(STAGE_LIB_ASM_SOURCES); do \
+		base=$$(basename "$$src"); \
+		echo "  $$src -> $(STAGE_LIB_ASM)/$$base"; \
+		cp "$$src" "$(STAGE_LIB_ASM)/$$base"; \
+	done
+	@echo "--- Copying libc + userlib headers ---"
+	@cp Software/C/libc/include/*.h     $(STAGE_LIB_INC)/
+	@cp Software/C/userlib/include/*.h  $(STAGE_LIB_INC)/
+	@echo "--- Writing /bin/cc script ---"
+	@cp Scripts/BCC/cc.sh $(STAGE_BIN)/cc
+	@echo "--- Writing /bin/cc-min script ---"
+	@cp Scripts/BCC/cc-min.sh $(STAGE_BIN)/cc-min
+	@echo "--- Writing /user/hello.c sample ---"
+	@cp Scripts/BCC/hello.c $(STAGE_DIR)/user/hello.c
+	@echo ""
+	@echo "Staging complete. Next steps:"
+	@echo "  1. make fnp-sync-files dev=N        # push to FPGC over Ethernet"
+	@echo "  2. on-device:  cc /user/hello.c hello"
+	@echo "  3. on-device:  hello"
 
 # =============================================================================
 # Documentation
@@ -465,7 +552,7 @@ compile-bdos: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 
 # User library sources linked into every userBDOS program
 USERLIB_SOURCES = \
-	Software/ASM/crt0/crt0_userbdos.asm \
+	Software/ASM/crt0/crt0_ubdos.asm \
 	Software/C/libc/string/string.c \
 	Software/C/libc/stdlib/stdlib.c \
 	Software/C/libc/stdlib/malloc.c \
@@ -583,7 +670,7 @@ DOOM_FLAGS = --libc -I Software/C/userlib/include -I $(DOOM_DIR) -h -i
 compile-doom: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	@mkdir -p Software/ASM/Output
 	./Scripts/BCC/compile_modern_c.sh \
-		Software/ASM/crt0/crt0_userbdos.asm \
+		Software/ASM/crt0/crt0_ubdos.asm \
 		Software/C/libc/string/string.c \
 		Software/C/libc/stdlib/stdlib.c \
 		Software/C/libc/stdlib/malloc.c \
@@ -933,6 +1020,10 @@ help:
 	@echo "                        Usage: make compile-userbdos file=<filename>"
 	@echo "  compile-userbdos-all - Compile ALL userBDOS programs"
 	@echo "  compile-doom        - Compile Doom"
+	@echo "  stage-cc-toolchain  - Build cproc/qbe/cpp/asm-link + libc/userlib .asm,"
+	@echo "                        and lay them out under Files/BRFS-init/ (lib/, bin/cc, user/hello.c)"
+	@echo "                        for an on-device 'cc <src.c> <name>' compile flow."
+	@echo "                        Push with 'make fnp-sync-files dev=N' afterwards."
 	@echo ""
 	@echo "  B32CC (legacy — userBDOS only, until self-hosting):"
 	@echo "  compile-userbdos-b32cc    - Compile userBDOS program with B32CC"

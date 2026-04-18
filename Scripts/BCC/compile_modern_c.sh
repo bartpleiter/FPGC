@@ -10,7 +10,7 @@
 #   ./compile_modern_c.sh Software/ASM/crt0/crt0_baremetal.asm program.c -h -o output.bin
 #
 #   # UserBDOS program (relocatable):
-#   ./compile_modern_c.sh Software/ASM/crt0/crt0_userbdos.asm program.c -h -i -o output.bin
+#   ./compile_modern_c.sh Software/ASM/crt0/crt0_ubdos.asm program.c -h -i -o output.bin
 #
 #   # BDOS kernel (with syscall vector):
 #   ./compile_modern_c.sh Software/ASM/crt0/crt0_bdos.asm src1.c src2.c -h -s -o output.bin
