@@ -1,32 +1,89 @@
-/*
- * FIXME: shell-terminal-v2 Phase E migration TODO.
- *
- * This program still uses syscalls that were removed from BDOS in
- * Phase E. It will currently fail to link or behave correctly. See
- * the migration table at the top of Software/C/userlib/include/syscall.h.
- *
- * Quick checklist for porting:
- *   sys_term_put_cell / sys_term_clear / sys_term_set_cursor
- *      -> sys_write(1, "\x1b[<y+1>;<x+1>H...", n) ANSI escapes.
- *      -> Glyphs that overlap C0 control codes (BEL, HT, LF, ESC, ...)
- *         must be substituted with printable ASCII.
- *   sys_read_key / sys_key_available
- *      -> int fd = sys_tty_open_raw(1);            (non-blocking)
- *         int ev = sys_tty_event_read(fd, 0);
- *      -> snake.c is the reference port.
- *   sys_set_palette / sys_set_pixel_palette
- *      -> No replacement syscall yet. Either use ANSI SGR colors
- *         (\x1b[30m..37m for tile palette 0..7) or wait for a
- *         dedicated palette syscall to be added in a follow-up.
- *   sys_uart_print_str / sys_uart_print_char
- *      -> sys_write(2, s, n) (stderr; mirrored to UART by libterm v2).
- */
-
 // edit.c — Text editor for FPGC BDOS
-// A nano-like terminal text editor using a gap buffer and syscalls.
+// A nano-like terminal text editor using a gap buffer.
 // Usage: edit <filename>
+//
+// shell-terminal-v2 port: rendering goes through ANSI escapes on fd 1
+// (so the editor honours redirection and lives inside the libterm v2
+// cell model), and input comes from /dev/tty in raw blocking mode via
+// sys_tty_open_raw / sys_tty_event_read. Alternate screen is entered
+// with \x1b[?1049h on startup and left on exit so the shell view is
+// restored.
 
 #include <syscall.h>
+
+// ----------------------------------------------------------------------
+// ANSI helpers
+// ----------------------------------------------------------------------
+
+static int tty_fd = -1;          /* /dev/tty in raw mode (input) */
+static int last_palette = -1;    /* last SGR palette emitted (-1 = unknown) */
+
+static int ansi_strlen(const char *s)
+{
+    int n = 0;
+    while (s[n] != 0) n++;
+    return n;
+}
+
+static void ansi_write(const char *s)
+{
+    sys_write(1, (char *)s, ansi_strlen(s));
+}
+
+static void ansi_emit_uint(int v, char *dst, int *pos)
+{
+    char tmp[12];
+    int n = 0;
+    if (v == 0) { dst[(*pos)++] = '0'; return; }
+    while (v > 0) { tmp[n++] = (char)('0' + (v % 10)); v /= 10; }
+    while (n > 0) { dst[(*pos)++] = tmp[--n]; }
+}
+
+/* Move cursor to (x, y) in 0-based coordinates. */
+static void ansi_goto(int x, int y)
+{
+    char buf[16];
+    int n = 0;
+    buf[n++] = 0x1B; buf[n++] = '[';
+    ansi_emit_uint(y + 1, buf, &n);
+    buf[n++] = ';';
+    ansi_emit_uint(x + 1, buf, &n);
+    buf[n++] = 'H';
+    sys_write(1, buf, n);
+}
+
+/* Map an 8-bit palette index to an SGR sequence:
+ *   low nibble  = fg (0..7) plus optional bold (bit 3)
+ *   high nibble = bg (0..7); bit 7 ignored, no SGR support for it
+ * Always emits a leading 0 so prior state is cleared. */
+static void ansi_set_palette(int pal)
+{
+    int fg, bg, bold;
+    char buf[24];
+    int n;
+
+    if (pal == last_palette) return;
+    last_palette = pal;
+
+    fg   = pal & 0x07;
+    bold = (pal & 0x08) ? 1 : 0;
+    bg   = (pal >> 4) & 0x07;
+
+    n = 0;
+    buf[n++] = 0x1B; buf[n++] = '['; buf[n++] = '0';
+    if (bold)  { buf[n++] = ';'; buf[n++] = '1'; }
+    buf[n++] = ';'; buf[n++] = '4'; buf[n++] = (char)('0' + bg);
+    buf[n++] = ';'; buf[n++] = '3'; buf[n++] = (char)('0' + fg);
+    buf[n++] = 'm';
+    sys_write(1, buf, n);
+}
+
+/* Read one keyboard event, blocking until one arrives. Returns the
+ * event code (printable ASCII or KEY_*). */
+static int read_key_blocking(void)
+{
+    return sys_tty_event_read(tty_fd, 1);
+}
 
 // ============================================================================
 // Constants
@@ -290,7 +347,20 @@ void clamp_cursor_col(void)
 
 void put_cell(int x, int y, int ch, int palette)
 {
-  sys_term_put_cell(x, y, (ch << 8) | (palette & 0xFF));
+  char b;
+
+  if (x < 0 || y < 0) return;
+  /* Glyphs that overlap C0 control codes would confuse libterm v2's
+   * ANSI parser — substitute a printable placeholder. The editor
+   * normally only renders ASCII text and the ' ' / '~' markers. */
+  if (ch < 0x20 || ch == 0x7F) {
+    b = '?';
+  } else {
+    b = (char)ch;
+  }
+  ansi_set_palette(palette & 0xFF);
+  ansi_goto(x, y);
+  sys_write(1, &b, 1);
 }
 
 void render_header(void)
@@ -822,7 +892,7 @@ int wait_key(void)
 
   while (1)
   {
-    key = sys_read_key();
+    key = read_key_blocking();
     if (key != -1)
     {
       return key;
@@ -1018,14 +1088,25 @@ int main(void)
   total_lines = count_lines();
 
   /* Enter alternate screen so the prior shell view is restored on exit. */
-  sys_putstr("\033[?1049h");
-  sys_term_clear();
+  ansi_write("\x1b[?1049h");
+
+  tty_fd = sys_tty_open_raw(0 /* blocking */);
+  if (tty_fd < 0)
+  {
+    ansi_write("\x1b[?1049l");
+    sys_putstr("edit: cannot open /dev/tty\n");
+    return 1;
+  }
+
+  /* Clear the alt screen and home the cursor. */
+  ansi_write("\x1b[2J\x1b[H");
+  last_palette = -1;
   render_all();
 
   while (running)
   {
-    key = sys_read_key();
-    if (key == -1)
+    key = read_key_blocking();
+    if (key < 0)
     {
       continue;
     }
@@ -1147,7 +1228,8 @@ int main(void)
   }
 
   /* Leave alternate screen — restores whatever was on screen before. */
-  sys_putstr("\033[?1049l");
+  ansi_write("\x1b[?1049l");
+  if (tty_fd >= 0) sys_close(tty_fd);
 
   return 0;
 }

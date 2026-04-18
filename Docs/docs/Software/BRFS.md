@@ -1,23 +1,63 @@
-# Filesystem (BRFS)
+# Filesystem (BRFS v2)
 
-BRFS (Bart's RAM File System) is a FAT-based filesystem designed for the FPGC that uses RAM as a cache with SPI Flash (currently, but in the future SD card might also be supported) as persistent storage. It provides hierarchical directory support with a simple design optimized for the B32P3 architecture.
+BRFS — *Bart's RAM File System* — is the filesystem used by the FPGC. It
+is a small, FAT-based design that uses RAM as a fast cache over a
+pluggable persistent storage backend (today: SPI flash).
 
 ## Overview
 
-BRFS has the following characteristics:
+BRFS v2 has the following characteristics:
 
-- **FAT-based** - Uses a File Allocation Table to manage block allocation and file chains
-- **RAM-cached operation** - The entire filesystem is loaded into RAM for fast access since the FPGC has plenty of RAM
-- **SPI Flash persistence** - Data is persisted to SPI Flash for non-volatile storage (explicitly only via `brfs_sync` function)
-- **Hierarchical directories** - Supports nested directories
-- **Word-aligned storage** - All data stored as 32-bit words internally (native to B32P3)
-- **Compressed filenames** - Max 16-character filenames packed into 4 words (Note that this only made sense back when the CPU was word-addressable, now it is just normal)
+- **FAT-based** — A File Allocation Table tracks block allocation and
+  per-file chains.
+- **RAM-cached** — Blocks live in a contiguous in-RAM cache for fast
+  access. The whole filesystem currently fits inside the cache (the
+  LRU eviction layer is planned for v2.1 alongside SD-card support).
+- **Pluggable storage backend** — A small `brfs_storage_t` vtable
+  abstracts the persistent medium. Only the SPI-flash backend ships
+  today; the SD-card backend is a v2.1 follow-up.
+- **Byte-native API** — `brfs_read` / `brfs_write` / `brfs_seek` and the
+  on-disk `filesize` field are byte-counted. Internally the cache still
+  reads/writes whole blocks; partial-block writes are handled
+  transparently.
+- **Hierarchical directories** with up to 16-character filenames.
+- **Little-endian on disk** (matches the b32p3 CPU and the host
+  tooling).
+- **Persistence on demand** — Data is written back to flash only when
+  `brfs_sync()` is called (or the kernel calls it on shutdown / from
+  the `sync` shell built-in). Between syncs the FS lives entirely in
+  RAM; after a power cycle the volume rolls back to the last synced
+  state.
 
 ## Architecture
 
-### Memory Layout
+BRFS v2 is split into the layers described in §4.1 of the plan:
 
-BRFS organizes data in three regions, both in RAM cache and SPI Flash:
+```
++-----------------------------------------------------+
+| BDOS VFS  (Software/C/bdos/vfs.c file_dev_table)    |
+|   bdos_vfs_open / read / write / close / lseek      |
++-----------------------------------------------------+
+| BRFS v2 core   (Software/C/libfpgc/fs/brfs.c)       |
+|   path walk · directory ops · FAT · file ops        |
++-----------------------------------------------------+
+| Block cache    (Software/C/libfpgc/fs/brfs_cache.c) |
+|   linear-pinned today; LRU pool in v2.1             |
++-----------------------------------------------------+
+| Storage backend vtable  (brfs_storage_t)            |
+|   spi_flash today; sd_card and ram-test in v2.1     |
++-----------------------------------------------------+
+| Hardware drivers  (Software/C/libfpgc/io/spi_flash.c, …) |
++-----------------------------------------------------+
+```
+
+The BDOS VFS bridge is a thin pass-through: there is no byte-buffering
+layer above BRFS.
+
+### Memory layout
+
+BRFS organises data in three regions, mirrored between the in-RAM cache
+and the persistent backend:
 
 ```
 ┌──────────────────────────────────────────────────┐
@@ -25,91 +65,149 @@ BRFS organizes data in three regions, both in RAM cache and SPI Flash:
 │  - Filesystem metadata and configuration         │
 ├──────────────────────────────────────────────────┤
 │  FAT (File Allocation Table)                     │
-│  - One entry per block (total_blocks words)      │
-│  - Tracks block allocation and file chains       │
+│  - One 32-bit entry per data block               │
 ├──────────────────────────────────────────────────┤
-│  Data Blocks                                     │
-│  - File and directory content                    │
-│  - Block size configurable                       │
+│  Data blocks                                     │
+│  - File and directory content (FAT-chained)      │
 └──────────────────────────────────────────────────┘
 ```
 
-### Superblock Structure
+The on-disk magic is `BRF2` and the superblock `version` field is `2`.
+v1 volumes are not readable by v2 — the volume must be reformatted
+(see the format wizard / `/bin/format` below).
 
-The superblock (16 words) contains filesystem metadata:
+### Superblock
+
+The superblock is 16 words (64 bytes):
 
 | Field | Size (words) | Description |
 |-------|--------------|-------------|
-| `total_blocks` | 1 | Total number of blocks in filesystem |
-| `words_per_block` | 1 | Words per block (e.g., 256 = 1KB) |
-| `label` | 10 | Volume label (1 char per word, null-terminated) |
-| `brfs_version` | 1 | BRFS version number |
+| `total_blocks` | 1 | Total number of data blocks |
+| `words_per_block` | 1 | Words per block (e.g. `1024` = 4 KiB) |
+| `label` | 10 | Volume label (one ASCII char per word, NUL-terminated) |
+| `brfs_version` | 1 | Filesystem version (`2` for BRFS v2) |
 | `reserved` | 3 | Reserved for future use |
 
 ### File Allocation Table (FAT)
 
-The FAT is an array where each entry corresponds to a data block:
+The FAT is an array where each entry corresponds to one data block:
 
-- `0` - Block is free
-- `0xFFFFFFFF` - End of file chain (EOF)
-- Any other value - Index of next block in chain
+- `0` — Block is free.
+- `0xFFFFFFFF` — End-of-chain marker (EOF).
+- Any other value — Index of the next block in the chain.
 
-Files larger than one block are stored as linked chains in the FAT. To read a file, follow the chain from the first block (stored in the directory entry) until reaching EOF.
+Files larger than one block are stored as linked chains in the FAT. A
+read walks the chain from the first block (recorded in the directory
+entry) until it hits the EOF marker. The FAT is permanently pinned in
+the cache so path walks and seeks never miss.
 
-### Directory Entries
+### Directory entries
 
-Directories are special files containing 8-word entries:
+Directories are special files holding fixed-size 8-word entries:
 
 | Field | Size (words) | Description |
 |-------|--------------|-------------|
-| `filename` | 4 | Compressed filename (4 chars/word, 16 chars max) |
+| `filename` | 4 | Compressed filename (4 chars / word, 16 chars max) |
 | `modify_date` | 1 | Modification date (reserved for RTC) |
 | `flags` | 1 | Entry flags (directory, hidden) |
-| `fat_idx` | 1 | Index of first block in FAT |
-| `filesize` | 1 | File size in words |
+| `fat_idx` | 1 | Index of the first block in the FAT |
+| `filesize` | 1 | **File size in bytes** (changed from words in v1) |
 
-A 1024-word block can hold 128 directory entries.
+A 4 KiB block holds 128 directory entries. Block 0 of the data region
+is always the root directory; it is initialised during `brfs_format()`
+with `.` and `..` entries pointing to itself.
 
-## Implementation Notes
+## Storage backends
 
-**Filename Compression:**
+Storage backends can be added, in contrast to V1 where SPI flash was tightly coupled to the FS code.
 
-Filenames are stored with 4 characters packed per 32-bit word to save space.
-This allows 16-character filenames in just 4 words.
+Concrete backends:
 
-**Dirty Block Tracking:**
+- **`brfs_storage_spi_flash`** — wraps `spi_flash_read_words` /
+  `spi_flash_write_words` / `spi_flash_erase_sector`. `block_size = 4096`,
+  `erase_unit_blocks = 1`. This is the production backend used by BDOS.
+- **SD-card backend** — designed for v2.1 once a real
+  `Software/C/libfpgc/io/sd.c` driver lands. `block_size = 512`,
+  no erase needed.
+- **RAM backend** — small in-memory backend for host-side unit tests
+  of the cache and FS core. Not exposed in BDOS.
 
-BRFS uses a bitmap to track which blocks have been modified since the last sync. Only dirty blocks are written to flash during `brfs_sync()`.
+## Cache
 
-**Flash Write Strategy:**
+In v2.0 the cache is a single contiguous buffer sized for the entire
+mounted filesystem (`superblock + FAT + data_blocks * block_size`).
+On the current 4 MiB SPI-flash partition this is ~4 MiB of BDOS heap,
+well within budget, and every block is effectively pinned —
+`brfs_cache_get_data_block(blk)` returns a pointer that stays valid
+for the lifetime of the mount. This keeps the v1 "everything in RAM"
+performance characteristics while the new vtable + byte-native API
+shipped underneath. An LRU cache will be added in v2.1.
 
-Due to SPI Flash constraints:
+### Dirty-block tracking
 
-1. **Reads** can be any size from any address
-2. **Writes** must be to erased memory, max 256 bytes (64 words) per page
-3. **Erases** are 4KB sectors (1024 words) minimum
+BRFS uses a bitmap to record which blocks have changed since the last
+sync. `brfs_sync()` walks the bitmap and writes only dirty blocks back
+to the storage backend. The sync also issues the appropriate
+sector-erase commands on the flash backend before writing, since SPI
+flash can only be programmed into erased pages.
 
-BRFS handles this by:
+## Persistence and the `sync` model
 
-- Erasing entire sectors before writing
-- Writing data in 64-word page chunks
-- Words per block should be a multiple of 64 to align with flash page size
+BRFS v2 deliberately keeps v1's deferred-flush model:
 
-### Root Directory
+- All reads and writes hit the in-RAM cache immediately (so they are
+  fast).
+- Mutations mark the affected blocks dirty.
+- Persistent storage is updated only when `brfs_sync()` is called —
+  either explicitly via the shell `sync` built-in, or implicitly by
+  certain operations (e.g. `format`).
 
-Block 0 is always reserved for the root directory. It is initialized during `brfs_format()` with `.` and `..` entries pointing to itself.
+This means a power loss between syncs rolls the volume back to the
+last synced state. That trade-off — recoverability over durability —
+is what makes the FS feel snappy on slow SPI flash. It is documented
+behaviour, not a bug; users running long write sessions should
+periodically `sync`.
+
+## Flash write strategy
+
+SPI flash imposes hard constraints that the SPI-flash backend handles
+internally:
+
+1. Reads can be any size from any address.
+2. Writes must target erased memory and are done in 256-byte page
+   chunks (max 64 words at a time).
+3. Erases are 4 KiB sector-aligned (1024 words / one BRFS block).
+
+BRFS therefore picks `block_size = 4096` so one filesystem block lines
+up with one flash sector. The format wizard enforces that
+`words_per_block` is a multiple of 64 and that `total_blocks` is a
+multiple of 64 to keep these alignments simple.
+
+## Formatting
+
+A volume is formatted with `brfs_format(total_blocks, words_per_block, label)`.
+There are two ways to invoke it from a running system:
+
+- **Interactive boot wizard.** If BDOS fails to mount the filesystem
+  on boot (no valid superblock, wrong magic), it drops into a
+  stripped-down prompt that walks the user through entering block
+  count, bytes-per-block, and a label. This path lives in
+  `Software/C/bdos/shell_format.c` and is the only way to format from
+  a system that does not yet have an FS to load `/bin/format` from.
+- **`/bin/format` userBDOS program.** From a healthy system,
+  `format <blocks> <bytes-per-block> <label>` runs the same code path
+  via `SYSCALL_FS_FORMAT` (40). This replaces the v1 in-shell `format`
+  built-in.
+
+For a 4 MiB partition the proper settings are
+`1024` blocks × `4096` bytes per block.
 
 ## Limitations
 
-- Maximum 16-character filenames
-- Maximum 127-character paths
-- No file permissions or ownership
-- No timestamps (RTC support reserved but not implemented)
-- Single-user, no locking
-- Cache must fit entire filesystem in RAM
-
-Most of these limitations are intentional design choices to keep the filesystem simple and efficient for the FPGC's architecture and use cases, but in the future I might want to add something to support larger filesystem sizes with dynamic caching.
-
-## Formatting parameters
-
-The number of blocks and block size should be a multiple of 64. The size of the superblock and FAT need to be taken into account when calculating total flash usage. For example, formatting an SPI Flash of 16MiB with 256-word blocks can best be done with 16320 blocks.
+- 16-character filenames maximum.
+- 127-character paths maximum.
+- No file permissions, owners, or ACLs.
+- No timestamps (RTC support reserved but not implemented).
+- Single-user, single-foreground; no locking.
+- The v2.0 cache requires the entire FS to fit in the BDOS heap budget
+  (~4 MiB today). The v2.1 LRU cache lifts this limit.
