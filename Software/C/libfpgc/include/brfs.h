@@ -2,6 +2,7 @@
 #define FPGC_BRFS_H
 
 #include <stddef.h>
+#include "brfs_storage.h"
 
 typedef void (*brfs_progress_callback_t)(const char *phase, unsigned int current, unsigned int total);
 
@@ -90,7 +91,7 @@ struct brfs_state
   unsigned int *cache;
   unsigned int cache_size;
   unsigned int initialized;
-  unsigned int flash_id;
+  brfs_storage_t *storage;
   unsigned int flash_superblock_addr;
   unsigned int flash_fat_addr;
   unsigned int flash_data_addr;
@@ -99,7 +100,7 @@ struct brfs_state
 };
 
 /* ---- Initialization ---- */
-int  brfs_init(unsigned int flash_id, unsigned int *cache_addr, unsigned int cache_size);
+int  brfs_init(brfs_storage_t *storage, unsigned int *cache_addr, unsigned int cache_size);
 void brfs_set_progress_callback(brfs_progress_callback_t callback);
 int  brfs_format(unsigned int total_blocks, unsigned int words_per_block,
                  const char *label, int full_format);

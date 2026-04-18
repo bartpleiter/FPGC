@@ -423,6 +423,7 @@ BDOS_V3_SOURCES = \
 	Software/C/libfpgc/term/term2.c \
 	Software/C/libfpgc/mem/debug.c \
 	Software/C/libfpgc/fs/brfs.c \
+	Software/C/libfpgc/fs/brfs_storage_spi_flash.c \
 	Software/C/bdos/slot_asm.asm \
 	Software/C/bdos/main.c \
 	Software/C/bdos/init.c \

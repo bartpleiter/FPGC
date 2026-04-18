@@ -1,4 +1,7 @@
 #include "bdos.h"
+#include "brfs_storage_spi_flash.h"
+
+static brfs_spi_flash_storage_t bdos_fs_storage;
 
 int bdos_fs_ready = 0;
 int bdos_fs_boot_needs_format = 0;
@@ -111,7 +114,8 @@ void bdos_fs_boot_init(void)
 
   term_puts("Initializing BRFS\n");
 
-  result = brfs_init(BDOS_FS_FLASH_ID, (unsigned int *)MEM_BRFS_START, MEM_BRFS_SIZE / sizeof(unsigned int));
+  brfs_storage_spi_flash_init(&bdos_fs_storage, BDOS_FS_FLASH_ID);
+  result = brfs_init(&bdos_fs_storage.base, (unsigned int *)MEM_BRFS_START, MEM_BRFS_SIZE / sizeof(unsigned int));
   if (result != BRFS_OK)
   {
     bdos_panic("Failed to initialize BRFS subsystem");

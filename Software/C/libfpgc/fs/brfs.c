@@ -1,5 +1,4 @@
 #include "brfs.h"
-#include "spi_flash.h"
 #include <string.h>
 
 /* ---- Global State ---- */
@@ -437,14 +436,14 @@ static void brfs_init_directory_block(unsigned int *block_addr, unsigned int dir
 
 /* ---- Initialization Functions ---- */
 
-int brfs_init(unsigned int flash_id, unsigned int *cache_addr, unsigned int cache_size)
+int brfs_init(brfs_storage_t *storage, unsigned int *cache_addr, unsigned int cache_size)
 {
   unsigned int i;
 
   brfs.cache = cache_addr;
   brfs.cache_size = cache_size;
   brfs.initialized = 0;
-  brfs.flash_id = flash_id;
+  brfs.storage = storage;
   brfs.flash_superblock_addr = BRFS_FLASH_SUPERBLOCK_ADDR;
   brfs.flash_fat_addr = BRFS_FLASH_FAT_ADDR;
   brfs.flash_data_addr = BRFS_FLASH_DATA_ADDR;
@@ -558,9 +557,9 @@ int brfs_format(unsigned int total_blocks, unsigned int words_per_block,
     brfs_mark_block_dirty(i);
   }
 
-  spi_flash_erase_sector(brfs.flash_id, brfs.flash_superblock_addr);
-  spi_flash_write_words(brfs.flash_id, brfs.flash_superblock_addr,
-                        (unsigned int *)sb, BRFS_SUPERBLOCK_SIZE);
+  brfs.storage->erase_sector(brfs.storage, brfs.flash_superblock_addr);
+  brfs.storage->write_words(brfs.storage, brfs.flash_superblock_addr,
+                            (unsigned int *)sb, BRFS_SUPERBLOCK_SIZE);
 
   brfs.initialized = 1;
 
@@ -613,8 +612,8 @@ int brfs_mount(void)
   unsigned int progress_step;
 
   sb = (struct brfs_superblock *)brfs_get_superblock();
-  spi_flash_read_words(brfs.flash_id, brfs.flash_superblock_addr,
-                       (unsigned int *)sb, BRFS_SUPERBLOCK_SIZE);
+  brfs.storage->read_words(brfs.storage, brfs.flash_superblock_addr,
+                           (unsigned int *)sb, BRFS_SUPERBLOCK_SIZE);
 
   result = brfs_validate_superblock(sb);
   if (result != BRFS_OK)
@@ -644,10 +643,10 @@ int brfs_mount(void)
       words_this_sector = words_remaining;
     }
 
-    spi_flash_read_words(brfs.flash_id,
-                         brfs.flash_fat_addr + (sector * BRFS_FLASH_SECTOR_SIZE),
-                         fat + (sector * BRFS_FLASH_WORDS_PER_SECTOR),
-                         words_this_sector);
+    brfs.storage->read_words(brfs.storage,
+                             brfs.flash_fat_addr + (sector * BRFS_FLASH_SECTOR_SIZE),
+                             fat + (sector * BRFS_FLASH_WORDS_PER_SECTOR),
+                             words_this_sector);
 
     words_remaining -= words_this_sector;
     progress_step++;
@@ -667,10 +666,10 @@ int brfs_mount(void)
       words_this_sector = words_remaining;
     }
 
-    spi_flash_read_words(brfs.flash_id,
-                         brfs.flash_data_addr + (sector * BRFS_FLASH_SECTOR_SIZE),
-                         data + (sector * BRFS_FLASH_WORDS_PER_SECTOR),
-                         words_this_sector);
+    brfs.storage->read_words(brfs.storage,
+                             brfs.flash_data_addr + (sector * BRFS_FLASH_SECTOR_SIZE),
+                             data + (sector * BRFS_FLASH_WORDS_PER_SECTOR),
+                             words_this_sector);
 
     words_remaining -= words_this_sector;
     progress_step++;
@@ -735,14 +734,14 @@ static void brfs_write_fat_sector(unsigned int sector_idx)
   flash_addr = brfs.flash_fat_addr + (sector_idx * BRFS_FLASH_SECTOR_SIZE);
   fat_offset = sector_idx * BRFS_FLASH_WORDS_PER_SECTOR;
 
-  spi_flash_erase_sector(brfs.flash_id, flash_addr);
+  brfs.storage->erase_sector(brfs.storage, flash_addr);
 
   for (page = 0; page < 16; page++)
   {
-    spi_flash_write_words(brfs.flash_id,
-                          flash_addr + (page * BRFS_FLASH_PAGE_SIZE),
-                          fat + fat_offset + (page * BRFS_FLASH_WORDS_PER_PAGE),
-                          BRFS_FLASH_WORDS_PER_PAGE);
+    brfs.storage->write_words(brfs.storage,
+                              flash_addr + (page * BRFS_FLASH_PAGE_SIZE),
+                              fat + fat_offset + (page * BRFS_FLASH_WORDS_PER_PAGE),
+                              BRFS_FLASH_WORDS_PER_PAGE);
   }
 }
 
@@ -758,15 +757,15 @@ static void brfs_write_data_sector(unsigned int sector_idx)
 
   flash_addr = brfs.flash_data_addr + (sector_idx * BRFS_FLASH_SECTOR_SIZE);
 
-  spi_flash_erase_sector(brfs.flash_id, flash_addr);
+  brfs.storage->erase_sector(brfs.storage, flash_addr);
 
   for (page = 0; page < 16; page++)
   {
-    spi_flash_write_words(brfs.flash_id,
-                          flash_addr + (page * BRFS_FLASH_PAGE_SIZE),
-                          data + (sector_idx * BRFS_FLASH_WORDS_PER_SECTOR) +
-                              (page * BRFS_FLASH_WORDS_PER_PAGE),
-                          BRFS_FLASH_WORDS_PER_PAGE);
+    brfs.storage->write_words(brfs.storage,
+                              flash_addr + (page * BRFS_FLASH_PAGE_SIZE),
+                              data + (sector_idx * BRFS_FLASH_WORDS_PER_SECTOR) +
+                                  (page * BRFS_FLASH_WORDS_PER_PAGE),
+                              BRFS_FLASH_WORDS_PER_PAGE);
   }
 }
 
