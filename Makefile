@@ -429,6 +429,7 @@ BDOS_V3_SOURCES = \
 	Software/C/bdos/heap.c \
 	Software/C/bdos/syscall.c \
 	Software/C/bdos/vfs.c \
+	Software/C/bdos/proc.c \
 	Software/C/bdos/slot.c \
 	Software/C/bdos/hid.c \
 	Software/C/bdos/fs.c \

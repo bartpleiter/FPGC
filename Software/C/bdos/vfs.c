@@ -21,14 +21,30 @@
 
 #include "bdos.h"
 #include "bdos_vfs.h"
+#include "bdos_proc.h"
 
 #ifndef NULL
 #define NULL ((void *)0)
 #endif
 
-/* ============================================================ State ===== */
+/* ============================================================ State =====
+ *
+ * Phase C: the fd table now lives inside the current process's
+ * bdos_proc_t. The VFS just routes through bdos_proc_current()->fds[].
+ * For Phase B compatibility, when no proc has been initialised yet
+ * (early boot, before bdos_proc_init runs), we fall back to a single
+ * static table so any pre-init code paths don't crash.
+ */
 
-static bdos_fd_t g_fds[BDOS_FD_MAX];
+static bdos_fd_t g_boot_fds[BDOS_FD_MAX];
+static int       g_use_boot_fds = 1;
+
+static bdos_fd_t *fds(void)
+{
+    if (g_use_boot_fds)
+        return g_boot_fds;
+    return bdos_proc_current()->fds;
+}
 
 /* Forward declarations of per-device operations */
 static int tty_read (bdos_fd_t *f, void *buf, int len);
@@ -65,9 +81,10 @@ static const dev_ops_t dev_table[] = {
 
 static int alloc_fd(void)
 {
+    bdos_fd_t *t = fds();
     int i;
     for (i = 0; i < BDOS_FD_MAX; i++) {
-        if (!g_fds[i].in_use)
+        if (!t[i].in_use)
             return i;
     }
     return -1;
@@ -75,9 +92,10 @@ static int alloc_fd(void)
 
 static bdos_fd_t *get_fd(int fd)
 {
+    bdos_fd_t *t = fds();
     if (fd < 0 || fd >= BDOS_FD_MAX) return NULL;
-    if (!g_fds[fd].in_use)            return NULL;
-    return &g_fds[fd];
+    if (!t[fd].in_use)                return NULL;
+    return &t[fd];
 }
 
 static int str_eq(const char *a, const char *b)
@@ -322,27 +340,34 @@ static int null_lseek(bdos_fd_t *f, int off, int whence)
 void bdos_vfs_init(void)
 {
     int i;
+    bdos_fd_t *t = fds();
     for (i = 0; i < BDOS_FD_MAX; i++) {
-        g_fds[i].in_use = 0;
+        t[i].in_use = 0;
     }
 
     /* Pre-open stdin (0), stdout (1), stderr (2) → /dev/tty. */
     for (i = 0; i < 3; i++) {
-        g_fds[i].in_use   = 1;
-        g_fds[i].dev      = BDOS_DEV_TTY;
-        g_fds[i].flags    = (i == 0) ? BDOS_O_RDONLY : BDOS_O_WRONLY;
-        g_fds[i].handle   = 0;
-        g_fds[i].byte_pos = 0;
-        g_fds[i].wr_buf   = 0;
-        g_fds[i].wr_fill  = 0;
+        t[i].in_use   = 1;
+        t[i].dev      = BDOS_DEV_TTY;
+        t[i].flags    = (i == 0) ? BDOS_O_RDONLY : BDOS_O_WRONLY;
+        t[i].handle   = 0;
+        t[i].byte_pos = 0;
+        t[i].wr_buf   = 0;
+        t[i].wr_fill  = 0;
     }
+}
+
+void bdos_vfs_use_proc_tables(void)
+{
+    g_use_boot_fds = 0;
 }
 
 void bdos_vfs_shutdown(void)
 {
     int i;
     for (i = 3; i < BDOS_FD_MAX; i++) {
-        if (g_fds[i].in_use)
+        bdos_fd_t *t = fds();
+        if (t[i].in_use)
             bdos_vfs_close(i);
     }
 }
@@ -375,7 +400,7 @@ int bdos_vfs_open(const char *path, int flags)
         if (dev == BDOS_DEV_FILE) brfs_close(handle);
         return -1;
     }
-    f = &g_fds[fd];
+    f = &fds()[fd];
     f->in_use   = 1;
     f->dev      = dev;
     f->flags    = flags;
@@ -418,4 +443,31 @@ int bdos_vfs_lseek(int fd, int offset, int whence)
     bdos_fd_t *f = get_fd(fd);
     if (!f) return -1;
     return dev_table[f->dev].lseek(f, offset, whence);
+}
+
+/*
+ * dup2(oldfd, newfd): make newfd refer to the same underlying object
+ * as oldfd. If newfd is currently open it is closed first. Used by
+ * the shell (Phase D) to wire pipeline stdio into pre-opened files.
+ *
+ * For DEV_FILE we duplicate the file's BDOS-side state but share the
+ * underlying BRFS handle. That means closing one of the two fds will
+ * brfs_close() the shared handle, breaking the other; the shell
+ * pipeline executor takes care to dup2 then close oldfd in the right
+ * order to avoid that. Refcounting is a v2.1 follow-up.
+ */
+int bdos_vfs_dup2(int oldfd, int newfd)
+{
+    bdos_fd_t *src = get_fd(oldfd);
+    bdos_fd_t *t;
+
+    if (!src) return -1;
+    if (oldfd == newfd) return newfd;
+    if (newfd < 0 || newfd >= BDOS_FD_MAX) return -1;
+
+    t = fds();
+    if (t[newfd].in_use) bdos_vfs_close(newfd);
+
+    t[newfd] = *src;
+    return newfd;
 }

@@ -177,9 +177,7 @@ int bdos_syscall_dispatch(int num, int a1, int a2, int a3)
       return bdos_vfs_lseek(a1, a2, a3);
 
     case SYSCALL_DUP2:
-      /* Phase C will implement this when pipes land. */
-      (void)a1; (void)a2;
-      return -1;
+      return bdos_vfs_dup2(a1, a2);
 
     default:
       return -1;

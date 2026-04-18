@@ -33,3 +33,14 @@ void bdos_heap_free_all(void)
 {
   bdos_heap_next = MEM_HEAP_START;
 }
+
+unsigned int bdos_heap_mark(void)
+{
+  return bdos_heap_next;
+}
+
+void bdos_heap_release(unsigned int mark)
+{
+  if (mark >= MEM_HEAP_START && mark <= bdos_heap_next)
+    bdos_heap_next = mark;
+}

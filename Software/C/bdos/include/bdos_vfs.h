@@ -59,11 +59,19 @@ struct bdos_fd_s {
 void bdos_vfs_init(void);
 void bdos_vfs_shutdown(void);
 
+/*
+ * Switch from the boot-time static fd table to per-process tables
+ * stored in bdos_proc_t. Called once by bdos_proc_init() after the
+ * shell proc entry has been initialised. Phase C-only API.
+ */
+void bdos_vfs_use_proc_tables(void);
+
 /* ---- Public API (also exposed via syscalls) ---- */
 int  bdos_vfs_open(const char *path, int flags);
 int  bdos_vfs_close(int fd);
 int  bdos_vfs_read(int fd, void *buf, int len);
 int  bdos_vfs_write(int fd, const void *buf, int len);
 int  bdos_vfs_lseek(int fd, int offset, int whence);
+int  bdos_vfs_dup2(int oldfd, int newfd);
 
 #endif /* BDOS_VFS_H */

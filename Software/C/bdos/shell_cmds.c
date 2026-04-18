@@ -1252,16 +1252,7 @@ void bdos_shell_execute_line(char *line)
     resolve_result = bdos_shell_resolve_program(argv[0], prog_path);
     if (resolve_result == BRFS_OK && brfs_exists(prog_path) && !brfs_is_dir(prog_path))
     {
-      bdos_shell_prog_argc = argc;
-      {
-        int i;
-        for (i = 0; i < argc && i < BDOS_SHELL_ARGV_MAX; i++)
-        {
-          bdos_shell_prog_argv[i] = argv[i];
-        }
-      }
-      bdos_exec_program(prog_path);
-      bdos_shell_prog_argc = 0;
+      bdos_proc_spawn(prog_path, argc, argv);
       return;
     }
   }
