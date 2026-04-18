@@ -36,6 +36,27 @@
 #define SYSCALL_UART_PRINT_CHAR  31
 #define SYSCALL_UART_PRINT_STR   32
 #define SYSCALL_FS_MKDIR         33
+#define SYSCALL_OPEN             34
+#define SYSCALL_READ             35
+#define SYSCALL_WRITE            36
+#define SYSCALL_CLOSE            37
+#define SYSCALL_LSEEK            38
+#define SYSCALL_DUP2             39
+
+/* Flags for sys_open() (must match BDOS_O_* in bdos_vfs.h) */
+#define O_RDONLY  0x01
+#define O_WRONLY  0x02
+#define O_RDWR    0x03
+#define O_APPEND  0x04
+#define O_CREAT   0x08
+#define O_TRUNC   0x10
+
+/* whence values for sys_lseek() */
+#ifndef SEEK_SET
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2
+#endif
 
 /* Key state bitmap bit positions (matching BDOS bdos_hid.h) */
 #define KEYSTATE_W        0x0001
@@ -126,6 +147,14 @@ int  sys_net_send(char *buf, int len);
 int  sys_net_recv(char *buf, int max_len);
 int  sys_net_packet_count(void);
 void sys_net_get_mac(int *mac_buf);
+
+/* ---- Convenience wrappers: VFS / fd-oriented byte I/O (Phase B) ---- */
+int  sys_open (const char *path, int flags);
+int  sys_close(int fd);
+int  sys_read (int fd, void *buf, int len);
+int  sys_write(int fd, const void *buf, int len);
+int  sys_lseek(int fd, int offset, int whence);
+int  sys_dup2 (int oldfd, int newfd);
 
 /* ---- Convenience wrappers: UART debug output ---- */
 void sys_uart_print_char(int ch);

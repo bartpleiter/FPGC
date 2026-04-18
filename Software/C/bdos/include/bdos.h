@@ -33,6 +33,7 @@
 #include "bdos_fs.h"
 #include "bdos_fnp.h"
 #include "bdos_shell.h"
+#include "bdos_vfs.h"
 
 /* Core kernel functions (implemented in main.c) */
 void bdos_panic(char *msg);

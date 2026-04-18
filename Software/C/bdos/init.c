@@ -110,5 +110,8 @@ void bdos_init(void)
   bdos_heap_init();
   term_puts("Heap allocator initialized\n");
 
+  bdos_vfs_init();
+  term_puts("VFS initialized\n");
+
   set_user_led(0);
 }

@@ -160,6 +160,27 @@ int bdos_syscall_dispatch(int num, int a1, int a2, int a3)
     case SYSCALL_FS_MKDIR:
       return brfs_create_dir((char *)a1);
 
+    /* ---- VFS / fd-oriented byte I/O (Phase B) ---- */
+    case SYSCALL_OPEN:
+      return bdos_vfs_open((const char *)a1, a2);
+
+    case SYSCALL_READ:
+      return bdos_vfs_read(a1, (void *)a2, a3);
+
+    case SYSCALL_WRITE:
+      return bdos_vfs_write(a1, (const void *)a2, a3);
+
+    case SYSCALL_CLOSE:
+      return bdos_vfs_close(a1);
+
+    case SYSCALL_LSEEK:
+      return bdos_vfs_lseek(a1, a2, a3);
+
+    case SYSCALL_DUP2:
+      /* Phase C will implement this when pipes land. */
+      (void)a1; (void)a2;
+      return -1;
+
     default:
       return -1;
   }

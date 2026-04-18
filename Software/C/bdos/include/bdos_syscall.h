@@ -36,6 +36,12 @@
 #define SYSCALL_UART_PRINT_CHAR  31
 #define SYSCALL_UART_PRINT_STR   32
 #define SYSCALL_FS_MKDIR         33
+#define SYSCALL_OPEN             34
+#define SYSCALL_READ             35
+#define SYSCALL_WRITE            36
+#define SYSCALL_CLOSE            37
+#define SYSCALL_LSEEK            38
+#define SYSCALL_DUP2             39
 
 /* Syscall dispatch function */
 int bdos_syscall_dispatch(int num, int a1, int a2, int a3);

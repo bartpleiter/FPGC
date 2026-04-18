@@ -217,6 +217,38 @@ void sys_net_get_mac(int *mac_buf)
     syscall(SYSCALL_NET_GET_MAC, (int)mac_buf, 0, 0);
 }
 
+/* ---- VFS / fd-oriented byte I/O (Phase B) ---- */
+
+int sys_open(const char *path, int flags)
+{
+    return syscall(SYSCALL_OPEN, (int)path, flags, 0);
+}
+
+int sys_close(int fd)
+{
+    return syscall(SYSCALL_CLOSE, fd, 0, 0);
+}
+
+int sys_read(int fd, void *buf, int len)
+{
+    return syscall(SYSCALL_READ, fd, (int)buf, len);
+}
+
+int sys_write(int fd, const void *buf, int len)
+{
+    return syscall(SYSCALL_WRITE, fd, (int)buf, len);
+}
+
+int sys_lseek(int fd, int offset, int whence)
+{
+    return syscall(SYSCALL_LSEEK, fd, offset, whence);
+}
+
+int sys_dup2(int oldfd, int newfd)
+{
+    return syscall(SYSCALL_DUP2, oldfd, newfd, 0);
+}
+
 /* ---- UART debug output ---- */
 
 void sys_uart_print_char(int ch)
