@@ -26,6 +26,7 @@ def test_all_instruction_binaries():
         "halt",
         "savpc r1",
         "ccache",
+        "ccached",
         "nop",
         "reti",
         "readintid r2",

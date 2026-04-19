@@ -63,6 +63,7 @@ class ControlOperation(StringParsableEnum):
     HALT = "halt"
     SAVE_PROGRAM_COUNTER = "savpc"
     CLEAR_CACHE = "ccache"
+    CLEAR_CACHE_DATA = "ccached"
     NOP = "nop"
     ADDRESS_TO_REGISTER = "addr2reg"
     RETURN_INTERRUPT = "reti"

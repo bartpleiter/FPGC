@@ -371,6 +371,13 @@ class InstructionAssemblyLine(AssemblyLine):
                 raise ValueError("CCACHE does not take arguments")
             return f"{InstructionOpcode.CCACHE.value}{0:028b}"
 
+        if self.instruction_type == ControlOperation.CLEAR_CACHE_DATA:
+            if self.arguments:
+                raise ValueError("CCACHED does not take arguments")
+            # Same opcode as CCACHE; LSB of the instruction word selects
+            # "data cache only" (1) vs "both caches" (0). See B32P3 ISA.
+            return f"{InstructionOpcode.CCACHE.value}{0:027b}1"
+
         if self.instruction_type == ControlOperation.NOP:
             if self.arguments:
                 raise ValueError("NOP does not take arguments")

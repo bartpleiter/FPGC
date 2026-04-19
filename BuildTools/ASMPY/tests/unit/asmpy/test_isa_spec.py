@@ -24,6 +24,27 @@ def test_halt_pattern():
     assert b == "1" * 32
 
 
+def test_ccache_and_ccached_encoding():
+    """ccache and ccached share an opcode and differ only in LSB.
+
+    ccache  -> 0111 0000 0000 0000 0000 0000 0000 0000
+    ccached -> 0111 0000 0000 0000 0000 0000 0000 0001
+
+    The LSB acts as a cache-selector flag: 0 = both caches,
+    1 = data cache only.
+    """
+    # Arrange & Act
+    cc = bits(parse("ccache").to_binary_string())
+    ccd = bits(parse("ccached").to_binary_string())
+
+    # Assert
+    assert cc == "0111" + "0" * 28
+    assert ccd == "0111" + "0" * 27 + "1"
+    # They must differ in exactly one bit, the LSB.
+    diffs = [i for i in range(32) if cc[i] != ccd[i]]
+    assert diffs == [31]
+
+
 def test_opcode_prefixes_basic():
     """Test that basic instructions have correct 4-bit prefixes."""
     # Arrange
@@ -44,6 +65,7 @@ def test_opcode_prefixes_basic():
         ("jumpr 0 r1", "1000"),
         ("jumpro 0 r1", "1000"),
         ("ccache", "0111"),
+        ("ccached", "0111"),
         ("beq r1 r2 1", "0110"),
         ("savpc r7", "0101"),
         ("reti", "0100"),
