@@ -237,7 +237,7 @@ void tree_dir(char *path, int *continues, int depth)
   }
 
   names = (char (*)[MAX_NAME_LEN])sys_heap_alloc(MAX_ENTRIES * MAX_NAME_LEN);
-  types = (int *)sys_heap_alloc(MAX_ENTRIES);
+  types = (int *)sys_heap_alloc(MAX_ENTRIES * sizeof(int));
   if (names == 0 || types == 0)
   {
     print_str("[heap exhausted]\n");
@@ -335,7 +335,7 @@ int main(void)
     strcpy(root_path, cwd);
   }
 
-  entry_buf = sys_heap_alloc(MAX_ENTRIES * DIR_ENTRY_WORDS);
+  entry_buf = sys_heap_alloc(MAX_ENTRIES * DIR_ENTRY_WORDS * sizeof(unsigned int));
   if (entry_buf == 0)
   {
     print_str("error: heap alloc failed\n");
