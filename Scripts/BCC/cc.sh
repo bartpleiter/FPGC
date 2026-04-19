@@ -18,7 +18,7 @@ set -e
 
 cpp -I /lib/include "$1" -o /tmp/c.i
 cproc -t b32p3 < /tmp/c.i > /tmp/c.qbe
-qbe < /tmp/c.qbe > /tmp/user.asm || true
+qbe < /tmp/c.qbe > /tmp/user.asm
 
 asm-link -o /bin/$2 /lib/asm/crt0_ubdos.asm /lib/asm-cache/string.asm /lib/asm-cache/stdlib.asm /lib/asm-cache/malloc.asm /lib/asm-cache/ctype.asm /lib/asm-cache/stdio.asm /lib/asm/syscall_asm.asm /lib/asm-cache/syscall.asm /lib/asm-cache/io_stubs.asm /lib/asm-cache/time.asm /lib/asm-cache/fixedmath.asm /lib/asm/fixed64_asm.asm /lib/asm-cache/fixed64.asm /lib/asm-cache/plot.asm /lib/asm-cache/fnp.asm /tmp/user.asm
 

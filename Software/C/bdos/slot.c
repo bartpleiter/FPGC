@@ -359,9 +359,12 @@ int bdos_exec_program(char *resolved_path)
   bdos_net_ringbuf_reset();
   bdos_slot_free(slot);
 
-  term2_puts("Program exited with code ");
-  term2_putint(bdos_run_retval);
-  term2_putchar('\n');
+  if (bdos_run_retval != 0)
+  {
+    term2_puts("Program exited with code ");
+    term2_putint(bdos_run_retval);
+    term2_putchar('\n');
+  }
 
   return bdos_run_retval;
 }
@@ -402,7 +405,10 @@ void bdos_resume_program(int slot)
   bdos_net_ringbuf_reset();
   bdos_slot_free(slot);
 
-  term2_puts("Program exited with code ");
-  term2_putint(bdos_run_retval);
-  term2_putchar('\n');
+  if (bdos_run_retval != 0)
+  {
+    term2_puts("Program exited with code ");
+    term2_putint(bdos_run_retval);
+    term2_putchar('\n');
+  }
 }

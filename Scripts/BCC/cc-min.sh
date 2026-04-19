@@ -13,11 +13,11 @@ set -e
 
 cpp -I /lib/include /lib/src/syscall.c -o /tmp/c.i
 cproc -t b32p3 < /tmp/c.i > /tmp/c.qbe
-qbe < /tmp/c.qbe > /tmp/syscall.asm || true
+qbe < /tmp/c.qbe > /tmp/syscall.asm
 
 cpp -I /lib/include "$1" -o /tmp/c.i
 cproc -t b32p3 < /tmp/c.i > /tmp/c.qbe
-qbe < /tmp/c.qbe > /tmp/user.asm || true
+qbe < /tmp/c.qbe > /tmp/user.asm
 
 asm-link -o /bin/$2 /lib/asm/crt0_ubdos.asm /lib/asm/syscall_asm.asm /tmp/syscall.asm /tmp/user.asm
 
