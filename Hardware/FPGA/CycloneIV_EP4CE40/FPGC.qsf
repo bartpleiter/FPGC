@@ -404,12 +404,15 @@ set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/MultiCycleAluOps
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/MultiCycleAluOps/FPDivider.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/Memory/VRAM.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/Memory/SDRAMcontroller.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/Memory/SDRAMarbiter.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/Memory/ROM.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/Memory/MemoryUnit.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/Memory/DPRAM.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/UARTtx.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/UARTrx.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/SimpleSPI.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/SimpleSPI2.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/DMAengine.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/OStimer.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/MicrosCounter.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/ActivityLED.v

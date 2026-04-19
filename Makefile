@@ -471,6 +471,8 @@ BDOS_V3_SOURCES = \
 	Software/C/libfpgc/io/spi_flash.c \
 	Software/C/libfpgc/io/ch376.c \
 	Software/C/libfpgc/io/enc28j60.c \
+	Software/C/libfpgc/io/dma_asm.asm \
+	Software/C/libfpgc/io/dma.c \
 	Software/C/libfpgc/gfx/gpu_hal.c \
 	Software/C/libfpgc/gfx/gpu_fb.c \
 	Software/C/libfpgc/gfx/gpu_data_ascii.c \

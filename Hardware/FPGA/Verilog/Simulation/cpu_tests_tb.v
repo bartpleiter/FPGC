@@ -31,6 +31,7 @@
 //`include "Hardware/FPGA/Verilog/Modules/Memory/W25Q128JV.v"
 
 `include "Hardware/FPGA/Verilog/Modules/Memory/MemoryUnit.v"
+`include "Hardware/FPGA/Verilog/Modules/IO/DMAengine.v"
 `include "Hardware/FPGA/Verilog/Modules/IO/UARTrx.v"
 `include "Hardware/FPGA/Verilog/Modules/IO/UARTtx.v"
 `include "Hardware/FPGA/Verilog/Modules/IO/SimpleSPI.v"
@@ -424,6 +425,32 @@ wire            cpu_sdc_start;
 wire            cpu_sdc_done;
 wire [255:0]    cpu_sdc_q;
 
+// ---- DMA engine wires (step 8) ----
+wire [20:0]     dma_sd_addr;
+wire [255:0]    dma_sd_data;
+wire            dma_sd_we;
+wire            dma_sd_start;
+wire            dma_sd_done;
+wire [255:0]    dma_sd_q;
+
+wire [2:0]      dma_reg_addr;
+wire            dma_reg_we;
+wire [31:0]     dma_reg_data;
+wire [31:0]     dma_reg_q;
+
+wire            dma_iop_start;
+wire            dma_iop_we;
+wire [31:0]     dma_iop_addr;
+wire [31:0]     dma_iop_data;
+wire            dma_iop_done;
+wire [31:0]     dma_iop_q;
+
+wire            dma_vp_we;
+wire [16:0]     dma_vp_addr;
+wire [7:0]      dma_vp_data;
+
+wire            dma_irq;
+
 SDRAMarbiter sdram_arb (
     .clk(clk),
     .reset(reset || uart_reset),
@@ -435,12 +462,12 @@ SDRAMarbiter sdram_arb (
     .cpu_done(cpu_sdc_done),
     .cpu_q(cpu_sdc_q),
 
-    .dma_addr(21'd0),
-    .dma_data(256'd0),
-    .dma_we(1'b0),
-    .dma_start(1'b0),
-    .dma_done(),
-    .dma_q(),
+    .dma_addr(dma_sd_addr),
+    .dma_data(dma_sd_data),
+    .dma_we(dma_sd_we),
+    .dma_start(dma_sd_start),
+    .dma_done(dma_sd_done),
+    .dma_q(dma_sd_q),
 
     .sdc_addr(sdc_addr),
     .sdc_data(sdc_data),
@@ -583,19 +610,54 @@ MemoryUnit memory_unit (
     .SPI5_miso(SPI5_miso),
     .SPI5_cs(SPI5_cs),
 
-    // DMA peer ports (no engine wired yet -- step 7 stub)
-    .iop_start(1'b0),
-    .iop_we(1'b0),
-    .iop_addr(32'd0),
-    .iop_data(32'd0),
-    .iop_done(),
-    .iop_q(),
-    .vp_we(1'b0),
-    .vp_addr(17'd0),
-    .vp_data(8'd0),
+    // DMA peer ports (engine wired in step 8)
+    .iop_start(dma_iop_start),
+    .iop_we(dma_iop_we),
+    .iop_addr(dma_iop_addr),
+    .iop_data(dma_iop_data),
+    .iop_done(dma_iop_done),
+    .iop_q(dma_iop_q),
+    .vp_we(dma_vp_we),
+    .vp_addr(dma_vp_addr),
+    .vp_data(dma_vp_data),
     .vramPX_dma_we(),
     .vramPX_dma_addr(),
-    .vramPX_dma_d()
+    .vramPX_dma_d(),
+
+    .dma_reg_addr(dma_reg_addr),
+    .dma_reg_we(dma_reg_we),
+    .dma_reg_data(dma_reg_data),
+    .dma_reg_q(dma_reg_q)
+);
+
+DMAengine dma_engine (
+    .clk(clk),
+    .reset(reset || uart_reset),
+
+    .reg_addr(dma_reg_addr),
+    .reg_we(dma_reg_we),
+    .reg_data(dma_reg_data),
+    .reg_q(dma_reg_q),
+
+    .sd_addr(dma_sd_addr),
+    .sd_data(dma_sd_data),
+    .sd_we(dma_sd_we),
+    .sd_start(dma_sd_start),
+    .sd_done(dma_sd_done),
+    .sd_q(dma_sd_q),
+
+    .iop_start(dma_iop_start),
+    .iop_we(dma_iop_we),
+    .iop_addr(dma_iop_addr),
+    .iop_data(dma_iop_data),
+    .iop_done(dma_iop_done),
+    .iop_q(dma_iop_q),
+
+    .vp_we(dma_vp_we),
+    .vp_addr(dma_vp_addr),
+    .vp_data(dma_vp_data),
+
+    .irq(dma_irq)
 );
 
 //-----------------------CPU-------------------------

@@ -93,7 +93,13 @@ module MemoryUnit (
     input  wire [7:0]   vp_data,
     output wire         vramPX_dma_we,
     output wire [16:0]  vramPX_dma_addr,
-    output wire [7:0]   vramPX_dma_d
+    output wire [7:0]   vramPX_dma_d,
+
+    // ---- DMA register-bus side (connects to DMAengine reg_*) ----
+    output reg  [2:0]   dma_reg_addr = 3'd0,
+    output reg          dma_reg_we   = 1'b0,
+    output reg  [31:0]  dma_reg_data = 32'd0,
+    input  wire [31:0]  dma_reg_q
 
     // TODO: GPIO
 );
@@ -393,15 +399,12 @@ localparam
 reg [4:0] state = 5'd0;
 reg wait_done = 1'b0;
 
-// ---- DMA register backing storage ----
-// Step 7: pure RW backing storage so software can prod the addresses during early
-// bringup. The DMAengine instantiation in step 8 will replace these regs with
-// reads/writes routed to the actual engine.
-reg [31:0] dma_src     = 32'd0;
-reg [31:0] dma_dst     = 32'd0;
-reg [31:0] dma_count   = 32'd0;
-reg [31:0] dma_ctrl    = 32'd0;
-reg [31:0] dma_temp_q  = 32'd0; // captured value for STATE_RETURN_DMA_REG
+// ---- DMA register-bus routing ----
+// Step 8: the 5 DMA registers now live inside DMAengine; MemoryUnit just
+// translates CPU MMIO accesses to ADDR_DMA_* into reg_addr / reg_we /
+// reg_data pulses on the engine bus, and forwards the engine's combinatorial
+// reg_q back to the CPU one cycle later via STATE_RETURN_DMA_REG.
+// (The local backing-store regs from step 7 are gone.)
 
 always @(posedge clk) begin
     if (reset)
@@ -455,11 +458,9 @@ always @(posedge clk) begin
         SPI5_in <= 8'd0;
         SPI5_cs <= 1'b1;
 
-        dma_src    <= 32'd0;
-        dma_dst    <= 32'd0;
-        dma_count  <= 32'd0;
-        dma_ctrl   <= 32'd0;
-        dma_temp_q <= 32'd0;
+        dma_reg_addr <= 3'd0;
+        dma_reg_we   <= 1'b0;
+        dma_reg_data <= 32'd0;
     end else
     begin
         // Default assignments
@@ -479,6 +480,9 @@ always @(posedge clk) begin
         OST2_trigger <= 1'b0;
         OST3_set <= 1'b0;
         OST3_trigger <= 1'b0;
+
+        // DMA register-bus pulses default low so writes/reads only fire one cycle
+        dma_reg_we <= 1'b0;
 
         SPI0_start <= 1'b0;
         SPI1_start <= 1'b0;
@@ -707,36 +711,41 @@ always @(posedge clk) begin
                         state <= STATE_RETURN_ZERO;
                     end
 
-                    // ---- DMA registers (no engine yet -- step 7 is pure RW backing storage) ----
+                    // ---- DMA registers (routed to DMAengine reg_*) ----
                     else if (addr == ADDR_DMA_SRC)
                     begin
-                        if (we) dma_src <= data;
-                        dma_temp_q <= dma_src;
-                        state <= STATE_RETURN_DMA_REG;
+                        dma_reg_addr <= 3'd0;
+                        dma_reg_we   <= we;
+                        dma_reg_data <= data;
+                        state        <= STATE_RETURN_DMA_REG;
                     end
                     else if (addr == ADDR_DMA_DST)
                     begin
-                        if (we) dma_dst <= data;
-                        dma_temp_q <= dma_dst;
-                        state <= STATE_RETURN_DMA_REG;
+                        dma_reg_addr <= 3'd1;
+                        dma_reg_we   <= we;
+                        dma_reg_data <= data;
+                        state        <= STATE_RETURN_DMA_REG;
                     end
                     else if (addr == ADDR_DMA_COUNT)
                     begin
-                        if (we) dma_count <= data;
-                        dma_temp_q <= dma_count;
-                        state <= STATE_RETURN_DMA_REG;
+                        dma_reg_addr <= 3'd2;
+                        dma_reg_we   <= we;
+                        dma_reg_data <= data;
+                        state        <= STATE_RETURN_DMA_REG;
                     end
                     else if (addr == ADDR_DMA_CTRL)
                     begin
-                        if (we) dma_ctrl <= data;
-                        dma_temp_q <= dma_ctrl;
-                        state <= STATE_RETURN_DMA_REG;
+                        dma_reg_addr <= 3'd3;
+                        dma_reg_we   <= we;
+                        dma_reg_data <= data;
+                        state        <= STATE_RETURN_DMA_REG;
                     end
                     else if (addr == ADDR_DMA_STATUS)
                     begin
-                        // No engine yet: STATUS reads as 0. Writes are ignored.
-                        dma_temp_q <= 32'd0;
-                        state <= STATE_RETURN_DMA_REG;
+                        dma_reg_addr <= 3'd4;
+                        dma_reg_we   <= 1'b0; // STATUS is read-only; reading also clears stickies
+                        dma_reg_data <= 32'd0;
+                        state        <= STATE_RETURN_DMA_REG;
                     end
                     else
                     begin
@@ -915,7 +924,7 @@ always @(posedge clk) begin
             STATE_RETURN_DMA_REG:
             begin
                 done <= 1'b1;
-                q <= dma_temp_q;
+                q <= dma_reg_q;
                 state <= STATE_IDLE;
             end
 

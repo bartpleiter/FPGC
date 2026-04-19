@@ -51,6 +51,29 @@
 #define FPGC_MICROS          0x1C000068
 #define FPGC_USER_LED       0x1C00006C
 
+/* DMA engine registers (see Docs/plans/dma-implementation-plan.md §2.9) */
+#define FPGC_DMA_SRC        0x1C000070
+#define FPGC_DMA_DST        0x1C000074
+#define FPGC_DMA_COUNT      0x1C000078
+#define FPGC_DMA_CTRL       0x1C00007C
+#define FPGC_DMA_STATUS     0x1C000080
+
+/* DMA_CTRL bit fields */
+#define FPGC_DMA_MODE_MEM2MEM   0
+#define FPGC_DMA_MODE_MEM2SPI   1
+#define FPGC_DMA_MODE_SPI2MEM   2
+#define FPGC_DMA_MODE_MEM2VRAM  3
+#define FPGC_DMA_MODE_MEM2IO    4
+#define FPGC_DMA_MODE_IO2MEM    5
+#define FPGC_DMA_CTRL_IRQ_EN    (1u << 4)
+#define FPGC_DMA_CTRL_SPI_SHIFT 5
+#define FPGC_DMA_CTRL_START     (1u << 31)
+
+/* DMA_STATUS bits (sticky bits cleared on read) */
+#define FPGC_DMA_STATUS_BUSY    (1u << 0)
+#define FPGC_DMA_STATUS_DONE    (1u << 1)
+#define FPGC_DMA_STATUS_ERROR   (1u << 2)
+
 /* Interrupt system */
 #define FPGC_PC_BACKUP      0x1F000000
 #define FPGC_HW_STACK_PTR   0x1F000004
@@ -108,6 +131,7 @@
 #define FPGC_INTID_TIMER2        4
 #define FPGC_INTID_FRAME_DRAWN   5
 #define FPGC_INTID_ETH           6
+#define FPGC_INTID_DMA           9
 
 /*========================================================================
  * SPI bus identifiers

@@ -3,8 +3,11 @@
  * ------------
  * Two-port arbiter that sits between the CPU CacheController (priority master)
  * and the DMA engine on one side, and the single-port SDRAMcontroller on the
- * other. The CPU port always wins ties; once a request has been granted the
- * arbiter holds the bus until the SDRAM controller asserts `sdc_done`.
+ * other. The CPU port wins by default, but to prevent the DMA from being
+ * starved by tight I-cache prefetch loops we apply a single-slot fairness
+ * rule: after a CPU transaction completes, if the DMA is requesting at the
+ * same time as the CPU, the next grant goes to the DMA. This trades at most
+ * one extra cycle of CPU latency for guaranteed DMA forward progress.
  *
  * Notes:
  *  - Both requesters issue a single-cycle `start` pulse and then wait for
@@ -45,18 +48,21 @@ module SDRAMarbiter (
     input  wire [255:0] sdc_q
 );
 
-reg busy  = 1'b0;
-reg owner = 1'b0; // 0 = CPU, 1 = DMA
+reg busy        = 1'b0;
+reg owner       = 1'b0; // 0 = CPU, 1 = DMA
+reg last_cpu    = 1'b0; // Set after a CPU transaction; if DMA is also asking, it wins next.
 
-wire grant_cpu = !busy && cpu_start;
-wire grant_dma = !busy && !cpu_start && dma_start;
+wire dma_pref  = last_cpu && dma_start;
+wire grant_cpu = !busy && cpu_start && !dma_pref;
+wire grant_dma = !busy && dma_start && (!cpu_start || dma_pref);
 
 always @(posedge clk)
 begin
     if (reset)
     begin
-        busy  <= 1'b0;
-        owner <= 1'b0;
+        busy     <= 1'b0;
+        owner    <= 1'b0;
+        last_cpu <= 1'b0;
     end
     else
     begin
@@ -69,13 +75,15 @@ begin
         begin
             if (grant_cpu)
             begin
-                busy  <= 1'b1;
-                owner <= 1'b0;
+                busy     <= 1'b1;
+                owner    <= 1'b0;
+                last_cpu <= 1'b1;
             end
             else if (grant_dma)
             begin
-                busy  <= 1'b1;
-                owner <= 1'b1;
+                busy     <= 1'b1;
+                owner    <= 1'b1;
+                last_cpu <= 1'b0;
             end
         end
     end
