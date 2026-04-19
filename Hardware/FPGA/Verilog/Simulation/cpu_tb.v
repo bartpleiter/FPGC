@@ -646,7 +646,21 @@ MemoryUnit memory_unit (
     .SPI5_clk(SPI5_clk),
     .SPI5_mosi(SPI5_mosi),
     .SPI5_miso(SPI5_miso),
-    .SPI5_cs(SPI5_cs)
+    .SPI5_cs(SPI5_cs),
+
+    // DMA peer ports (no engine wired yet -- step 7 stub)
+    .iop_start(1'b0),
+    .iop_we(1'b0),
+    .iop_addr(32'd0),
+    .iop_data(32'd0),
+    .iop_done(),
+    .iop_q(),
+    .vp_we(1'b0),
+    .vp_addr(17'd0),
+    .vp_data(8'd0),
+    .vramPX_dma_we(),
+    .vramPX_dma_addr(),
+    .vramPX_dma_d()
 );
 
 //-----------------------CPU-------------------------

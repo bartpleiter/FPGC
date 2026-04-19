@@ -76,10 +76,38 @@ module MemoryUnit (
     output wire         SPI5_clk,
     output reg          SPI5_cs = 1'b1,
     output wire         SPI5_mosi,
-    input wire          SPI5_miso
+    input wire          SPI5_miso,
+
+    // ---- DMA peer-request ports (driven by DMAengine, see dma-implementation-plan.md §2.5) ----
+    // I/O peer port: lets the DMA engine push transactions through MemoryUnit's IO state machine.
+    input  wire         iop_start,
+    input  wire         iop_we,
+    input  wire [31:0]  iop_addr,
+    input  wire [31:0]  iop_data,
+    output wire         iop_done,
+    output wire [31:0]  iop_q,
+
+    // VRAMPX peer port: lets the DMA engine emit byte writes to the pixel framebuffer.
+    input  wire         vp_we,
+    input  wire [16:0]  vp_addr,
+    input  wire [7:0]   vp_data,
+    output wire         vramPX_dma_we,
+    output wire [16:0]  vramPX_dma_addr,
+    output wire [7:0]   vramPX_dma_d
 
     // TODO: GPIO
 );
+
+// ---- DMA peer-port plumbing (no DMA engine yet -- step 7 only adds the wiring) ----
+// In step 8 the IDLE-state arbiter will route iop_start through the same state machine
+// the CPU uses; for now, no peer transactions can fire because all top-level inputs are
+// tied to zero.
+assign iop_done        = 1'b0;
+assign iop_q           = 32'd0;
+// VRAMPX DMA pass-through (muxed with the CPU port at the FPGA top-level in step 8).
+assign vramPX_dma_we   = vp_we;
+assign vramPX_dma_addr = vp_addr;
+assign vramPX_dma_d    = vp_data;
 
 // ---- IO devices ----
 // UART TX
@@ -329,7 +357,12 @@ localparam
     ADDR_BOOT_MODE       = 32'h1C000064, // Boot mode
     ADDR_MICROS          = 32'h1C000068, // Micros
     ADDR_LED_USER        = 32'h1C00006C, // User LED control
-    ADDR_OOB             = 32'h1C000070; // All addresses >= this are out of bounds
+    ADDR_DMA_SRC         = 32'h1C000070, // DMA source address (byte)
+    ADDR_DMA_DST         = 32'h1C000074, // DMA destination address (byte)
+    ADDR_DMA_COUNT       = 32'h1C000078, // DMA byte count
+    ADDR_DMA_CTRL        = 32'h1C00007C, // DMA control: [3:0] mode, [4] irq_en, [7:5] sub-target, [31] start
+    ADDR_DMA_STATUS      = 32'h1C000080, // DMA status: [0] busy, [1] done, [2] error (sticky, read-clear)
+    ADDR_OOB             = 32'h1C000084; // All addresses >= this are out of bounds
 
 // ---- State encoding ----
 localparam
@@ -353,11 +386,22 @@ localparam
     STATE_WAIT_SPI5_DATA         = 5'd17,
     STATE_WAIT_SPI5_CS           = 5'd18,
     STATE_WAIT_BOOT_MODE         = 5'd19,
-    STATE_WAIT_MICROS            = 5'd20;
+    STATE_WAIT_MICROS            = 5'd20,
+    STATE_RETURN_DMA_REG         = 5'd21; // generic 1-cycle latency read of a DMA register
 
 
 reg [4:0] state = 5'd0;
 reg wait_done = 1'b0;
+
+// ---- DMA register backing storage ----
+// Step 7: pure RW backing storage so software can prod the addresses during early
+// bringup. The DMAengine instantiation in step 8 will replace these regs with
+// reads/writes routed to the actual engine.
+reg [31:0] dma_src     = 32'd0;
+reg [31:0] dma_dst     = 32'd0;
+reg [31:0] dma_count   = 32'd0;
+reg [31:0] dma_ctrl    = 32'd0;
+reg [31:0] dma_temp_q  = 32'd0; // captured value for STATE_RETURN_DMA_REG
 
 always @(posedge clk) begin
     if (reset)
@@ -410,6 +454,12 @@ always @(posedge clk) begin
         SPI5_start <= 1'b0;
         SPI5_in <= 8'd0;
         SPI5_cs <= 1'b1;
+
+        dma_src    <= 32'd0;
+        dma_dst    <= 32'd0;
+        dma_count  <= 32'd0;
+        dma_ctrl   <= 32'd0;
+        dma_temp_q <= 32'd0;
     end else
     begin
         // Default assignments
@@ -656,6 +706,38 @@ always @(posedge clk) begin
                         end
                         state <= STATE_RETURN_ZERO;
                     end
+
+                    // ---- DMA registers (no engine yet -- step 7 is pure RW backing storage) ----
+                    else if (addr == ADDR_DMA_SRC)
+                    begin
+                        if (we) dma_src <= data;
+                        dma_temp_q <= dma_src;
+                        state <= STATE_RETURN_DMA_REG;
+                    end
+                    else if (addr == ADDR_DMA_DST)
+                    begin
+                        if (we) dma_dst <= data;
+                        dma_temp_q <= dma_dst;
+                        state <= STATE_RETURN_DMA_REG;
+                    end
+                    else if (addr == ADDR_DMA_COUNT)
+                    begin
+                        if (we) dma_count <= data;
+                        dma_temp_q <= dma_count;
+                        state <= STATE_RETURN_DMA_REG;
+                    end
+                    else if (addr == ADDR_DMA_CTRL)
+                    begin
+                        if (we) dma_ctrl <= data;
+                        dma_temp_q <= dma_ctrl;
+                        state <= STATE_RETURN_DMA_REG;
+                    end
+                    else if (addr == ADDR_DMA_STATUS)
+                    begin
+                        // No engine yet: STATUS reads as 0. Writes are ignored.
+                        dma_temp_q <= 32'd0;
+                        state <= STATE_RETURN_DMA_REG;
+                    end
                     else
                     begin
                         // Out of range or unhandled address
@@ -827,6 +909,13 @@ always @(posedge clk) begin
             begin
                 done <= 1'b1;
                 q <= 32'd0;
+                state <= STATE_IDLE;
+            end
+
+            STATE_RETURN_DMA_REG:
+            begin
+                done <= 1'b1;
+                q <= dma_temp_q;
                 state <= STATE_IDLE;
             end
 
