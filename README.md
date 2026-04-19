@@ -24,7 +24,7 @@ This project is the successor of the FPGC6 project. Building abstraction layers 
 
 ### Main goals
 
-- [ ] Use the FPGC as a fully portable standalone PC that can write, compile, and run software without an external computer [Note: this was achieved with the legacy B32CC compiler, but the modern toolchain is not yet self-hosted, so this is still a goal]
+- [x] Use the FPGC as a fully portable standalone PC that can write, compile, and run software without an external computer
 - [x] Run DOOM at a playable framerate, which requires the CPU to be efficient and fast enough, and a solid software stack as it is a relatively complex program [Achieved with 20-30 FPS in low-detail mode without border]
 - [x] Run a demo in a cluster setup of 5 FPGCs networked together, with one acting as a server and the other four rendering different parts of the screen in parallel [Achieved with a distributed mandelbrot renderer, and distributed Tetris genetic algorithm]
 - [x] Properly document the entire project [Achieved by this docs site, which I try to keep up to date]

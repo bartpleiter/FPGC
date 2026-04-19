@@ -152,7 +152,7 @@ User programs communicate with BDOS through a software syscall mechanism, as the
 
 The ASMPY assembler header places a `jump Syscall` instruction at absolute address 12 (byte offset `0xC`, as part of the header, enabled with the `-s` flag). User programs invoke a syscall by jumping to this address with arguments in registers. The flow is:
 
-1. User calls `syscall(num, a1, a2, a3)`, B32CC places arguments in `r4` to `r7`
+1. User calls `syscall(num, a1, a2, a3)`, the C ABI places arguments in `r4` to `r7`
 2. The inline assembly saves `r15`, loads address 12 into a temp register, sets the return address via `savpc`/`add`, and jumps
 3. Address 12 contains `jump Syscall`, redirecting into the kernel's assembly trampoline
 4. The trampoline saves all registers (except `r1`) to the hardware stack, switches to the kernel syscall stack, and calls the C dispatcher

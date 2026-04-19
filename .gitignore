@@ -40,13 +40,11 @@ Hardware/PCB/FPGC-CycloneIV-AIO_backup/
 tmp
 Software/ASM/Output
 Software/C/bareMetal/flash_writer/flash_binary.c
-BuildTools/B32CC/output
 BuildTools/QBE/output
 BuildTools/QBE/*.o
 BuildTools/QBE/b32p3/*.o
 BuildTools/cproc/output
 BuildTools/cproc/*.o
-Tests/B32CC/tmp
 Tests/C/tmp
 Tests/tmp
 Files/BRFS-init

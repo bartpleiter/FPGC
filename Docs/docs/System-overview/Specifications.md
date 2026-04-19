@@ -65,7 +65,6 @@ A quick-reference summary of the FPGC's hardware and software specifications.
 |---|---|
 | ASMPY | Python assembler for B32P3 ISA |
 | cproc + QBE | C11 compiler toolchain, targets B32P3 assembly |
-| B32CC (legacy) | C compiler (SmallerC-derived), targets B32P3 assembly |
 | BDOS | Custom OS with shell, syscalls, program loading |
 | BRFS | FAT-based filesystem, RAM-cached with SPI Flash persistence |
 | FNP | Custom Layer 2 Ethernet protocol for file transfer and remote input |

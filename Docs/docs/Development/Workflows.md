@@ -27,7 +27,6 @@ This is CI-safe and will exit with a non-zero status if any check fails.
 | Verilog (SDRAM) | - | `make sim-sdram` |
 | ASMPY Assembler | `make test-asmpy` | - |
 | C Compiler (cproc+QBE) | `make test-c` | `make test-c-single file=<test>` |
-| B32CC Compiler (legacy) | `make test-b32cc` | `make debug-b32cc file=<test>` |
 | **All checks** | `make check` | - |
 
 ---
@@ -49,7 +48,7 @@ Running single simulations (via the `make` commands below) will show logs from `
 
 ### Running tests and simulations
 
-By default, the CPU and B32CC tests run in parallel with 4 workers to prevent crashes on machines with low RAM (<16GB), as each simulation uses quite a bit of RAM. To adjust the worker count, set the `FPGC_TEST_WORKERS` environment variable (e.g. `export FPGC_TEST_WORKERS=12` in `~/.bashrc`).
+By default, the CPU and C tests run in parallel with 4 workers to prevent crashes on machines with low RAM (<16GB), as each simulation uses quite a bit of RAM. To adjust the worker count, set the `FPGC_TEST_WORKERS` environment variable (e.g. `export FPGC_TEST_WORKERS=12` in `~/.bashrc`).
 
 **CPU tests:**
 
@@ -136,7 +135,7 @@ After changes, it’s good to run assembler-dependent tests to see if those stil
 
 ```bash
 make test-cpu
-make test-b32cc
+make test-c
 ```
 
 ---
@@ -202,71 +201,6 @@ make test-c-single file=01_return/my_test.c
 - `13_*`: recursion
 - `14_*`: type casts
 - `15_*`: fixed-point
-
----
-
-## B32CC Compiler (Legacy)
-
-B32CC (based on SmallerC) resides in `BuildTools/B32CC/`.
-
-**Build:**
-
-```bash
-make b32cc
-```
-
-The compiler rebuilds automatically when `smlrc.c` or `cgb32p3.inc` changes.
-
-**Run all tests:**
-
-```bash
-make test-b32cc
-```
-
-Compiles all C tests in `Tests/B32CC/`, simulates, and verifies results.
-
-**Single test:**
-
-```bash
-make test-b32cc-single file=3_1_if_statements.c
-```
-
-Faster when iterating on one feature.
-
-**Debug a test:**
-
-```bash
-make debug-b32cc file=3_1_if_statements.c
-```
-
-Workflow: compile C to assembly, copy to `Software/ASM/Simulation/sim_ram.asm`, set ROM to jump to RAM, then open simulation via `make sim-cpu`.
-
-**Add a C test:**
-
-```c
-// Tests/B32CC/my_test.c
-int main() {
-    int result = 42;
-    return result; // expected=0x2A
-}
-
-void interrupt() {
-    // Required interrupt handler
-}
-```
-
-Include `// expected=0xXX` for the return value. Run with:
-
-```bash
-make test-b32cc-single file=my_test.c
-```
-
-**Test categories:**
-
-- `1_*`: basics (returns, variables)
-- `2_*`: functions (calls, args, returns)
-- `3_*`: control flow (if/while/for, combined)
-- `4_*`: ...
 
 ---
 

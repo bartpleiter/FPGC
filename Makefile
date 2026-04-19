@@ -5,13 +5,10 @@
 SHELL := /bin/bash
 
 # -----------------------------------------------------------------------------
-# B32CC (C Compiler) Variables
+# Host C Compiler (used to build BuildTools)
 # -----------------------------------------------------------------------------
 CC = gcc
 CFLAGS = -Wall -Wextra -O2
-B32CC_DIR = BuildTools/B32CC
-B32CC_SOURCES = $(B32CC_DIR)/smlrc.c
-B32CC_OUTPUT = $(B32CC_DIR)/output/b32cc
 
 # -----------------------------------------------------------------------------
 # QBE (Backend Compiler) Variables
@@ -39,16 +36,14 @@ CPROC_OUTPUT = $(CPROC_DIR)/output/cproc-qbe
 .PHONY: test-c test-c-single
 .PHONY: compile-asm compile-bootloader compile-c-baremetal compile-bdos
 .PHONY: compile-userbdos compile-userbdos-all compile-doom
-.PHONY: compile-userbdos-b32cc compile-userbdos-all-b32cc
 .PHONY: run-uart uart-monitor run-asm-uart run-c-baremetal-uart run-bdos
 .PHONY: run-userbdos run-doom
 .PHONY: flash-c-baremetal-spi flash-bdos
-.PHONY: b32cc test-b32cc test-b32cc-single debug-b32cc clean-b32cc
 .PHONY: qbe clean-qbe
 .PHONY: cproc clean-cproc
 .PHONY: selfhost-qbe selfhost-cproc selfhost-all stage-cc-toolchain
 .PHONY: check
-.PHONY: fnp-upload-text fnp-upload-userbdos fnp-upload-userbdos-b32cc
+.PHONY: fnp-upload-text fnp-upload-userbdos
 .PHONY: fnp-keyboard fnp-detect-iface fnp-sync-files fnp-run
 .PHONY: fnp-debug-userbdos
 .PHONY: convert-w3d-textures
@@ -56,7 +51,7 @@ CPROC_OUTPUT = $(CPROC_DIR)/output/cproc-qbe
 # -----------------------------------------------------------------------------
 # Default Target
 # -----------------------------------------------------------------------------
-all: venv b32cc qbe cproc asmpy-install check
+all: venv qbe cproc asmpy-install check
 
 # =============================================================================
 # Python Development Environment (General)
@@ -149,45 +144,6 @@ format-check: ruff-format-check
 
 check: format-check lint test-asmpy test-cpu test-c
 	@echo "All checks passed!"
-
-# =============================================================================
-# B32CC (C Compiler)
-# =============================================================================
-
-b32cc: $(B32CC_OUTPUT)
-
-$(B32CC_OUTPUT): $(B32CC_SOURCES) $(B32CC_DIR)/cgb32p3.inc
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -DNO_ANNOTATIONS $(B32CC_SOURCES) -o $@
-
-test-b32cc: $(B32CC_OUTPUT)
-	@mkdir -p Tests/tmp
-	./Scripts/Tests/run_b32cc_tests.sh
-
-test-b32cc-single: $(B32CC_OUTPUT)
-	@mkdir -p Tests/B32CC/tmp
-	@if [ -z "$(file)" ]; then \
-		echo "Usage: make test-b32cc-single file=<test_file>"; \
-		echo "Example: make test-b32cc-single file=04_control_flow/if_statements.c"; \
-		echo "Available tests:"; \
-		find Tests/B32CC -name "*.c" -type f | grep -v "old_tests" | grep -v "tmp" | sed 's|Tests/B32CC/||' | sort; \
-		exit 1; \
-	fi
-	./Scripts/Tests/run_b32cc_tests.sh $(file)
-
-debug-b32cc: $(B32CC_OUTPUT)
-	@mkdir -p Tests/B32CC/tmp
-	@if [ -z "$(file)" ]; then \
-		echo "Usage: make debug-b32cc file=<test_file>"; \
-		echo "Example: make debug-b32cc file=04_control_flow/if_statements.c"; \
-		echo "Available tests:"; \
-		find Tests/B32CC -name "*.c" -type f | grep -v "old_tests" | grep -v "tmp" | sed 's|Tests/B32CC/||' | sort; \
-		exit 1; \
-	fi
-	./Scripts/Tests/debug_b32cc_test.sh $(file)
-
-clean-b32cc:
-	rm -f $(B32CC_OUTPUT)
 
 # =============================================================================
 # C Test Suite (cproc + QBE)
@@ -738,48 +694,6 @@ compile-userbdos-all: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	fi; \
 	echo "============================================================"
 
-# --- B32CC (legacy — userBDOS only, until self-hosting) ---
-
-compile-userbdos-b32cc: $(B32CC_OUTPUT)
-	@if [ -z "$(file)" ]; then \
-		echo "Usage: make compile-userbdos-b32cc file=<c_filename_in_userBDOS_dir_without_extension>"; \
-		echo "Example: make compile-userbdos-b32cc file=snake"; \
-		echo "Available programs:"; \
-		find Software/C/userBDOS -name "*.c" -type f | sed 's|Software/C/userBDOS/||' | sed 's|.c||' | sort; \
-		exit 1; \
-	fi
-	./Scripts/BCC/compile_user_bdos.sh $(file)
-	@mkdir -p Files/BRFS-init/bin
-	@cp Software/ASM/Output/code.bin Files/BRFS-init/bin/$(file)
-	@echo "Binary copied to Files/BRFS-init/bin/$(file)"
-
-compile-userbdos-all-b32cc: $(B32CC_OUTPUT)
-	@rm -rf Files/BRFS-init/bin
-	@mkdir -p Files/BRFS-init/bin
-	@echo "Compiling all userBDOS programs (B32CC)..."
-	@FAILED=0; TOTAL=0; \
-	for src in Software/C/userBDOS/*.c; do \
-		name=$$(basename "$$src" .c); \
-		TOTAL=$$((TOTAL + 1)); \
-		echo ""; \
-		echo "=== [$$TOTAL] Compiling $$name ==="; \
-		if ./Scripts/BCC/compile_user_bdos.sh "$$name" > /dev/null 2>&1; then \
-			cp Software/ASM/Output/code.bin Files/BRFS-init/bin/$$name; \
-			echo "  -> Files/BRFS-init/bin/$$name"; \
-		else \
-			echo "  FAILED: $$name"; \
-			FAILED=$$((FAILED + 1)); \
-		fi; \
-	done; \
-	echo ""; \
-	echo "============================================================"; \
-	echo "Compiled $$((TOTAL - FAILED))/$$TOTAL programs to Files/BRFS-init/bin/"; \
-	if [ $$FAILED -gt 0 ]; then \
-		echo "WARNING: $$FAILED program(s) failed to compile"; \
-		exit 1; \
-	fi; \
-	echo "============================================================"
-
 # =============================================================================
 # Hardware Programming
 # =============================================================================
@@ -861,16 +775,6 @@ fnp-upload-userbdos: compile-userbdos
 	@.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py --mac $(FNP_MAC) upload Software/ASM/Output/code.bin /bin/$(file)
 	@echo "Done! Program uploaded to /bin/$(file)"
 
-fnp-upload-userbdos-b32cc: $(B32CC_OUTPUT)
-	@if [ -z "$(file)" ]; then \
-		echo "Usage: make fnp-upload-userbdos-b32cc file=<name> [flags=<B32CC flags>] [dev=1-5]"; \
-		echo "Example: make fnp-upload-userbdos-b32cc file=hello dev=3"; \
-		echo "Available programs:"; \
-		find Software/C/userBDOS -name "*.c" -type f 2>/dev/null | grep -v "tmp" | sed 's|Software/C/userBDOS/||' | sed 's|.c||' | sort; \
-		exit 1; \
-	fi
-	FNP_TARGET_MAC="$(FNP_MAC)" ./Scripts/Programmer/Network/fnp_upload_userbdos.sh $(file) $(flags)
-
 fnp-keyboard:
 	FNP_TARGET_MAC="$(FNP_MAC)" ./Scripts/Programmer/Network/fnp_keyboard.sh
 
@@ -933,7 +837,6 @@ clean:
 	-rm -rf .pytest_cache
 	-rm -rf .ruff_cache
 	-rm -rf .coverage
-	-rm -f $(B32CC_OUTPUT)
 	-$(MAKE) -C $(QBE_DIR) clean
 	-$(MAKE) -C $(CPROC_DIR) clean
 	-find . -type d -name __pycache__ -exec rm -r {} \+ 2>/dev/null; true
@@ -972,15 +875,6 @@ help:
 	@echo "  ruff-lint           - Run ruff linter only"
 	@echo "  ruff-format         - Run ruff formatter only (modifies files)"
 	@echo "  ruff-format-check   - Check ruff formatting only"
-	@echo ""
-	@echo "--- B32CC (C Compiler) ---"
-	@echo "  b32cc               - Build the B32P3 C compiler"
-	@echo "  test-b32cc          - Run all B32P3 C compiler tests (parallel)"
-	@echo "  test-b32cc-single   - Run a single test"
-	@echo "                        Usage: make test-b32cc-single file=<test_file>"
-	@echo "  debug-b32cc         - Debug a single test with GTKWave"
-	@echo "                        Usage: make debug-b32cc file=<test_file>"
-	@echo "  clean-b32cc         - Clean B32CC build artifacts"
 	@echo ""
 	@echo "--- QBE (Backend Compiler) ---"
 	@echo "  qbe                 - Build the QBE backend compiler for B32P3"
@@ -1028,10 +922,6 @@ help:
 	@echo "                        for an on-device 'cc <src.c> <name>' compile flow."
 	@echo "                        Push with 'make fnp-sync-files dev=N' afterwards."
 	@echo ""
-	@echo "  B32CC (legacy — userBDOS only, until self-hosting):"
-	@echo "  compile-userbdos-b32cc    - Compile userBDOS program with B32CC"
-	@echo "  compile-userbdos-all-b32cc - Compile ALL userBDOS with B32CC"
-	@echo ""
 	@echo "--- Hardware Programming ---"
 	@echo "  run-uart              - Run compiled binary via UART"
 	@echo "  uart-monitor          - Launch UART monitor"
@@ -1055,7 +945,6 @@ help:
 	@echo "                          Usage: make fnp-upload-text file=<local> dest=<fpgc_path> [dev=N]"
 	@echo "  fnp-upload-userbdos   - Compile and upload userBDOS program to /bin"
 	@echo "                          Usage: make fnp-upload-userbdos file=<name> [dev=N]"
-	@echo "  fnp-upload-userbdos-b32cc - Compile (B32CC) and upload userBDOS program to /bin"
 	@echo "  fnp-keyboard          - Interactive keyboard streaming to FPGC"
 	@echo "                          Usage: make fnp-keyboard [dev=N]"
 	@echo "  fnp-sync-files        - Sync Files/BRFS-init/ to FPGC root filesystem"

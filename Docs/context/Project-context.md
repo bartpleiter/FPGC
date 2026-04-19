@@ -20,8 +20,8 @@ hardware, toolchain, and software:
 - **OS**: BDOS — a single-user, single-foreground OS with shell,
   filesystem, job control, USB-keyboard input, and ENC28J60 Ethernet.
 - **Toolchain**: cproc (C11 frontend) → QBE (optimising backend) →
-  ASMPY (Python assembler with linker). The legacy B32CC compiler
-  is retained only until the modern toolchain can be run (with asm-link.c) from BDOS.
+  ASMPY (Python assembler with linker). Self-hosting on BDOS via
+  `cc` / `cc-min` shell scripts is operational.
 - **Goal**: run Doom on real hardware — done. Future work: SD-card
   storage, more userBDOS programs, robust OS features, general extensions and improvements to the project -> going from custom POC to more established implementations like a proper terminal, C toolchain, FS layers, etc. to make porting existing code easier.
 
@@ -29,7 +29,7 @@ hardware, toolchain, and software:
 
 ```
 Hardware/          FPGA Verilog + PCB
-BuildTools/        cproc/, QBE/, ASMPY/, B32CC/
+BuildTools/        cproc/, QBE/, ASMPY/
 Software/
   ASM/             crt0 startup files + raw assembly programs
   C/
@@ -39,8 +39,7 @@ Software/
     userlib/       userland syscall wrappers + helpers
     userBDOS/      user programs (modern toolchain)
     bareMetal/     bare-metal test programs
-    b32cc/         archived B32CC-era code (deprecated)
-Tests/             CPU sims, B32CC tests, modern-C tests, host tests
+Tests/             CPU sims, C tests, host tests
 Scripts/           Build / programming / asset helpers
 Docs/              MkDocs site (docs/) + plans (plans/) + this file
 Files/             Default BRFS image staged into SPI flash
@@ -70,8 +69,7 @@ ISA reference: [Docs/docs/Hardware/ISA.md](../docs/Hardware/ISA.md).
 
 ## C toolchain
 
-The **modern** toolchain is the default for everything except the
-legacy B32CC suite:
+The toolchain pipeline:
 
 ```
 src.c → cpp → cproc → QBE → b32p3 .asm → ASMPY linker → .list/.bin
@@ -92,13 +90,11 @@ the top-level `Makefile` (`make compile-bdos`,
 `make compile-userbdos file=<n>`, `make compile-userbdos-all`,
 `make compile-bootloader`, etc.).
 
-Self-hosting is in progress: the asm linker is being ported to run on
-BDOS itself ([Docs/plans/asm-selfhost.md](../plans/asm-selfhost.md));
-cproc + QBE will follow.
-
-**B32CC** is the original single-pass C compiler. It survives only
-because it is still required to build the B32CC test suite and the
-archived `Software/C/b32cc/` programs. New code should not target it.
+Self-hosting on BDOS is operational: `cc` and `cc-min` shell scripts
+drive cproc + QBE + ASMPY directly on the FPGC, with assembly outputs
+cached under `/lib/asm-cache/`. See
+[Docs/plans/asm-selfhost.md](../plans/asm-selfhost.md) and
+[Docs/plans/selfhost-modern-c.md](../plans/selfhost-modern-c.md).
 
 ## BRFS v2 (filesystem)
 
@@ -154,32 +150,28 @@ the shell rewrites `fd 1`/`fd 0` before calling the program.
 Build: `make compile-userbdos file=<name>`. Output binary lands in
 `Files/BRFS-init/bin/<name>` and can be staged into the BRFS image.
 
-The previous B32CC userBDOS programs are archived under
-`Software/C/b32cc/userBDOS/`. The Phase E shell-terminal-v2 work left
-some of the modern-toolchain ports incomplete; see the FIXME header
-comment at the top of each broken `userBDOS/*.c` for the migration
-checklist.
+Some shell-terminal-v2 ports may still be incomplete; see the FIXME
+header comment at the top of each broken `userBDOS/*.c` for the
+migration checklist.
 
 ## Testing
 
 | Make target | What it runs |
 |-------------|--------------|
 | `make test-cpu`        | All CPU Verilog testbenches |
-| `make test-modern-c`   | All cproc+QBE+ASMPY end-to-end tests |
-| `make test-b32cc`      | B32CC test suite |
+| `make test-c`          | All cproc+QBE+ASMPY end-to-end tests |
 | `make test-asmpy`      | Python unit tests for ASMPY |
 | `make test-host`       | Host-side BDOS / shell unit tests under `Tests/host/` |
 
 Single-test variants exist (`make test-cpu-single file=…`,
-`make test-modern-c-single file=…`, `make test-b32cc-single file=…`)
+`make test-c-single file=…`)
 and there are debug variants that pipe Verilog `$display` output
-(`make debug-cpu file=…`, `make debug-b32cc file=…`).
+(`make debug-cpu file=…`).
 
 When working on:
 
-- Verilog → `make test-cpu` then `make test-modern-c` and
-  `make test-b32cc`.
-- Modern toolchain (cproc/QBE/ASMPY) → `make test-modern-c`.
+- Verilog → `make test-cpu` then `make test-c`.
+- Modern toolchain (cproc/QBE/ASMPY) → `make test-c`.
 - BDOS or a userBDOS program → just compile (`make compile-bdos` or
   `make compile-userbdos file=<n>`); there is no per-feature test
   harness yet beyond the host tests.

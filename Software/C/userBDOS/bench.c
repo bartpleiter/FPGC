@@ -165,7 +165,7 @@ void spigotPiBench(void)
 // ---------- LoopBench ----------
 // Tight C loop for 5 seconds (5,000,000 us), counting iterations.
 // Note: This is a pure C version — results will differ from the original
-// B32CC inline-asm version that had a fixed 5-instruction loop body.
+// Original inline-asm version that had a fixed 5-instruction loop body.
 
 int loopBench(void)
 {

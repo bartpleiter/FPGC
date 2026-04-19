@@ -12,7 +12,7 @@ You need the following installed on your system (tested on Ubuntu 25.04):
 | uv | Latest | Python package manager (replaces pip/venv) |
 | Icarus Verilog | >= 12.0 | Verilog simulation (older versions won't work) |
 | GTKWave | Latest | Waveform viewer for debugging |
-| GCC | Any recent | Compiling the B32CC C compiler |
+| GCC | Any recent | Compiling host build tools (cproc, qbe) |
 
 On Ubuntu/Debian:
 
@@ -27,7 +27,7 @@ For `uv`, follow the [installation guide](https://docs.astral.sh/uv/getting-star
 Run `make` from the project root. This does four things in order:
 
 1. Creates a Python virtual environment and installs all dependencies
-2. Compiles B32CC (the C compiler) from C source
+2. Compiles the C toolchain (cproc + QBE) from C source
 3. Installs ASMPY (the assembler) as an editable Python package
 4. Runs all checks (format, lint, tests)
 
@@ -71,14 +71,14 @@ make test-cpu
 **Compiler tests** compile all C tests through the full pipeline (C to assembly to simulation to result verification):
 
 ```bash
-make test-b32cc
+make test-c
 ```
 
 **Run a single test** for faster iteration:
 
 ```bash
 make test-cpu-single file=1_load.asm
-make test-b32cc-single file=04_control_flow/if_statements.c
+make test-c-single file=01_return/return_constant.c
 ```
 
 Tests run in parallel with 4 workers by default. Each simulation uses a fair amount of RAM, so on machines with less than 16 GB you might want to keep the default. On beefy machines, increase it:
@@ -108,23 +108,21 @@ Run it with `make test-cpu-single file=my_test.asm`.
 
 ## Writing a Compiler Test
 
-Create a C file in `Tests/B32CC/`:
+Create a C file in `Tests/C/`:
 
 ```c
-// Tests/B32CC/my_test.c
+// Tests/C/my_test.c
 int main() {
     int x = 6;
     int y = 7;
     return x * y; // expected=0x2A
 }
-
-void interrupt() {}
 ```
 
-Include `// expected=0xXX` for the expected return value. The `interrupt()` function is required. Run with:
+Include `// expected=0xXX` for the expected return value. Run with:
 
 ```bash
-make test-b32cc-single file=my_test.c
+make test-c-single file=my_test.c
 ```
 
 ## Debugging with GTKWave
@@ -133,7 +131,6 @@ To debug a specific test with waveform output:
 
 ```bash
 make debug-cpu file=1_load.asm
-make debug-b32cc file=04_control_flow/if_statements.c
 ```
 
 This runs the simulation and opens GTKWave. The `.gtkw` configuration files in the Verilog simulation directory provide useful pre-selected signals.

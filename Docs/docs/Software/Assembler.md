@@ -78,7 +78,7 @@ Assembly files consist of several types of lines:
 
 - **Instructions** - CPU operations and data definitions
 - **Labels** - Address markers for jumps and references
-- **Directives** - Section organization (`.code`, `.data`, etc.), only relevant for the C compiler (B32CC) output
+- **Directives** - Section organization (`.code`, `.data`, etc.), used by the C compiler output
 - **Comments** - Using `;` delimiter
 - **Preprocessor directives** - File inclusion and definitions using `#`
 
@@ -187,7 +187,7 @@ The following table provides a complete overview of all B32P3 instructions suppo
 Multiple data entries can be defined in a single directive by separating them with spaces.
 
 !!! note
-    Currently only `.dw` and `.dsw` are supported for the legacy B32CC compiler. The modern C compiler toolchain (cproc + QBE) uses ELF-style directives (`.eint`, `.ebyte`, `.eshort`, `.eascii`, `.efill`) which are packed into 32-bit words by the assembler.
+    The modern C compiler toolchain (cproc + QBE) uses ELF-style directives (`.eint`, `.ebyte`, `.eshort`, `.eascii`, `.efill`) which are packed into 32-bit words by the assembler. The legacy `.dw` and `.dsw` directives are also supported for hand-written assembly.
 
 | Directive | Description | Example |
 |-----------|-------------|---------|
@@ -239,7 +239,7 @@ The B32P3 has 16 general-purpose registers:
 
 **Include Files**:
 
-Include other assembly files using `#include "path"`. These files are basically pasted into the file. Useful for manually writing big assembly programs, but not used for the output of the C compiler (B32CC).
+Include other assembly files using `#include "path"`. These files are basically pasted into the file. Useful for manually writing big assembly programs.
 
 **Define Statements**:
 
