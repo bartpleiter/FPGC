@@ -724,7 +724,7 @@ B32P3 cpu (
 
     // Interrupts, right is highest priority
     // Framedrawn disabled for now to simplify test debugging
-    .interrupts({3'd0, 1'b0, OST3_int, OST2_int, OST1_int, uart_irq})
+    .interrupts({4'd0, 1'b0, OST3_int, OST2_int, OST1_int, uart_irq})
 );
 
 reg int_test = 1'b0; // Test interrupt signal

@@ -28,7 +28,7 @@
 module B32P3 #(
     parameter ROM_ADDRESS = 32'h1E000000,
     parameter INTERRUPT_JUMP_ADDR = 32'd4,
-    parameter NUM_INTERRUPTS = 8
+    parameter NUM_INTERRUPTS = 9
 ) (
     // ---- System interface ----
     input  wire         clk,
