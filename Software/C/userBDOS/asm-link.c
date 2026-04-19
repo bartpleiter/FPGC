@@ -2141,6 +2141,7 @@ static unsigned int encode_instr(int li, int byte_addr)
   if (strcmp(m, "halt") == 0) return 0xFFFFFFFFu;
   if (strcmp(m, "nop") == 0)  return 0u;
   if (strcmp(m, "ccache") == 0) return (OP_CCACHE << 28);
+  if (strcmp(m, "ccached") == 0) return (OP_CCACHE << 28) | 1u;
   if (strcmp(m, "reti") == 0)   return (OP_RETI << 28);
   if (strcmp(m, "savpc") == 0)
   {

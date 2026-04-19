@@ -40,6 +40,10 @@ module CacheController (
 
     // Cache clear interface
     input  wire         cpu_clear_cache,
+    // When asserted together with cpu_clear_cache: only flush+invalidate L1d
+    // (i.e. the `ccached` instruction). When 0 the legacy `ccache` semantics
+    // apply: invalidate L1i and flush+invalidate L1d.
+    input  wire         cpu_clear_cache_data_only,
     output reg          cpu_clear_cache_done = 1'b0,
 
     // ---- L1 cache DPRAM interface ----
@@ -193,6 +197,7 @@ reg [3:0]  cpu_EXMEM2_byte_enable_stored = 4'b1111;
 // For reference: cpu_EXMEM2_cache_index = cpu_EXMEM2_addr_stored[11:5]
 
 reg cpu_clear_cache_new_request = 1'b0;
+reg cpu_clear_cache_data_only_stored = 1'b0;
 
 // Cache clearing control registers
 reg [6:0] clear_cache_index = 7'd0; // Index for iterating through cache lines (0-127)
@@ -252,6 +257,7 @@ begin
         cpu_EXMEM2_byte_enable_stored <= 4'b1111;
 
         cpu_clear_cache_new_request <= 1'b0;
+        cpu_clear_cache_data_only_stored <= 1'b0;
 
         clear_cache_index <= 7'd0;
         cpu_clear_cache_done <= 1'b0;
@@ -302,7 +308,8 @@ begin
         if (cpu_clear_cache)
         begin
             cpu_clear_cache_new_request <= 1'b1;
-            //$display("%d: CacheController NEW CLEARCACHE REQUEST", $time);
+            cpu_clear_cache_data_only_stored <= cpu_clear_cache_data_only;
+            //$display("%d: CacheController NEW CLEARCACHE REQUEST (data_only=%b)", $time, cpu_clear_cache_data_only);
         end
 
         // Flush handling for FE2
@@ -780,10 +787,19 @@ begin
             // ---- Cache Clear States ----
 
             STATE_CLEARCACHE_REQUESTED: begin
-                // Start clearing process by initializing the index and starting with L1i cache
+                // Start clearing process by initializing the index
                 clear_cache_index <= 7'd0;
-                //$display("%d: CacheController Starting cache clear process", $time);
-                state <= STATE_CLEARCACHE_L1I_CLEAR;
+                if (cpu_clear_cache_data_only_stored)
+                begin
+                    // ccached: skip L1i invalidation, go straight to L1d flush.
+                    //$display("%d: CacheController Starting cache clear process (data only)", $time);
+                    state <= STATE_CLEARCACHE_L1D_READ;
+                end
+                else
+                begin
+                    //$display("%d: CacheController Starting cache clear process", $time);
+                    state <= STATE_CLEARCACHE_L1I_CLEAR;
+                end
             end
 
             STATE_CLEARCACHE_L1I_CLEAR: begin

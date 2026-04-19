@@ -40,6 +40,9 @@ module MemoryStage #(
     input  wire [31:0]  ex_mem_breg_data,
     input  wire [31:0]  ex_mem_pc,
     input  wire         ex_mem_clear_cache,
+    // When asserted together with ex_mem_clear_cache: this is a `ccached`
+    // (data cache only); when 0 it's a regular `ccache` (both caches).
+    input  wire         ex_mem_clear_cache_data_only,
 
     // ---- Memory size control for byte-addressable operations ----
     input  wire [1:0]   ex_mem_mem_size,        // 00=word, 01=byte, 10=halfword
@@ -101,6 +104,7 @@ module MemoryStage #(
     // ---- Cache clear ----
     input  wire         l1_clear_cache_done,
     output reg          l1_clear_cache = 1'b0,
+    output wire         l1_clear_cache_data_only,
 
     // ---- Outputs ----
     output wire [31:0]  ex_mem_addr_calc,
@@ -395,6 +399,11 @@ assign mu_stall = ex_mem_valid && mem_sel_io && (ex_mem_mem_read || ex_mem_mem_w
 // ---- CACHE CLEAR STATE MACHINE ----
 reg clear_cache_in_progress = 1'b0;
 reg clear_cache_finished = 1'b0;
+
+// Combinationally forward the data-only flag from the EX/MEM register so
+// the cache controller can sample it on the same edge as the
+// `l1_clear_cache` pulse.
+assign l1_clear_cache_data_only = ex_mem_clear_cache_data_only;
 
 always @(posedge clk)
 begin

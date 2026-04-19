@@ -91,6 +91,7 @@ module B32P3 #(
     input  wire [31:0]  l1d_cache_controller_result,
 
     output wire         l1_clear_cache,
+    output wire         l1_clear_cache_data_only,
     input wire          l1_clear_cache_done,
 
     // ---- Memory Unit ----
@@ -258,6 +259,9 @@ reg        id_ex_reti = 1'b0;
 reg        id_ex_get_int_id = 1'b0;
 reg        id_ex_get_pc = 1'b0;
 reg        id_ex_clear_cache = 1'b0;
+// `ccached` flag (LSB of the ccache instruction word). Only meaningful when
+// id_ex_clear_cache is set. Selects data-cache-only flush.
+reg        id_ex_clear_cache_data_only = 1'b0;
 reg        id_ex_arithm = 1'b0;
 reg [1:0]  id_ex_mem_size = 2'b00;
 reg        id_ex_mem_sign_extend = 1'b0;
@@ -284,6 +288,7 @@ reg        ex_mem_push = 1'b0;
 reg        ex_mem_pop = 1'b0;
 reg        ex_mem_halt = 1'b0;
 reg        ex_mem_clear_cache = 1'b0;
+reg        ex_mem_clear_cache_data_only = 1'b0;
 
 // Branch/jump control signals for MEM-stage branch resolution
 reg        ex_mem_is_branch = 1'b0;
@@ -368,6 +373,10 @@ wire id_reti;
 wire id_get_int_id;
 wire id_get_pc;
 wire id_clear_cache;
+// `ccached` flag: lowest bit of the instruction word. Only meaningful when
+// the decoded instruction is a CCACHE-class operation; harmless otherwise
+// because id_ex_clear_cache gates it downstream.
+wire id_clear_cache_data_only = if_id_instr[0];
 wire [1:0] id_mem_size;
 wire       id_mem_sign_extend;
 
@@ -844,6 +853,7 @@ begin
         id_ex_get_int_id <= 1'b0;
         id_ex_get_pc <= 1'b0;
         id_ex_clear_cache <= 1'b0;
+        id_ex_clear_cache_data_only <= 1'b0;
         id_ex_arithm <= 1'b0;
         id_ex_mem_size <= 2'b00;
         id_ex_mem_sign_extend <= 1'b0;
@@ -877,6 +887,7 @@ begin
         id_ex_get_int_id <= id_get_int_id && if_id_valid;
         id_ex_get_pc <= id_get_pc && if_id_valid;
         id_ex_clear_cache <= id_clear_cache && if_id_valid;
+        id_ex_clear_cache_data_only <= id_clear_cache_data_only;
         id_ex_arithm <= id_arithm && if_id_valid;
         id_ex_mem_size <= id_mem_size;
         id_ex_mem_sign_extend <= id_mem_sign_extend;
@@ -930,6 +941,7 @@ MemoryStage #(
     .ex_mem_breg_data           (ex_mem_breg_data),
     .ex_mem_pc                  (ex_mem_pc),
     .ex_mem_clear_cache         (ex_mem_clear_cache),
+    .ex_mem_clear_cache_data_only(ex_mem_clear_cache_data_only),
     // Memory size control
     .ex_mem_mem_size            (ex_mem_mem_size),
     .ex_mem_mem_sign_extend     (ex_mem_mem_sign_extend),
@@ -980,6 +992,7 @@ MemoryStage #(
     // Cache clear
     .l1_clear_cache_done        (l1_clear_cache_done),
     .l1_clear_cache             (l1_clear_cache),
+    .l1_clear_cache_data_only   (l1_clear_cache_data_only),
     // Outputs
     .ex_mem_addr_calc           (ex_mem_addr_calc),
     .mem_sel_sdram              (mem_sel_sdram),
@@ -1023,6 +1036,7 @@ begin
         ex_mem_pop <= 1'b0;
         ex_mem_halt <= 1'b0;
         ex_mem_clear_cache <= 1'b0;
+        ex_mem_clear_cache_data_only <= 1'b0;
         // Branch control signals
         ex_mem_is_branch <= 1'b0;
         ex_mem_is_jump <= 1'b0;
@@ -1050,6 +1064,7 @@ begin
         ex_mem_pop <= id_ex_pop;
         ex_mem_halt <= id_ex_halt;
         ex_mem_clear_cache <= id_ex_clear_cache;
+        ex_mem_clear_cache_data_only <= id_ex_clear_cache_data_only;
         // Branch control signals for MEM-stage resolution
         ex_mem_is_branch <= id_ex_is_branch;
         ex_mem_is_jump <= id_ex_is_jump;

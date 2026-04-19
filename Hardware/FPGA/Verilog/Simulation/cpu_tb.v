@@ -369,6 +369,7 @@ wire        l1d_cache_controller_done;
 wire [31:0] l1d_cache_controller_result;
 
 wire l1_clear_cache;
+wire l1_clear_cache_data_only;
 wire l1_clear_cache_done;
 
 // Instantiate CacheController
@@ -392,6 +393,7 @@ CacheController cache_controller (
     .cpu_EXMEM2_result(l1d_cache_controller_result),
 
     .cpu_clear_cache(l1_clear_cache),
+    .cpu_clear_cache_data_only(l1_clear_cache_data_only),
     .cpu_clear_cache_done(l1_clear_cache_done),
 
     // L1i RAM ctrl port
@@ -674,6 +676,7 @@ B32P3 cpu (
     .l1d_cache_controller_result(l1d_cache_controller_result),
 
     .l1_clear_cache(l1_clear_cache),
+    .l1_clear_cache_data_only(l1_clear_cache_data_only),
     .l1_clear_cache_done(l1_clear_cache_done),
 
     // Memory Unit connections
