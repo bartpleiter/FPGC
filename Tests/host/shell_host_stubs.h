@@ -36,13 +36,13 @@ int bdos_shell_last_exit = 0;
 extern int bdos_shell_last_exit;
 #endif
 
-/* libterm v2 stubs — the host test doesn't need real output.
+/* libterm stubs — the host test doesn't need real output.
  * Marked unused so individual TUs that don't reference them don't warn. */
 __attribute__((unused))
-static void term2_puts(const char *s) { (void)s; }
+static void term_puts(const char *s) { (void)s; }
 
 __attribute__((unused))
-static void term2_putchar(int c) { (void)c; }
+static void term_putchar(int c) { (void)c; }
 
 /* shell_util helper — render an unsigned int into a fixed buffer.
  * The real implementation lives in shell_util.c; the simplest correct

@@ -179,7 +179,7 @@ static int tty_write(bdos_fd_t *f, const void *buf, int len)
     int i;
     (void)f;
     for (i = 0; i < len; i++)
-        term2_putchar(p[i]);
+        term_putchar(p[i]);
     return len;
 }
 

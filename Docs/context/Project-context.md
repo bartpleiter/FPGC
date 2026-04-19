@@ -34,7 +34,7 @@ Software/
   ASM/             crt0 startup files + raw assembly programs
   C/
     libc/          picolibc-derived freestanding libc
-    libfpgc/       hardware abstraction (drivers + libterm v2 + BRFS)
+    libfpgc/       hardware abstraction (drivers + libterm + BRFS)
     bdos/          BDOS kernel sources
     userlib/       userland syscall wrappers + helpers
     userBDOS/      user programs (modern toolchain)
@@ -111,7 +111,7 @@ cached under `/lib/asm-cache/`. See
 
 ## BDOS
 
-Single-foreground OS with the v2 shell + libterm v2 terminal that
+Single-foreground OS with the v2 shell + libterm terminal that
 landed in 2025 ([shell-terminal-v2 plan](../plans/shell-terminal-v2.md)).
 See [BDOS-context.md](BDOS-context.md) for the full source-file map,
 syscall table, and subsystem detail.

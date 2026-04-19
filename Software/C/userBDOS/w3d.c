@@ -19,7 +19,7 @@
  *         (\x1b[30m..37m for tile palette 0..7) or wait for a
  *         dedicated palette syscall to be added in a follow-up.
  *   sys_uart_print_str / sys_uart_print_char
- *      -> sys_write(2, s, n) (stderr; mirrored to UART by libterm v2).
+ *      -> sys_write(2, s, n) (stderr; mirrored to UART by libterm).
  */
 
 // w3d.c — Wolfenstein 3D-style raycaster for FPGC BDOS

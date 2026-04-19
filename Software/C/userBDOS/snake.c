@@ -1,5 +1,5 @@
 /*
- * snake.c — Snake game, ported to libterm v2 / VFS API.
+ * snake.c — Snake game, ported to libterm / VFS API.
  *
  * Phase E reference port. Uses only the post-Phase-E user API:
  *   - sys_write(1, ...) with ANSI escapes for screen output

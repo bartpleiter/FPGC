@@ -85,9 +85,9 @@ int bdos_shell_run_script(const char *path,
 
     fd = bdos_vfs_open(path, BDOS_O_RDONLY);
     if (fd < 0) {
-        term2_puts("script: cannot open ");
-        term2_puts(path);
-        term2_putchar('\n');
+        term_puts("script: cannot open ");
+        term_puts(path);
+        term_putchar('\n');
         return 1;
     }
 
@@ -95,9 +95,9 @@ int bdos_shell_run_script(const char *path,
     if (file_size < 0 || file_size > (int)BDOS_SCRIPT_MAX_BYTES) {
         bdos_vfs_close(fd);
         if (file_size > (int)BDOS_SCRIPT_MAX_BYTES)
-            term2_puts("script: too large (max 32 KiB)\n");
+            term_puts("script: too large (max 32 KiB)\n");
         else
-            term2_puts("script: cannot determine size\n");
+            term_puts("script: cannot determine size\n");
         return 1;
     }
     if (file_size == 0) {
@@ -111,7 +111,7 @@ int bdos_shell_run_script(const char *path,
     script_buf  = (char *)bdos_heap_alloc(alloc_words);
     if (!script_buf) {
         bdos_vfs_close(fd);
-        term2_puts("script: out of memory\n");
+        term_puts("script: out of memory\n");
         return 1;
     }
 
@@ -119,7 +119,7 @@ int bdos_shell_run_script(const char *path,
     bdos_vfs_close(fd);
     if (n_read != file_size) {
         bdos_heap_release(heap_mark);
-        term2_puts("script: short read\n");
+        term_puts("script: short read\n");
         return 1;
     }
 
@@ -129,7 +129,7 @@ int bdos_shell_run_script(const char *path,
                              line, sizeof(line));
         if (consumed <= 0) {
             if (consumed < 0) {
-                term2_puts("script: line too long\n");
+                term_puts("script: line too long\n");
                 rc = 1;
             }
             break;
@@ -140,7 +140,7 @@ int bdos_shell_run_script(const char *path,
             first_line = 0;
             if (line[0] == '#' && line[1] == '!') {
                 if (!is_sh_shebang(line)) {
-                    term2_puts("script: only #!/bin/sh shebangs supported\n");
+                    term_puts("script: only #!/bin/sh shebangs supported\n");
                     rc = 1;
                     break;
                 }
@@ -157,7 +157,7 @@ int bdos_shell_run_script(const char *path,
 
         if (bdos_shell_expand(line, expanded, sizeof(expanded),
                               script_argc, script_argv) < 0) {
-            term2_puts("script: bad quoting / overflow\n");
+            term_puts("script: bad quoting / overflow\n");
             rc = 1;
             break;
         }
@@ -165,14 +165,14 @@ int bdos_shell_run_script(const char *path,
         n = bdos_shell_lex(expanded, toks, BDOS_SHELL_TOK_MAX,
                            store, sizeof(store));
         if (n < 0) {
-            term2_puts("script: lex error\n");
+            term_puts("script: lex error\n");
             rc = 1;
             break;
         }
         if (n == 0) continue;
 
         if (bdos_shell_parse(toks, &chain) < 0) {
-            term2_puts("script: parse error\n");
+            term_puts("script: parse error\n");
             rc = 1;
             break;
         }

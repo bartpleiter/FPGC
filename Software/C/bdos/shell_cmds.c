@@ -12,21 +12,21 @@ static int bdos_shell_cmd_help(int argc, char **argv)
   (void)argc;
   (void)argv;
 
-  term2_puts("BDOS shell help\n");
-  term2_puts("--------------\n");
-  term2_puts("General\n");
-  term2_puts("  help  clear  echo  uptime\n");
-  term2_puts("Filesystem\n");
-  term2_puts("  pwd  cd  ls  df\n");
-  term2_puts("  mkdir  mkfile  rm\n");
-  term2_puts("  cat  write  cp  mv\n");
-  term2_puts("Maintenance\n");
-  term2_puts("  sync   (use /bin/format to format)\n");
-  term2_puts("Programs\n");
-  term2_puts("  path, or filename from /bin\n");
-  term2_puts("  jobs  fg <slot>  kill <slot>\n");
-  term2_puts("Hotkeys (during program)\n");
-  term2_puts("  F1=shell  Alt+F4=kill\n");
+  term_puts("BDOS shell help\n");
+  term_puts("--------------\n");
+  term_puts("General\n");
+  term_puts("  help  clear  echo  uptime\n");
+  term_puts("Filesystem\n");
+  term_puts("  pwd  cd  ls  df\n");
+  term_puts("  mkdir  mkfile  rm\n");
+  term_puts("  cat  write  cp  mv\n");
+  term_puts("Maintenance\n");
+  term_puts("  sync   (use /bin/format to format)\n");
+  term_puts("Programs\n");
+  term_puts("  path, or filename from /bin\n");
+  term_puts("  jobs  fg <slot>  kill <slot>\n");
+  term_puts("Hotkeys (during program)\n");
+  term_puts("  F1=shell  Alt+F4=kill\n");
   return 0;
 }
 
@@ -34,7 +34,7 @@ static int bdos_shell_cmd_clear(int argc, char **argv)
 {
   (void)argc;
   (void)argv;
-  term2_clear();
+  term_clear();
   return 0;
 }
 
@@ -44,13 +44,13 @@ static int bdos_shell_cmd_echo(int argc, char **argv)
 
   for (i = 1; i < argc; i++)
   {
-    term2_puts(argv[i]);
+    term_puts(argv[i]);
     if (i < argc - 1)
     {
-      term2_putchar(' ');
+      term_putchar(' ');
     }
   }
-  term2_putchar('\n');
+  term_putchar('\n');
 
   return 0;
 }
@@ -77,15 +77,15 @@ static int bdos_shell_cmd_uptime(int argc, char **argv)
   minutes = elapsed_seconds / 60;
   seconds = elapsed_seconds % 60;
 
-  term2_puts("Uptime: ");
-  term2_putint((int)days);
-  term2_puts("d ");
+  term_puts("Uptime: ");
+  term_putint((int)days);
+  term_puts("d ");
   bdos_shell_print_2digit(hours);
-  term2_puts("h ");
+  term_puts("h ");
   bdos_shell_print_2digit(minutes);
-  term2_puts("m ");
+  term_puts("m ");
   bdos_shell_print_2digit(seconds);
-  term2_puts("s\n");
+  term_puts("s\n");
   return 0;
 }
 
@@ -93,8 +93,8 @@ static int bdos_shell_cmd_pwd(int argc, char **argv)
 {
   (void)argc;
   (void)argv;
-  term2_puts(bdos_shell_cwd);
-  term2_putchar('\n');
+  term_puts(bdos_shell_cwd);
+  term_putchar('\n');
   return 0;
 }
 
@@ -116,7 +116,7 @@ static int bdos_shell_cmd_cd(int argc, char **argv)
 
   if (argc != 2)
   {
-    term2_puts("usage: cd [path]\n");
+    term_puts("usage: cd [path]\n");
     return 0;
   }
 
@@ -129,7 +129,7 @@ static int bdos_shell_cmd_cd(int argc, char **argv)
 
   if (!brfs_is_dir(resolved))
   {
-    term2_puts("error: not a directory\n");
+    term_puts("error: not a directory\n");
     return 0;
   }
 
@@ -163,7 +163,7 @@ static int bdos_shell_cmd_ls(int argc, char **argv)
 
   if (argc > 2)
   {
-    term2_puts("usage: ls [path]\n");
+    term_puts("usage: ls [path]\n");
     return 0;
   }
 
@@ -227,13 +227,13 @@ static int bdos_shell_cmd_ls(int argc, char **argv)
 
   for (i = 0; i < dir_count; i++)
   {
-    term2_puts(dir_names[i]);
-    term2_putchar('\n');
+    term_puts(dir_names[i]);
+    term_putchar('\n');
   }
 
   for (i = 0; i < file_count; i++)
   {
-    term2_puts(file_names[i]);
+    term_puts(file_names[i]);
 
     size_len = bdos_shell_format_byte_size(file_sizes[i], size_buf);
     prefix_len = 2 + strlen(file_names[i]);
@@ -245,12 +245,12 @@ static int bdos_shell_cmd_ls(int argc, char **argv)
 
     while (spaces > 0)
     {
-      term2_putchar(' ');
+      term_putchar(' ');
       spaces--;
     }
 
-    term2_puts(size_buf);
-    term2_putchar('\n');
+    term_puts(size_buf);
+    term_putchar('\n');
   }
 
   return 0;
@@ -268,7 +268,7 @@ static int bdos_shell_cmd_mkdir(int argc, char **argv)
 
   if (argc != 2)
   {
-    term2_puts("usage: mkdir <path>\n");
+    term_puts("usage: mkdir <path>\n");
     return 0;
   }
 
@@ -300,7 +300,7 @@ static int bdos_shell_cmd_mkfile(int argc, char **argv)
 
   if (argc != 2)
   {
-    term2_puts("usage: mkfile <path>\n");
+    term_puts("usage: mkfile <path>\n");
     return 0;
   }
 
@@ -392,7 +392,7 @@ static int bdos_shell_cmd_rm(int argc, char **argv)
   {
     if (strcmp(argv[1], "-r") == 0)
     {
-      term2_puts("usage: rm [-r] <path>\n");
+      term_puts("usage: rm [-r] <path>\n");
       return 0;
     }
     path_arg = argv[1];
@@ -406,13 +406,13 @@ static int bdos_shell_cmd_rm(int argc, char **argv)
     }
     else
     {
-      term2_puts("usage: rm [-r] <path>\n");
+      term_puts("usage: rm [-r] <path>\n");
       return 0;
     }
   }
   else
   {
-    term2_puts("usage: rm [-r] <path>\n");
+    term_puts("usage: rm [-r] <path>\n");
     return 0;
   }
 
@@ -457,7 +457,7 @@ static int bdos_shell_cmd_cat(int argc, char **argv)
 
   if (argc != 2)
   {
-    term2_puts("usage: cat <path>\n");
+    term_puts("usage: cat <path>\n");
     return 0;
   }
 
@@ -503,7 +503,7 @@ static int bdos_shell_cmd_write(int argc, char **argv)
 
   if (argc < 3)
   {
-    term2_puts("usage: write <path> <text>\n");
+    term_puts("usage: write <path> <text>\n");
     return 0;
   }
 
@@ -518,7 +518,7 @@ static int bdos_shell_cmd_write(int argc, char **argv)
   {
     if (brfs_is_dir(resolved))
     {
-      term2_puts("error: cannot write to directory\n");
+      term_puts("error: cannot write to directory\n");
       return 0;
     }
 
@@ -551,7 +551,7 @@ static int bdos_shell_cmd_write(int argc, char **argv)
     {
       if (byte_count >= BDOS_SHELL_INPUT_MAX)
       {
-        term2_puts("error: text too long\n");
+        term_puts("error: text too long\n");
         brfs_close(fd);
         return 0;
       }
@@ -562,7 +562,7 @@ static int bdos_shell_cmd_write(int argc, char **argv)
     {
       if (byte_count >= BDOS_SHELL_INPUT_MAX)
       {
-        term2_puts("error: text too long\n");
+        term_puts("error: text too long\n");
         brfs_close(fd);
         return 0;
       }
@@ -580,9 +580,9 @@ static int bdos_shell_cmd_write(int argc, char **argv)
 
   brfs_close(fd);
 
-  term2_puts("wrote ");
-  term2_putint(byte_count);
-  term2_puts(" bytes\n");
+  term_puts("wrote ");
+  term_putint(byte_count);
+  term_puts(" bytes\n");
   return 0;
 }
 
@@ -607,7 +607,7 @@ static int bdos_shell_cmd_cp(int argc, char **argv)
 
   if (argc != 3)
   {
-    term2_puts("usage: cp <source> <dest>\n");
+    term_puts("usage: cp <source> <dest>\n");
     return 0;
   }
 
@@ -620,13 +620,13 @@ static int bdos_shell_cmd_cp(int argc, char **argv)
 
   if (!brfs_exists(src_resolved))
   {
-    term2_puts("cp: source not found\n");
+    term_puts("cp: source not found\n");
     return 0;
   }
 
   if (brfs_is_dir(src_resolved))
   {
-    term2_puts("cp: cannot copy a directory\n");
+    term_puts("cp: cannot copy a directory\n");
     return 0;
   }
 
@@ -739,7 +739,7 @@ static int bdos_shell_cmd_mv(int argc, char **argv)
 
   if (argc != 3)
   {
-    term2_puts("usage: mv <source> <dest>\n");
+    term_puts("usage: mv <source> <dest>\n");
     return 0;
   }
 
@@ -752,13 +752,13 @@ static int bdos_shell_cmd_mv(int argc, char **argv)
 
   if (!brfs_exists(src_resolved))
   {
-    term2_puts("mv: source not found\n");
+    term_puts("mv: source not found\n");
     return 0;
   }
 
   if (brfs_is_dir(src_resolved))
   {
-    term2_puts("mv: cannot move a directory\n");
+    term_puts("mv: cannot move a directory\n");
     return 0;
   }
 
@@ -924,31 +924,31 @@ static int bdos_shell_cmd_df(int argc, char **argv)
   line_len = strlen(line_header);
   value_col = 14;
 
-  term2_puts(line_header);
-  term2_putchar('\n');
+  term_puts(line_header);
+  term_putchar('\n');
   bdos_shell_print_hline((unsigned int)line_len);
 
   bdos_shell_print_field_prefix("Total:", value_col);
   bdos_shell_print_kib(total_bytes);
-  term2_putchar('\n');
+  term_putchar('\n');
 
   bdos_shell_print_field_prefix("Used:", value_col);
   bdos_shell_print_kib(used_bytes);
-  term2_puts(" (");
-  term2_putint((int)usage_percent);
-  term2_puts("%)\n");
+  term_puts(" (");
+  term_putint((int)usage_percent);
+  term_puts("%)\n");
 
   bdos_shell_print_field_prefix("Blocks:", value_col);
   bdos_shell_u32_to_str(used_blocks, value_buf);
-  term2_puts(value_buf);
-  term2_putchar('/');
+  term_puts(value_buf);
+  term_putchar('/');
   bdos_shell_u32_to_str(total_blocks, value_buf);
-  term2_puts(value_buf);
-  term2_puts(" used\n");
+  term_puts(value_buf);
+  term_puts(" used\n");
 
   bdos_shell_print_field_prefix("Block size:", value_col);
-  term2_putint((int)(words_per_block * 4));
-  term2_puts(" B\n");
+  term_putint((int)(words_per_block * 4));
+  term_puts(" B\n");
 
   return 0;
 }
@@ -1004,7 +1004,7 @@ static int bdos_shell_cmd_jobs(int argc, char **argv)
 
   if (argc != 1)
   {
-    term2_puts("usage: jobs\n");
+    term_puts("usage: jobs\n");
     return 0;
   }
 
@@ -1013,35 +1013,35 @@ static int bdos_shell_cmd_jobs(int argc, char **argv)
   {
     if (bdos_slot_status[i] != BDOS_SLOT_STATUS_EMPTY)
     {
-      term2_puts("[");
-      term2_putint(i);
-      term2_puts("] ");
+      term_puts("[");
+      term_putint(i);
+      term_puts("] ");
 
       if (bdos_slot_status[i] == BDOS_SLOT_STATUS_RUNNING)
       {
-        term2_puts("running   ");
+        term_puts("running   ");
       }
       else if (bdos_slot_status[i] == BDOS_SLOT_STATUS_SUSPENDED)
       {
-        term2_puts("suspended ");
+        term_puts("suspended ");
       }
 
       if (bdos_slot_name[i][0])
       {
-        term2_puts(bdos_slot_name[i]);
+        term_puts(bdos_slot_name[i]);
       }
       else
       {
-        term2_puts("(unnamed)");
+        term_puts("(unnamed)");
       }
-      term2_putchar('\n');
+      term_putchar('\n');
       any = 1;
     }
   }
 
   if (!any)
   {
-    term2_puts("no active programs\n");
+    term_puts("no active programs\n");
   }
 
   return 0;
@@ -1053,38 +1053,38 @@ static int bdos_shell_cmd_kill(int argc, char **argv)
 
   if (argc != 2)
   {
-    term2_puts("usage: kill <slot>\n");
+    term_puts("usage: kill <slot>\n");
     return 0;
   }
 
   slot = atoi(argv[1]);
   if (slot < 0 || slot >= MEM_SLOT_COUNT)
   {
-    term2_puts("error: invalid slot number (0-");
-    term2_putint(MEM_SLOT_COUNT - 1);
-    term2_puts(")\n");
+    term_puts("error: invalid slot number (0-");
+    term_putint(MEM_SLOT_COUNT - 1);
+    term_puts(")\n");
     return 0;
   }
 
   if (bdos_slot_status[slot] == BDOS_SLOT_STATUS_EMPTY)
   {
-    term2_puts("error: slot ");
-    term2_putint(slot);
-    term2_puts(" is empty\n");
+    term_puts("error: slot ");
+    term_putint(slot);
+    term_puts(" is empty\n");
     return 0;
   }
 
   if (bdos_slot_status[slot] == BDOS_SLOT_STATUS_RUNNING)
   {
-    term2_puts("error: cannot kill running program from shell\n");
+    term_puts("error: cannot kill running program from shell\n");
     return 0;
   }
 
-  term2_puts("Killed [");
-  term2_putint(slot);
-  term2_puts("] ");
-  term2_puts(bdos_slot_name[slot]);
-  term2_putchar('\n');
+  term_puts("Killed [");
+  term_putint(slot);
+  term_puts("] ");
+  term_puts(bdos_slot_name[slot]);
+  term_putchar('\n');
 
   bdos_slot_free(slot);
   return 0;
@@ -1096,32 +1096,32 @@ static int bdos_shell_cmd_fg(int argc, char **argv)
 
   if (argc != 2)
   {
-    term2_puts("usage: fg <slot>\n");
+    term_puts("usage: fg <slot>\n");
     return 0;
   }
 
   slot = atoi(argv[1]);
   if (slot < 0 || slot >= MEM_SLOT_COUNT)
   {
-    term2_puts("error: invalid slot number (0-");
-    term2_putint(MEM_SLOT_COUNT - 1);
-    term2_puts(")\n");
+    term_puts("error: invalid slot number (0-");
+    term_putint(MEM_SLOT_COUNT - 1);
+    term_puts(")\n");
     return 0;
   }
 
   if (bdos_slot_status[slot] != BDOS_SLOT_STATUS_SUSPENDED)
   {
-    term2_puts("error: slot ");
-    term2_putint(slot);
-    term2_puts(" is not suspended\n");
+    term_puts("error: slot ");
+    term_putint(slot);
+    term_puts(" is not suspended\n");
     return 0;
   }
 
-  term2_puts("[");
-  term2_putint(slot);
-  term2_puts("] resuming: ");
-  term2_puts(bdos_slot_name[slot]);
-  term2_putchar('\n');
+  term_puts("[");
+  term_putint(slot);
+  term_puts("] resuming: ");
+  term_puts(bdos_slot_name[slot]);
+  term_putchar('\n');
 
   bdos_resume_program(slot);
   return 0;
@@ -1203,7 +1203,7 @@ static int bi_env_impl(int argc, char **argv)
 static int bi_exit_impl(int argc, char **argv)
 {
   (void)argc; (void)argv;
-  term2_puts("shell: exit not supported (BDOS shell is the system console)\n");
+  term_puts("shell: exit not supported (BDOS shell is the system console)\n");
   return 1;
 }
 

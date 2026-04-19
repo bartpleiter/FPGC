@@ -1,5 +1,5 @@
 /*
- * libterm v2 — see term2.h for design.
+ * libterm — see term.h for design.
  *
  * Memory layout per screen:
  *   tiles[h][w]    — character code at each cell
@@ -12,33 +12,33 @@
  * plane) and by host tests (record into an array).
  */
 
-#include "term2.h"
+#include "term.h"
 #include <stddef.h>
 
 /* When CPP=cproc on BDOS, no <string.h> overhead — we provide our own */
-#ifdef TERM2_HOST_TEST
+#ifdef TERM_HOST_TEST
 #include <string.h>
 #else
-static void *term2_memset(void *d, int c, unsigned int n) {
+static void *term_memset(void *d, int c, unsigned int n) {
     unsigned char *p = (unsigned char *)d;
     while (n--) *p++ = (unsigned char)c;
     return d;
 }
-static void *term2_memcpy(void *d, const void *s, unsigned int n) {
+static void *term_memcpy(void *d, const void *s, unsigned int n) {
     unsigned char *dp = (unsigned char *)d;
     const unsigned char *sp = (const unsigned char *)s;
     while (n--) *dp++ = *sp++;
     return d;
 }
-#define memset term2_memset
-#define memcpy term2_memcpy
+#define memset term_memset
+#define memcpy term_memcpy
 #endif
 
 /* ============================================================ State ===== */
 
 typedef struct {
-    unsigned char tiles[TERM2_MAX_HEIGHT][TERM2_MAX_WIDTH];
-    unsigned char palettes[TERM2_MAX_HEIGHT][TERM2_MAX_WIDTH];
+    unsigned char tiles[TERM_MAX_HEIGHT][TERM_MAX_WIDTH];
+    unsigned char palettes[TERM_MAX_HEIGHT][TERM_MAX_WIDTH];
     int cursor_x;
     int cursor_y;
     int saved_cx;        /* DECSC / ESC[s */
@@ -49,27 +49,27 @@ typedef struct {
     int scroll_bot;      /* 0-based inclusive */
     int cursor_visible;
     int wrap_mode;       /* DECAWM: 1 = auto-wrap on, 0 = clamp at last column */
-} term2_screen_t;
+} term_screen_t;
 
 static int g_width  = 40;
 static int g_height = 25;
-static term2_render_cell_fn g_render = NULL;
-static term2_uart_mirror_fn g_uart   = NULL;
+static term_render_cell_fn g_render = NULL;
+static term_uart_mirror_fn g_uart   = NULL;
 static int g_uart_mirror_enabled = 1;
 
 /* Two screens: primary [0], alt [1] */
-static term2_screen_t g_screens[2];
+static term_screen_t g_screens[2];
 static int g_active = 0;        /* index into g_screens */
 
 /* Scrollback (primary only) */
-static unsigned char g_hist_tiles[TERM2_HISTORY_LINES][TERM2_MAX_WIDTH];
-static unsigned char g_hist_pal[TERM2_HISTORY_LINES][TERM2_MAX_WIDTH];
+static unsigned char g_hist_tiles[TERM_HISTORY_LINES][TERM_MAX_WIDTH];
+static unsigned char g_hist_pal[TERM_HISTORY_LINES][TERM_MAX_WIDTH];
 static int g_hist_head = 0;
 static int g_hist_count = 0;
 static int g_scroll_view_offset = 0;   /* 0 = looking at live; >0 = N rows back */
 
 /* Input (line discipline) */
-static term2_input_pop_fn g_input_pop = NULL;
+static term_input_pop_fn g_input_pop = NULL;
 static int g_cooked = 1;
 static int g_echo   = 1;
 
@@ -116,7 +116,7 @@ static void render(int x, int y, unsigned char t, unsigned char p) {
 
 static void put_at(int x, int y, unsigned char t, unsigned char p) {
     if (x < 0 || x >= g_width || y < 0 || y >= g_height) return;
-    term2_screen_t *s = ACTIVE();
+    term_screen_t *s = ACTIVE();
     s->tiles[y][x] = t;
     s->palettes[y][x] = p;
     /* Don't render if we're scrolled back in primary; the user's view is
@@ -127,7 +127,7 @@ static void put_at(int x, int y, unsigned char t, unsigned char p) {
 
 static void clear_region(int top, int bot, unsigned char palette_for_clear) {
     int y, x;
-    term2_screen_t *s = ACTIVE();
+    term_screen_t *s = ACTIVE();
     for (y = top; y <= bot; y++) {
         for (x = 0; x < g_width; x++) {
             s->tiles[y][x] = 0;
@@ -139,7 +139,7 @@ static void clear_region(int top, int bot, unsigned char palette_for_clear) {
 }
 
 static void clear_screen_full(void) {
-    term2_screen_t *s = ACTIVE();
+    term_screen_t *s = ACTIVE();
     clear_region(0, g_height - 1, s->palette);
     s->cursor_x = 0;
     s->cursor_y = 0;
@@ -150,21 +150,21 @@ static void clear_screen_full(void) {
 static void push_to_history(int row_idx) {
     /* Only the primary screen contributes to scrollback history. */
     if (g_active != 0) return;
-    term2_screen_t *s = ACTIVE();
+    term_screen_t *s = ACTIVE();
     int x;
     for (x = 0; x < g_width; x++) {
         g_hist_tiles[g_hist_head][x] = s->tiles[row_idx][x];
         g_hist_pal[g_hist_head][x]   = s->palettes[row_idx][x];
     }
-    g_hist_head = (g_hist_head + 1) % TERM2_HISTORY_LINES;
-    if (g_hist_count < TERM2_HISTORY_LINES) g_hist_count++;
+    g_hist_head = (g_hist_head + 1) % TERM_HISTORY_LINES;
+    if (g_hist_count < TERM_HISTORY_LINES) g_hist_count++;
     if (g_scroll_view_offset > 0) g_scroll_view_offset = 0;
 }
 
 static void scroll_up_in_region(int n) {
     /* "Scroll up" = content moves up; new blank rows appear at the bottom.
        This is the standard behavior at end-of-screen. */
-    term2_screen_t *s = ACTIVE();
+    term_screen_t *s = ACTIVE();
     int top = s->scroll_top;
     int bot = s->scroll_bot;
     int region_h = bot - top + 1;
@@ -199,7 +199,7 @@ static void scroll_up_in_region(int n) {
 }
 
 static void scroll_down_in_region(int n) {
-    term2_screen_t *s = ACTIVE();
+    term_screen_t *s = ACTIVE();
     int top = s->scroll_top;
     int bot = s->scroll_bot;
     int region_h = bot - top + 1;
@@ -229,7 +229,7 @@ static void scroll_down_in_region(int n) {
 /* ============================================================ Cursor I/O === */
 
 static void newline(void) {
-    term2_screen_t *s = ACTIVE();
+    term_screen_t *s = ACTIVE();
     s->cursor_x = 0;
     s->cursor_y++;
     if (s->cursor_y > s->scroll_bot) {
@@ -240,10 +240,10 @@ static void newline(void) {
 }
 
 static void emit_printable(unsigned char c) {
-    term2_screen_t *s = ACTIVE();
+    term_screen_t *s = ACTIVE();
     /* Auto-snap to bottom on output if the user was viewing scrollback. */
     if (g_active == 0 && g_scroll_view_offset > 0)
-        term2_snap_to_bottom();
+        term_snap_to_bottom();
 
     if (g_uart && g_uart_mirror_enabled) g_uart((char)c);
 
@@ -284,7 +284,7 @@ static void parser_reset_csi(void) {
 }
 
 static void parser_step(unsigned char c) {
-    term2_screen_t *s = ACTIVE();
+    term_screen_t *s = ACTIVE();
 
     switch (g_pstate) {
     case PS_NORMAL:
@@ -362,15 +362,15 @@ static void parser_step(unsigned char c) {
 }
 
 static void parser_dispatch_csi(unsigned char final) {
-    term2_screen_t *s = ACTIVE();
+    term_screen_t *s = ACTIVE();
     int n, p1, p2;
 
     /* Private (?-prefixed) sequences */
     if (g_csi_question) {
         int mode = csi_param(0, 0);
         if (mode == 1049) {       /* alt screen with cursor save */
-            if (final == 'h') term2_alt_enter();
-            else if (final == 'l') term2_alt_leave();
+            if (final == 'h') term_alt_enter();
+            else if (final == 'l') term_alt_leave();
         } else if (mode == 25) {  /* cursor visibility */
             if (final == 'h')      s->cursor_visible = 1;
             else if (final == 'l') s->cursor_visible = 0;
@@ -503,12 +503,12 @@ static void parser_dispatch_csi(unsigned char final) {
 
 /* ============================================================== Public ===== */
 
-void term2_init(int width, int height,
-                term2_render_cell_fn render_cell,
-                term2_uart_mirror_fn uart_mirror) {
+void term_init(int width, int height,
+                term_render_cell_fn render_cell,
+                term_uart_mirror_fn uart_mirror) {
     int i;
-    if (width  <= 0 || width  > TERM2_MAX_WIDTH)  width  = 40;
-    if (height <= 0 || height > TERM2_MAX_HEIGHT) height = 25;
+    if (width  <= 0 || width  > TERM_MAX_WIDTH)  width  = 40;
+    if (height <= 0 || height > TERM_MAX_HEIGHT) height = 25;
     g_width  = width;
     g_height = height;
     g_render = render_cell;
@@ -550,71 +550,71 @@ void term2_init(int width, int height,
     }
 }
 
-void term2_get_size(int *w, int *h) {
+void term_get_size(int *w, int *h) {
     if (w) *w = g_width;
     if (h) *h = g_height;
 }
 
-void term2_write(const char *buf, int len) {
+void term_write(const char *buf, int len) {
     int i;
     if (!buf) return;
     for (i = 0; i < len; i++)
         parser_step((unsigned char)buf[i]);
 }
 
-void term2_putchar(char c) {
+void term_putchar(char c) {
     parser_step((unsigned char)c);
 }
 
-void term2_puts(const char *s) {
+void term_puts(const char *s) {
     if (!s) return;
     while (*s) parser_step((unsigned char)*s++);
 }
 
 /* Decimal/hex helpers (formerly in the term.c shim) — implemented here
-   so libterm v2 is self-contained and the shim can be deleted. */
-static void term2_putuint_dec(unsigned int v) {
+   so libterm is self-contained and the shim can be deleted. */
+static void term_putuint_dec(unsigned int v) {
     char buf[12];
     int n = 0;
-    if (v == 0) { term2_putchar('0'); return; }
+    if (v == 0) { term_putchar('0'); return; }
     while (v && n < (int)sizeof(buf)) { buf[n++] = (char)('0' + (v % 10)); v /= 10; }
-    while (n--) term2_putchar(buf[n]);
+    while (n--) term_putchar(buf[n]);
 }
 
-void term2_putint(int value) {
+void term_putint(int value) {
     unsigned int u;
-    if (value < 0) { term2_putchar('-'); u = (unsigned int)(-value); }
+    if (value < 0) { term_putchar('-'); u = (unsigned int)(-value); }
     else           { u = (unsigned int)value; }
-    term2_putuint_dec(u);
+    term_putuint_dec(u);
 }
 
-void term2_puthex(unsigned int value, int prefix) {
+void term_puthex(unsigned int value, int prefix) {
     static const char hex[] = "0123456789abcdef";
     char buf[8];
     int n = 0;
-    if (prefix) { term2_putchar('0'); term2_putchar('x'); }
-    if (value == 0) { term2_putchar('0'); return; }
+    if (prefix) { term_putchar('0'); term_putchar('x'); }
+    if (value == 0) { term_putchar('0'); return; }
     while (value && n < (int)sizeof(buf)) { buf[n++] = hex[value & 0xF]; value >>= 4; }
-    while (n--) term2_putchar(buf[n]);
+    while (n--) term_putchar(buf[n]);
 }
 
 /* UART-mirror toggle. The mirror callback itself is owned by the caller
    (BDOS wires it to uart_putchar); this just enables/disables it. */
-void term2_set_uart_mirror(int enable) { g_uart_mirror_enabled = enable; }
-int  term2_get_uart_mirror(void)       { return g_uart_mirror_enabled; }
+void term_set_uart_mirror(int enable) { g_uart_mirror_enabled = enable; }
+int  term_get_uart_mirror(void)       { return g_uart_mirror_enabled; }
 
-void term2_put_cell(int x, int y, unsigned char tile, unsigned char palette) {
+void term_put_cell(int x, int y, unsigned char tile, unsigned char palette) {
     put_at(x, y, tile, palette);
 }
 
-void term2_get_cell(int x, int y, unsigned char *tile, unsigned char *palette) {
+void term_get_cell(int x, int y, unsigned char *tile, unsigned char *palette) {
     if (x < 0 || x >= g_width || y < 0 || y >= g_height) return;
     if (tile)    *tile    = ACTIVE()->tiles[y][x];
     if (palette) *palette = ACTIVE()->palettes[y][x];
 }
 
-void term2_set_cursor(int x, int y) {
-    term2_screen_t *s = ACTIVE();
+void term_set_cursor(int x, int y) {
+    term_screen_t *s = ACTIVE();
     if (x < 0) x = 0;
     if (x >= g_width)  x = g_width - 1;
     if (y < 0) y = 0;
@@ -623,35 +623,35 @@ void term2_set_cursor(int x, int y) {
     s->cursor_y = y;
 }
 
-void term2_get_cursor(int *x, int *y) {
+void term_get_cursor(int *x, int *y) {
     if (x) *x = ACTIVE()->cursor_x;
     if (y) *y = ACTIVE()->cursor_y;
 }
 
-void term2_set_cursor_visible(int v) { ACTIVE()->cursor_visible = v ? 1 : 0; }
-int  term2_get_cursor_visible(void)  { return ACTIVE()->cursor_visible; }
+void term_set_cursor_visible(int v) { ACTIVE()->cursor_visible = v ? 1 : 0; }
+int  term_get_cursor_visible(void)  { return ACTIVE()->cursor_visible; }
 
-void term2_set_palette(unsigned char p) { ACTIVE()->palette = p; }
-unsigned char term2_get_palette(void)   { return ACTIVE()->palette; }
+void term_set_palette(unsigned char p) { ACTIVE()->palette = p; }
+unsigned char term_get_palette(void)   { return ACTIVE()->palette; }
 
-void term2_clear(void) { clear_screen_full(); }
+void term_clear(void) { clear_screen_full(); }
 
-void term2_clear_to_eol(void) {
-    term2_screen_t *s = ACTIVE();
+void term_clear_to_eol(void) {
+    term_screen_t *s = ACTIVE();
     int x;
     for (x = s->cursor_x; x < g_width; x++)
         put_at(x, s->cursor_y, 0, s->palette);
 }
 
-void term2_clear_to_eos(void) {
-    term2_screen_t *s = ACTIVE();
-    term2_clear_to_eol();
+void term_clear_to_eos(void) {
+    term_screen_t *s = ACTIVE();
+    term_clear_to_eol();
     if (s->cursor_y + 1 <= g_height - 1)
         clear_region(s->cursor_y + 1, g_height - 1, s->palette);
 }
 
-void term2_set_scroll_region(int top, int bot) {
-    term2_screen_t *s = ACTIVE();
+void term_set_scroll_region(int top, int bot) {
+    term_screen_t *s = ACTIVE();
     if (top < 0) top = 0;
     if (bot >= g_height) bot = g_height - 1;
     if (top < bot) {
@@ -660,17 +660,17 @@ void term2_set_scroll_region(int top, int bot) {
     }
 }
 
-void term2_scroll_up(int n)   { scroll_up_in_region(n); }
-void term2_scroll_down(int n) { scroll_down_in_region(n); }
+void term_scroll_up(int n)   { scroll_up_in_region(n); }
+void term_scroll_down(int n) { scroll_down_in_region(n); }
 
-void term2_alt_enter(void) {
+void term_alt_enter(void) {
     if (g_active == 1) return;
     /* Save scrollback view position so we can restore on leave */
     g_active = 1;
     /* Reset the alt screen to a clean state, preserving its own cursor/palette
        at defaults but clearing the buffer. */
     {
-        term2_screen_t *a = &g_screens[1];
+        term_screen_t *a = &g_screens[1];
         memset(a->tiles, 0, sizeof(a->tiles));
         memset(a->palettes, 0, sizeof(a->palettes));
         a->cursor_x = 0;
@@ -684,30 +684,30 @@ void term2_alt_enter(void) {
         a->cursor_visible = 1;
         a->wrap_mode = 1;
     }
-    term2_repaint();
+    term_repaint();
 }
 
-void term2_alt_leave(void) {
+void term_alt_leave(void) {
     if (g_active == 0) return;
     g_active = 0;
     /* If user was scrolled back, reset to live (alt screen took over the
        view). The primary buffer state is intact; just repaint live cells. */
     g_scroll_view_offset = 0;
-    term2_repaint();
+    term_repaint();
 }
 
-int term2_in_alt_screen(void) { return g_active == 1; }
+int term_in_alt_screen(void) { return g_active == 1; }
 
-void term2_repaint(void) {
+void term_repaint(void) {
     int x, y;
-    term2_screen_t *s = ACTIVE();
+    term_screen_t *s = ACTIVE();
     if (g_active == 0 && g_scroll_view_offset > 0) {
         /* Show scrollback */
         for (y = 0; y < g_height; y++) {
             if (y < g_scroll_view_offset) {
                 int hist_idx = g_hist_head - g_scroll_view_offset + y;
-                while (hist_idx < 0) hist_idx += TERM2_HISTORY_LINES;
-                hist_idx %= TERM2_HISTORY_LINES;
+                while (hist_idx < 0) hist_idx += TERM_HISTORY_LINES;
+                hist_idx %= TERM_HISTORY_LINES;
                 for (x = 0; x < g_width; x++)
                     render(x, y, g_hist_tiles[hist_idx][x], g_hist_pal[hist_idx][x]);
             } else {
@@ -723,51 +723,51 @@ void term2_repaint(void) {
     }
 }
 
-int term2_scroll_view_up(void) {
+int term_scroll_view_up(void) {
     if (g_active != 0) return 0;        /* alt screen has no history */
     if (g_scroll_view_offset >= g_hist_count) return 0;
     g_scroll_view_offset++;
-    term2_repaint();
+    term_repaint();
     return 1;
 }
 
-int term2_scroll_view_down(void) {
+int term_scroll_view_down(void) {
     if (g_active != 0) return 0;
     if (g_scroll_view_offset == 0) return 0;
     g_scroll_view_offset--;
-    term2_repaint();
+    term_repaint();
     return 1;
 }
 
-int term2_is_scrolled_back(void) { return g_active == 0 && g_scroll_view_offset > 0; }
+int term_is_scrolled_back(void) { return g_active == 0 && g_scroll_view_offset > 0; }
 
-void term2_snap_to_bottom(void) {
+void term_snap_to_bottom(void) {
     if (g_active != 0) return;
     if (g_scroll_view_offset == 0) return;
     g_scroll_view_offset = 0;
-    term2_repaint();
+    term_repaint();
 }
 
 /* ============================================================ Input ===== */
 
 /* (state declared up top with the rest of g_*) */
 
-void term2_set_input_source(term2_input_pop_fn pop) { g_input_pop = pop; }
-void term2_set_cooked(int cooked) { g_cooked = cooked ? 1 : 0; }
-int  term2_get_cooked(void)       { return g_cooked; }
-void term2_set_echo(int echo)     { g_echo = echo ? 1 : 0; }
-int  term2_get_echo(void)         { return g_echo; }
+void term_set_input_source(term_input_pop_fn pop) { g_input_pop = pop; }
+void term_set_cooked(int cooked) { g_cooked = cooked ? 1 : 0; }
+int  term_get_cooked(void)       { return g_cooked; }
+void term_set_echo(int echo)     { g_echo = echo ? 1 : 0; }
+int  term_get_echo(void)         { return g_echo; }
 
 /* Echo a single typed character. Backspace erases the previous cell. */
 static void echo_char(int c) {
     if (!g_echo) return;
     if (c == '\n' || c == '\r') {
-        term2_putchar('\n');
+        term_putchar('\n');
         return;
     }
     if (c == 127 || c == 8) {
         /* Erase previous cell visually: backspace + space + backspace. */
-        term2_screen_t *s = ACTIVE();
+        term_screen_t *s = ACTIVE();
         if (s->cursor_x > 0) {
             s->cursor_x--;
             put_at(s->cursor_x, s->cursor_y, 0, s->palette);
@@ -779,7 +779,7 @@ static void echo_char(int c) {
         return;
     }
     if (c < 0x20 || c > 0x7E) return;   /* don't echo other control chars */
-    term2_putchar((char)c);
+    term_putchar((char)c);
 }
 
 /* Process one event in cooked mode. Returns 1 if the line was completed. */
@@ -847,7 +847,7 @@ static int cooked_process_event(int ev) {
     return 0;
 }
 
-int term2_read(char *buf, int max, int blocking) {
+int term_read(char *buf, int max, int blocking) {
     if (!g_input_pop) return -1;
     if (max <= 0)     return 0;
 
@@ -881,7 +881,7 @@ int term2_read(char *buf, int max, int blocking) {
             if (cooked_process_event(ev)) break;
         }
         /* Now drain the just-completed line. */
-        return term2_read(buf, max, 0);
+        return term_read(buf, max, 0);
     }
 
     /* Raw mode: return up to max ASCII bytes; drop non-ASCII events. */
@@ -905,7 +905,7 @@ int term2_read(char *buf, int max, int blocking) {
     }
 }
 
-int term2_read_event(int blocking) {
+int term_read_event(int blocking) {
     if (!g_input_pop) return -1;
     for (;;) {
         int ev = g_input_pop();

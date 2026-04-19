@@ -1,16 +1,16 @@
 /*
- * Host-side unit tests for libterm v2.
+ * Host-side unit tests for libterm.
  *
  * Compile:
- *   gcc -O0 -Wall -DTERM2_HOST_TEST \
+ *   gcc -O0 -Wall -DTERM_HOST_TEST \
  *       -I Software/C/libfpgc/include \
- *       Tests/host/test_term2.c Software/C/libfpgc/term/term2.c \
- *       -o /tmp/test_term2
+ *       Tests/host/test_term.c Software/C/libfpgc/term/term.c \
+ *       -o /tmp/test_term
  *
- * Run: ./test_term2 — exits 0 on success, nonzero on first failure.
+ * Run: ./test_term — exits 0 on success, nonzero on first failure.
  */
 
-#include "term2.h"
+#include "term.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -40,10 +40,10 @@ static int g_failures = 0;
 static void reset(void) {
     memset(g_render_tiles, 0xFF, sizeof(g_render_tiles));
     memset(g_render_pal, 0xFF, sizeof(g_render_pal));
-    term2_init(WIDTH, HEIGHT, render_cb, NULL);
+    term_init(WIDTH, HEIGHT, render_cb, NULL);
 }
 
-static void puts_str(const char *s) { term2_puts(s); }
+static void puts_str(const char *s) { term_puts(s); }
 
 /* ---------------------------------------------------------------- */
 
@@ -51,7 +51,7 @@ static void test_basic_print(void) {
     reset();
     puts_str("hello");
     int cx, cy;
-    term2_get_cursor(&cx, &cy);
+    term_get_cursor(&cx, &cy);
     CHECK(cx == 5, "cursor x = %d", cx);
     CHECK(cy == 0, "cursor y = %d", cy);
     CHECK(g_render_tiles[0][0] == 'h', "tile at (0,0)=%d", g_render_tiles[0][0]);
@@ -61,12 +61,12 @@ static void test_basic_print(void) {
 static void test_newline_wrap(void) {
     reset();
     int i;
-    for (i = 0; i < WIDTH; i++) term2_putchar('A');
+    for (i = 0; i < WIDTH; i++) term_putchar('A');
     int cx, cy;
-    term2_get_cursor(&cx, &cy);
+    term_get_cursor(&cx, &cy);
     CHECK(cx == 0 && cy == 1, "wrap: cursor=(%d,%d)", cx, cy);
     /* writing one more should land on row 1 col 0 */
-    term2_putchar('B');
+    term_putchar('B');
     CHECK(g_render_tiles[1][0] == 'B', "wrap tile=%d", g_render_tiles[1][0]);
 }
 
@@ -74,19 +74,19 @@ static void test_scroll_at_bottom(void) {
     reset();
     int row;
     for (row = 0; row < HEIGHT; row++) {
-        term2_putchar('0' + (row % 10));
-        term2_putchar('\n');
+        term_putchar('0' + (row % 10));
+        term_putchar('\n');
     }
     /* After HEIGHT newlines, the first row should have scrolled out. */
     /* The very first row pushed to history should have '0'. */
     /* The current top row should now be '1'. */
     CHECK(g_render_tiles[0][0] == '1', "post-scroll row0=%d", g_render_tiles[0][0]);
     /* Scrollback should have one entry. */
-    CHECK(term2_scroll_view_up() == 1, "should scroll up");
-    CHECK(term2_is_scrolled_back() == 1, "is_scrolled_back");
+    CHECK(term_scroll_view_up() == 1, "should scroll up");
+    CHECK(term_is_scrolled_back() == 1, "is_scrolled_back");
     /* New output should snap back to bottom. */
-    term2_putchar('Z');
-    CHECK(term2_is_scrolled_back() == 0, "snapped back on output");
+    term_putchar('Z');
+    CHECK(term_is_scrolled_back() == 0, "snapped back on output");
 }
 
 static void test_csi_cup(void) {
@@ -94,13 +94,13 @@ static void test_csi_cup(void) {
     /* CUP to row 5 col 10 (1-based) → (4,9) zero-based */
     puts_str("\033[5;10H");
     int cx, cy;
-    term2_get_cursor(&cx, &cy);
+    term_get_cursor(&cx, &cy);
     CHECK(cx == 9 && cy == 4, "CUP cursor=(%d,%d)", cx, cy);
     puts_str("X");
     CHECK(g_render_tiles[4][9] == 'X', "CUP write");
     /* CUP defaults to home */
     puts_str("\033[H");
-    term2_get_cursor(&cx, &cy);
+    term_get_cursor(&cx, &cy);
     CHECK(cx == 0 && cy == 0, "CUP home=(%d,%d)", cx, cy);
 }
 
@@ -110,7 +110,7 @@ static void test_csi_clear(void) {
     /* Move to col 4 (0-based 3), erase to EOL */
     puts_str("\033[1;4H\033[K");
     int cx, cy;
-    term2_get_cursor(&cx, &cy);
+    term_get_cursor(&cx, &cy);
     CHECK(cx == 3 && cy == 0, "after CUP=(%d,%d)", cx, cy);
     /* Cells at col 3..7 should be 0; cells 0..2 should still be ABC */
     CHECK(g_render_tiles[0][0] == 'A', "kept A");
@@ -138,10 +138,10 @@ static void test_csi_cursor_move(void) {
     puts_str("\033[10;10H");
     puts_str("\033[3A"); /* up 3 */
     int cx, cy;
-    term2_get_cursor(&cx, &cy);
+    term_get_cursor(&cx, &cy);
     CHECK(cy == 6, "CUU cy=%d", cy);
     puts_str("\033[2D"); /* left 2 */
-    term2_get_cursor(&cx, &cy);
+    term_get_cursor(&cx, &cy);
     CHECK(cx == 7, "CUB cx=%d", cx);
 }
 
@@ -152,7 +152,7 @@ static void test_save_restore_cursor(void) {
     puts_str("\033[20;20H");    /* (19,19) */
     puts_str("\033[u");         /* restore */
     int cx, cy;
-    term2_get_cursor(&cx, &cy);
+    term_get_cursor(&cx, &cy);
     CHECK(cx == 4 && cy == 4, "save/restore=(%d,%d)", cx, cy);
 }
 
@@ -162,7 +162,7 @@ static void test_alt_screen(void) {
     puts_str("PRIMARY");
     /* Enter alt screen via DEC private mode 1049 */
     puts_str("\033[?1049h");
-    CHECK(term2_in_alt_screen() == 1, "in alt");
+    CHECK(term_in_alt_screen() == 1, "in alt");
     /* Cell (0,0) should be cleared in alt view */
     /* But render callback was just invoked to repaint — should show 0s */
     CHECK(g_render_tiles[0][0] == 0, "alt clears render to 0, got %d", g_render_tiles[0][0]);
@@ -170,7 +170,7 @@ static void test_alt_screen(void) {
     CHECK(g_render_tiles[0][0] == 'A', "alt writes A=%d", g_render_tiles[0][0]);
     /* Leave alt */
     puts_str("\033[?1049l");
-    CHECK(term2_in_alt_screen() == 0, "back to primary");
+    CHECK(term_in_alt_screen() == 0, "back to primary");
     /* Primary should be restored — first cells are PRIMARY again */
     CHECK(g_render_tiles[0][0] == 'P', "primary restored P=%d", g_render_tiles[0][0]);
     CHECK(g_render_tiles[0][6] == 'Y', "primary restored Y=%d", g_render_tiles[0][6]);
@@ -179,9 +179,9 @@ static void test_alt_screen(void) {
 static void test_cursor_visibility(void) {
     reset();
     puts_str("\033[?25l");
-    CHECK(term2_get_cursor_visible() == 0, "hide");
+    CHECK(term_get_cursor_visible() == 0, "hide");
     puts_str("\033[?25h");
-    CHECK(term2_get_cursor_visible() == 1, "show");
+    CHECK(term_get_cursor_visible() == 1, "show");
 }
 
 static void test_scroll_region(void) {
@@ -190,16 +190,16 @@ static void test_scroll_region(void) {
     puts_str("\033[5;10r");
     /* Cursor should be at (0,4) */
     int cx, cy;
-    term2_get_cursor(&cx, &cy);
+    term_get_cursor(&cx, &cy);
     CHECK(cx == 0 && cy == 4, "DECSTBM cursor=(%d,%d)", cx, cy);
     /* Fill region to overflow */
     int i;
     for (i = 0; i < 10; i++) {
-        term2_putchar('X');
-        term2_putchar('\n');
+        term_putchar('X');
+        term_putchar('\n');
     }
     /* Cursor should be clamped to bottom of region (y=9) */
-    term2_get_cursor(&cx, &cy);
+    term_get_cursor(&cx, &cy);
     CHECK(cy == 9, "cursor clamped to scroll_bot, got %d", cy);
     /* Row 0 (outside region) should still be empty */
     CHECK(g_render_tiles[0][0] == 0, "row 0 untouched=%d", g_render_tiles[0][0]);
@@ -211,42 +211,42 @@ static void test_multiline_block_comment_safety(void) {
     /* Sanity: writing a block of text with embedded newlines doesn't crash */
     reset();
     const char *lines = "line1\nline2\nline3\n";
-    term2_write(lines, (int)strlen(lines));
+    term_write(lines, (int)strlen(lines));
     int cx, cy;
-    term2_get_cursor(&cx, &cy);
+    term_get_cursor(&cx, &cy);
     CHECK(cy == 3, "after 3 newlines cy=%d", cy);
 }
 
 static void test_tab(void) {
     reset();
-    term2_putchar('\t');
+    term_putchar('\t');
     int cx, cy;
-    term2_get_cursor(&cx, &cy);
+    term_get_cursor(&cx, &cy);
     CHECK(cx == 4, "tab to col 4, got %d", cx);
-    term2_putchar('\t');
-    term2_get_cursor(&cx, &cy);
+    term_putchar('\t');
+    term_get_cursor(&cx, &cy);
     CHECK(cx == 8, "tab to col 8, got %d", cx);
 }
 
 static void test_backspace(void) {
     reset();
     puts_str("AB");
-    term2_putchar('\b');
+    term_putchar('\b');
     int cx, cy;
-    term2_get_cursor(&cx, &cy);
+    term_get_cursor(&cx, &cy);
     CHECK(cx == 1, "after \\b cx=%d", cx);
-    term2_putchar('\b');
-    term2_putchar('\b'); /* should clamp at 0 */
-    term2_get_cursor(&cx, &cy);
+    term_putchar('\b');
+    term_putchar('\b'); /* should clamp at 0 */
+    term_get_cursor(&cx, &cy);
     CHECK(cx == 0, "clamped cx=%d", cx);
 }
 
 static void test_carriage_return(void) {
     reset();
     puts_str("hello");
-    term2_putchar('\r');
+    term_putchar('\r');
     int cx, cy;
-    term2_get_cursor(&cx, &cy);
+    term_get_cursor(&cx, &cy);
     CHECK(cx == 0 && cy == 0, "after \\r cursor=(%d,%d)", cx, cy);
 }
 
@@ -265,7 +265,7 @@ static void test_ed_modes(void) {
     int r;
     for (r = 0; r < 3; r++) {
         puts_str("XXXX");
-        term2_putchar('\n');
+        term_putchar('\n');
     }
     /* Cursor now at (0,3). Move to (0,1) and ED 1 (top to cursor). */
     puts_str("\033[2;1H\033[1J");
@@ -307,10 +307,10 @@ static void input_push_str(const char *s) {
 static void test_cooked_basic_line(void) {
     reset();
     input_reset();
-    term2_set_input_source(input_pop);
+    term_set_input_source(input_pop);
     input_push_str("hello\n");
     char buf[64];
-    int n = term2_read(buf, sizeof(buf), 1);
+    int n = term_read(buf, sizeof(buf), 1);
     CHECK(n == 6, "cooked line len=%d", n);
     CHECK(buf[0] == 'h' && buf[5] == '\n', "buf=%c..%c", buf[0], buf[5]);
     /* Echo should have written 'hello' to screen */
@@ -321,13 +321,13 @@ static void test_cooked_basic_line(void) {
 static void test_cooked_backspace(void) {
     reset();
     input_reset();
-    term2_set_input_source(input_pop);
+    term_set_input_source(input_pop);
     input_push_str("ab");
     input_push(127);    /* backspace */
     input_push('c');
     input_push('\n');
     char buf[64];
-    int n = term2_read(buf, sizeof(buf), 1);
+    int n = term_read(buf, sizeof(buf), 1);
     CHECK(n == 3, "cooked bs len=%d", n);
     CHECK(buf[0] == 'a' && buf[1] == 'c' && buf[2] == '\n',
           "buf=[%c%c%c]", buf[0], buf[1], buf[2]);
@@ -336,12 +336,12 @@ static void test_cooked_backspace(void) {
 static void test_cooked_ctrl_u(void) {
     reset();
     input_reset();
-    term2_set_input_source(input_pop);
+    term_set_input_source(input_pop);
     input_push_str("garbage");
     input_push(21);     /* Ctrl-U */
     input_push_str("ok\n");
     char buf[64];
-    int n = term2_read(buf, sizeof(buf), 1);
+    int n = term_read(buf, sizeof(buf), 1);
     CHECK(n == 3, "ctrl-u: len=%d", n);
     CHECK(buf[0] == 'o' && buf[1] == 'k' && buf[2] == '\n',
           "ctrl-u buf=[%c%c%c]", buf[0], buf[1], buf[2]);
@@ -350,51 +350,51 @@ static void test_cooked_ctrl_u(void) {
 static void test_cooked_ctrl_d_eof(void) {
     reset();
     input_reset();
-    term2_set_input_source(input_pop);
+    term_set_input_source(input_pop);
     input_push(4);      /* Ctrl-D on empty */
     char buf[64];
-    int n = term2_read(buf, sizeof(buf), 1);
+    int n = term_read(buf, sizeof(buf), 1);
     CHECK(n == 0, "EOF returns 0, got %d", n);
 }
 
 static void test_cooked_nonblocking(void) {
     reset();
     input_reset();
-    term2_set_input_source(input_pop);
+    term_set_input_source(input_pop);
     input_push_str("ab"); /* no newline */
     char buf[64];
-    int n = term2_read(buf, sizeof(buf), 0);
+    int n = term_read(buf, sizeof(buf), 0);
     CHECK(n == 0, "no complete line, got %d", n);
     /* Buffer should still hold 'ab' for next read */
     input_push('\n');
-    n = term2_read(buf, sizeof(buf), 0);
+    n = term_read(buf, sizeof(buf), 0);
     CHECK(n == 3, "after \\n, len=%d", n);
 }
 
 static void test_cooked_drain_in_chunks(void) {
     reset();
     input_reset();
-    term2_set_input_source(input_pop);
+    term_set_input_source(input_pop);
     input_push_str("abcdefgh\n");
     char buf[4];
-    int n = term2_read(buf, sizeof(buf), 1);
+    int n = term_read(buf, sizeof(buf), 1);
     CHECK(n == 4, "first chunk=%d", n);
     CHECK(buf[0] == 'a' && buf[3] == 'd', "chunk1");
-    n = term2_read(buf, sizeof(buf), 0);
+    n = term_read(buf, sizeof(buf), 0);
     CHECK(n == 4, "second chunk=%d", n);
     CHECK(buf[0] == 'e' && buf[3] == 'h', "chunk2");
-    n = term2_read(buf, sizeof(buf), 0);
+    n = term_read(buf, sizeof(buf), 0);
     CHECK(n == 1 && buf[0] == '\n', "remainder len=%d", n);
 }
 
 static void test_cooked_no_echo(void) {
     reset();
     input_reset();
-    term2_set_input_source(input_pop);
-    term2_set_echo(0);
+    term_set_input_source(input_pop);
+    term_set_echo(0);
     input_push_str("hi\n");
     char buf[64];
-    term2_read(buf, sizeof(buf), 1);
+    term_read(buf, sizeof(buf), 1);
     /* No echo: row 0 col 0 should still be 0 */
     CHECK(g_render_tiles[0][0] == 0, "no-echo: cell=%d", g_render_tiles[0][0]);
 }
@@ -402,39 +402,39 @@ static void test_cooked_no_echo(void) {
 static void test_raw_event(void) {
     reset();
     input_reset();
-    term2_set_input_source(input_pop);
-    term2_set_cooked(0);
-    input_push(TERM2_KEY_UP);
+    term_set_input_source(input_pop);
+    term_set_cooked(0);
+    input_push(TERM_KEY_UP);
     input_push('a');
-    int ev = term2_read_event(0);
-    CHECK(ev == TERM2_KEY_UP, "first event=%d", ev);
-    ev = term2_read_event(0);
+    int ev = term_read_event(0);
+    CHECK(ev == TERM_KEY_UP, "first event=%d", ev);
+    ev = term_read_event(0);
     CHECK(ev == 'a', "second event=%d", ev);
-    ev = term2_read_event(0);
+    ev = term_read_event(0);
     CHECK(ev == -1, "empty=-1, got %d", ev);
 }
 
 static void test_raw_read_drops_special(void) {
     reset();
     input_reset();
-    term2_set_input_source(input_pop);
-    term2_set_cooked(0);
+    term_set_input_source(input_pop);
+    term_set_cooked(0);
     input_push('a');
-    input_push(TERM2_KEY_F1);
+    input_push(TERM_KEY_F1);
     input_push('b');
     char buf[8];
-    int n = term2_read(buf, sizeof(buf), 0);
+    int n = term_read(buf, sizeof(buf), 0);
     CHECK(n == 2, "raw read len=%d", n);
     CHECK(buf[0] == 'a' && buf[1] == 'b', "raw read=[%c%c]", buf[0], buf[1]);
 }
 
 static void test_no_input_source(void) {
     reset();
-    /* term2_init resets input_pop to NULL. */
+    /* term_init resets input_pop to NULL. */
     char buf[8];
-    int n = term2_read(buf, sizeof(buf), 0);
+    int n = term_read(buf, sizeof(buf), 0);
     CHECK(n == -1, "no source = -1, got %d", n);
-    int ev = term2_read_event(0);
+    int ev = term_read_event(0);
     CHECK(ev == -1, "no source event = -1, got %d", ev);
 }
 
@@ -443,7 +443,7 @@ static void test_no_input_source(void) {
 #define RUN(t) do { printf("  %s\n", #t); t(); } while (0)
 
 int main(void) {
-    printf("libterm v2 host tests\n");
+    printf("libterm host tests\n");
     RUN(test_basic_print);
     RUN(test_newline_wrap);
     RUN(test_scroll_at_bottom);

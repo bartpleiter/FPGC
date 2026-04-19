@@ -157,10 +157,10 @@ void bdos_shell_vars_foreach(int exported_only,
 static void print_var_cb(const char *name, const char *value, int exported)
 {
     (void)exported;
-    term2_puts(name);
-    term2_putchar('=');
-    term2_puts(value);
-    term2_putchar('\n');
+    term_puts(name);
+    term_putchar('=');
+    term_puts(value);
+    term_putchar('\n');
 }
 
 void bdos_shell_vars_print(int exported_only)

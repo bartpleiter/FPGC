@@ -124,9 +124,9 @@ static int apply_redirects(const sh_cmd_t *cmd)
     if (cmd->redir_in) {
         fd = resolve_and_open(cmd->redir_in, BDOS_O_RDONLY, path);
         if (fd < 0) {
-            term2_puts("shell: cannot open input: ");
-            term2_puts(cmd->redir_in);
-            term2_putchar('\n');
+            term_puts("shell: cannot open input: ");
+            term_puts(cmd->redir_in);
+            term_putchar('\n');
             return -1;
         }
         bdos_vfs_dup2(fd, 0);
@@ -136,9 +136,9 @@ static int apply_redirects(const sh_cmd_t *cmd)
         fd = resolve_and_open(cmd->redir_out,
                               BDOS_O_WRONLY | BDOS_O_CREAT | BDOS_O_TRUNC, path);
         if (fd < 0) {
-            term2_puts("shell: cannot open output: ");
-            term2_puts(cmd->redir_out);
-            term2_putchar('\n');
+            term_puts("shell: cannot open output: ");
+            term_puts(cmd->redir_out);
+            term_putchar('\n');
             return -1;
         }
         bdos_vfs_dup2(fd, 1);
@@ -148,9 +148,9 @@ static int apply_redirects(const sh_cmd_t *cmd)
         fd = resolve_and_open(cmd->redir_append,
                               BDOS_O_WRONLY | BDOS_O_CREAT | BDOS_O_APPEND, path);
         if (fd < 0) {
-            term2_puts("shell: cannot open output: ");
-            term2_puts(cmd->redir_append);
-            term2_putchar('\n');
+            term_puts("shell: cannot open output: ");
+            term_puts(cmd->redir_append);
+            term_putchar('\n');
             return -1;
         }
         bdos_vfs_dup2(fd, 1);
@@ -204,8 +204,8 @@ int bdos_shell_run_cmd(int argc, char **argv)
 
     if (bdos_shell_resolve_program(argv[0], prog_path) != BRFS_OK ||
         !brfs_exists(prog_path) || brfs_is_dir(prog_path)) {
-        term2_puts(argv[0]);
-        term2_puts(": command not found\n");
+        term_puts(argv[0]);
+        term_puts(": command not found\n");
         return 127;
     }
 
@@ -340,7 +340,7 @@ int bdos_shell_execute_line(char *line)
     int        n;
 
     if (bdos_shell_expand(line, expanded, sizeof(expanded), 0, NULL) < 0) {
-        term2_puts("shell: bad quoting / overflow\n");
+        term_puts("shell: bad quoting / overflow\n");
         bdos_shell_last_exit = 1;
         return 1;
     }
@@ -348,7 +348,7 @@ int bdos_shell_execute_line(char *line)
     n = bdos_shell_lex(expanded, toks, BDOS_SHELL_TOK_MAX,
                        store, sizeof(store));
     if (n < 0) {
-        term2_puts("shell: lex error\n");
+        term_puts("shell: lex error\n");
         bdos_shell_last_exit = 1;
         return 1;
     }

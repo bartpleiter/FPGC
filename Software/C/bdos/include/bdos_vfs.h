@@ -4,7 +4,7 @@
 /*
  * Phase B of shell-terminal-v2 — virtual filesystem with byte-oriented
  * file descriptors. Three device types currently:
- *   DEV_TTY  — line-disciplined terminal (uses libterm v2 + HID FIFO).
+ *   DEV_TTY  — line-disciplined terminal (uses libterm + HID FIFO).
  *   DEV_FILE — backed by BRFS, byte view over the underlying word storage.
  *   DEV_NULL — /dev/null.
  *

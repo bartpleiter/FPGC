@@ -75,7 +75,7 @@ the standalone binary `/bin/format` in Phase E (the boot-time mount-failure
 wizard still lives inside the kernel for first-boot recovery).
 
 For the full syntax reference and the up-to-date built-in list, see
-[Shell.md](Shell.md). For terminal capabilities (libterm v2, supported ANSI
+[Shell.md](Shell.md). For terminal capabilities (libterm, supported ANSI
 escapes), see [Terminal.md](Terminal.md).
 
 ## Process model
@@ -107,7 +107,7 @@ per-process fd table and exposes a uniform `open` / `read` / `write` /
 | Device | Backing | Notes |
 |--------|---------|-------|
 | `file` | BRFS v2 entry | Byte-addressable view over the word-oriented filesystem; honours `O_CREAT`, `O_TRUNC`, `O_APPEND`. |
-| `tty`  | libterm v2 + keyboard FIFO | `/dev/tty`. Cooked mode by default (line-buffered, ANSI emit on writes). Pass `O_RAW` to receive 4-byte little-endian key-event packets per `read`; combine with `O_NONBLOCK` for polling games. |
+| `tty`  | libterm + keyboard FIFO | `/dev/tty`. Cooked mode by default (line-buffered, ANSI emit on writes). Pass `O_RAW` to receive 4-byte little-endian key-event packets per `read`; combine with `O_NONBLOCK` for polling games. |
 | `pipe` | Temp file under `/tmp/` | Rewritten by the shell from `a | b` into `a >/tmp/p.N ; b </tmp/p.N`. No concurrency required by the execution model. |
 | `null` | — | `/dev/null`. Discards writes, returns EOF on reads. |
 

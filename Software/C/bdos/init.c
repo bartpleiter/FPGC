@@ -1,6 +1,6 @@
 #include "bdos.h"
 
-/* libterm v2 wiring: render callback pushes a single cell to the GPU
+/* libterm wiring: render callback pushes a single cell to the GPU
    window plane; uart callback mirrors printable bytes to the UART. */
 static void bdos_term_render_cb(int x, int y,
                                 unsigned char tile, unsigned char palette)
@@ -22,9 +22,9 @@ static void bdos_init_gpu(void)
 
 static void bdos_init_usb_keyboard(void)
 {
-  term2_puts("Initializing CH376 (ID ");
-  term2_putint(bdos_usb_keyboard_spi_id);
-  term2_puts(") for input\n");
+  term_puts("Initializing CH376 (ID ");
+  term_putint(bdos_usb_keyboard_spi_id);
+  term_puts(") for input\n");
 
   if (!ch376_host_init(bdos_usb_keyboard_spi_id))
   {
@@ -44,7 +44,7 @@ static void bdos_init_ethernet(void)
   int i;
   int spi_flash_id_buffer[8];
 
-  term2_puts("Initializing ENC28J60 Ethernet\n");
+  term_puts("Initializing ENC28J60 Ethernet\n");
 
   bdos_eth_mac[0] = 0x02;
   bdos_eth_mac[1] = 0xB4;
@@ -99,31 +99,31 @@ void bdos_init(void)
   bdos_init_gpu();
 
   gpu_set_window_palette(0);
-  term2_init(TERM_WIDTH, TERM_HEIGHT,
+  term_init(TERM_WIDTH, TERM_HEIGHT,
              bdos_term_render_cb, bdos_term_uart_cb);
-  term2_set_palette(PALETTE_WHITE_ON_BLACK);
-  term2_puts("GPU initialized\n");
+  term_set_palette(PALETTE_WHITE_ON_BLACK);
+  term_puts("GPU initialized\n");
 
   timer_init();
-  term2_puts("Timers initialized\n");
+  term_puts("Timers initialized\n");
 
   uart_init();
-  term2_puts("UART initialized\n");
+  term_puts("UART initialized\n");
 
   bdos_init_ethernet();
-  term2_puts("ENC28J60 Ethernet initialized\n");
+  term_puts("ENC28J60 Ethernet initialized\n");
 
   bdos_init_usb_keyboard();
-  term2_puts("CH376 USB host initialized\n");
+  term_puts("CH376 USB host initialized\n");
 
   bdos_slot_init();
-  term2_puts("Program slot system initialized\n");
+  term_puts("Program slot system initialized\n");
 
   bdos_heap_init();
-  term2_puts("Heap allocator initialized\n");
+  term_puts("Heap allocator initialized\n");
 
   bdos_proc_init();
-  term2_puts("VFS + process model initialized\n");
+  term_puts("VFS + process model initialized\n");
 
   set_user_led(0);
 }

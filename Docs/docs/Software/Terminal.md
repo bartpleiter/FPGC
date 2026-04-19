@@ -1,6 +1,6 @@
-# Terminal (libterm v2)
+# Terminal (libterm)
 
-`libterm v2` is the terminal layer that backs `/dev/tty` in
+`libterm` is the terminal layer that backs `/dev/tty` in
 [BDOS](OS.md). It owns *all* terminal state — the on-screen cell grid,
 cursor, palettes, scrollback ring, alternate-screen save area, and the
 ANSI escape parser. Everything else (the shell, user programs, libc
@@ -8,11 +8,11 @@ ANSI escape parser. Everything else (the shell, user programs, libc
 
 It lives in two files:
 
-- `Software/C/libfpgc/term/term2.c` (~870 LOC) — implementation.
-- `Software/C/libfpgc/include/term2.h` — public API.
+- `Software/C/libfpgc/term/term.c` (~870 LOC) — implementation.
+- `Software/C/libfpgc/include/term.h` — public API.
 
 The legacy `term.c` shim was deleted in Phase E; all callers now use the
-`term2_*` symbols directly.
+`term_*` symbols directly.
 
 ## Architecture
 
@@ -28,8 +28,8 @@ The legacy `term.c` shim was deleted in Phase E; all callers now use the
                                           |
                                           v
                               +-------------------------+
-                              |   libterm v2 parser     |
-                              |   (term2_write)         |
+                              |   libterm parser     |
+                              |   (term_write)         |
                               +-------------------------+
                                 |          |
                                 v          v
@@ -40,14 +40,14 @@ The legacy `term.c` shim was deleted in Phase E; all callers now use the
                        +---------------+
 ```
 
-`term2_init()` is called once during `bdos_init` (`Software/C/bdos/init.c`)
+`term_init()` is called once during `bdos_init` (`Software/C/bdos/init.c`)
 with two callbacks: a tile renderer (currently `gpu_write_window_tile`) and
 a UART mirror (currently `uart_putchar`). Disabling the UART mirror at
-runtime is a single call to `term2_set_uart_mirror(0)`.
+runtime is a single call to `term_set_uart_mirror(0)`.
 
 ## ANSI escape support
 
-libterm v2 implements a useful subset of VT100/xterm escapes — enough for
+libterm implements a useful subset of VT100/xterm escapes — enough for
 ncurses-style fullscreen apps and conventional terminal output:
 
 ### CSI sequences (`ESC [ ...`)
@@ -87,49 +87,49 @@ SGR is mapped pragmatically:
   "bright" toggle when combined with the above.
 
 If you need exact control of the underlying palette, draw with
-`term2_put_cell(x, y, tile, palette)` directly inside the kernel — there
+`term_put_cell(x, y, tile, palette)` directly inside the kernel — there
 is no userland syscall for raw palette writes any more (one of the
 removals in Phase E).
 
 ## Public API (selected)
 
 ```c
-void term2_init(int width, int height,
-                term2_render_cb_t render,
-                term2_uart_cb_t uart);
+void term_init(int width, int height,
+                term_render_cb_t render,
+                term_uart_cb_t uart);
 
 /* High-level character / string output. Goes through the parser. */
-void term2_putchar(int c);
-void term2_puts   (const char *s);
-void term2_write  (const char *buf, int len);
+void term_putchar(int c);
+void term_puts   (const char *s);
+void term_write  (const char *buf, int len);
 
 /* Convenience formatters used by BDOS panic / boot output. */
-void term2_putint (int v);
-void term2_puthex (unsigned int v);
+void term_putint (int v);
+void term_puthex (unsigned int v);
 
 /* Direct cell access (bypasses the parser; for kernel use). */
-void term2_put_cell(int x, int y, unsigned char tile, unsigned char palette);
-void term2_get_cell(int x, int y, unsigned char *tile, unsigned char *palette);
+void term_put_cell(int x, int y, unsigned char tile, unsigned char palette);
+void term_get_cell(int x, int y, unsigned char *tile, unsigned char *palette);
 
 /* Cursor + display state. */
-void term2_set_cursor(int x, int y);
-void term2_get_cursor(int *x, int *y);
-int  term2_get_cursor_visible(void);
-void term2_clear(void);
+void term_set_cursor(int x, int y);
+void term_get_cursor(int *x, int *y);
+int  term_get_cursor_visible(void);
+void term_clear(void);
 
 /* Scrollback view. */
-void term2_scroll_view_up(int lines);
-void term2_scroll_view_down(int lines);
-int  term2_is_scrolled_back(void);
+void term_scroll_view_up(int lines);
+void term_scroll_view_down(int lines);
+int  term_is_scrolled_back(void);
 
 /* Misc. */
-void term2_set_palette       (int index);
-void term2_set_uart_mirror   (int enabled);
-int  term2_get_uart_mirror   (void);
+void term_set_palette       (int index);
+void term_set_uart_mirror   (int enabled);
+int  term_get_uart_mirror   (void);
 ```
 
 `TERM_WIDTH`, `TERM_HEIGHT`, `TERM_HISTORY_LINES`, and `TAB_WIDTH` are
-provided as `#define`s in `term2.h` for code that wants compile-time
+provided as `#define`s in `term.h` for code that wants compile-time
 constants.
 
 ## Raw input — `/dev/tty` event packets

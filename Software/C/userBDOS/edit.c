@@ -3,7 +3,7 @@
 // Usage: edit <filename>
 //
 // shell-terminal-v2 port: rendering goes through ANSI escapes on fd 1
-// (so the editor honours redirection and lives inside the libterm v2
+// (so the editor honours redirection and lives inside the libterm
 // cell model), and input comes from /dev/tty in raw blocking mode via
 // sys_tty_open_raw / sys_tty_event_read. Alternate screen is entered
 // with \x1b[?1049h on startup and left on exit so the shell view is
@@ -350,7 +350,7 @@ void put_cell(int x, int y, int ch, int palette)
   char b;
 
   if (x < 0 || y < 0) return;
-  /* Glyphs that overlap C0 control codes would confuse libterm v2's
+  /* Glyphs that overlap C0 control codes would confuse libterm's
    * ANSI parser — substitute a printable placeholder. The editor
    * normally only renders ASCII text and the ' ' / '~' markers. */
   if (ch < 0x20 || ch == 0x7F) {

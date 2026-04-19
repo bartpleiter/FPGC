@@ -4,7 +4,7 @@ int bdos_shell_require_fs_ready(void)
 {
   if (!bdos_fs_ready)
   {
-    term2_puts("error: filesystem not mounted\n");
+    term_puts("error: filesystem not mounted\n");
     return 0;
   }
 
@@ -13,20 +13,20 @@ int bdos_shell_require_fs_ready(void)
 
 void bdos_shell_print_fs_error(char *action, int result)
 {
-  term2_puts("error: ");
-  term2_puts(action);
-  term2_puts(" failed: ");
-  term2_puts(bdos_fs_error_string(result));
-  term2_putchar('\n');
+  term_puts("error: ");
+  term_puts(action);
+  term_puts(" failed: ");
+  term_puts(bdos_fs_error_string(result));
+  term_putchar('\n');
 }
 
 void bdos_shell_print_2digit(unsigned int value)
 {
   if (value < 10)
   {
-    term2_putchar('0');
+    term_putchar('0');
   }
-  term2_putint((int)value);
+  term_putint((int)value);
 }
 
 int bdos_shell_u32_to_str(unsigned int value, char *out)
@@ -68,10 +68,10 @@ void bdos_shell_print_kib(unsigned int bytes)
   unsigned int kib_1dp;
 
   kib_1dp = bdos_shell_bytes_to_kib_1dp(bytes);
-  term2_putint((int)(kib_1dp / 10));
-  term2_putchar('.');
-  term2_putint((int)(kib_1dp % 10));
-  term2_puts(" KiB");
+  term_putint((int)(kib_1dp / 10));
+  term_putchar('.');
+  term_putint((int)(kib_1dp % 10));
+  term_puts(" KiB");
 }
 
 void bdos_shell_print_hline(unsigned int length)
@@ -80,9 +80,9 @@ void bdos_shell_print_hline(unsigned int length)
 
   for (i = 0; i < length; i++)
   {
-    term2_putchar('-');
+    term_putchar('-');
   }
-  term2_putchar('\n');
+  term_putchar('\n');
 }
 
 void bdos_shell_print_field_prefix(char *name, int value_col)
@@ -90,11 +90,11 @@ void bdos_shell_print_field_prefix(char *name, int value_col)
   int len;
   int i;
 
-  term2_puts(name);
+  term_puts(name);
   len = strlen(name);
   for (i = len; i < value_col; i++)
   {
-    term2_putchar(' ');
+    term_putchar(' ');
   }
 }
 

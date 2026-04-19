@@ -22,7 +22,7 @@ Pipeline: `crt0_bdos.asm + libc + libfpgc + bdos sources → cproc → QBE
 picolibc-derived freestanding C library: `string.h`, `stdlib.h`,
 `stdio.h` (printf family), `ctype.h`, `stdint.h`, `errno.h`, ...
 System hooks live in `sys/`. printf goes through `_write` which the
-BDOS build wires to libterm v2.
+BDOS build wires to libterm.
 
 ### libfpgc (`Software/C/libfpgc/`)
 
@@ -38,12 +38,12 @@ Hardware abstraction. Headers in `include/`:
 | `ch376.h`          | CH376 USB-host driver |
 | `enc28j60.h`       | ENC28J60 Ethernet driver |
 | `gpu_hal.h`, `gpu_fb.h`, `gpu_data_ascii.h` | GPU + framebuffer + ASCII assets |
-| **`term2.h`**      | libterm v2 — owns terminal cell grid, ANSI parser, scrollback, alt screen, line discipline |
+| **`term.h`**      | libterm — owns terminal cell grid, ANSI parser, scrollback, alt screen, line discipline |
 | `brfs.h`, `brfs_storage.h` | BRFS v2 + storage backend vtable |
 | `debug.h`          | Hex-dump helpers |
 
 Note: the v1 `term.h` shim was deleted in shell-terminal-v2 Phase E.
-All callers now use `term2_*` directly.
+All callers now use `term_*` directly.
 
 ### BDOS kernel (`Software/C/bdos/`)
 
@@ -99,7 +99,7 @@ support multi-slot job control).
 
 ## Boot flow
 
-1. `main()` → `bdos_init()` — GPU + libterm v2, UART, timers, SPI,
+1. `main()` → `bdos_init()` — GPU + libterm, UART, timers, SPI,
    USB keyboard (CH376), Ethernet (ENC28J60).
 2. `bdos_fs_boot_init()` — `brfs_init()` then `brfs_mount()`. On
    mount failure sets `bdos_fs_boot_needs_format`.
@@ -296,7 +296,7 @@ Built-ins: `help`, `clear`, `echo`, `uptime`, `pwd`, `cd`, `ls`,
 lives in `shell_format.c`).
 
 For the syntax reference and full built-in list see
-[Shell.md](../docs/Software/Shell.md). For libterm v2 + supported
+[Shell.md](../docs/Software/Shell.md). For libterm + supported
 ANSI escapes (including DECAWM `?7h/l` for full-screen apps) see
 [Terminal.md](../docs/Software/Terminal.md).
 

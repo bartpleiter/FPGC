@@ -65,7 +65,7 @@ static void start_line_internal(void);
 static void cursor_clear(void)
 {
     if (!E.visible) return;
-    term2_put_cell(E.draw_x, E.draw_y, E.saved_tile, E.saved_palette);
+    term_put_cell(E.draw_x, E.draw_y, E.saved_tile, E.saved_palette);
     E.visible = 0;
 }
 
@@ -74,16 +74,16 @@ static void cursor_draw(void)
     unsigned int  x, y;
     int           tx, ty;
     unsigned char tile, pal;
-    term2_get_cursor(&tx, &ty);
+    term_get_cursor(&tx, &ty);
     x = (unsigned int)tx;
     y = (unsigned int)ty;
-    term2_get_cell(x, y, &tile, &pal);
+    term_get_cell(x, y, &tile, &pal);
     E.draw_x = x;
     E.draw_y = y;
     E.saved_tile = tile;
     E.saved_palette = pal;
     E.visible = 1;
-    term2_put_cell(x, y, tile, PALETTE_BLACK_ON_WHITE);
+    term_put_cell(x, y, tile, PALETTE_BLACK_ON_WHITE);
 }
 
 /* ---- Prompt ---- */
@@ -124,7 +124,7 @@ static void move_cursor_to_input(void)
     col = ((int)E.prompt_x + abs) % TERM_WIDTH;
     if (row < 0)             row = 0;
     if (row >= TERM_HEIGHT)  row = TERM_HEIGHT - 1;
-    term2_set_cursor((unsigned int)col, (unsigned int)row);
+    term_set_cursor((unsigned int)col, (unsigned int)row);
 }
 
 static void render(void)
@@ -135,15 +135,15 @@ static void render(void)
     cursor_clear();
 
     /* Erase old render. */
-    term2_set_palette(PALETTE_WHITE_ON_BLACK);
-    term2_set_cursor(E.prompt_x, E.prompt_y);
-    for (i = 0; i < E.last_render; i++) term2_putchar(' ');
+    term_set_palette(PALETTE_WHITE_ON_BLACK);
+    term_set_cursor(E.prompt_x, E.prompt_y);
+    for (i = 0; i < E.last_render; i++) term_putchar(' ');
     scroll_into_view(E.last_render);
 
     /* Re-emit prompt + input. */
-    term2_set_cursor(E.prompt_x, E.prompt_y);
-    term2_puts(E.prompt);
-    term2_write(E.buf, E.len);
+    term_set_cursor(E.prompt_x, E.prompt_y);
+    term_puts(E.prompt);
+    term_write(E.buf, E.len);
 
     new_len = prompt_len() + E.len;
     E.last_render = new_len;
@@ -255,7 +255,7 @@ static void start_line_internal(void)
 {
     int tx, ty;
     build_prompt();
-    term2_get_cursor(&tx, &ty);
+    term_get_cursor(&tx, &ty);
     E.prompt_x = (unsigned int)tx;
     E.prompt_y = (unsigned int)ty;
     E.last_render = 0;
@@ -272,10 +272,10 @@ void bdos_shell_reset_and_prompt(void)
 
 static void print_welcome(void)
 {
-    term2_puts(" ___ ___   ___  ___ \n");
-    term2_puts("| _ )   \\ / _ \\/ __|\n");
-    term2_puts("| _ \\ |) | (_) \\__ \\\n");
-    term2_puts("|___/___/ \\___/|___/v3.0\n\n");
+    term_puts(" ___ ___   ___  ___ \n");
+    term_puts("| _ )   \\ / _ \\/ __|\n");
+    term_puts("| _ \\ |) | (_) \\__ \\\n");
+    term_puts("|___/___/ \\___/|___/v3.0\n\n");
 }
 
 /* ---- Submit ---- */
@@ -283,10 +283,10 @@ static void print_welcome(void)
 static void submit(void)
 {
     cursor_clear();
-    term2_putchar('\n');
+    term_putchar('\n');
 
     if (E.overflow) {
-        term2_puts("error: input too long\n");
+        term_puts("error: input too long\n");
     } else {
         E.buf[E.len] = 0;
         if (!bdos_shell_handle_special_mode_line(E.buf)) {
@@ -316,7 +316,7 @@ static void handle_key(int k)
         return;
     }
     if (k == 12) {                      /* Ctrl+L */
-        term2_clear();
+        term_clear();
         editor_clear();
         start_line_internal();
         return;
@@ -327,11 +327,11 @@ static void handle_key(int k)
         if (slot < MEM_SLOT_COUNT &&
             bdos_slot_status[slot] == BDOS_SLOT_STATUS_SUSPENDED) {
             cursor_clear();
-            term2_puts("\n[");
-            term2_putint(slot);
-            term2_puts("] resuming: ");
-            term2_puts(bdos_slot_name[slot]);
-            term2_putchar('\n');
+            term_puts("\n[");
+            term_putint(slot);
+            term_puts("] resuming: ");
+            term_puts(bdos_slot_name[slot]);
+            term_putchar('\n');
             bdos_resume_program(slot);
             bdos_shell_reset_and_prompt();
         }
@@ -345,8 +345,8 @@ static void handle_key(int k)
 
 void bdos_shell_init(void)
 {
-    term2_set_palette(PALETTE_WHITE_ON_BLACK);
-    term2_clear();
+    term_set_palette(PALETTE_WHITE_ON_BLACK);
+    term_clear();
 
     /* Zero out editor + history. */
     {
@@ -386,9 +386,9 @@ void bdos_shell_tick(void)
         now = get_micros();
         if ((unsigned int)(now - g_scroll_last_us) >= SCROLL_REPEAT_US) {
             if (bdos_key_state_bitmap & KEYSTATE_UP)   {
-                term2_scroll_view_up();   g_scroll_last_us = now;
+                term_scroll_view_up();   g_scroll_last_us = now;
             } else if (bdos_key_state_bitmap & KEYSTATE_DOWN) {
-                term2_scroll_view_down(); g_scroll_last_us = now;
+                term_scroll_view_down(); g_scroll_last_us = now;
             }
         }
     }

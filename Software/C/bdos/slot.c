@@ -117,7 +117,7 @@ void bdos_save_and_switch_c(void)
     bdos_switch_target = BDOS_SLOT_NONE;
 
     bdos_ccache();
-    term2_puts("\nProgram killed\n");
+    term_puts("\nProgram killed\n");
     bdos_shell_reset_and_prompt();
     bdos_loop();
     return;
@@ -166,11 +166,11 @@ void bdos_save_and_switch_c(void)
 
   bdos_switch_target = BDOS_SLOT_NONE;
 
-  term2_puts("\n[");
-  term2_putint(slot);
-  term2_puts("] suspended: ");
-  term2_puts(bdos_slot_name[slot]);
-  term2_putchar('\n');
+  term_puts("\n[");
+  term_putint(slot);
+  term_puts("] suspended: ");
+  term_puts(bdos_slot_name[slot]);
+  term_putchar('\n');
 
   bdos_shell_reset_and_prompt();
   bdos_loop();
@@ -192,7 +192,7 @@ int bdos_exec_program(char *resolved_path)
   slot = bdos_slot_alloc();
   if (slot == BDOS_SLOT_NONE)
   {
-    term2_puts("error: no free program slot\n");
+    term_puts("error: no free program slot\n");
     return -1;
   }
 
@@ -219,7 +219,7 @@ int bdos_exec_program(char *resolved_path)
   file_size = brfs_file_size(fd);
   if (file_size <= 0)
   {
-    term2_puts("error: empty or invalid binary\n");
+    term_puts("error: empty or invalid binary\n");
     brfs_close(fd);
     bdos_slot_free(slot);
     return -1;
@@ -227,9 +227,9 @@ int bdos_exec_program(char *resolved_path)
 
   if ((unsigned int)file_size > MEM_SLOT_SIZE)
   {
-    term2_puts("error: binary too large for slot (max ");
-    term2_putint((int)MEM_SLOT_SIZE);
-    term2_puts(" bytes)\n");
+    term_puts("error: binary too large for slot (max ");
+    term_putint((int)MEM_SLOT_SIZE);
+    term_puts(" bytes)\n");
     brfs_close(fd);
     bdos_slot_free(slot);
     return -1;
@@ -361,9 +361,9 @@ int bdos_exec_program(char *resolved_path)
 
   if (bdos_run_retval != 0)
   {
-    term2_puts("Program exited with code ");
-    term2_putint(bdos_run_retval);
-    term2_putchar('\n');
+    term_puts("Program exited with code ");
+    term_putint(bdos_run_retval);
+    term_putchar('\n');
   }
 
   return bdos_run_retval;
@@ -407,8 +407,8 @@ void bdos_resume_program(int slot)
 
   if (bdos_run_retval != 0)
   {
-    term2_puts("Program exited with code ");
-    term2_putint(bdos_run_retval);
-    term2_putchar('\n');
+    term_puts("Program exited with code ");
+    term_putint(bdos_run_retval);
+    term_putchar('\n');
   }
 }

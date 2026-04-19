@@ -130,5 +130,5 @@ those are listed in the plan's §2 as deferred features.
 ## See also
 
 - [OS.md — Process model & VFS](OS.md#process-model)
-- [Terminal.md — libterm v2 + supported ANSI escapes](Terminal.md)
+- [Terminal.md — libterm + supported ANSI escapes](Terminal.md)
 - [shell-terminal-v2 plan](../../plans/shell-terminal-v2.md)
