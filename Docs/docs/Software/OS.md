@@ -173,17 +173,17 @@ The ASMPY assembler header places a `jump Syscall` instruction at absolute addre
 |--------|------|-----------|---------|-------------|
 | 4  | `FS_OPEN`         | `a1` = path                                           | brfs fd          | Open a BRFS entry (raw word-oriented API; prefer `OPEN`) |
 | 5  | `FS_CLOSE`        | `a1` = fd                                             | 0 ok             | Close a BRFS fd |
-| 6  | `FS_READ`         | `a1` = fd, `a2` = buf, `a3` = words                   | words read       | Word-oriented BRFS read |
-| 7  | `FS_WRITE`        | `a1` = fd, `a2` = buf, `a3` = words                   | words written    | Word-oriented BRFS write |
-| 8  | `FS_SEEK`         | `a1` = fd, `a2` = word offset                         | 0 ok             | BRFS seek |
+| 6  | `FS_READ`         | `a1` = fd, `a2` = buf, `a3` = bytes                   | bytes read       | Byte-oriented BRFS read |
+| 7  | `FS_WRITE`        | `a1` = fd, `a2` = buf, `a3` = bytes                   | bytes written    | Byte-oriented BRFS write |
+| 8  | `FS_SEEK`         | `a1` = fd, `a2` = byte offset                         | 0 ok             | BRFS seek |
 | 9  | `FS_STAT`         | `a1` = path, `a2` = `brfs_dir_entry *`                | 0 ok             | Stat a path |
 | 10 | `FS_DELETE`       | `a1` = path                                           | 0 ok             | Delete a file or empty dir |
 | 11 | `FS_CREATE`       | `a1` = path                                           | 0 ok             | Create an empty file |
-| 12 | `FS_FILESIZE`     | `a1` = fd                                             | size in words    | Size of an open BRFS file |
+| 12 | `FS_FILESIZE`     | `a1` = fd                                             | size in bytes    | Size of an open BRFS file |
 | 13 | `SHELL_ARGC`      | —                                                     | argc             | Argument count for current process |
 | 14 | `SHELL_ARGV`      | —                                                     | `char **argv`    | Argument vector pointer |
 | 15 | `SHELL_GETCWD`    | —                                                     | `char *cwd`      | Shell's current working directory |
-| 20 | `HEAP_ALLOC`      | `a1` = size in words                                  | pointer / 0      | Allocate from kernel heap (released on exit) |
+| 20 | `HEAP_ALLOC`      | `a1` = size in bytes                                  | pointer / 0      | Allocate from kernel heap (released on exit) |
 | 21 | `DELAY`           | `a1` = milliseconds                                   | 0                | Sleep for the given number of ms |
 | 23 | `EXIT`            | `a1` = exit code                                      | *(no return)*    | Terminate calling process |
 | 24 | `FS_READDIR`      | `a1` = path, `a2` = `brfs_dir_entry *`, `a3` = max    | entries returned | Enumerate a directory |

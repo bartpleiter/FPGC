@@ -14,8 +14,8 @@
 ; void doom_draw_frame_asm(unsigned char *src)
 ;
 ; Copies 320x200 (64000) bytes from src to the pixel framebuffer.
-; The pixel FB is word-addressed: each pixel occupies 4 bytes of
-; CPU address space, so dest advances by 4 per pixel.
+; The pixel FB stores one 8-bit palette index per 32-bit word, so
+; dest advances by 4 bytes per pixel.
 ;
 ; The display is 320x240. Doom renders 320x200. We center vertically
 ; by starting at line 20 (offset = 20 * 320 * 4 = 0x6400).

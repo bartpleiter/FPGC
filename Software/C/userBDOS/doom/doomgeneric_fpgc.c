@@ -136,9 +136,9 @@ void DG_DrawFrame(void)
 {
     /* Copy Doom's 320x200 screen buffer to FPGC's pixel framebuffer.
      * DG_ScreenBuffer is 8-bit palette indices (CMAP256 mode).
-     * The pixel FB is 8-bit indexed, word-addressed from CPU:
-     * VRAMPX address = (byte_addr - 0x1EC00000) >> 2, so each
-     * pixel occupies 4 bytes of CPU address space. */
+     * The pixel FB stores one 8-bit palette index per 32-bit word
+     * (upper 24 bits unused), so each pixel occupies 4 bytes of CPU
+     * address space. */
     doom_draw_frame_asm((unsigned char *)DG_ScreenBuffer);
 
     /* Update the FPGC palette from Doom's colors array */
