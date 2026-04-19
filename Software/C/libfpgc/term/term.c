@@ -475,6 +475,15 @@ static void parser_dispatch_csi(unsigned char final) {
                 } else if (v == 1) {
                     /* bold — bump fg by +8 if there's room */
                     s->palette = (unsigned char)(s->palette | 0x08);
+                } else if ((v == 38 || v == 48) && i + 2 < g_csi_nparams
+                           && g_csi_params[i + 1] == 5) {
+                    /* xterm 256-color extension repurposed as a direct
+                     * tile-palette selector: \x1b[38;5;Nm sets the full
+                     * palette byte to N (0..255). 48;5;N is treated the
+                     * same so callers can use either form. */
+                    int n = g_csi_params[i + 2] & 0xFF;
+                    s->palette = (unsigned char)n;
+                    i += 2;
                 }
             }
         }

@@ -18,6 +18,33 @@
 static int tty_fd = -1;          /* /dev/tty in raw mode (input) */
 static int last_palette = -1;    /* last SGR palette emitted (-1 = unknown) */
 
+/* Output buffer: render_all() emits ~3000 individual writes per refresh
+ * (palette/goto/char per cell). Coalescing into one syscall per redraw
+ * eliminates the per-byte write overhead and makes the editor feel
+ * responsive. Buffer is flushed in out_flush() before blocking on
+ * keyboard input. */
+#define OUT_BUF_SIZE 8192
+static char out_buf[OUT_BUF_SIZE];
+static int  out_buf_n = 0;
+
+static void out_flush(void)
+{
+    if (out_buf_n > 0) {
+        sys_write(1, out_buf, out_buf_n);
+        out_buf_n = 0;
+    }
+}
+
+static void out_write(const char *s, int n)
+{
+    int i;
+    if (n <= 0) return;
+    if (n >= OUT_BUF_SIZE) { out_flush(); sys_write(1, (char *)s, n); return; }
+    if (out_buf_n + n > OUT_BUF_SIZE) out_flush();
+    for (i = 0; i < n; i++) out_buf[out_buf_n + i] = s[i];
+    out_buf_n += n;
+}
+
 static int ansi_strlen(const char *s)
 {
     int n = 0;
@@ -27,7 +54,7 @@ static int ansi_strlen(const char *s)
 
 static void ansi_write(const char *s)
 {
-    sys_write(1, (char *)s, ansi_strlen(s));
+    out_write(s, ansi_strlen(s));
 }
 
 static void ansi_emit_uint(int v, char *dst, int *pos)
@@ -49,39 +76,38 @@ static void ansi_goto(int x, int y)
     buf[n++] = ';';
     ansi_emit_uint(x + 1, buf, &n);
     buf[n++] = 'H';
-    sys_write(1, buf, n);
+    out_write(buf, n);
 }
 
-/* Map an 8-bit palette index to an SGR sequence:
- *   low nibble  = fg (0..7) plus optional bold (bit 3)
- *   high nibble = bg (0..7); bit 7 ignored, no SGR support for it
- * Always emits a leading 0 so prior state is cleared. */
+/* Emit an SGR that sets the tile palette directly. Uses the
+ * \x1b[38;5;Nm xterm-256 form, which libterm interprets as a direct
+ * raw palette index, bypassing the ANSI 30..37 colour translation. */
 static void ansi_set_palette(int pal)
 {
-    int fg, bg, bold;
-    char buf[24];
+    char buf[16];
     int n;
 
     if (pal == last_palette) return;
     last_palette = pal;
 
-    fg   = pal & 0x07;
-    bold = (pal & 0x08) ? 1 : 0;
-    bg   = (pal >> 4) & 0x07;
-
     n = 0;
-    buf[n++] = 0x1B; buf[n++] = '['; buf[n++] = '0';
-    if (bold)  { buf[n++] = ';'; buf[n++] = '1'; }
-    buf[n++] = ';'; buf[n++] = '4'; buf[n++] = (char)('0' + bg);
-    buf[n++] = ';'; buf[n++] = '3'; buf[n++] = (char)('0' + fg);
+    buf[n++] = 0x1B; buf[n++] = '[';
+    if (pal == 0) {
+        buf[n++] = '0';
+    } else {
+        buf[n++] = '3'; buf[n++] = '8'; buf[n++] = ';';
+        buf[n++] = '5'; buf[n++] = ';';
+        ansi_emit_uint(pal & 0xFF, buf, &n);
+    }
     buf[n++] = 'm';
-    sys_write(1, buf, n);
+    out_write(buf, n);
 }
 
-/* Read one keyboard event, blocking until one arrives. Returns the
- * event code (printable ASCII or KEY_*). */
+/* Read one keyboard event, blocking until one arrives. Flushes the
+ * output buffer first so the screen is up to date before we wait. */
 static int read_key_blocking(void)
 {
+    out_flush();
     return sys_tty_event_read(tty_fd, 1);
 }
 
@@ -360,7 +386,7 @@ void put_cell(int x, int y, int ch, int palette)
   }
   ansi_set_palette(palette & 0xFF);
   ansi_goto(x, y);
-  sys_write(1, &b, 1);
+  out_write(&b, 1);
 }
 
 void render_header(void)
@@ -1097,6 +1123,7 @@ int main(void)
   if (tty_fd < 0)
   {
     ansi_write("\x1b[?1049l");
+    out_flush();
     sys_putstr("edit: cannot open /dev/tty\n");
     return 1;
   }
@@ -1231,9 +1258,12 @@ int main(void)
   }
 
   /* Re-enable auto-wrap and leave the alternate screen — restores
-   * whatever was on screen before. */
+   * whatever was on screen before. Reset SGR so subsequent shell
+   * output isn't tinted by edit's last palette. */
+  ansi_write("\x1b[0m");
   ansi_write("\x1b[?7h");
   ansi_write("\x1b[?1049l");
+  out_flush();
   if (tty_fd >= 0) sys_close(tty_fd);
 
   return 0;

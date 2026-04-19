@@ -1,14 +1,7 @@
-/* hello.c — minimal smoke test for the on-device modern-C toolchain.
- *
- * Build (on the FPGC):
- *   cc /user/hello.c hello
- * Run:
- *   hello
- */
 #include <syscall.h>
 
 int main(void)
 {
-    sys_putstr("Hello from a self-hosted compile!\n");
+    sys_putstr("Yo waddup!\n");
     return 0;
 }
