@@ -19,9 +19,13 @@
  *     a brfs_read of the partial word before merging.
  */
 
+#ifdef VFS_HOST_TEST
+#include "vfs_host_stubs.h"
+#else
 #include "bdos.h"
 #include "bdos_vfs.h"
 #include "bdos_proc.h"
+#endif
 
 #ifndef NULL
 #define NULL ((void *)0)
@@ -62,6 +66,11 @@ static int null_write(bdos_fd_t *f, const void *buf, int len);
 static int null_close(bdos_fd_t *f);
 static int null_lseek(bdos_fd_t *f, int off, int whence);
 
+static int pixpal_read (bdos_fd_t *f, void *buf, int len);
+static int pixpal_write(bdos_fd_t *f, const void *buf, int len);
+static int pixpal_close(bdos_fd_t *f);
+static int pixpal_lseek(bdos_fd_t *f, int off, int whence);
+
 typedef struct {
     int (*read )(bdos_fd_t *, void *, int);
     int (*write)(bdos_fd_t *, const void *, int);
@@ -70,10 +79,11 @@ typedef struct {
 } dev_ops_t;
 
 static const dev_ops_t dev_table[] = {
-    { NULL,      NULL,       NULL,       NULL       }, /* DEV_NONE — sentinel */
-    { tty_read,  tty_write,  tty_close,  tty_lseek  }, /* DEV_TTY  */
-    { file_read, file_write, file_close, file_lseek }, /* DEV_FILE */
-    { null_read, null_write, null_close, null_lseek }, /* DEV_NULL */
+    { NULL,        NULL,         NULL,         NULL         }, /* DEV_NONE — sentinel */
+    { tty_read,    tty_write,    tty_close,    tty_lseek    }, /* DEV_TTY    */
+    { file_read,   file_write,   file_close,   file_lseek   }, /* DEV_FILE   */
+    { null_read,   null_write,   null_close,   null_lseek   }, /* DEV_NULL   */
+    { pixpal_read, pixpal_write, pixpal_close, pixpal_lseek }, /* DEV_PIXPAL */
 };
 #define DEV_TABLE_LEN ((int)(sizeof(dev_table) / sizeof(dev_table[0])))
 
@@ -249,6 +259,78 @@ static int null_close(bdos_fd_t *f) { (void)f; return 0; }
 static int null_lseek(bdos_fd_t *f, int off, int whence)
 { (void)f; (void)off; (void)whence; return 0; }
 
+/* ============================================================ Pixpal ===
+ *
+ * /dev/pixpal — 256-entry × 4-byte 8-bit pixel-palette DAC.
+ *
+ * Mirrors the MS-DOS / VGA DAC autoincrement-on-write model:
+ *   open ("/dev/pixpal", O_WRONLY)
+ *   lseek(fd, idx * 4, SEEK_SET)
+ *   write(fd, &rgb24, 4)            -> one entry, autoincrements
+ *   write(fd, batch,   256 * 4)     -> full reload
+ *
+ * Each 4-byte record is 0x00RRGGBB little-endian. Top byte is ignored
+ * on write and returned as 0 on read. Both `len` and the current
+ * cursor must be 4-byte aligned (returns -1 otherwise). Cursor is
+ * stored in f->handle.
+ */
+
+#define PIXPAL_SIZE_BYTES 1024  /* 256 entries * 4 bytes */
+
+static int pixpal_read(bdos_fd_t *f, void *buf, int len)
+{
+    unsigned int *out = (unsigned int *)buf;
+    int cursor = f->handle;
+    int i;
+
+    if (len <= 0) return 0;
+    if ((len & 3) || (cursor & 3)) return -1;
+    if (cursor >= PIXPAL_SIZE_BYTES) return 0;
+    if (cursor + len > PIXPAL_SIZE_BYTES)
+        len = PIXPAL_SIZE_BYTES - cursor;
+
+    for (i = 0; i < len; i += 4) {
+        unsigned int idx = (unsigned int)(cursor + i) >> 2;
+        out[i >> 2] = gpu_get_pixel_palette(idx);
+    }
+    f->handle = cursor + len;
+    return len;
+}
+
+static int pixpal_write(bdos_fd_t *f, const void *buf, int len)
+{
+    const unsigned int *in = (const unsigned int *)buf;
+    int cursor = f->handle;
+    int i;
+
+    if (len <= 0) return 0;
+    if ((len & 3) || (cursor & 3)) return -1;
+    if (cursor + len > PIXPAL_SIZE_BYTES) return -1;
+
+    for (i = 0; i < len; i += 4) {
+        unsigned int idx = (unsigned int)(cursor + i) >> 2;
+        gpu_set_pixel_palette(idx, in[i >> 2] & 0x00FFFFFF);
+    }
+    f->handle = cursor + len;
+    return len;
+}
+
+static int pixpal_close(bdos_fd_t *f) { (void)f; return 0; }
+
+static int pixpal_lseek(bdos_fd_t *f, int off, int whence)
+{
+    int newpos;
+    switch (whence) {
+        case BDOS_SEEK_SET: newpos = off; break;
+        case BDOS_SEEK_CUR: newpos = f->handle + off; break;
+        case BDOS_SEEK_END: newpos = PIXPAL_SIZE_BYTES + off; break;
+        default: return -1;
+    }
+    if (newpos < 0 || newpos > PIXPAL_SIZE_BYTES) return -1;
+    f->handle = newpos;
+    return newpos;
+}
+
 /* ============================================================ Public ==== */
 
 void bdos_vfs_init(void)
@@ -296,6 +378,12 @@ int bdos_vfs_open(const char *path, int flags)
         dev = BDOS_DEV_TTY;
     } else if (str_eq(path, "/dev/null")) {
         dev = BDOS_DEV_NULL;
+    } else if (str_eq(path, "/dev/pixpal")) {
+        /* Reject create/truncate/append — fixed-size MMIO device. */
+        if (flags & (BDOS_O_CREAT | BDOS_O_TRUNC | BDOS_O_APPEND))
+            return -1;
+        dev = BDOS_DEV_PIXPAL;
+        handle = 0;  /* byte cursor starts at 0 */
     } else {
         dev = BDOS_DEV_FILE;
         /* Honor O_TRUNC: if the file exists and the caller asked to

@@ -29,6 +29,7 @@ void gpu_write_bg_tile(unsigned int x, unsigned int y,
 /* Pixel plane */
 void gpu_write_pixel_data(unsigned int x, unsigned int y, unsigned int color);
 void gpu_set_pixel_palette(unsigned int index, unsigned int rgb24);
+unsigned int gpu_get_pixel_palette(unsigned int index);
 void gpu_reset_pixel_palette(void);
 
 #endif /* FPGC_GPU_HAL_H */

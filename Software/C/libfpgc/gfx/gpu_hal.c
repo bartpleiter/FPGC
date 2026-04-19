@@ -170,6 +170,13 @@ gpu_set_pixel_palette(unsigned int index, unsigned int rgb24)
     *p = rgb24;
 }
 
+unsigned int
+gpu_get_pixel_palette(unsigned int index)
+{
+    unsigned int *p = (unsigned int *)(FPGC_GPU_PIXEL_PALETTE + index * 4);
+    return *p & 0x00FFFFFF;
+}
+
 void
 gpu_reset_pixel_palette(void)
 {

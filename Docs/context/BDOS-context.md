@@ -66,7 +66,7 @@ All callers now use `term_*` directly.
 | `heap.c`                 | Bump allocator for kernel heap |
 | `slot.c` + `slot_asm.asm`| Program-slot loader, context switch, exec/return |
 | `proc.c`                 | PID table + per-process state |
-| `vfs.c`                  | File/tty/null/pipe device table; per-process fds |
+| `vfs.c`                  | File/tty/null/pipe/pixpal device table; per-process fds |
 | `hid.c`                  | USB keyboard driver, HID translation, FIFO, key state |
 | `fs.c`                   | BRFS mount/format/sync with progress bars |
 | `eth.c`                  | FNP file-transfer + remote-keycode injection |
@@ -148,7 +148,7 @@ description; the in-kernel side just opens the SPI-flash backend in
 
 ## VFS
 
-`Software/C/bdos/vfs.c` is the per-process file-descriptor layer. Four
+`Software/C/bdos/vfs.c` is the per-process file-descriptor layer. Five
 device kinds:
 
 - **file** — BRFS entry. Byte-addressable view; honours
@@ -159,6 +159,12 @@ device kinds:
 - **pipe** — temp file under `/tmp/`; the shell rewrites
   `a | b` into `a >/tmp/p.N ; b </tmp/p.N`.
 - **null** — `/dev/null`.
+- **pixpal** — `/dev/pixpal`. 256-entry × 4-byte 8-bit pixel-palette
+  DAC. `lseek` sets the byte cursor; `write` autoincrements one
+  4-byte `0x00RRGGBB` entry at a time, mirroring MS-DOS / VGA DAC
+  ports `0x3C8`/`0x3C9`. Both length and cursor must be 4-byte
+  aligned. Replaces the retired `sys_set_pixel_palette` syscall;
+  see [vfs-devices.md](../plans/vfs-devices.md).
 
 Every spawned program inherits `fd 0/1/2 = /dev/tty`.
 

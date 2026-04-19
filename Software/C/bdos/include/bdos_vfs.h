@@ -3,18 +3,21 @@
 
 /*
  * Phase B of shell-terminal-v2 — virtual filesystem with byte-oriented
- * file descriptors. Three device types currently:
- *   DEV_TTY  — line-disciplined terminal (uses libterm + HID FIFO).
- *   DEV_FILE — backed by BRFS, byte view over the underlying word storage.
- *   DEV_NULL — /dev/null.
+ * file descriptors. Device types currently:
+ *   DEV_TTY    — line-disciplined terminal (uses libterm + HID FIFO).
+ *   DEV_FILE   — backed by BRFS, byte view over the underlying word storage.
+ *   DEV_NULL   — /dev/null.
+ *   DEV_PIXPAL — /dev/pixpal, the 256-entry × 4-byte 8-bit pixel
+ *                palette DAC (see vfs-devices.md).
  *
  * fd table is global for now (BDOS still only has one foreground program
  * at a time at the syscall level). Phase C splits it per-process.
  *
  * Path conventions:
- *   "/dev/tty"   → DEV_TTY
- *   "/dev/null"  → DEV_NULL
- *   anything else → DEV_FILE via BRFS
+ *   "/dev/tty"     → DEV_TTY
+ *   "/dev/null"    → DEV_NULL
+ *   "/dev/pixpal"  → DEV_PIXPAL
+ *   anything else  → DEV_FILE via BRFS
  */
 
 #define BDOS_FD_MAX        16
@@ -23,6 +26,7 @@
 #define BDOS_DEV_TTY       1
 #define BDOS_DEV_FILE      2
 #define BDOS_DEV_NULL      3
+#define BDOS_DEV_PIXPAL    4
 
 #define BDOS_O_RDONLY      0x01
 #define BDOS_O_WRONLY      0x02

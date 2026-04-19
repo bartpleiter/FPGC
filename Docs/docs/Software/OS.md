@@ -102,14 +102,15 @@ group on exit — see the Heap section above.
 User-facing byte I/O goes through the VFS layer in
 `Software/C/bdos/vfs.c` rather than directly into BRFS. The VFS owns the
 per-process fd table and exposes a uniform `open` / `read` / `write` /
-`close` / `lseek` / `dup2` API over four device kinds:
+`close` / `lseek` / `dup2` API over five device kinds:
 
-| Device | Backing | Notes |
-|--------|---------|-------|
-| `file` | BRFS v2 entry | Byte-addressable view over the word-oriented filesystem; honours `O_CREAT`, `O_TRUNC`, `O_APPEND`. |
-| `tty`  | libterm + keyboard FIFO | `/dev/tty`. Cooked mode by default (line-buffered, ANSI emit on writes). Pass `O_RAW` to receive 4-byte little-endian key-event packets per `read`; combine with `O_NONBLOCK` for polling games. |
-| `pipe` | Temp file under `/tmp/` | Rewritten by the shell from `a | b` into `a >/tmp/p.N ; b </tmp/p.N`. No concurrency required by the execution model. |
-| `null` | — | `/dev/null`. Discards writes, returns EOF on reads. |
+| Device   | Backing | Notes |
+|----------|---------|-------|
+| `file`   | BRFS v2 entry | Byte-addressable view over the word-oriented filesystem; honours `O_CREAT`, `O_TRUNC`, `O_APPEND`. |
+| `tty`    | libterm + keyboard FIFO | `/dev/tty`. Cooked mode by default (line-buffered, ANSI emit on writes). Pass `O_RAW` to receive 4-byte little-endian key-event packets per `read`; combine with `O_NONBLOCK` for polling games. |
+| `pipe`   | Temp file under `/tmp/` | Rewritten by the shell from `a \| b` into `a >/tmp/p.N ; b </tmp/p.N`. No concurrency required by the execution model. |
+| `null`   | — | `/dev/null`. Discards writes, returns EOF on reads. |
+| `pixpal` | 256-entry × 24-bit RGB pixel-palette DAC | `/dev/pixpal`. 1024-byte fixed-size device (256 × 4 bytes, `0x00RRGGBB` LE). `lseek` sets the byte cursor; `write` autoincrements one entry at a time, mirroring the MS-DOS / VGA DAC port model. Both length and cursor must be 4-byte aligned. |
 
 `fd 0`, `fd 1`, and `fd 2` are pre-opened to `/dev/tty` for every spawned
 program. `printf` / `puts` / `sys_write(1, ...)` therefore route through the
