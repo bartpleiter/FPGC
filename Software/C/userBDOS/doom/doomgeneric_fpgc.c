@@ -1,32 +1,11 @@
 /*
- * FIXME: shell-terminal-v2 Phase E migration TODO.
- *
- * This program still uses syscalls that were removed from BDOS in
- * Phase E. It will currently fail to link or behave correctly. See
- * the migration table at the top of Software/C/userlib/include/syscall.h.
- *
- * Quick checklist for porting:
- *   sys_term_put_cell / sys_term_clear / sys_term_set_cursor
- *      -> sys_write(1, "\x1b[<y+1>;<x+1>H...", n) ANSI escapes.
- *      -> Glyphs that overlap C0 control codes (BEL, HT, LF, ESC, ...)
- *         must be substituted with printable ASCII.
- *   sys_read_key / sys_key_available
- *      -> int fd = sys_tty_open_raw(1);            (non-blocking)
- *         int ev = sys_tty_event_read(fd, 0);
- *      -> snake.c is the reference port.
- *   sys_set_palette / sys_set_pixel_palette
- *      -> No replacement syscall yet. Either use ANSI SGR colors
- *         (\x1b[30m..37m for tile palette 0..7) or wait for a
- *         dedicated palette syscall to be added in a follow-up.
- *   sys_uart_print_str / sys_uart_print_char
- *      -> sys_write(2, s, n) (stderr; mirrored to UART by libterm).
- */
-
-/*
  * doomgeneric_fpgc.c — FPGC platform implementation for doomgeneric.
  *
  * Implements the 5 required platform functions plus main().
- * Uses BDOS syscalls for input, timing, and display.
+ * Uses BDOS syscalls for input, timing, and display:
+ *   - keyboard:     raw /dev/tty event stream
+ *   - pixel palette: /dev/pixpal autoincrement DAC device
+ *   - terminal:     ANSI CSI escapes on fd 1
  */
 
 /* Include syscall.h first, before Doom headers redefine KEY_F* etc. */
@@ -41,10 +20,23 @@
 extern int syscall(int num, int a1, int a2, int a3);
 
 /* BDOS syscall wrappers using raw numbers */
-static int bdos_read_key(void)       { return syscall(2, 0, 0, 0); }
-static int bdos_key_available(void)  { return syscall(3, 0, 0, 0); }
-static int bdos_get_key_state(void)  { return syscall(25, 0, 0, 0); }
-static void bdos_set_pixel_palette(int idx, int rgb24) { syscall(26, idx, rgb24, 0); }
+static int bdos_get_key_state(void) { return syscall(25, 0, 0, 0); }
+
+/* /dev/pixpal and raw /dev/tty fds, opened in DG_Init. */
+static int g_pixpal_fd = -1;
+static int g_tty_fd    = -1;
+
+static void term_clear(void)
+{
+    sys_write(1, "\x1b[2J\x1b[H", 7);
+}
+
+static void pixpal_load_all(const int *entries)
+{
+    if (g_pixpal_fd < 0) return;
+    sys_lseek(g_pixpal_fd, 0, SEEK_SET);
+    sys_write(g_pixpal_fd, entries, 256 * 4);
+}
 
 #include "doomgeneric.h"
 #include "doomkeys.h"
@@ -94,6 +86,7 @@ static void fpgc_clear_vrampx(void)
 static void fpgc_restore_display(void)
 {
     int i;
+    int defpal[256];
 
     /* Close WAD file descriptors to release BRFS fds */
     extern void W_CloseAllFiles(void);
@@ -110,16 +103,24 @@ static void fpgc_restore_display(void)
         int r = (r3 << 5) | (r3 << 2) | (r3 >> 1);
         int g = (g3 << 5) | (g3 << 2) | (g3 >> 1);
         int b = (b2 << 6) | (b2 << 4) | (b2 << 2) | b2;
-        bdos_set_pixel_palette(i, (r << 16) | (g << 8) | b);
+        defpal[i] = (r << 16) | (g << 8) | b;
     }
+    pixpal_load_all(defpal);
 
-    /* Restore default text palette (white on black) and clear terminal */
-    sys_set_palette(0, (0 << 8) | 0xFF);
-    sys_term_clear();
+    /* Reset SGR and clear terminal */
+    sys_write(1, "\x1b[0m", 4);
+    term_clear();
+
+    if (g_tty_fd    >= 0) { sys_close(g_tty_fd);    g_tty_fd    = -1; }
+    if (g_pixpal_fd >= 0) { sys_close(g_pixpal_fd); g_pixpal_fd = -1; }
 }
 
 void DG_Init(void)
 {
+    /* Open /dev/pixpal (palette DAC) and raw /dev/tty (key events) */
+    g_pixpal_fd = sys_open("/dev/pixpal", O_WRONLY);
+    g_tty_fd    = sys_tty_open_raw(1 /* nonblocking */);
+
     /* Record base time */
     tick_base = get_micros();
 
@@ -145,11 +146,12 @@ void DG_DrawFrame(void)
     extern boolean palette_changed;
     extern struct color colors[256];
     if (palette_changed) {
+        int pal[256];
         int i;
         for (i = 0; i < 256; i++) {
-            int rgb24 = (colors[i].r << 16) | (colors[i].g << 8) | colors[i].b;
-            bdos_set_pixel_palette(i, rgb24);
+            pal[i] = (colors[i].r << 16) | (colors[i].g << 8) | colors[i].b;
         }
+        pixpal_load_all(pal);
         palette_changed = 0;
     }
 #endif
@@ -242,12 +244,14 @@ static void fpgc_poll_keys(void)
 
     /* Also check character-level keys (for menu: enter, numbers, etc.)
      * Only process first queued key per poll to avoid flooding */
-    if (bdos_key_available()) {
-        int k = bdos_read_key();
-        unsigned char dk = translate_bdos_key(k);
-        if (dk != 0) {
-            enqueue_key(dk, 1);
-            enqueue_key(dk, 0);
+    {
+        int k = (g_tty_fd >= 0) ? sys_tty_event_read(g_tty_fd, 0) : -1;
+        if (k >= 0) {
+            unsigned char dk = translate_bdos_key(k);
+            if (dk != 0) {
+                enqueue_key(dk, 1);
+                enqueue_key(dk, 0);
+            }
         }
     }
 }
@@ -298,7 +302,7 @@ int main(void)
     doomgeneric_Create(3, doom_argv);
 
     /* Clear terminal text overlay so pixel framebuffer is visible */
-    sys_term_clear();
+    term_clear();
 
     /* Main game loop */
     for (;;) {
