@@ -47,11 +47,11 @@ module DMAengine (
     input  wire         sd_done,
     input  wire [255:0] sd_q,
 
-    // ---- I/O peer port (to MemoryUnit iop_*; unused this commit) ----
-    output wire         iop_start,
-    output wire         iop_we,
-    output wire [31:0]  iop_addr,
-    output wire [31:0]  iop_data,
+    // ---- I/O peer port (to MemoryUnit iop_*) ----
+    output reg          iop_start = 1'b0,
+    output reg          iop_we    = 1'b0,
+    output reg  [31:0]  iop_addr  = 32'd0,
+    output reg  [31:0]  iop_data  = 32'd0,
     input  wire         iop_done,
     input  wire [31:0]  iop_q,
 
@@ -64,11 +64,7 @@ module DMAengine (
     output reg          irq       = 1'b0
 );
 
-// MEM2MEM-only commit: peer ports inactive
-assign iop_start = 1'b0;
-assign iop_we    = 1'b0;
-assign iop_addr  = 32'd0;
-assign iop_data  = 32'd0;
+// MEM2MEM + MEM2SPI + SPI2MEM commit: VRAMPX peer port still inactive
 assign vp_we     = 1'b0;
 assign vp_addr   = 17'd0;
 assign vp_data   = 8'd0;
@@ -97,16 +93,31 @@ reg [31:0] dst_cur          = 32'd0;
 reg [31:0] bytes_remaining  = 32'd0;
 reg [255:0] line_buf        = 256'd0;
 
-localparam
-    ST_IDLE     = 3'd0,
-    ST_RD_REQ   = 3'd1,
-    ST_RD_WAIT  = 3'd2,
-    ST_WR_REQ   = 3'd3,
-    ST_WR_WAIT  = 3'd4,
-    ST_DONE     = 3'd5,
-    ST_ERROR    = 3'd6;
+// ---- SPI byte cursor (used by MEM2SPI / SPI2MEM) ----
+// Counts bytes within the current 32-byte cache line, 0..31.
+reg [4:0]  spi_byte_idx = 5'd0;
+// Latched at start: which SPI bus + the corresponding MMIO data address.
+reg        spi_is_eth   = 1'b0;       // 0 = SPI0 (Flash), 1 = SPI4 (Eth)
 
-reg [2:0] state = ST_IDLE;
+// SPI MMIO data register addresses (mirror MemoryUnit.v ADDR_SPI*_DATA)
+localparam [31:0] ADDR_SPI0_DATA = 32'h1C000020;
+localparam [31:0] ADDR_SPI4_DATA = 32'h1C000048;
+wire [31:0] spi_data_addr = spi_is_eth ? ADDR_SPI4_DATA : ADDR_SPI0_DATA;
+
+localparam
+    ST_IDLE          = 4'd0,
+    ST_RD_REQ        = 4'd1,   // MEM2MEM / MEM2SPI: SDRAM read request
+    ST_RD_WAIT       = 4'd2,
+    ST_WR_REQ        = 4'd3,   // MEM2MEM / SPI2MEM: SDRAM write request
+    ST_WR_WAIT       = 4'd4,
+    ST_DONE          = 4'd5,
+    ST_ERROR         = 4'd6,
+    ST_S2M_BYTE_REQ  = 4'd7,   // SPI2MEM: issue iop transaction (TX 0x00)
+    ST_S2M_BYTE_WAIT = 4'd8,   // SPI2MEM: wait for iop_done, capture RX byte
+    ST_M2S_BYTE_REQ  = 4'd9,   // MEM2SPI: issue iop transaction (TX line byte)
+    ST_M2S_BYTE_WAIT = 4'd10;  // MEM2SPI: wait for iop_done, ignore RX byte
+
+reg [3:0] state = ST_IDLE;
 
 // ---- Combinatorial read mux ----
 always @(*)
@@ -125,13 +136,35 @@ end
 wire        ctrl_start_bit  = dma_ctrl[31];
 wire [3:0]  ctrl_mode       = dma_ctrl[3:0];
 wire        ctrl_irq_en     = dma_ctrl[4];
+wire [2:0]  ctrl_spi_id     = dma_ctrl[7:5];
 
-// Aligned-to-32-bytes test (low 5 bits zero)
+// Aligned-to-32-bytes test (low 5 bits zero); applies to both SDRAM endpoints
+// in MEM2MEM and to the SDRAM endpoint in MEM2SPI / SPI2MEM.
 wire mem2mem_args_aligned =
     (dma_src[4:0] == 5'd0) &&
     (dma_dst[4:0] == 5'd0) &&
     (dma_count[4:0] == 5'd0) &&
     (dma_count != 32'd0);
+
+// For MEM2SPI/SPI2MEM only the SDRAM-side address needs to be 32-byte aligned.
+// dma_src is the SDRAM read address for MEM2SPI; dma_dst is the SDRAM write
+// address for SPI2MEM. The SPI-side address (the other one) carries the
+// flash byte address and has no alignment constraint as far as the engine is
+// concerned -- software handles the flash command/address phase before
+// kicking off DMA.
+wire mem2spi_args_aligned =
+    (dma_src[4:0] == 5'd0) &&
+    (dma_count[4:0] == 5'd0) &&
+    (dma_count != 32'd0);
+
+wire spi2mem_args_aligned =
+    (dma_dst[4:0] == 5'd0) &&
+    (dma_count[4:0] == 5'd0) &&
+    (dma_count != 32'd0);
+
+// Only SPI0 (id=0, Flash) and SPI4 (id=4, Ethernet) are wired through
+// MemoryUnit's iop_* port today. Reject other SPI ids cleanly.
+wire ctrl_spi_id_valid = (ctrl_spi_id == 3'd0) || (ctrl_spi_id == 3'd4);
 
 // Reading STATUS clears the sticky bits next cycle
 wire status_read = reg_we == 1'b0 && reg_addr == 3'd4;
@@ -156,12 +189,19 @@ begin
         dst_cur         <= 32'd0;
         bytes_remaining <= 32'd0;
         line_buf        <= 256'd0;
+        spi_byte_idx    <= 5'd0;
+        spi_is_eth      <= 1'b0;
+        iop_start       <= 1'b0;
+        iop_we          <= 1'b0;
+        iop_addr        <= 32'd0;
+        iop_data        <= 32'd0;
         state           <= ST_IDLE;
     end
     else
     begin
         // Defaults (single-cycle pulses)
         sd_start <= 1'b0;
+        iop_start <= 1'b0;
         irq      <= 1'b0;
 
         // ---- Register writes from MemoryUnit ----
@@ -210,10 +250,43 @@ begin
                             state <= ST_ERROR;
                         end
                     end
+                    else if (ctrl_mode == MODE_MEM2SPI)
+                    begin
+                        if (mem2spi_args_aligned && ctrl_spi_id_valid)
+                        begin
+                            src_cur         <= dma_src;
+                            bytes_remaining <= dma_count;
+                            spi_is_eth      <= (ctrl_spi_id == 3'd4);
+                            // Read the first SDRAM line, then walk it out
+                            // byte-by-byte to the SPI TX register.
+                            state           <= ST_RD_REQ;
+                        end
+                        else
+                        begin
+                            state <= ST_ERROR;
+                        end
+                    end
+                    else if (ctrl_mode == MODE_SPI2MEM)
+                    begin
+                        if (spi2mem_args_aligned && ctrl_spi_id_valid)
+                        begin
+                            dst_cur         <= dma_dst;
+                            bytes_remaining <= dma_count;
+                            spi_is_eth      <= (ctrl_spi_id == 3'd4);
+                            spi_byte_idx    <= 5'd0;
+                            line_buf        <= 256'd0;
+                            // Start fetching bytes from SPI; once 32 are in,
+                            // ST_S2M_BYTE_WAIT transitions to ST_WR_REQ.
+                            state           <= ST_S2M_BYTE_REQ;
+                        end
+                        else
+                        begin
+                            state <= ST_ERROR;
+                        end
+                    end
                     else
                     begin
-                        // MEM2SPI / SPI2MEM / MEM2VRAM / MEM2IO / IO2MEM
-                        // not implemented in this commit -- fail clean.
+                        // MEM2VRAM / MEM2IO / IO2MEM not implemented yet.
                         state <= ST_ERROR;
                     end
                 end
@@ -237,7 +310,14 @@ begin
                 begin
                     sd_start <= 1'b0;
                     line_buf <= sd_q;
-                    state    <= ST_WR_REQ;
+                    if (ctrl_mode == MODE_MEM2MEM)
+                        state <= ST_WR_REQ;
+                    else
+                    begin
+                        // MEM2SPI: walk the freshly-fetched line out byte by byte.
+                        spi_byte_idx <= 5'd0;
+                        state        <= ST_M2S_BYTE_REQ;
+                    end
                 end
             end
 
@@ -255,14 +335,168 @@ begin
                 sd_start <= 1'b1;
                 if (sd_done)
                 begin
-                    sd_start        <= 1'b0;
-                    src_cur         <= src_cur + 32'd32;
-                    dst_cur         <= dst_cur + 32'd32;
-                    bytes_remaining <= bytes_remaining - 32'd32;
-                    if (bytes_remaining == 32'd32)
-                        state <= ST_DONE;
+                    sd_start <= 1'b0;
+                    if (ctrl_mode == MODE_MEM2MEM)
+                    begin
+                        src_cur         <= src_cur + 32'd32;
+                        dst_cur         <= dst_cur + 32'd32;
+                        bytes_remaining <= bytes_remaining - 32'd32;
+                        if (bytes_remaining == 32'd32)
+                            state <= ST_DONE;
+                        else
+                            state <= ST_RD_REQ;
+                    end
                     else
-                        state <= ST_RD_REQ;
+                    begin
+                        // SPI2MEM: this line is committed to SDRAM, advance
+                        // and either start the next line or finish.
+                        dst_cur         <= dst_cur + 32'd32;
+                        bytes_remaining <= bytes_remaining - 32'd32;
+                        if (bytes_remaining == 32'd32)
+                            state <= ST_DONE;
+                        else
+                        begin
+                            spi_byte_idx <= 5'd0;
+                            line_buf     <= 256'd0;
+                            state        <= ST_S2M_BYTE_REQ;
+                        end
+                    end
+                end
+            end
+
+            // ---- SPI2MEM byte loop ----
+            ST_S2M_BYTE_REQ:
+            begin
+                // Issue a dummy-write byte transaction. MemoryUnit's
+                // STATE_WAIT_SPI*_DATA returns the RX byte regardless of we,
+                // so this both clocks the SPI MISO and yields the byte we
+                // need.
+                iop_addr  <= spi_data_addr;
+                iop_data  <= 32'd0;
+                iop_we    <= 1'b1;
+                iop_start <= 1'b1;
+                state     <= ST_S2M_BYTE_WAIT;
+            end
+
+            ST_S2M_BYTE_WAIT:
+            begin
+                iop_start <= 1'b1; // hold until iop_done
+                if (iop_done)
+                begin
+                    iop_start <= 1'b0;
+                    // Place RX byte at the right position in line_buf
+                    case (spi_byte_idx)
+                        5'd0:  line_buf[  7:  0] <= iop_q[7:0];
+                        5'd1:  line_buf[ 15:  8] <= iop_q[7:0];
+                        5'd2:  line_buf[ 23: 16] <= iop_q[7:0];
+                        5'd3:  line_buf[ 31: 24] <= iop_q[7:0];
+                        5'd4:  line_buf[ 39: 32] <= iop_q[7:0];
+                        5'd5:  line_buf[ 47: 40] <= iop_q[7:0];
+                        5'd6:  line_buf[ 55: 48] <= iop_q[7:0];
+                        5'd7:  line_buf[ 63: 56] <= iop_q[7:0];
+                        5'd8:  line_buf[ 71: 64] <= iop_q[7:0];
+                        5'd9:  line_buf[ 79: 72] <= iop_q[7:0];
+                        5'd10: line_buf[ 87: 80] <= iop_q[7:0];
+                        5'd11: line_buf[ 95: 88] <= iop_q[7:0];
+                        5'd12: line_buf[103: 96] <= iop_q[7:0];
+                        5'd13: line_buf[111:104] <= iop_q[7:0];
+                        5'd14: line_buf[119:112] <= iop_q[7:0];
+                        5'd15: line_buf[127:120] <= iop_q[7:0];
+                        5'd16: line_buf[135:128] <= iop_q[7:0];
+                        5'd17: line_buf[143:136] <= iop_q[7:0];
+                        5'd18: line_buf[151:144] <= iop_q[7:0];
+                        5'd19: line_buf[159:152] <= iop_q[7:0];
+                        5'd20: line_buf[167:160] <= iop_q[7:0];
+                        5'd21: line_buf[175:168] <= iop_q[7:0];
+                        5'd22: line_buf[183:176] <= iop_q[7:0];
+                        5'd23: line_buf[191:184] <= iop_q[7:0];
+                        5'd24: line_buf[199:192] <= iop_q[7:0];
+                        5'd25: line_buf[207:200] <= iop_q[7:0];
+                        5'd26: line_buf[215:208] <= iop_q[7:0];
+                        5'd27: line_buf[223:216] <= iop_q[7:0];
+                        5'd28: line_buf[231:224] <= iop_q[7:0];
+                        5'd29: line_buf[239:232] <= iop_q[7:0];
+                        5'd30: line_buf[247:240] <= iop_q[7:0];
+                        5'd31: line_buf[255:248] <= iop_q[7:0];
+                    endcase
+
+                    if (spi_byte_idx == 5'd31)
+                        state <= ST_WR_REQ;
+                    else
+                    begin
+                        spi_byte_idx <= spi_byte_idx + 5'd1;
+                        state        <= ST_S2M_BYTE_REQ;
+                    end
+                end
+            end
+
+            // ---- MEM2SPI byte loop ----
+            ST_M2S_BYTE_REQ:
+            begin
+                iop_addr  <= spi_data_addr;
+                case (spi_byte_idx)
+                    5'd0:  iop_data <= {24'd0, line_buf[  7:  0]};
+                    5'd1:  iop_data <= {24'd0, line_buf[ 15:  8]};
+                    5'd2:  iop_data <= {24'd0, line_buf[ 23: 16]};
+                    5'd3:  iop_data <= {24'd0, line_buf[ 31: 24]};
+                    5'd4:  iop_data <= {24'd0, line_buf[ 39: 32]};
+                    5'd5:  iop_data <= {24'd0, line_buf[ 47: 40]};
+                    5'd6:  iop_data <= {24'd0, line_buf[ 55: 48]};
+                    5'd7:  iop_data <= {24'd0, line_buf[ 63: 56]};
+                    5'd8:  iop_data <= {24'd0, line_buf[ 71: 64]};
+                    5'd9:  iop_data <= {24'd0, line_buf[ 79: 72]};
+                    5'd10: iop_data <= {24'd0, line_buf[ 87: 80]};
+                    5'd11: iop_data <= {24'd0, line_buf[ 95: 88]};
+                    5'd12: iop_data <= {24'd0, line_buf[103: 96]};
+                    5'd13: iop_data <= {24'd0, line_buf[111:104]};
+                    5'd14: iop_data <= {24'd0, line_buf[119:112]};
+                    5'd15: iop_data <= {24'd0, line_buf[127:120]};
+                    5'd16: iop_data <= {24'd0, line_buf[135:128]};
+                    5'd17: iop_data <= {24'd0, line_buf[143:136]};
+                    5'd18: iop_data <= {24'd0, line_buf[151:144]};
+                    5'd19: iop_data <= {24'd0, line_buf[159:152]};
+                    5'd20: iop_data <= {24'd0, line_buf[167:160]};
+                    5'd21: iop_data <= {24'd0, line_buf[175:168]};
+                    5'd22: iop_data <= {24'd0, line_buf[183:176]};
+                    5'd23: iop_data <= {24'd0, line_buf[191:184]};
+                    5'd24: iop_data <= {24'd0, line_buf[199:192]};
+                    5'd25: iop_data <= {24'd0, line_buf[207:200]};
+                    5'd26: iop_data <= {24'd0, line_buf[215:208]};
+                    5'd27: iop_data <= {24'd0, line_buf[223:216]};
+                    5'd28: iop_data <= {24'd0, line_buf[231:224]};
+                    5'd29: iop_data <= {24'd0, line_buf[239:232]};
+                    5'd30: iop_data <= {24'd0, line_buf[247:240]};
+                    5'd31: iop_data <= {24'd0, line_buf[255:248]};
+                endcase
+                iop_we    <= 1'b1;
+                iop_start <= 1'b1;
+                state     <= ST_M2S_BYTE_WAIT;
+            end
+
+            ST_M2S_BYTE_WAIT:
+            begin
+                iop_start <= 1'b1;
+                if (iop_done)
+                begin
+                    iop_start <= 1'b0;
+                    // RX byte (iop_q) is ignored on writes.
+                    if (spi_byte_idx == 5'd31)
+                    begin
+                        src_cur         <= src_cur + 32'd32;
+                        bytes_remaining <= bytes_remaining - 32'd32;
+                        if (bytes_remaining == 32'd32)
+                            state <= ST_DONE;
+                        else
+                        begin
+                            spi_byte_idx <= 5'd0;
+                            state        <= ST_RD_REQ;
+                        end
+                    end
+                    else
+                    begin
+                        spi_byte_idx <= spi_byte_idx + 5'd1;
+                        state        <= ST_M2S_BYTE_REQ;
+                    end
                 end
             end
 

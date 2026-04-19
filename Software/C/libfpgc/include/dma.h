@@ -4,11 +4,12 @@
 /*
  * DMA driver for the FPGC DMAengine.
  *
- * Phase 1 (this commit) only supports memory-to-memory copies; the other
- * modes (MEM2SPI, SPI2MEM, MEM2VRAM, MEM2IO, IO2MEM) will be added later.
+ * Currently supports memory-to-memory copies and SPI<->memory bursts on
+ * SPI0 (Flash 1) and SPI4 (Ethernet). The other modes (MEM2VRAM, MEM2IO,
+ * IO2MEM) will be added later.
  *
- * All MEM2MEM transfers must be 32-byte (cache-line) aligned in both the
- * source/destination addresses and the byte count.
+ * All transfers must be 32-byte (cache-line) aligned in both the
+ * memory addresses they touch and the byte count.
  *
  * Coherency: dma_copy() flushes/invalidates the L1 data cache around the
  * transfer with the `ccached` instruction, so callers do not need to do
@@ -44,6 +45,25 @@ int dma_copy(unsigned int dst, unsigned int src, unsigned int count);
  * SDRAM coherent with the L1 data cache.
  */
 void dma_start_mem2mem(unsigned int dst, unsigned int src, unsigned int count);
+
+/*
+ * Asynchronous SPI<->memory burst on the given SPI controller (0 or 4).
+ * The mode argument selects direction: DMA_SPI2MEM or DMA_MEM2SPI.
+ *
+ *   - For SPI2MEM, `dst` is the SDRAM destination (32-byte aligned) and
+ *     `src` is ignored. `count` bytes are read from the SPI peripheral
+ *     into SDRAM. The caller is responsible for issuing the read command
+ *     and 24-bit address before calling, and for holding CS low across
+ *     the call.
+ *   - For MEM2SPI, `src` is the SDRAM source (32-byte aligned) and `dst`
+ *     is ignored. `count` bytes are pushed out to the SPI peripheral.
+ *     The caller is responsible for issuing the page-program command
+ *     and address before calling, and for holding CS low across the call.
+ *
+ * No cache flushing is performed; callers should ccached as needed.
+ */
+void dma_start_spi(dma_mode_t mode, int spi_id, unsigned int dst,
+                   unsigned int src, unsigned int count);
 
 /* Returns non-zero while the engine is busy. */
 int dma_busy(void);

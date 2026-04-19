@@ -365,28 +365,56 @@ assign l1d_cache_controller_start = l1d_start_reg;
 assign l1d_cache_controller_byte_enable = byte_enable;
 
 // ---- MEMORY UNIT (I/O) STATE MACHINE ----
-// Ensures we only start the MU once per operation and wait for completion
-reg mu_io_started = 1'b0;
+// Ensures we only start the MU once per operation and wait for completion.
+//
+// `mu_io_started` is set when we issue mu_start and cleared once mu_done has
+// been observed. However, if a backend stall (e.g. an L1i miss) holds the
+// EX/MEM register on the same MMIO instruction across the cycle where
+// mu_done fires, simply clearing mu_io_started would cause the elif below
+// to re-fire mu_start on the next cycle -- effectively executing the same
+// MMIO transaction twice. That is harmless for idempotent registers but
+// catastrophic for write-1-set bits like the DMA CTRL start bit. To avoid
+// this we latch a `mu_done_pending` flag that suppresses re-issue until
+// the EX/MEM register actually advances (`!ex_pipeline_stall`).
+reg mu_io_started   = 1'b0;
+reg mu_done_pending = 1'b0;
 
 always @(posedge clk)
 begin
     if (reset)
     begin
-        mu_start <= 1'b0;
-        mu_addr <= 32'd0;
-        mu_data <= 32'd0;
-        mu_we <= 1'b0;
-        mu_io_started <= 1'b0;
+        mu_start        <= 1'b0;
+        mu_addr         <= 32'd0;
+        mu_data         <= 32'd0;
+        mu_we           <= 1'b0;
+        mu_io_started   <= 1'b0;
+        mu_done_pending <= 1'b0;
+    end else if (mu_done && !ex_pipeline_stall)
+    begin
+        // Fast path: pipeline will advance this cycle; clear immediately so
+        // the next instruction (if any) can issue on the very next cycle.
+        mu_start        <= 1'b0;
+        mu_io_started   <= 1'b0;
+        mu_done_pending <= 1'b0;
     end else if (mu_done)
     begin
-        mu_start <= 1'b0;
-        mu_io_started <= 1'b0;
-    end else if (ex_mem_valid && mem_sel_io && (ex_mem_mem_read || ex_mem_mem_write) && !mu_io_started)
+        // Pipeline is held by some other backend stall. Mark the MMIO as
+        // completed but do NOT allow re-issue until the pipeline advances.
+        mu_start        <= 1'b0;
+        mu_io_started   <= 1'b0;
+        mu_done_pending <= 1'b1;
+    end else if (mu_done_pending && !ex_pipeline_stall)
     begin
-        mu_start <= 1'b1;
-        mu_addr <= ex_mem_mem_addr;
-        mu_data <= ex_mem_breg_data;
-        mu_we <= ex_mem_mem_write;
+        // Pipeline is now advancing; clear the pending flag so the next
+        // cycle's elif can fire for whichever instruction lands in EX/MEM.
+        mu_start        <= 1'b0;
+        mu_done_pending <= 1'b0;
+    end else if (ex_mem_valid && mem_sel_io && (ex_mem_mem_read || ex_mem_mem_write) && !mu_io_started && !mu_done_pending)
+    begin
+        mu_start      <= 1'b1;
+        mu_addr       <= ex_mem_mem_addr;
+        mu_data       <= ex_mem_breg_data;
+        mu_we         <= ex_mem_mem_write;
         mu_io_started <= 1'b1;
     end else
     begin
@@ -394,7 +422,7 @@ begin
     end
 end
 
-assign mu_stall = ex_mem_valid && mem_sel_io && (ex_mem_mem_read || ex_mem_mem_write) && !mu_done;
+assign mu_stall = ex_mem_valid && mem_sel_io && (ex_mem_mem_read || ex_mem_mem_write) && !mu_done && !mu_done_pending;
 
 // ---- CACHE CLEAR STATE MACHINE ----
 reg clear_cache_in_progress = 1'b0;

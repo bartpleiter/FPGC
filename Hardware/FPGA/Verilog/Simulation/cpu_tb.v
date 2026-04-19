@@ -28,7 +28,7 @@
 `include "Hardware/FPGA/Verilog/Modules/Memory/SDRAMcontroller.v"
 `include "Hardware/FPGA/Verilog/Modules/Memory/SDRAMarbiter.v"
 `include "Hardware/FPGA/Verilog/Modules/Memory/mt48lc16m16a2.v"
-// `include "Hardware/FPGA/Verilog/Modules/Memory/W25Q128JV.v"
+`include "Hardware/FPGA/Verilog/Modules/Memory/W25Q128JV.v"
 
 `include "Hardware/FPGA/Verilog/Modules/Memory/MemoryUnit.v"
 `include "Hardware/FPGA/Verilog/Modules/IO/DMAengine.v"
@@ -492,16 +492,16 @@ wire SPI0_miso;
 wire SPI0_wp = 1'b1;
 wire SPI0_hold = 1'b1;
 
-// W25Q128JV #(
-//     .LIST("Hardware/FPGA/Verilog/Simulation/MemoryLists/spiflash1.list")
-// ) spiflash1 (
-// .CLK    (SPI0_clk),
-// .DIO    (SPI0_mosi),
-// .CSn    (SPI0_cs),
-// .WPn    (SPI0_wp),
-// .HOLDn  (SPI0_hold),
-// .DO     (SPI0_miso)
-// );
+W25Q128JV #(
+    .LIST("Hardware/FPGA/Verilog/Simulation/MemoryLists/spiflash1.list")
+) spiflash1 (
+.CLK    (SPI0_clk),
+.DIO    (SPI0_mosi),
+.CSn    (SPI0_cs),
+.WPn    (SPI0_wp),
+.HOLDn  (SPI0_hold),
+.DO     (SPI0_miso)
+);
 
 // SPI1 Flash 2
 wire SPI1_clk;

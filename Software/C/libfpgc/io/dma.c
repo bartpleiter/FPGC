@@ -24,6 +24,20 @@ dma_start_mem2mem(unsigned int dst, unsigned int src, unsigned int count)
         (int)(FPGC_DMA_CTRL_START | (unsigned int)FPGC_DMA_MODE_MEM2MEM));
 }
 
+void
+dma_start_spi(dma_mode_t mode, int spi_id, unsigned int dst,
+              unsigned int src, unsigned int count)
+{
+    unsigned int ctrl;
+    ctrl = FPGC_DMA_CTRL_START
+         | ((unsigned int)spi_id << FPGC_DMA_CTRL_SPI_SHIFT)
+         | (unsigned int)mode;
+    __builtin_store(FPGC_DMA_SRC,   (int)src);
+    __builtin_store(FPGC_DMA_DST,   (int)dst);
+    __builtin_store(FPGC_DMA_COUNT, (int)count);
+    __builtin_store(FPGC_DMA_CTRL,  (int)ctrl);
+}
+
 int
 dma_copy(unsigned int dst, unsigned int src, unsigned int count)
 {

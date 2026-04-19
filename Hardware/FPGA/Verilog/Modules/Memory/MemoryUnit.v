@@ -104,12 +104,26 @@ module MemoryUnit (
     // TODO: GPIO
 );
 
-// ---- DMA peer-port plumbing (no DMA engine yet -- step 7 only adds the wiring) ----
-// In step 8 the IDLE-state arbiter will route iop_start through the same state machine
-// the CPU uses; for now, no peer transactions can fire because all top-level inputs are
-// tied to zero.
-assign iop_done        = 1'b0;
-assign iop_q           = 32'd0;
+// ---- DMA peer-port plumbing (step 9: iop_* routes SPI0/SPI4 byte MMIO) ----
+// The DMA engine drives iop_start/iop_we/iop_addr/iop_data with a single-byte
+// transaction targeting either ADDR_SPI0_DATA or ADDR_SPI4_DATA. We route it
+// through the same FSM the CPU uses by adding an extra branch in STATE_IDLE
+// that fires only when the CPU is not starting a transaction. That gives us
+// natural mutual exclusion against the CPU's own SPI MMIO.
+//
+// Wrinkle: the CPU's `start` is a 1-cycle pulse from MemoryStage.v (gated by
+// `mu_io_started` until `mu_done`). If `start` fires while MemoryUnit is busy
+// with an iop transaction (state != STATE_IDLE), the pulse would be lost and
+// the CPU would deadlock. So we latch any CPU start that we couldn't accept
+// immediately and replay it as soon as the FSM returns to IDLE.
+reg         iop_done_r = 1'b0;
+reg [31:0]  iop_q_r    = 32'd0;
+reg         iop_active = 1'b0;
+reg [2:0]   iop_spi_id = 3'd0;
+assign iop_done = iop_done_r;
+assign iop_q    = iop_q_r;
+
+reg         cpu_req_pending = 1'b0;
 // VRAMPX DMA pass-through (muxed with the CPU port at the FPGA top-level in step 8).
 assign vramPX_dma_we   = vp_we;
 assign vramPX_dma_addr = vp_addr;
@@ -393,7 +407,8 @@ localparam
     STATE_WAIT_SPI5_CS           = 5'd18,
     STATE_WAIT_BOOT_MODE         = 5'd19,
     STATE_WAIT_MICROS            = 5'd20,
-    STATE_RETURN_DMA_REG         = 5'd21; // generic 1-cycle latency read of a DMA register
+    STATE_RETURN_DMA_REG         = 5'd21, // generic 1-cycle latency read of a DMA register
+    STATE_IOP_SPI_WAIT           = 5'd22; // step 9: DMA peer-port SPI transaction in flight
 
 
 reg [4:0] state = 5'd0;
@@ -461,6 +476,13 @@ always @(posedge clk) begin
         dma_reg_addr <= 3'd0;
         dma_reg_we   <= 1'b0;
         dma_reg_data <= 32'd0;
+
+        iop_done_r <= 1'b0;
+        iop_q_r    <= 32'd0;
+        iop_active <= 1'b0;
+        iop_spi_id <= 3'd0;
+
+        cpu_req_pending <= 1'b0;
     end else
     begin
         // Default assignments
@@ -468,7 +490,11 @@ always @(posedge clk) begin
         q <= 32'd0;
         wait_done <= 1'b0;
 
-        uart_tx_start <= 1'b0;
+        // Latch CPU start pulses that arrive while MemoryUnit is busy.
+        // CPU's mu_addr/mu_data/mu_we hold across the request (see MemoryStage),
+        // so we only need a pending flag.
+        if (start && state != STATE_IDLE)
+            cpu_req_pending <= 1'b1;        uart_tx_start <= 1'b0;
 
         flash_spi_activity <= 1'b0;
         usb_spi_activity <= 1'b0;
@@ -484,6 +510,12 @@ always @(posedge clk) begin
         // DMA register-bus pulses default low so writes/reads only fire one cycle
         dma_reg_we <= 1'b0;
 
+        // DMA iop_* peer-port pulses default low; iop_active clears when the
+        // engine drops iop_start (handshake completion).
+        iop_done_r <= 1'b0;
+        if (iop_active && !iop_start)
+            iop_active <= 1'b0;
+
         SPI0_start <= 1'b0;
         SPI1_start <= 1'b0;
         SPI2_start <= 1'b0;
@@ -494,8 +526,9 @@ always @(posedge clk) begin
         case (state)
             STATE_IDLE:
             begin
-                if (start)
+                if (start || cpu_req_pending)
                 begin
+                    cpu_req_pending <= 1'b0;
                     // ---- UART ----
                     if (addr == ADDR_UART_TX)
                     begin
@@ -753,6 +786,35 @@ always @(posedge clk) begin
                         state <= STATE_RETURN_ZERO;
                     end
                 end
+                else if (iop_start && !iop_active && !cpu_req_pending)
+                begin
+                    // DMA peer-port transaction (only SPI0/SPI4 byte data is supported).
+                    iop_active <= 1'b1;
+                    if (iop_addr == ADDR_SPI0_DATA)
+                    begin
+                        SPI0_in            <= iop_data[7:0];
+                        SPI0_start         <= 1'b1;
+                        flash_spi_activity <= 1'b1;
+                        iop_spi_id         <= 3'd0;
+                        state              <= STATE_IOP_SPI_WAIT;
+                    end
+                    else if (iop_addr == ADDR_SPI4_DATA)
+                    begin
+                        SPI4_in          <= iop_data[7:0];
+                        SPI4_start       <= 1'b1;
+                        eth_spi_activity <= 1'b1;
+                        iop_spi_id       <= 3'd4;
+                        state            <= STATE_IOP_SPI_WAIT;
+                    end
+                    else
+                    begin
+                        // Unsupported iop address: complete with zero data so
+                        // the engine doesn't lock up. Should not happen in
+                        // practice -- DMAengine only issues SPI0/SPI4.
+                        iop_done_r <= 1'b1;
+                        iop_q_r    <= 32'd0;
+                    end
+                end
             end
 
             STATE_WAIT_UART_TX:
@@ -926,6 +988,39 @@ always @(posedge clk) begin
                 done <= 1'b1;
                 q <= dma_reg_q;
                 state <= STATE_IDLE;
+            end
+
+            STATE_IOP_SPI_WAIT:
+            begin
+                // Wait for the chosen SPI controller to finish the byte and
+                // hand the RX byte back to the engine via iop_q.
+                if (iop_spi_id == 3'd0)
+                begin
+                    flash_spi_activity <= 1'b1;
+                    if (SPI0_done)
+                    begin
+                        iop_done_r <= 1'b1;
+                        iop_q_r    <= {24'd0, SPI0_out};
+                        state      <= STATE_IDLE;
+                    end
+                end
+                else if (iop_spi_id == 3'd4)
+                begin
+                    eth_spi_activity <= 1'b1;
+                    if (SPI4_done)
+                    begin
+                        iop_done_r <= 1'b1;
+                        iop_q_r    <= {24'd0, SPI4_out};
+                        state      <= STATE_IDLE;
+                    end
+                end
+                else
+                begin
+                    // Should never happen
+                    iop_done_r <= 1'b1;
+                    iop_q_r    <= 32'd0;
+                    state      <= STATE_IDLE;
+                end
             end
 
             default:

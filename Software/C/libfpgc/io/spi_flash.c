@@ -1,5 +1,7 @@
 #include "spi.h"
 #include "spi_flash.h"
+#include "dma.h"
+#include "fpgc.h"
 
 #define SPIFLASH_CMD_WRITE_ENABLE    0x06
 #define SPIFLASH_CMD_WRITE_DISABLE   0x04
@@ -158,19 +160,37 @@ spi_flash_write_words(int spi_id, int address, unsigned int *data, int word_coun
 {
     int i;
     unsigned int word;
+    unsigned int byte_count;
     if (word_count > 64)
         word_count = 64;
     spi_flash_enable_write(spi_id);
     spi_select(spi_id);
     spi_transfer(spi_id, SPIFLASH_CMD_PAGE_PROGRAM);
     send_addr(spi_id, address);
-    for (i = 0; i < word_count; i++) {
-        word = data[i];
-        /* Little-endian on disk: LSB first. */
-        spi_transfer(spi_id, word & 0xFF);
-        spi_transfer(spi_id, (word >> 8) & 0xFF);
-        spi_transfer(spi_id, (word >> 16) & 0xFF);
-        spi_transfer(spi_id, (word >> 24) & 0xFF);
+    /*
+     * Fast path: when the source buffer and byte count are 32-byte aligned
+     * and the SPI controller supports DMA (id 0 or 4), push the payload
+     * with the DMAengine in MEM2SPI mode while the CPU is free.
+     */
+    byte_count = (unsigned int)word_count * 4u;
+    if ((spi_id == 0 || spi_id == 4) &&
+        ((unsigned int)data % 32u == 0u) &&
+        (byte_count % 32u == 0u) &&
+        byte_count > 0u) {
+        cache_flush_data();
+        dma_start_spi(DMA_MEM2SPI, spi_id, 0u, (unsigned int)data, byte_count);
+        while (dma_busy())
+            ;
+        (void)dma_status();
+    } else {
+        for (i = 0; i < word_count; i++) {
+            word = data[i];
+            /* Little-endian on disk: LSB first. */
+            spi_transfer(spi_id, word & 0xFF);
+            spi_transfer(spi_id, (word >> 8) & 0xFF);
+            spi_transfer(spi_id, (word >> 16) & 0xFF);
+            spi_transfer(spi_id, (word >> 24) & 0xFF);
+        }
     }
     spi_deselect(spi_id);
     spi_flash_wait_busy(spi_id);
@@ -181,16 +201,34 @@ spi_flash_read_words(int spi_id, int address, unsigned int *buffer, int word_cou
 {
     int i;
     unsigned int b0, b1, b2, b3;
+    unsigned int byte_count;
     spi_select(spi_id);
     spi_transfer(spi_id, SPIFLASH_CMD_READ_DATA);
     send_addr(spi_id, address);
-    for (i = 0; i < word_count; i++) {
-        /* Little-endian on disk: LSB first. */
-        b0 = spi_transfer(spi_id, SPIFLASH_DUMMY);
-        b1 = spi_transfer(spi_id, SPIFLASH_DUMMY);
-        b2 = spi_transfer(spi_id, SPIFLASH_DUMMY);
-        b3 = spi_transfer(spi_id, SPIFLASH_DUMMY);
-        buffer[i] = b0 | (b1 << 8) | (b2 << 16) | (b3 << 24);
+    /*
+     * Fast path: aligned destination buffer and byte count -- pull the
+     * payload via DMA SPI2MEM (only available on SPI controllers 0 and 4).
+     */
+    byte_count = (unsigned int)word_count * 4u;
+    if ((spi_id == 0 || spi_id == 4) &&
+        ((unsigned int)buffer % 32u == 0u) &&
+        (byte_count % 32u == 0u) &&
+        byte_count > 0u) {
+        cache_flush_data();
+        dma_start_spi(DMA_SPI2MEM, spi_id, (unsigned int)buffer, 0u, byte_count);
+        while (dma_busy())
+            ;
+        (void)dma_status();
+        cache_flush_data();
+    } else {
+        for (i = 0; i < word_count; i++) {
+            /* Little-endian on disk: LSB first. */
+            b0 = spi_transfer(spi_id, SPIFLASH_DUMMY);
+            b1 = spi_transfer(spi_id, SPIFLASH_DUMMY);
+            b2 = spi_transfer(spi_id, SPIFLASH_DUMMY);
+            b3 = spi_transfer(spi_id, SPIFLASH_DUMMY);
+            buffer[i] = b0 | (b1 << 8) | (b2 << 16) | (b3 << 24);
+        }
     }
     spi_deselect(spi_id);
 }
