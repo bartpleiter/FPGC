@@ -597,7 +597,46 @@ CacheController cache_controller (
     .l1d_ctrl_we(l1d_ctrl_we),
     .l1d_ctrl_q(l1d_ctrl_q),
 
-    // SDRAM controller interface
+    // SDRAM controller interface (via SDRAMarbiter)
+    .sdc_addr(cpu_sdc_addr),
+    .sdc_data(cpu_sdc_data),
+    .sdc_we(cpu_sdc_we),
+    .sdc_start(cpu_sdc_start),
+    .sdc_done(cpu_sdc_done),
+    .sdc_q(cpu_sdc_q)
+);
+
+/******************************************************************************
+ * SDRAM Arbiter (CPU priority, DMA stubbed for now)
+ ******************************************************************************/
+wire [20:0]     cpu_sdc_addr;
+wire [255:0]    cpu_sdc_data;
+wire            cpu_sdc_we;
+wire            cpu_sdc_start;
+wire            cpu_sdc_done;
+wire [255:0]    cpu_sdc_q;
+
+SDRAMarbiter sdram_arb (
+    .clk(clk100),
+    .reset(reset),
+
+    // CPU port (from CacheController)
+    .cpu_addr(cpu_sdc_addr),
+    .cpu_data(cpu_sdc_data),
+    .cpu_we(cpu_sdc_we),
+    .cpu_start(cpu_sdc_start),
+    .cpu_done(cpu_sdc_done),
+    .cpu_q(cpu_sdc_q),
+
+    // DMA port (stubbed inactive in this commit)
+    .dma_addr(21'd0),
+    .dma_data(256'd0),
+    .dma_we(1'b0),
+    .dma_start(1'b0),
+    .dma_done(),
+    .dma_q(),
+
+    // SDRAM controller side
     .sdc_addr(sdc_addr),
     .sdc_data(sdc_data),
     .sdc_we(sdc_we),
