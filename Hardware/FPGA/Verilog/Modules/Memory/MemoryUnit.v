@@ -152,24 +152,33 @@ OStimer OST3 (
     .interrupt   (OST3_int)
 );
 
-// SPI0 (Flash 1) 25 MHz
+// SPI0 (Flash 1) 25 MHz -- now via SimpleSPI2 (FIFO + burst capable, used at
+// burst length 1 to preserve the existing single-byte MMIO transfer interface)
 reg SPI0_start = 1'b0;
 reg [7:0] SPI0_in = 8'd0;
 wire [7:0] SPI0_out;
 wire SPI0_done;
 
-SimpleSPI #(
-    .CLKS_PER_HALF_BIT(2)
+SimpleSPI2 #(
+    .CLKS_PER_HALF_BIT(2),
+    .FIFO_DEPTH(16)
 ) SPI0 (
-    .clk        (clk),
-    .reset      (reset),
-    .data_in    (SPI0_in),
-    .start      (SPI0_start),
-    .done       (SPI0_done),
-    .data_out   (SPI0_out),
-    .spi_clk    (SPI0_clk),
-    .spi_miso   (SPI0_miso),
-    .spi_mosi   (SPI0_mosi)
+    .clk             (clk),
+    .reset           (reset),
+    .cmd_we          (SPI0_start),
+    .cmd_data        (SPI0_in),
+    .cmd_start_burst (SPI0_start),
+    .cmd_burst_len   (16'd1),
+    .cmd_dummy       (1'b0),
+    .tx_full         (),
+    .rx_empty        (),
+    .rx_data         (SPI0_out),
+    .cmd_re_rx       (SPI0_done),
+    .busy            (),
+    .done            (SPI0_done),
+    .spi_clk         (SPI0_clk),
+    .spi_miso        (SPI0_miso),
+    .spi_mosi        (SPI0_mosi)
 );
 
 // SPI1 (Flash 2) 25 MHz
@@ -232,24 +241,33 @@ SimpleSPI #(
     .spi_mosi   (SPI3_mosi)
 );
 
-// SPI4 (Ethernet) 12.5 MHz
+// SPI4 (Ethernet) 12.5 MHz -- now via SimpleSPI2 (FIFO + burst capable, used at
+// burst length 1 to preserve the existing single-byte MMIO transfer interface)
 reg SPI4_start = 1'b0;
 reg [7:0] SPI4_in = 8'd0;
 wire [7:0] SPI4_out;
 wire SPI4_done;
 
-SimpleSPI #(
-    .CLKS_PER_HALF_BIT(4)
+SimpleSPI2 #(
+    .CLKS_PER_HALF_BIT(4),
+    .FIFO_DEPTH(16)
 ) SPI4 (
-    .clk        (clk),
-    .reset      (reset),
-    .data_in    (SPI4_in),
-    .start      (SPI4_start),
-    .done       (SPI4_done),
-    .data_out   (SPI4_out),
-    .spi_clk    (SPI4_clk),
-    .spi_miso   (SPI4_miso),
-    .spi_mosi   (SPI4_mosi)
+    .clk             (clk),
+    .reset           (reset),
+    .cmd_we          (SPI4_start),
+    .cmd_data        (SPI4_in),
+    .cmd_start_burst (SPI4_start),
+    .cmd_burst_len   (16'd1),
+    .cmd_dummy       (1'b0),
+    .tx_full         (),
+    .rx_empty        (),
+    .rx_data         (SPI4_out),
+    .cmd_re_rx       (SPI4_done),
+    .busy            (),
+    .done            (SPI4_done),
+    .spi_clk         (SPI4_clk),
+    .spi_miso        (SPI4_miso),
+    .spi_mosi        (SPI4_mosi)
 );
 
 // SPI5 (SD Card) 25 MHz

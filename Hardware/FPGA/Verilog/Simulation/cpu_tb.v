@@ -34,6 +34,7 @@
 `include "Hardware/FPGA/Verilog/Modules/IO/UARTrx.v"
 `include "Hardware/FPGA/Verilog/Modules/IO/UARTtx.v"
 `include "Hardware/FPGA/Verilog/Modules/IO/SimpleSPI.v"
+`include "Hardware/FPGA/Verilog/Modules/IO/SimpleSPI2.v"
 `include "Hardware/FPGA/Verilog/Modules/IO/MicrosCounter.v"
 `include "Hardware/FPGA/Verilog/Modules/IO/OStimer.v"
 
