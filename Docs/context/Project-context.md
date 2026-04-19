@@ -21,7 +21,7 @@ hardware, toolchain, and software:
   filesystem, job control, USB-keyboard input, and ENC28J60 Ethernet.
 - **Toolchain**: cproc (C11 frontend) → QBE (optimising backend) →
   ASMPY (Python assembler with linker). Self-hosting on BDOS via
-  `cc` / `cc-min` shell scripts is operational.
+  `cc` shell scripts is operational.
 - **Goal**: run Doom on real hardware — done. Future work: SD-card
   storage, more userBDOS programs, robust OS features, general extensions and improvements to the project -> going from custom POC to more established implementations like a proper terminal, C toolchain, FS layers, etc. to make porting existing code easier.
 
@@ -90,7 +90,7 @@ the top-level `Makefile` (`make compile-bdos`,
 `make compile-userbdos file=<n>`, `make compile-userbdos-all`,
 `make compile-bootloader`, etc.).
 
-Self-hosting on BDOS is operational: `cc` and `cc-min` shell scripts
+Self-hosting on BDOS is operational: `cc` and `libc-build` shell scripts
 drive cproc + QBE + ASMPY directly on the FPGC, with assembly outputs
 cached under `/lib/asm-cache/`. See
 [Docs/plans/asm-selfhost.md](../plans/asm-selfhost.md) and

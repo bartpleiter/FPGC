@@ -353,8 +353,6 @@ stage-cc-toolchain: selfhost-all $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	@cp Software/C/userlib/include/*.h  $(STAGE_LIB_INC)/
 	@echo "--- Writing /bin/cc script ---"
 	@cp Scripts/BCC/cc.sh $(STAGE_BIN)/cc
-	@echo "--- Writing /bin/cc-min script ---"
-	@cp Scripts/BCC/cc-min.sh $(STAGE_BIN)/cc-min
 	@echo "--- Writing /bin/libc-build script ---"
 	@cp Scripts/BCC/libc-build.sh $(STAGE_BIN)/libc-build
 	@echo "--- Writing /user/hello.c sample ---"

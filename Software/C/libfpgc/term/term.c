@@ -55,7 +55,7 @@ static int g_width  = 40;
 static int g_height = 25;
 static term_render_cell_fn g_render = NULL;
 static term_uart_mirror_fn g_uart   = NULL;
-static int g_uart_mirror_enabled = 1;
+static int g_uart_mirror_enabled = 0;
 
 /* Two screens: primary [0], alt [1] */
 static term_screen_t g_screens[2];
@@ -450,13 +450,25 @@ static void parser_dispatch_csi(unsigned char final) {
             return;
         }
         {
+            /* Map standard ANSI 30..37 foreground colours onto the
+             * default tile-palette indices. Default-palette layout:
+             *   0 white-on-black (default)   1 black-on-white (inverted)
+             *   2 red    3 green   4 blue    5 yellow
+             *   6 magenta 7 cyan
+             * "ANSI black" has no black-on-black entry; map it to the
+             * inverted entry 1 so the text remains visible. */
+            static const unsigned char k_ansi_fg[8] = {
+                1, /* 30 black   */ 2, /* 31 red    */
+                3, /* 32 green   */ 5, /* 33 yellow */
+                4, /* 34 blue    */ 6, /* 35 magenta*/
+                7, /* 36 cyan    */ 0, /* 37 white  */
+            };
             int i;
             for (i = 0; i < g_csi_nparams; i++) {
                 int v = g_csi_params[i];
-                if (v == 0)          s->palette = 0;
+                if (v == 0)          s->palette = 0; /* reset to default */
                 else if (v >= 30 && v <= 37) {
-                    /* foreground colors map directly to palette idx 0..7 */
-                    s->palette = (unsigned char)((s->palette & 0xF8) | (v - 30));
+                    s->palette = k_ansi_fg[v - 30];
                 } else if (v >= 40 && v <= 47) {
                     /* background — map to high nibble (caller convention) */
                     s->palette = (unsigned char)((s->palette & 0x0F) | ((v - 40) << 4));

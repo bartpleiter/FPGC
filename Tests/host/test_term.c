@@ -124,12 +124,15 @@ static void test_csi_clear(void) {
 
 static void test_csi_sgr(void) {
     reset();
-    puts_str("\033[31m"); /* fg color 1 */
+    puts_str("\033[31m"); /* ANSI red -> palette 2 (red-on-black) */
     puts_str("R");
-    CHECK(g_render_pal[0][0] == 0x01, "SGR31 pal=%d", g_render_pal[0][0]);
+    CHECK(g_render_pal[0][0] == 0x02, "SGR31 pal=%d", g_render_pal[0][0]);
+    puts_str("\033[32m"); /* ANSI green -> palette 3 (green-on-black) */
+    puts_str("G");
+    CHECK(g_render_pal[0][1] == 0x03, "SGR32 pal=%d", g_render_pal[0][1]);
     puts_str("\033[0m"); /* reset */
     puts_str("X");
-    CHECK(g_render_pal[0][1] == 0x00, "SGR0 pal=%d", g_render_pal[0][1]);
+    CHECK(g_render_pal[0][2] == 0x00, "SGR0 pal=%d", g_render_pal[0][2]);
 }
 
 static void test_csi_cursor_move(void) {

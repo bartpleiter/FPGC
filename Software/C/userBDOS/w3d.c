@@ -1,25 +1,5 @@
 /*
- * FIXME: shell-terminal-v2 Phase E migration TODO.
- *
- * This program still uses syscalls that were removed from BDOS in
- * Phase E. It will currently fail to link or behave correctly. See
- * the migration table at the top of Software/C/userlib/include/syscall.h.
- *
- * Quick checklist for porting:
- *   sys_term_put_cell / sys_term_clear / sys_term_set_cursor
- *      -> sys_write(1, "\x1b[<y+1>;<x+1>H...", n) ANSI escapes.
- *      -> Glyphs that overlap C0 control codes (BEL, HT, LF, ESC, ...)
- *         must be substituted with printable ASCII.
- *   sys_read_key / sys_key_available
- *      -> int fd = sys_tty_open_raw(1);            (non-blocking)
- *         int ev = sys_tty_event_read(fd, 0);
- *      -> snake.c is the reference port.
- *   sys_set_palette / sys_set_pixel_palette
- *      -> No replacement syscall yet. Either use ANSI SGR colors
- *         (\x1b[30m..37m for tile palette 0..7) or wait for a
- *         dedicated palette syscall to be added in a follow-up.
- *   sys_uart_print_str / sys_uart_print_char
- *      -> sys_write(2, s, n) (stderr; mirrored to UART by libterm).
+ * w3d.c — Wolfenstein 3D-style raycaster for FPGC BDOS.
  */
 
 // w3d.c — Wolfenstein 3D-style raycaster for FPGC BDOS
@@ -29,6 +9,17 @@
 #include <fixedmath.h>
 #include <plot.h>
 #include <time.h>
+
+// ---- ANSI / VFS shims for retired syscalls ----
+// Raw /dev/tty supplies non-blocking key events (used to drain stale
+// presses); the screen-clear escape is sent directly through fd 1.
+
+static int g_tty_fd = -1;
+
+static void term_clear(void)
+{
+  sys_write(1, "\x1b[2J\x1b[H", 7);
+}
 
 // ---- Constants ----
 
@@ -464,9 +455,10 @@ void render_frame(void)
 
 void drain_key_fifo(void)
 {
-  while (sys_key_available())
+  if (g_tty_fd < 0) return;
+  while (sys_tty_event_read(g_tty_fd, 0) >= 0)
   {
-    sys_read_key();
+    /* discard */
   }
 }
 
@@ -558,7 +550,14 @@ int main(void)
     generate_textures();
   }
 
-  sys_term_clear();
+  g_tty_fd = sys_tty_open_raw(1);
+  if (g_tty_fd < 0)
+  {
+    sys_putstr("w3d: cannot open /dev/tty in raw mode\n");
+    return 1;
+  }
+
+  term_clear();
   clear_framebuffer();
   draw_border();
 
@@ -587,6 +586,7 @@ int main(void)
   }
 
   clear_framebuffer();
-  sys_term_clear();
+  term_clear();
+  sys_close(g_tty_fd);
   return 0;
 }

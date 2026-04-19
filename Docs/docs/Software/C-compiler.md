@@ -117,7 +117,7 @@ void interrupt() {
 
 The toolchain can compile itself and run natively on the FPGC under BDOS. The on-device flow uses the same `cpp` → `cproc` → `qbe` → `asm-link` pipeline as the host build, with libc and userlib pre-compiled into a `/lib/asm-cache/` cache so that user-program compiles only have to compile the user source and link.
 
-Use `make stage-cc-toolchain` on the host to lay out the cached `.asm` files and the `cc` / `cc-min` / `libc-build` shell wrappers under `Files/BRFS-init/`, then push to the device with `make fnp-sync-files dev=N`. On-device:
+Use `make stage-cc-toolchain` on the host to lay out the cached `.asm` files and the `cc` / `libc-build` shell wrappers under `Files/BRFS-init/`, then push to the device with `make fnp-sync-files dev=N`. On-device:
 
 ```sh
 libc-build              # one-time: build /lib/asm-cache/

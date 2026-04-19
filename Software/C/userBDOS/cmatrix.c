@@ -1,28 +1,10 @@
-/*
- * FIXME: shell-terminal-v2 Phase E migration TODO.
- *
- * This program still uses syscalls that were removed from BDOS in
- * Phase E. It will currently fail to link or behave correctly. See
- * the migration table at the top of Software/C/userlib/include/syscall.h.
- *
- * Quick checklist for porting:
- *   sys_term_put_cell / sys_term_clear / sys_term_set_cursor
- *      -> sys_write(1, "\x1b[<y+1>;<x+1>H...", n) ANSI escapes.
- *      -> Glyphs that overlap C0 control codes (BEL, HT, LF, ESC, ...)
- *         must be substituted with printable ASCII.
- *   sys_read_key / sys_key_available
- *      -> int fd = sys_tty_open_raw(1);            (non-blocking)
- *         int ev = sys_tty_event_read(fd, 0);
- *      -> snake.c is the reference port.
- *   sys_set_palette / sys_set_pixel_palette
- *      -> No replacement syscall yet. Either use ANSI SGR colors
- *         (\x1b[30m..37m for tile palette 0..7) or wait for a
- *         dedicated palette syscall to be added in a follow-up.
- *   sys_uart_print_str / sys_uart_print_char
- *      -> sys_write(2, s, n) (stderr; mirrored to UART by libterm).
- */
-
 // cmatrix.c — Matrix rain effect for FPGC BDOS
+//
+// Uses ANSI escape sequences on fd 1 for output and the raw /dev/tty
+// event stream (sys_tty_open_raw / sys_tty_event_read) for input. The
+// foreground green colour is selected with SGR \x1b[32m once at
+// startup and reset with \x1b[0m on exit.
+//
 // Press Escape or Q to exit.
 
 #include <syscall.h>
@@ -33,9 +15,6 @@
 #define MAX_RAIN_LENGTH 15
 #define MIN_RAIN_LENGTH 5
 #define RAIN_DELAY_MS   32  // ~30fps
-
-// Palette indices
-#define PAL_GREEN 0  // We'll set palette 0 to green-on-black at startup
 
 // LFSR-based RNG
 unsigned int rng_lfsr = 0xACE1;
@@ -62,10 +41,52 @@ int rng_mod(int val, int modulus)
 // Stored as a flat array [y * SCREEN_WIDTH + x].
 int *rain_status;
 
-// Helper: put a character on screen with green palette
+// Raw /dev/tty fd for non-blocking key event reads.
+int tty_fd;
+
+/* ---- Tiny output helpers (no libc printf available) ---- */
+
+static int write_str(const char *s)
+{
+  int n = 0;
+  while (s[n]) n++;
+  return sys_write(1, s, n);
+}
+
+/* Append decimal representation of `val` (>=0) to `out`, returning new length. */
+static int append_uint(char *out, int len, int val)
+{
+  char tmp[12];
+  int  i = 0;
+  if (val == 0) { tmp[i++] = '0'; }
+  else {
+    while (val > 0) { tmp[i++] = (char)('0' + (val % 10)); val /= 10; }
+  }
+  while (i > 0) { out[len++] = tmp[--i]; }
+  return len;
+}
+
+/* Move cursor to (x, y) — 0-based, converted to 1-based for ANSI CUP. */
+static void cursor_to(int x, int y)
+{
+  char buf[16];
+  int  n = 0;
+  buf[n++] = '\x1b';
+  buf[n++] = '[';
+  n = append_uint(buf, n, y + 1);
+  buf[n++] = ';';
+  n = append_uint(buf, n, x + 1);
+  buf[n++] = 'H';
+  sys_write(1, buf, n);
+}
+
+// Helper: put a character at (x, y). ch == 0 erases the cell.
 void put_ch(int x, int y, int ch)
 {
-  sys_term_put_cell(x, y, (ch << 8) | PAL_GREEN);
+  char c;
+  cursor_to(x, y);
+  c = (ch == 0) ? ' ' : (char)ch;
+  sys_write(1, &c, 1);
 }
 
 // Return a random printable ASCII character (33..126)
@@ -149,9 +170,22 @@ void gen_rain_line(int x)
   put_ch(x, 0, random_char());
 }
 
-int main(void)
+/* Drain pending key events, return non-zero to request exit. */
+static int process_input(void)
 {
   int key;
+  while ((key = sys_tty_event_read(tty_fd, 0)) >= 0)
+  {
+    if (key == 27 || key == 'q' || key == 'Q')
+    {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+int main(void)
+{
   int i;
 
   // Allocate rain status array on heap
@@ -168,27 +202,24 @@ int main(void)
     rain_status[i] = 0;
   }
 
-  // Set palette 0 to green-on-black
-  // Color format: (bg_color << 8) | fg_color
-  // 8-bit color: RRRGGGBB
-  // Green = 0b00011100 = 28, Black = 0
-  sys_set_palette(0, (0 << 8) | 28);
+  tty_fd = sys_tty_open_raw(1 /* nonblocking */);
+  if (tty_fd < 0)
+  {
+    sys_putstr("cmatrix: cannot open /dev/tty in raw mode\n");
+    return 1;
+  }
 
-  /* Enter alternate screen so the prior shell view is restored on exit. */
-  sys_putstr("\033[?1049h");
-  sys_term_clear();
+  /* Enter alternate screen, disable auto-wrap (so writing the
+   * bottom-right cell doesn't scroll), set foreground green,
+   * clear screen. Restored to the previous shell view on exit. */
+  write_str("\x1b[?1049h\x1b[?7l\x1b[32m\x1b[2J\x1b[H");
 
   // Main loop
   while (1)
   {
-    // Check for exit key
-    if (sys_key_available())
+    if (process_input())
     {
-      key = sys_read_key();
-      if (key == 27 || key == 'q' || key == 'Q')
-      {
-        break;
-      }
+      break;
     }
 
     update_rain();
@@ -206,10 +237,9 @@ int main(void)
     sys_delay(RAIN_DELAY_MS);
   }
 
-  // Restore default palette (white-on-black). Leaving the alt screen
-  // restores whatever was visible before cmatrix ran.
-  sys_set_palette(0, (0 << 8) | 0xFF);
-  sys_putstr("\033[?1049l");
+  /* Reset SGR, re-enable auto-wrap, leave alternate screen. */
+  write_str("\x1b[0m\x1b[?7h\x1b[?1049l");
+  sys_close(tty_fd);
 
   return 0;
 }
