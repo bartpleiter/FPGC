@@ -168,15 +168,13 @@ spi_flash_write_words(int spi_id, int address, unsigned int *data, int word_coun
     spi_transfer(spi_id, SPIFLASH_CMD_PAGE_PROGRAM);
     send_addr(spi_id, address);
     /*
-     * Fast path: when the source buffer and byte count are 32-byte aligned
-     * and the SPI controller supports DMA (id 0 or 4), push the payload
-     * with the DMAengine in MEM2SPI mode while the CPU is free.
+     * DMA SPI fast path is temporarily disabled while SPI0/SPI4 are
+     * reverted to SimpleSPI (no FIFO). See dma-implementation-plan.md
+     * §7 step 6 -- needs the SimpleSPI2 read-back bug fixed first.
      */
     byte_count = (unsigned int)word_count * 4u;
-    if ((spi_id == 0 || spi_id == 4) &&
-        ((unsigned int)data % 32u == 0u) &&
-        (byte_count % 32u == 0u) &&
-        byte_count > 0u) {
+    (void)byte_count;
+    if (0) {
         cache_flush_data();
         dma_start_spi(DMA_MEM2SPI, spi_id, 0u, (unsigned int)data, byte_count);
         while (dma_busy())
@@ -206,14 +204,13 @@ spi_flash_read_words(int spi_id, int address, unsigned int *buffer, int word_cou
     spi_transfer(spi_id, SPIFLASH_CMD_READ_DATA);
     send_addr(spi_id, address);
     /*
-     * Fast path: aligned destination buffer and byte count -- pull the
-     * payload via DMA SPI2MEM (only available on SPI controllers 0 and 4).
+     * DMA SPI fast path is temporarily disabled while SPI0/SPI4 are
+     * reverted to SimpleSPI (no FIFO). See dma-implementation-plan.md
+     * §7 step 6 -- needs the SimpleSPI2 read-back bug fixed first.
      */
     byte_count = (unsigned int)word_count * 4u;
-    if ((spi_id == 0 || spi_id == 4) &&
-        ((unsigned int)buffer % 32u == 0u) &&
-        (byte_count % 32u == 0u) &&
-        byte_count > 0u) {
+    (void)byte_count;
+    if (0) {
         cache_flush_data();
         dma_start_spi(DMA_SPI2MEM, spi_id, (unsigned int)buffer, 0u, byte_count);
         while (dma_busy())
