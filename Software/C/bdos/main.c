@@ -37,7 +37,7 @@ void bdos_loop(void)
 int main(void)
 {
   bdos_init();
-  /* bdos_fs_boot_init() is called from inside bdos_init() (DEBUG) */
+  bdos_fs_boot_init();
   bdos_shell_init();
   bdos_loop();
 

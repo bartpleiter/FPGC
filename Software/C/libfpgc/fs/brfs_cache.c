@@ -2,25 +2,6 @@
 #include "brfs.h"   /* for BRFS_OK / BRFS_ERR_* and BRFS_FLASH_* layout consts */
 #include <string.h>
 
-/* ---- Temporary BRFS-mount debug tracing (UART) ---------------------- */
-/* Define BRFS_DEBUG_TRACE=1 in build to enable UART trace prints during
- * brfs_cache_load_superblock and brfs_cache_load. Used to localize the
- * BDOS "stuck at 0% mount" hang. */
-#ifndef BRFS_DEBUG_TRACE
-#define BRFS_DEBUG_TRACE 1
-#endif
-
-#if BRFS_DEBUG_TRACE
-#include "uart.h"
-#define BRFS_TRACE(s)        uart_puts(s)
-#define BRFS_TRACE_HEX(x)    uart_puthex((unsigned int)(x), 1)
-#define BRFS_TRACE_INT(x)    uart_putint((int)(x))
-#else
-#define BRFS_TRACE(s)        ((void)0)
-#define BRFS_TRACE_HEX(x)    ((void)0)
-#define BRFS_TRACE_INT(x)    ((void)0)
-#endif
-
 /*
  * Phase 2 implementation: the cache is one linear buffer that mirrors
  * the entire on-disk image. Pinned, no eviction. Phase 4 swaps the
@@ -101,18 +82,8 @@ static int cache_is_dirty(brfs_cache_t *c, unsigned int block_idx)
 
 int brfs_cache_load_superblock(brfs_cache_t *c)
 {
-    int rc;
-    BRFS_TRACE("[brfs] load_superblock: addr=");
-    BRFS_TRACE_HEX(c->superblock_addr);
-    BRFS_TRACE(" words=");
-    BRFS_TRACE_INT(BRFS_SUPERBLOCK_SIZE);
-    BRFS_TRACE("\n");
-    rc = c->storage->read_words(c->storage, c->superblock_addr,
-                                c->buf, BRFS_SUPERBLOCK_SIZE);
-    BRFS_TRACE("[brfs] load_superblock: rc=");
-    BRFS_TRACE_INT(rc);
-    BRFS_TRACE("\n");
-    return rc;
+    return c->storage->read_words(c->storage, c->superblock_addr,
+                                  c->buf, BRFS_SUPERBLOCK_SIZE);
 }
 
 int brfs_cache_flush_superblock(brfs_cache_t *c)
@@ -149,40 +120,15 @@ int brfs_cache_load(brfs_cache_t *c, brfs_progress_callback_t progress)
     progress_step  = 0;
 
     /* FAT */
-    BRFS_TRACE("[brfs] cache_load: fat_sectors=");
-    BRFS_TRACE_INT(fat_sectors);
-    BRFS_TRACE(" data_sectors=");
-    BRFS_TRACE_INT(data_sectors);
-    BRFS_TRACE(" data_words=");
-    BRFS_TRACE_INT(data_words);
-    BRFS_TRACE(" fat@");
-    BRFS_TRACE_HEX(c->fat_addr);
-    BRFS_TRACE(" data@");
-    BRFS_TRACE_HEX(c->data_addr);
-    BRFS_TRACE(" buf@");
-    BRFS_TRACE_HEX((unsigned int)fat);
-    BRFS_TRACE("\n");
     words_remaining = c->total_blocks;
     for (sector = 0; sector < fat_sectors; sector++) {
         words_this_sector = BRFS_FLASH_WORDS_PER_SECTOR;
         if (words_this_sector > words_remaining)
             words_this_sector = words_remaining;
-
-        BRFS_TRACE("[brfs] FAT sec ");
-        BRFS_TRACE_INT(sector);
-        BRFS_TRACE(" addr=");
-        BRFS_TRACE_HEX(c->fat_addr + (sector * BRFS_FLASH_SECTOR_SIZE));
-        BRFS_TRACE(" dst=");
-        BRFS_TRACE_HEX((unsigned int)(fat + (sector * BRFS_FLASH_WORDS_PER_SECTOR)));
-        BRFS_TRACE(" w=");
-        BRFS_TRACE_INT(words_this_sector);
-        BRFS_TRACE(" ...");
         c->storage->read_words(c->storage,
             c->fat_addr + (sector * BRFS_FLASH_SECTOR_SIZE),
             fat + (sector * BRFS_FLASH_WORDS_PER_SECTOR),
             words_this_sector);
-        BRFS_TRACE(" ok\n");
-
         words_remaining -= words_this_sector;
         progress_step++;
         if (progress) progress("mount", progress_step, progress_total);
@@ -194,22 +140,10 @@ int brfs_cache_load(brfs_cache_t *c, brfs_progress_callback_t progress)
         words_this_sector = BRFS_FLASH_WORDS_PER_SECTOR;
         if (words_this_sector > words_remaining)
             words_this_sector = words_remaining;
-
-        BRFS_TRACE("[brfs] DAT sec ");
-        BRFS_TRACE_INT(sector);
-        BRFS_TRACE(" addr=");
-        BRFS_TRACE_HEX(c->data_addr + (sector * BRFS_FLASH_SECTOR_SIZE));
-        BRFS_TRACE(" dst=");
-        BRFS_TRACE_HEX((unsigned int)(data + (sector * BRFS_FLASH_WORDS_PER_SECTOR)));
-        BRFS_TRACE(" w=");
-        BRFS_TRACE_INT(words_this_sector);
-        BRFS_TRACE(" ...");
         c->storage->read_words(c->storage,
             c->data_addr + (sector * BRFS_FLASH_SECTOR_SIZE),
             data + (sector * BRFS_FLASH_WORDS_PER_SECTOR),
             words_this_sector);
-        BRFS_TRACE(" ok\n");
-
         words_remaining -= words_this_sector;
         progress_step++;
         if (progress) progress("mount", progress_step, progress_total);

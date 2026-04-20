@@ -426,19 +426,81 @@ int main(void)
         }
     }
 
-    /* Step 11: stress test — do 200 4 KiB DMAs in a row. If any hang,
-     * the underlying engine has a race that's exposed under interrupt
-     * timing in BDOS. */
-    banner("Step 11: stress 200 x 4 KiB SPI1 DMA");
+    /* Step 11: stress test — 200 × 4 KiB DMA. Silent during the spin
+     * (so iteration timing is identical to the original test), but
+     * captures a ring buffer of recent dma_status reads. If a poll
+     * limit is exceeded we dump:
+     *   - the last 32 status reads (most recent first)
+     *   - 32 fresh re-reads (so we can see if the value is still
+     *     changing or frozen)
+     *   - the spi cs/data registers and final raw status.
+     * This tells us whether the engine is truly wedged (status stays
+     * 0x1 forever) or the CPU is misreading (status was 0x0 but the
+     * busy check missed it). */
+    banner("Step 11: stress 200 x 4 KiB SPI1 DMA (ring-buf instrumented)");
     {
         unsigned int *buf = (unsigned int *)0x3000040u;
-        unsigned int j, n;
+        unsigned int j, n, polls;
+        unsigned int st_raw;
+        unsigned int ring[32];
+        unsigned int ring_idx;
+        const unsigned int POLL_LIMIT = 200000u;
         for (n = 0; n < 200u; n++) {
             for (j = 0; j < 1024; j++) buf[j] = 0xC001D00D;
-            uart_puts("  iter "); uart_putint(n); uart_puts(": start ");
-            status = dma_read(SPI_FLASH_1, 0x1000, buf, 1024);
-            uart_puts("done st=");
-            uart_puthex(status, 1);
+            uart_puts("  iter "); uart_putint(n); uart_puts(":");
+            uart_puts("a"); spi_select(SPI_FLASH_1);
+            uart_puts("b"); spi_transfer(SPI_FLASH_1, SPIFLASH_CMD_READ_DATA);
+            uart_puts("c"); spi_transfer(SPI_FLASH_1, (0x1000 >> 16) & 0xFF);
+            uart_puts("d"); spi_transfer(SPI_FLASH_1, (0x1000 >>  8) & 0xFF);
+            uart_puts("e"); spi_transfer(SPI_FLASH_1,  0x1000        & 0xFF);
+            uart_puts("f"); cache_flush_data();
+            uart_puts("g");
+            for (j = 0; j < 32u; j++) ring[j] = 0xDEADDEADu;
+            ring_idx = 0u;
+            uart_puts("h");
+            dma_start_spi(DMA_SPI2MEM, SPI_FLASH_1,
+                          (unsigned int)buf, 0u, 4096u);
+            uart_puts("i");
+            polls = 0u;
+            for (;;) {
+                st_raw = dma_status();
+                ring[ring_idx & 31u] = st_raw;
+                ring_idx++;
+                if ((st_raw & FPGC_DMA_STATUS_BUSY) == 0u) break;
+                if (polls > POLL_LIMIT) {
+                    int k;
+                    unsigned int idx;
+                    uart_puts("\n  *** HANG @ iter ");
+                    uart_putint(n);
+                    uart_puts(", polls=");
+                    uart_putint(polls);
+                    uart_puts("\n  ring (most recent last):\n");
+                    for (k = 0; k < 32; k++) {
+                        idx = (ring_idx + (unsigned int)k) & 31u;
+                        uart_puts("    [");
+                        uart_putint((unsigned int)k);
+                        uart_puts("]=");
+                        uart_puthex(ring[idx], 1);
+                        uart_puts("\n");
+                    }
+                    uart_puts("  re-reads (fresh):\n");
+                    for (k = 0; k < 32; k++) {
+                        uart_puts("    rr[");
+                        uart_putint((unsigned int)k);
+                        uart_puts("]=");
+                        uart_puthex(dma_status(), 1);
+                        uart_puts("\n");
+                    }
+                    uart_puts("=== aborting ===\n");
+                    spi_deselect(SPI_FLASH_1);
+                    return 1;
+                }
+                polls++;
+            }
+            uart_puts("j"); cache_flush_data();
+            uart_puts("k"); spi_deselect(SPI_FLASH_1);
+            uart_puts(" polls="); uart_putint(polls);
+            uart_puts(" st="); uart_puthex(st_raw, 1);
             uart_puts("\n");
         }
         uart_puts("  Step 11 complete (no hang)\n");
