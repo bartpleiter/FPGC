@@ -95,6 +95,30 @@ module MemoryUnit (
     output wire [16:0]  vramPX_dma_addr,
     output wire [7:0]   vramPX_dma_d,
 
+    // ---- DMA SPI burst port (direct, bypasses MemoryUnit's MMIO state machine) ----
+    // The DMA engine uses this port to drive SimpleSPI2 burst-mode FIFOs
+    // directly on SPI0/SPI1/SPI4. This avoids going through the per-byte
+    // iop_* path, which races against CPU MMIO polls under interrupt
+    // pressure (see Docs/plans/dma-bdos-spi1-hang-bug.md).
+    //   dma_burst_spi_id   selects the target SPI controller (0,1,4).
+    //   dma_burst_select   when 1, routes the engine's dma_burst_* signals
+    //                      to the chosen SPI controller in place of the CPU
+    //                      MMIO command port. The other controllers' dma
+    //                      ports are tied off.
+    input  wire [2:0]   dma_burst_spi_id,
+    input  wire         dma_burst_select,
+    input  wire         dma_burst_we,
+    input  wire [7:0]   dma_burst_data,
+    input  wire         dma_burst_start,
+    input  wire [15:0]  dma_burst_len,
+    input  wire         dma_burst_dummy,
+    input  wire         dma_burst_re_rx,
+    output wire         dma_burst_tx_full,
+    output wire         dma_burst_rx_empty,
+    output wire [7:0]   dma_burst_rx_data,
+    output wire         dma_burst_busy,
+    output wire         dma_burst_done,
+
     // ---- DMA register-bus side (connects to DMAengine reg_*) ----
     output reg  [2:0]   dma_reg_addr = 3'd0,
     output reg          dma_reg_we   = 1'b0,
@@ -128,6 +152,28 @@ reg         cpu_req_pending = 1'b0;
 assign vramPX_dma_we   = vp_we;
 assign vramPX_dma_addr = vp_addr;
 assign vramPX_dma_d    = vp_data;
+
+// ---- DMA SPI burst port demux ----
+// Demux the engine's single dma_burst_* port to per-SPI dma_select strobes.
+// Each SimpleSPI2 sees its own dma_select; only the chosen one is active
+// during a burst. All other dma_* inputs to SimpleSPI2 are shared (tied to
+// the engine's outputs) -- they're only sampled when dma_select=1.
+wire dma_sel_spi0 = dma_burst_select && (dma_burst_spi_id == 3'd0);
+wire dma_sel_spi1 = dma_burst_select && (dma_burst_spi_id == 3'd1);
+wire dma_sel_spi4 = dma_burst_select && (dma_burst_spi_id == 3'd4);
+
+// Per-SPI burst-side wires from SimpleSPI2 (declared here, hooked up at the
+// instances below, mux'd back to the engine at the bottom of the file).
+wire        SPI0_tx_full_w, SPI0_rx_empty_w, SPI0_busy_w;
+wire [7:0]  SPI0_rx_data_w;
+wire        SPI1_tx_full_w, SPI1_rx_empty_w, SPI1_busy_w;
+wire [7:0]  SPI1_rx_data_w;
+wire        SPI4_tx_full_w, SPI4_rx_empty_w, SPI4_busy_w;
+wire [7:0]  SPI4_rx_data_w;
+
+// SPI*_done are declared further down alongside their SimpleSPI2 instances;
+// the demux for dma_burst_done/busy/tx_full/rx_empty/rx_data lives at the
+// bottom of this module after all SPI*_done wires exist.
 
 // ---- IO devices ----
 // UART TX
@@ -212,23 +258,31 @@ wire SPI0_done;
 
 SimpleSPI2 #(
     .CLKS_PER_HALF_BIT(2),
-    .FIFO_DEPTH(16)
+    .FIFO_DEPTH(32)
 ) SPI0 (
     .clk             (clk),
     .reset           (reset),
-    .cmd_we          (1'b0),          // FIFOs unused in skip mode
+    .cmd_we          (1'b0),          // FIFOs unused on CPU port (skip mode)
     .cmd_data        (SPI0_in),
     .cmd_start_burst (SPI0_start),
     .cmd_burst_len   (16'd1),
     .cmd_dummy       (1'b0),
     .cmd_skip_fifos  (1'b1),
-    .tx_full         (),
-    .rx_empty        (),
-    .rx_data         (),
+    .tx_full         (SPI0_tx_full_w),
+    .rx_empty        (SPI0_rx_empty_w),
+    .rx_data         (SPI0_rx_data_w),
     .cmd_re_rx       (1'b0),
     .last_rx_byte    (SPI0_out),
-    .busy            (),
+    .busy            (SPI0_busy_w),
     .done            (SPI0_done),
+    // DMA burst master
+    .dma_select      (dma_sel_spi0),
+    .dma_we          (dma_burst_we),
+    .dma_data        (dma_burst_data),
+    .dma_start_burst (dma_burst_start),
+    .dma_burst_len   (dma_burst_len),
+    .dma_dummy       (dma_burst_dummy),
+    .dma_re_rx       (dma_burst_re_rx),
     .spi_clk         (SPI0_clk),
     .spi_miso        (SPI0_miso),
     .spi_mosi        (SPI0_mosi)
@@ -240,18 +294,40 @@ reg [7:0] SPI1_in = 8'd0;
 wire [7:0] SPI1_out;
 wire SPI1_done;
 
-SimpleSPI #(
-    .CLKS_PER_HALF_BIT(2)
+// SPI1 (Flash 2 / BRFS) 25 MHz -- via SimpleSPI2 with cmd_skip_fifos=1, same
+// pattern as SPI0 / SPI4. Behaves bit-for-bit like the original SimpleSPI on
+// the CPU MMIO + DMA iop_* paths; the FIFO path is reserved for a future
+// multi-byte burst DMA mode.
+SimpleSPI2 #(
+    .CLKS_PER_HALF_BIT(2),
+    .FIFO_DEPTH(32)
 ) SPI1 (
-    .clk        (clk),
-    .reset      (reset),
-    .data_in    (SPI1_in),
-    .start      (SPI1_start),
-    .done       (SPI1_done),
-    .data_out   (SPI1_out),
-    .spi_clk    (SPI1_clk),
-    .spi_miso   (SPI1_miso),
-    .spi_mosi   (SPI1_mosi)
+    .clk             (clk),
+    .reset           (reset),
+    .cmd_we          (1'b0),          // FIFOs unused on CPU port (skip mode)
+    .cmd_data        (SPI1_in),
+    .cmd_start_burst (SPI1_start),
+    .cmd_burst_len   (16'd1),
+    .cmd_dummy       (1'b0),
+    .cmd_skip_fifos  (1'b1),
+    .tx_full         (SPI1_tx_full_w),
+    .rx_empty        (SPI1_rx_empty_w),
+    .rx_data         (SPI1_rx_data_w),
+    .cmd_re_rx       (1'b0),
+    .last_rx_byte    (SPI1_out),
+    .busy            (SPI1_busy_w),
+    .done            (SPI1_done),
+    // DMA burst master
+    .dma_select      (dma_sel_spi1),
+    .dma_we          (dma_burst_we),
+    .dma_data        (dma_burst_data),
+    .dma_start_burst (dma_burst_start),
+    .dma_burst_len   (dma_burst_len),
+    .dma_dummy       (dma_burst_dummy),
+    .dma_re_rx       (dma_burst_re_rx),
+    .spi_clk         (SPI1_clk),
+    .spi_miso        (SPI1_miso),
+    .spi_mosi        (SPI1_mosi)
 );
 
 // SPI2 (USB Host 1) 12.5 MHz
@@ -303,7 +379,7 @@ wire SPI4_done;
 
 SimpleSPI2 #(
     .CLKS_PER_HALF_BIT(4),
-    .FIFO_DEPTH(16)
+    .FIFO_DEPTH(32)
 ) SPI4 (
     .clk             (clk),
     .reset           (reset),
@@ -313,13 +389,21 @@ SimpleSPI2 #(
     .cmd_burst_len   (16'd1),
     .cmd_dummy       (1'b0),
     .cmd_skip_fifos  (1'b1),
-    .tx_full         (),
-    .rx_empty        (),
-    .rx_data         (),
+    .tx_full         (SPI4_tx_full_w),
+    .rx_empty        (SPI4_rx_empty_w),
+    .rx_data         (SPI4_rx_data_w),
     .cmd_re_rx       (1'b0),
     .last_rx_byte    (SPI4_out),
-    .busy            (),
+    .busy            (SPI4_busy_w),
     .done            (SPI4_done),
+    // DMA burst master
+    .dma_select      (dma_sel_spi4),
+    .dma_we          (dma_burst_we),
+    .dma_data        (dma_burst_data),
+    .dma_start_burst (dma_burst_start),
+    .dma_burst_len   (dma_burst_len),
+    .dma_dummy       (dma_burst_dummy),
+    .dma_re_rx       (dma_burst_re_rx),
     .spi_clk         (SPI4_clk),
     .spi_miso        (SPI4_miso),
     .spi_mosi        (SPI4_mosi)
@@ -795,7 +879,7 @@ always @(posedge clk) begin
                 end
                 else if (iop_start && !iop_active && !cpu_req_pending)
                 begin
-                    // DMA peer-port transaction (only SPI0/SPI4 byte data is supported).
+                    // DMA peer-port transaction (SPI0/SPI1/SPI4 byte data).
                     iop_active <= 1'b1;
                     if (iop_addr == ADDR_SPI0_DATA)
                     begin
@@ -803,6 +887,14 @@ always @(posedge clk) begin
                         SPI0_start         <= 1'b1;
                         flash_spi_activity <= 1'b1;
                         iop_spi_id         <= 3'd0;
+                        state              <= STATE_IOP_SPI_WAIT;
+                    end
+                    else if (iop_addr == ADDR_SPI1_DATA)
+                    begin
+                        SPI1_in            <= iop_data[7:0];
+                        SPI1_start         <= 1'b1;
+                        flash_spi_activity <= 1'b1;
+                        iop_spi_id         <= 3'd1;
                         state              <= STATE_IOP_SPI_WAIT;
                     end
                     else if (iop_addr == ADDR_SPI4_DATA)
@@ -1011,6 +1103,16 @@ always @(posedge clk) begin
                         state      <= STATE_IDLE;
                     end
                 end
+                else if (iop_spi_id == 3'd1)
+                begin
+                    flash_spi_activity <= 1'b1;
+                    if (SPI1_done)
+                    begin
+                        iop_done_r <= 1'b1;
+                        iop_q_r    <= {24'd0, SPI1_out};
+                        state      <= STATE_IDLE;
+                    end
+                end
                 else if (iop_spi_id == 3'd4)
                 begin
                     eth_spi_activity <= 1'b1;
@@ -1040,5 +1142,27 @@ always @(posedge clk) begin
     end
 end
 
+// ---- DMA SPI burst output mux ----
+// Pull together the per-SPI burst-side wires into the engine-facing port.
+assign dma_burst_tx_full =
+    (dma_burst_spi_id == 3'd0) ? SPI0_tx_full_w :
+    (dma_burst_spi_id == 3'd1) ? SPI1_tx_full_w :
+    (dma_burst_spi_id == 3'd4) ? SPI4_tx_full_w : 1'b1;
+assign dma_burst_rx_empty =
+    (dma_burst_spi_id == 3'd0) ? SPI0_rx_empty_w :
+    (dma_burst_spi_id == 3'd1) ? SPI1_rx_empty_w :
+    (dma_burst_spi_id == 3'd4) ? SPI4_rx_empty_w : 1'b1;
+assign dma_burst_rx_data =
+    (dma_burst_spi_id == 3'd0) ? SPI0_rx_data_w :
+    (dma_burst_spi_id == 3'd1) ? SPI1_rx_data_w :
+    (dma_burst_spi_id == 3'd4) ? SPI4_rx_data_w : 8'd0;
+assign dma_burst_busy =
+    (dma_burst_spi_id == 3'd0) ? SPI0_busy_w :
+    (dma_burst_spi_id == 3'd1) ? SPI1_busy_w :
+    (dma_burst_spi_id == 3'd4) ? SPI4_busy_w : 1'b0;
+assign dma_burst_done =
+    (dma_burst_spi_id == 3'd0) ? SPI0_done :
+    (dma_burst_spi_id == 3'd1) ? SPI1_done :
+    (dma_burst_spi_id == 3'd4) ? SPI4_done : 1'b0;
 
 endmodule

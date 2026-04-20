@@ -8,7 +8,7 @@
  * and restore everything on reti by setting int_disabled to low and jumping to the saved PC
  */
 module InterruptController #(
-    parameter NUM_INTERRUPTS = 9 // Changing this requires changing the priority encoder logic below
+    parameter NUM_INTERRUPTS = 7 // Changing this requires changing the priority encoder logic below
 ) (
     input wire                       clk,
     input wire                       reset,
@@ -114,18 +114,6 @@ begin
                 int_triggered[6] <= 1'b0;
                 int_cpu <= 1'b1;
                 int_id <= 8'd7;
-            end
-            else if (int_triggered[7])
-            begin
-                int_triggered[7] <= 1'b0;
-                int_cpu <= 1'b1;
-                int_id <= 8'd8;
-            end
-            else if (int_triggered[8])
-            begin
-                int_triggered[8] <= 1'b0;
-                int_cpu <= 1'b1;
-                int_id <= 8'd9;
             end
         end
 

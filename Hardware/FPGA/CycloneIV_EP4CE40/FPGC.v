@@ -640,6 +640,22 @@ wire            dma_vp_we;
 wire [16:0]     dma_vp_addr;
 wire [7:0]      dma_vp_data;
 
+// DMA SPI burst port (Phase B: engine drives SimpleSPI2 directly,
+// bypassing MemoryUnit's per-byte arbiter).
+wire [2:0]      dma_burst_spi_id;
+wire            dma_burst_select;
+wire            dma_burst_we;
+wire [7:0]      dma_burst_data;
+wire            dma_burst_start;
+wire [15:0]     dma_burst_len;
+wire            dma_burst_dummy;
+wire            dma_burst_re_rx;
+wire            dma_burst_tx_full;
+wire            dma_burst_rx_empty;
+wire [7:0]      dma_burst_rx_data;
+wire            dma_burst_busy;
+wire            dma_burst_done;
+
 wire            dma_irq;
 
 SDRAMarbiter sdram_arb (
@@ -819,6 +835,21 @@ MemoryUnit memory_unit (
     .vramPX_dma_addr(),
     .vramPX_dma_d(),
 
+    // DMA SPI burst port (Phase B)
+    .dma_burst_spi_id(dma_burst_spi_id),
+    .dma_burst_select(dma_burst_select),
+    .dma_burst_we(dma_burst_we),
+    .dma_burst_data(dma_burst_data),
+    .dma_burst_start(dma_burst_start),
+    .dma_burst_len(dma_burst_len),
+    .dma_burst_dummy(dma_burst_dummy),
+    .dma_burst_re_rx(dma_burst_re_rx),
+    .dma_burst_tx_full(dma_burst_tx_full),
+    .dma_burst_rx_empty(dma_burst_rx_empty),
+    .dma_burst_rx_data(dma_burst_rx_data),
+    .dma_burst_busy(dma_burst_busy),
+    .dma_burst_done(dma_burst_done),
+
     .dma_reg_addr(dma_reg_addr),
     .dma_reg_we(dma_reg_we),
     .dma_reg_data(dma_reg_data),
@@ -854,6 +885,21 @@ DMAengine dma_engine (
     .vp_we(dma_vp_we),
     .vp_addr(dma_vp_addr),
     .vp_data(dma_vp_data),
+
+    // DMA SPI burst port (Phase B)
+    .dma_burst_spi_id(dma_burst_spi_id),
+    .dma_burst_select(dma_burst_select),
+    .dma_burst_we(dma_burst_we),
+    .dma_burst_data(dma_burst_data),
+    .dma_burst_start(dma_burst_start),
+    .dma_burst_len(dma_burst_len),
+    .dma_burst_dummy(dma_burst_dummy),
+    .dma_burst_re_rx(dma_burst_re_rx),
+    .dma_burst_tx_full(dma_burst_tx_full),
+    .dma_burst_rx_empty(dma_burst_rx_empty),
+    .dma_burst_rx_data(dma_burst_rx_data),
+    .dma_burst_busy(dma_burst_busy),
+    .dma_burst_done(dma_burst_done),
 
     .irq(dma_irq)
 );
@@ -949,7 +995,7 @@ B32P3 cpu (
     // Interrupts, right is highest priority
     // bit0=UART, bit1=OST1, bit2=OST2, bit3=OST3, bit4=FrameDrawn, bit5=ENC28J60_RX
     // ~eth_nint: ENC28J60 INT is active-low; invert for rising-edge detection
-    .interrupts({dma_irq, 2'd0, ~eth_nint, frameDrawn_CPU, OST3_int, OST2_int, OST1_int, uart_irq})
+    .interrupts({dma_irq, ~eth_nint, frameDrawn_CPU, OST3_int, OST2_int, OST1_int, uart_irq})
 );
 
 endmodule

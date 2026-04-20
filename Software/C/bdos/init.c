@@ -96,34 +96,23 @@ void bdos_init(void)
 
   spi_deselect(SPI_FLASH_0);
 
-  bdos_init_gpu();
+  uart_init();
+  uart_puts("[init] UART initialized\n");
 
-  gpu_set_window_palette(0);
+  /* DEBUG: skip GPU init. Use a no-op term render so brfs progress
+   * callback (which calls term_*) is harmless. */
   term_init(TERM_WIDTH, TERM_HEIGHT,
              bdos_term_render_cb, bdos_term_uart_cb);
-  term_set_palette(PALETTE_WHITE_ON_BLACK);
-  term_puts("GPU initialized\n");
 
   timer_init();
-  term_puts("Timers initialized\n");
+  uart_puts("[init] Timers initialized\n");
 
-  uart_init();
-  term_puts("UART initialized\n");
-
-  bdos_init_ethernet();
-  term_puts("ENC28J60 Ethernet initialized\n");
-
-  bdos_init_usb_keyboard();
-  term_puts("CH376 USB host initialized\n");
-
-  bdos_slot_init();
-  term_puts("Program slot system initialized\n");
-
-  bdos_heap_init();
-  term_puts("Heap allocator initialized\n");
-
-  bdos_proc_init();
-  term_puts("VFS + process model initialized\n");
-
-  set_user_led(0);
+  /* DEBUG: try mounting BRFS with NO GPU init (no frame_drawn IRQs
+   * since FRAME_DRAWN comes from TimingGenerator inside the GPU
+   * pipeline... actually it fires regardless of init since it's a
+   * pure pixel-position pulse — but if there's any side-effect of
+   * GPU init that breaks the DMA, this will isolate it). */
+  bdos_fs_boot_init();
+  uart_puts("[init] BRFS mount attempted\n");
+  while (1) { /* halt for inspection */ }
 }

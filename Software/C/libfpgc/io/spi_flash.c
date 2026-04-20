@@ -2,6 +2,22 @@
 #include "spi_flash.h"
 #include "dma.h"
 #include "fpgc.h"
+#include "enc28j60.h"
+
+/* ---- Temporary BRFS-mount debug tracing (UART) ---------------------- */
+#ifndef SPIF_DEBUG_TRACE
+#define SPIF_DEBUG_TRACE 1
+#endif
+#if SPIF_DEBUG_TRACE
+#include "uart.h"
+#define SPIF_TRACE(s)        uart_puts(s)
+#define SPIF_TRACE_HEX(x)    uart_puthex((unsigned int)(x), 1)
+#define SPIF_TRACE_INT(x)    uart_putint((int)(x))
+#else
+#define SPIF_TRACE(s)        ((void)0)
+#define SPIF_TRACE_HEX(x)    ((void)0)
+#define SPIF_TRACE_INT(x)    ((void)0)
+#endif
 
 #define SPIFLASH_CMD_WRITE_ENABLE    0x06
 #define SPIFLASH_CMD_WRITE_DISABLE   0x04
@@ -169,19 +185,21 @@ spi_flash_write_words(int spi_id, int address, unsigned int *data, int word_coun
     send_addr(spi_id, address);
     /*
      * Fast path: when the source buffer and byte count are 32-byte aligned
-     * and the SPI controller supports DMA (id 0 or 4), push the payload
+     * and the SPI controller supports DMA (id 0, 1, or 4), push the payload
      * with the DMAengine in MEM2SPI mode while the CPU is free.
      */
     byte_count = (unsigned int)word_count * 4u;
-    if ((spi_id == 0 || spi_id == 4) &&
+    if ((spi_id == 0 || spi_id == 1 || spi_id == 4) &&
         ((unsigned int)data % 32u == 0u) &&
         (byte_count % 32u == 0u) &&
         byte_count > 0u) {
         cache_flush_data();
+        enc28j60_spi_in_use = 1;
         dma_start_spi(DMA_MEM2SPI, spi_id, 0u, (unsigned int)data, byte_count);
         while (dma_busy())
             ;
         (void)dma_status();
+        enc28j60_spi_in_use = 0;
     } else {
         for (i = 0; i < word_count; i++) {
             word = data[i];
@@ -202,25 +220,73 @@ spi_flash_read_words(int spi_id, int address, unsigned int *buffer, int word_cou
     int i;
     unsigned int b0, b1, b2, b3;
     unsigned int byte_count;
+    SPIF_TRACE("[spif] read_words spi=");
+    SPIF_TRACE_INT(spi_id);
+    SPIF_TRACE(" addr=");
+    SPIF_TRACE_HEX(address);
+    SPIF_TRACE(" buf=");
+    SPIF_TRACE_HEX((unsigned int)buffer);
+    SPIF_TRACE(" wc=");
+    SPIF_TRACE_INT(word_count);
+    SPIF_TRACE("\n");
     spi_select(spi_id);
     spi_transfer(spi_id, SPIFLASH_CMD_READ_DATA);
     send_addr(spi_id, address);
     /*
      * Fast path: aligned destination buffer and byte count -- pull the
-     * payload via DMA SPI2MEM (only available on SPI controllers 0 and 4).
+     * payload via DMA SPI2MEM (available on SPI controllers 0, 1, and 4).
      */
     byte_count = (unsigned int)word_count * 4u;
-    if ((spi_id == 0 || spi_id == 4) &&
+    if ((spi_id == 0 || spi_id == 1 || spi_id == 4) &&
         ((unsigned int)buffer % 32u == 0u) &&
         (byte_count % 32u == 0u) &&
         byte_count > 0u) {
+        SPIF_TRACE("[spif]   DMA path bytes=");
+        SPIF_TRACE_INT(byte_count);
+        SPIF_TRACE(" flush1...");
         cache_flush_data();
+        SPIF_TRACE(" start...");
+        /* Tell BDOS's ETH/TIMER0 ISRs to defer their SPI4 drain while we
+         * own the iop_* arbiter for SPI1; otherwise an ETH ISR firing
+         * mid-DMA can starve/deadlock against the DMA byte loop. */
+        enc28j60_spi_in_use = 1;
         dma_start_spi(DMA_SPI2MEM, spi_id, (unsigned int)buffer, 0u, byte_count);
-        while (dma_busy())
-            ;
-        (void)dma_status();
+        SPIF_TRACE(" spin...");
+        {
+            unsigned int polls = 0u;
+            unsigned int last  = 0xFFFFFFFFu;
+            while (dma_busy()) {
+                polls++;
+                /* Print status only after a long time (~1M polls). The
+                 * 4 KiB DMA should complete in ~900 polls; if we get
+                 * past 1M, the engine is hung. */
+                if ((polls & 0xFFFFFu) == 0u) {
+                    unsigned int st = dma_status();
+                    if (st != last) {
+                        SPIF_TRACE(" p=");
+                        SPIF_TRACE_INT(polls);
+                        SPIF_TRACE(" st=");
+                        SPIF_TRACE_HEX(st);
+                        last = st;
+                    } else {
+                        SPIF_TRACE(".");
+                    }
+                }
+            }
+            SPIF_TRACE(" polls=");
+            SPIF_TRACE_INT(polls);
+        }
+        SPIF_TRACE(" done status=");
+        {
+            unsigned int st = dma_status();
+            SPIF_TRACE_HEX(st);
+        }
+        enc28j60_spi_in_use = 0;
+        SPIF_TRACE(" flush2...");
         cache_flush_data();
+        SPIF_TRACE(" deselect\n");
     } else {
+        SPIF_TRACE("[spif]   CPU path\n");
         for (i = 0; i < word_count; i++) {
             /* Little-endian on disk: LSB first. */
             b0 = spi_transfer(spi_id, SPIFLASH_DUMMY);

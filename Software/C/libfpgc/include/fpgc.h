@@ -131,7 +131,7 @@
 #define FPGC_INTID_TIMER2        4
 #define FPGC_INTID_FRAME_DRAWN   5
 #define FPGC_INTID_ETH           6
-#define FPGC_INTID_DMA           9
+#define FPGC_INTID_DMA           7
 
 /*========================================================================
  * SPI bus identifiers

@@ -44,7 +44,7 @@ module SimpleSPI2 #(
     input  wire        clk,
     input  wire        reset,
 
-    // ---- Command / data ----
+    // ---- Command / data (CPU MMIO master, via MemoryUnit) ----
     input  wire        cmd_we,          // pulse: push cmd_data into TX FIFO
     input  wire [7:0]  cmd_data,
     input  wire        cmd_start_burst, // pulse: begin burst of cmd_burst_len bytes
@@ -62,6 +62,22 @@ module SimpleSPI2 #(
     output wire        busy,
     output reg         done = 1'b0,     // 1-cycle pulse on burst completion
 
+    // ---- DMA engine master (direct, bypasses MemoryUnit) ----
+    // When dma_select=1, all command-side inputs are taken from the dma_*
+    // port instead of cmd_*. This decouples the engine's per-line bursts
+    // from the CPU MMIO arbiter inside MemoryUnit, eliminating the IRQ
+    // race that wedged single-byte iop_* transactions. The CPU and DMA
+    // never use the SPI controller simultaneously: software holds CS
+    // high, does CPU MMIO byte phases (cmd/addr), then triggers a DMA
+    // burst, waits for completion, then drops CS.
+    input  wire        dma_select,
+    input  wire        dma_we,
+    input  wire [7:0]  dma_data,
+    input  wire        dma_start_burst,
+    input  wire [15:0] dma_burst_len,
+    input  wire        dma_dummy,
+    input  wire        dma_re_rx,
+
     // ---- Pins ----
     output reg         spi_clk  = 1'b0,
     output reg         spi_mosi = 1'b0,
@@ -72,6 +88,20 @@ module SimpleSPI2 #(
 // FIFO infrastructure (TX and RX, identical structure)
 // ============================================================================
 localparam FIFO_AW = (FIFO_DEPTH > 1) ? $clog2(FIFO_DEPTH) : 1;
+
+// ----- Command-port master mux (CPU MMIO vs DMA engine) -----
+// dma_select picks which side drives the controller. Outputs (rx_data,
+// tx_full, rx_empty, busy, done, last_rx_byte) are shared because only
+// one master uses the controller at a time (software protocol).
+wire        muxed_we          = dma_select ? dma_we          : cmd_we;
+wire [7:0]  muxed_data        = dma_select ? dma_data        : cmd_data;
+wire        muxed_start_burst = dma_select ? dma_start_burst : cmd_start_burst;
+wire [15:0] muxed_burst_len   = dma_select ? dma_burst_len   : cmd_burst_len;
+wire        muxed_dummy       = dma_select ? dma_dummy       : cmd_dummy;
+// DMA never uses skip_fifos: it always wants the FIFO path so the
+// 32-byte line transfer can be loaded/drained in one burst.
+wire        muxed_skip_fifos  = dma_select ? 1'b0            : cmd_skip_fifos;
+wire        muxed_re_rx       = dma_select ? dma_re_rx       : cmd_re_rx;
 
 // --- TX FIFO ---
 reg [7:0]         tx_mem [0:FIFO_DEPTH-1];
@@ -173,14 +203,14 @@ begin
         rx_push       <= 1'b0;
 
         // ----- TX FIFO write port (host-side push) -----
-        if (cmd_we && !tx_full)
+        if (muxed_we && !tx_full)
         begin
-            tx_mem[tx_wr_ptr] <= cmd_data;
+            tx_mem[tx_wr_ptr] <= muxed_data;
             tx_wr_ptr <= tx_wr_ptr + 1'b1;
         end
 
         // ----- RX FIFO read port (host-side pop) -----
-        if (cmd_re_rx && !rx_empty)
+        if (muxed_re_rx && !rx_empty)
         begin
             rx_rd_ptr <= rx_rd_ptr + 1'b1;
         end
@@ -196,12 +226,12 @@ begin
                 rx_bit_idx       <= 3'd7;
                 edge_count       <= 5'd0;
 
-                if (cmd_start_burst && cmd_burst_len != 16'd0)
+                if (muxed_start_burst && muxed_burst_len != 16'd0)
                 begin
-                    burst_remaining    <= cmd_burst_len;
-                    dummy_latched      <= cmd_dummy;
-                    skip_fifos_latched <= cmd_skip_fifos;
-                    skip_data_latched  <= cmd_data;
+                    burst_remaining    <= muxed_burst_len;
+                    dummy_latched      <= muxed_dummy;
+                    skip_fifos_latched <= muxed_skip_fifos;
+                    skip_data_latched  <= muxed_data;
                     state              <= STATE_LOAD_BYTE;
                 end
             end
@@ -308,14 +338,14 @@ begin
 
         // ----- TX FIFO state updates from this cycle's events -----
         // tx_pop fires in STATE_LOAD_BYTE when we consume one byte
-        if (cmd_we && !tx_full && !tx_pop)
+        if (muxed_we && !tx_full && !tx_pop)
             tx_count <= tx_count + 1'b1;
-        else if (tx_pop && !(cmd_we && !tx_full))
+        else if (tx_pop && !(muxed_we && !tx_full))
         begin
             tx_count  <= tx_count - 1'b1;
             tx_rd_ptr <= tx_rd_ptr + 1'b1;
         end
-        else if (tx_pop && (cmd_we && !tx_full))
+        else if (tx_pop && (muxed_we && !tx_full))
         begin
             // Simultaneous push and pop: count unchanged
             tx_rd_ptr <= tx_rd_ptr + 1'b1;
@@ -328,9 +358,9 @@ begin
             rx_wr_ptr         <= rx_wr_ptr + 1'b1;
         end
 
-        if (rx_push && !rx_full_w && !(cmd_re_rx && !rx_empty))
+        if (rx_push && !rx_full_w && !(muxed_re_rx && !rx_empty))
             rx_count <= rx_count + 1'b1;
-        else if ((cmd_re_rx && !rx_empty) && !(rx_push && !rx_full_w))
+        else if ((muxed_re_rx && !rx_empty) && !(rx_push && !rx_full_w))
             rx_count <= rx_count - 1'b1;
         // simultaneous push+pop: count unchanged
 

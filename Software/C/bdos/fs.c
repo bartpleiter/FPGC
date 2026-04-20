@@ -1,5 +1,6 @@
 #include "bdos.h"
 #include "brfs_storage_spi_flash.h"
+#include "enc28j60.h"
 
 static brfs_spi_flash_storage_t bdos_fs_storage;
 
@@ -124,7 +125,22 @@ void bdos_fs_boot_init(void)
 
   bdos_fs_progress_reset();
   brfs_set_progress_callback(bdos_fs_progress_callback);
+  uart_puts("[bdos] brfs_mount() begin\n");
+  /* DEBUG: mask ENC28J60 interrupts at the chip level for the duration
+   * of the mount, to test whether ENC ISR activity is what hangs SPI1
+   * DMA on 4 KiB transfers. */
+  enc28j60_isr_begin();
+  /* DEBUG: also cancel any active periodic timers. The hang is BDOS-only;
+   * baremetal Step 10 (same byte sequence) passes. Timer ISRs are the
+   * remaining live interrupt source during the spin. */
+  timer_cancel(TIMER_0);
+  timer_cancel(TIMER_1);
+  timer_cancel(TIMER_2);
   result = brfs_mount();
+  enc28j60_isr_end();
+  uart_puts("[bdos] brfs_mount() returned ");
+  uart_putint(result);
+  uart_puts("\n");
   brfs_set_progress_callback(NULL);
 
   if (result == BRFS_OK)
