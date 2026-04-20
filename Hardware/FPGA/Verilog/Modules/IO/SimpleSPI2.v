@@ -17,6 +17,18 @@
  *   4. When the burst finishes, `done` pulses for one cycle and `busy`
  *      drops. Software can pop the RX FIFO with cmd_re_rx/rx_data.
  *
+ * Single-byte fast-path (`cmd_skip_fifos`):
+ *   When `cmd_skip_fifos` is asserted together with `cmd_start_burst`, the
+ *   controller bypasses both FIFOs for the duration of that burst. The
+ *   outgoing byte is taken directly from `cmd_data` (sampled in the same
+ *   cycle as `cmd_start_burst`), and the captured byte is written only to
+ *   `last_rx_byte` -- the RX FIFO is left untouched. This preserves the
+ *   semantics of the original SimpleSPI module: `last_rx_byte` is a
+ *   persistent register that holds the most recently received byte until
+ *   the next transfer overwrites it, regardless of how many times software
+ *   reads it. Intended for the CPU's single-byte SPI MMIO path; DMA
+ *   bursts keep using the FIFO interface and `cmd_re_rx`/`rx_data`.
+ *
  * Chip-select is left to software (write ADDR_SPIx_CS first, run the
  * burst, then deassert CS). This lets multiple bursts run inside one CS
  * hold (e.g. command + address + payload for Flash).
@@ -38,11 +50,14 @@ module SimpleSPI2 #(
     input  wire        cmd_start_burst, // pulse: begin burst of cmd_burst_len bytes
     input  wire [15:0] cmd_burst_len,
     input  wire        cmd_dummy,       // latched at start: send 0x00 instead of TX FIFO
+    input  wire        cmd_skip_fifos,  // latched at start: bypass both FIFOs
+                                        // (TX from cmd_data, RX into last_rx_byte only)
 
     output wire        tx_full,
     output wire        rx_empty,
     output wire [7:0]  rx_data,
     input  wire        cmd_re_rx,       // pulse: pop one byte from RX FIFO
+    output reg  [7:0]  last_rx_byte = 8'd0, // persistent most-recent received byte
 
     output wire        busy,
     output reg         done = 1'b0,     // 1-cycle pulse on burst completion
@@ -108,7 +123,9 @@ reg        leading_edge  = 1'b0;
 reg        trailing_edge = 1'b0;
 
 reg [15:0] burst_remaining = 16'd0;
-reg        dummy_latched   = 1'b0;
+reg        dummy_latched      = 1'b0;
+reg        skip_fifos_latched = 1'b0;
+reg [7:0]  skip_data_latched  = 8'd0;
 
 assign busy = (state != STATE_IDLE);
 
@@ -138,7 +155,10 @@ begin
         leading_edge     <= 1'b0;
         trailing_edge    <= 1'b0;
         burst_remaining  <= 16'd0;
-        dummy_latched    <= 1'b0;
+        dummy_latched      <= 1'b0;
+        skip_fifos_latched <= 1'b0;
+        skip_data_latched  <= 8'd0;
+        last_rx_byte       <= 8'd0;
         done             <= 1'b0;
         tx_pop           <= 1'b0;
         rx_push          <= 1'b0;
@@ -178,17 +198,25 @@ begin
 
                 if (cmd_start_burst && cmd_burst_len != 16'd0)
                 begin
-                    burst_remaining <= cmd_burst_len;
-                    dummy_latched   <= cmd_dummy;
-                    state           <= STATE_LOAD_BYTE;
+                    burst_remaining    <= cmd_burst_len;
+                    dummy_latched      <= cmd_dummy;
+                    skip_fifos_latched <= cmd_skip_fifos;
+                    skip_data_latched  <= cmd_data;
+                    state              <= STATE_LOAD_BYTE;
                 end
             end
 
             STATE_LOAD_BYTE:
             begin
-                // Pick up next outgoing byte (TX FIFO front, or 0x00 in dummy mode).
-                // In dummy mode we don't touch the TX FIFO at all.
-                if (dummy_latched)
+                // Pick up next outgoing byte. In skip-FIFO mode the byte was
+                // latched from cmd_data in IDLE; in dummy mode we send 0x00;
+                // otherwise pop the TX FIFO front.
+                if (skip_fifos_latched)
+                begin
+                    tx_shift   <= skip_data_latched;
+                    spi_mosi   <= skip_data_latched[7];
+                end
+                else if (dummy_latched)
                 begin
                     tx_shift   <= 8'd0;
                     spi_mosi   <= 1'b0;
@@ -207,8 +235,8 @@ begin
                     spi_mosi   <= spi_mosi;
                 end
 
-                // Only advance to TRANSFER if we got a byte (or are in dummy mode)
-                if (dummy_latched || !tx_empty_w)
+                // Only advance to TRANSFER if we got a byte (or are in dummy / skip mode)
+                if (skip_fifos_latched || dummy_latched || !tx_empty_w)
                 begin
                     tx_bit_idx <= 3'd6;
                     rx_bit_idx <= 3'd7;
@@ -245,9 +273,16 @@ begin
 
                 if (edge_count == 0)
                 begin
-                    // Byte finished. Push captured byte into RX FIFO.
-                    rx_push      <= 1'b1;
-                    rx_push_data <= rx_shift;
+                    // Always latch the captured byte into last_rx_byte so the
+                    // single-byte CPU MMIO path has a persistent register to read.
+                    last_rx_byte <= rx_shift;
+
+                    // Push into RX FIFO unless this burst is in skip-FIFO mode.
+                    if (!skip_fifos_latched)
+                    begin
+                        rx_push      <= 1'b1;
+                        rx_push_data <= rx_shift;
+                    end
 
                     burst_remaining <= burst_remaining - 1'b1;
                     if (burst_remaining == 16'd1)

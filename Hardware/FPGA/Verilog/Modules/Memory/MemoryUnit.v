@@ -200,28 +200,38 @@ OStimer OST3 (
     .interrupt   (OST3_int)
 );
 
-// SPI0 (Flash 1) 25 MHz
-// NOTE: temporarily reverted from SimpleSPI2 back to SimpleSPI while we
-// debug a single-byte read-back regression (RX FIFO auto-pop tied to
-// done returns stale data on the next CPU read of ADDR_SPI0_DATA).
-// See Docs/plans/dma-implementation-plan.md §7 step 6.
+// SPI0 (Flash 1) 25 MHz -- via SimpleSPI2 with cmd_skip_fifos=1 so the
+// single-byte CPU MMIO + DMA iop_* paths bypass both FIFOs and read/write
+// through the persistent last_rx_byte register. Behaves bit-for-bit like
+// the original SimpleSPI today; the FIFO path is reserved for a future
+// multi-byte burst DMA mode.
 reg SPI0_start = 1'b0;
 reg [7:0] SPI0_in = 8'd0;
 wire [7:0] SPI0_out;
 wire SPI0_done;
 
-SimpleSPI #(
-    .CLKS_PER_HALF_BIT(2)
+SimpleSPI2 #(
+    .CLKS_PER_HALF_BIT(2),
+    .FIFO_DEPTH(16)
 ) SPI0 (
-    .clk        (clk),
-    .reset      (reset),
-    .data_in    (SPI0_in),
-    .start      (SPI0_start),
-    .done       (SPI0_done),
-    .data_out   (SPI0_out),
-    .spi_clk    (SPI0_clk),
-    .spi_miso   (SPI0_miso),
-    .spi_mosi   (SPI0_mosi)
+    .clk             (clk),
+    .reset           (reset),
+    .cmd_we          (1'b0),          // FIFOs unused in skip mode
+    .cmd_data        (SPI0_in),
+    .cmd_start_burst (SPI0_start),
+    .cmd_burst_len   (16'd1),
+    .cmd_dummy       (1'b0),
+    .cmd_skip_fifos  (1'b1),
+    .tx_full         (),
+    .rx_empty        (),
+    .rx_data         (),
+    .cmd_re_rx       (1'b0),
+    .last_rx_byte    (SPI0_out),
+    .busy            (),
+    .done            (SPI0_done),
+    .spi_clk         (SPI0_clk),
+    .spi_miso        (SPI0_miso),
+    .spi_mosi        (SPI0_mosi)
 );
 
 // SPI1 (Flash 2) 25 MHz
@@ -284,26 +294,35 @@ SimpleSPI #(
     .spi_mosi   (SPI3_mosi)
 );
 
-// SPI4 (Ethernet) 12.5 MHz
-// NOTE: temporarily reverted from SimpleSPI2 back to SimpleSPI -- see SPI0
-// note above and Docs/plans/dma-implementation-plan.md §7 step 6.
+// SPI4 (Ethernet) 12.5 MHz -- via SimpleSPI2 with cmd_skip_fifos=1 (see SPI0
+// note above and dma-implementation-plan.md §7 step 6).
 reg SPI4_start = 1'b0;
 reg [7:0] SPI4_in = 8'd0;
 wire [7:0] SPI4_out;
 wire SPI4_done;
 
-SimpleSPI #(
-    .CLKS_PER_HALF_BIT(4)
+SimpleSPI2 #(
+    .CLKS_PER_HALF_BIT(4),
+    .FIFO_DEPTH(16)
 ) SPI4 (
-    .clk        (clk),
-    .reset      (reset),
-    .data_in    (SPI4_in),
-    .start      (SPI4_start),
-    .done       (SPI4_done),
-    .data_out   (SPI4_out),
-    .spi_clk    (SPI4_clk),
-    .spi_miso    (SPI4_miso),
-    .spi_mosi   (SPI4_mosi)
+    .clk             (clk),
+    .reset           (reset),
+    .cmd_we          (1'b0),
+    .cmd_data        (SPI4_in),
+    .cmd_start_burst (SPI4_start),
+    .cmd_burst_len   (16'd1),
+    .cmd_dummy       (1'b0),
+    .cmd_skip_fifos  (1'b1),
+    .tx_full         (),
+    .rx_empty        (),
+    .rx_data         (),
+    .cmd_re_rx       (1'b0),
+    .last_rx_byte    (SPI4_out),
+    .busy            (),
+    .done            (SPI4_done),
+    .spi_clk         (SPI4_clk),
+    .spi_miso        (SPI4_miso),
+    .spi_mosi        (SPI4_mosi)
 );
 
 // SPI5 (SD Card) 25 MHz

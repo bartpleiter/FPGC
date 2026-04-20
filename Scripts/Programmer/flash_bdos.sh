@@ -41,6 +41,8 @@ echo "Step 2: Compiling flash_writer program..."
     Software/C/libfpgc/io/uart.c \
     Software/C/libfpgc/io/timer.c \
     Software/C/libfpgc/io/spi_flash.c \
+    Software/C/libfpgc/io/dma.c \
+    Software/C/libfpgc/io/dma_asm.asm \
     Software/C/bareMetal/flash_writer/flash_writer.c \
     --libc \
     -I Software/C/libfpgc/include \
