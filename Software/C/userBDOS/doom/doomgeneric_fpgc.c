@@ -12,6 +12,7 @@
 #include <time.h>
 #include <stdio.h>
 #include <syscall.h>
+#include <dma.h>
 
 #include "config.h"
 
@@ -67,7 +68,8 @@ static int prev_key_state = 0;
 /* Microsecond counter base for tick calculation */
 static unsigned int tick_base = 0;
 
-/* Assembly-optimized framebuffer copy (doom_asm.asm) */
+/* Assembly-optimized framebuffer copy (doom_asm.asm) — retained as a
+ * fallback only; DG_DrawFrame now uses the DMA engine instead. */
 extern void doom_draw_frame_asm(unsigned char *src);
 
 /* Forward declarations */
@@ -135,12 +137,16 @@ void DG_Init(void)
 
 void DG_DrawFrame(void)
 {
-    /* Copy Doom's 320x200 screen buffer to FPGC's pixel framebuffer.
-     * DG_ScreenBuffer is 8-bit palette indices (CMAP256 mode).
-     * The pixel FB stores one 8-bit palette index per 32-bit word
-     * (upper 24 bits unused), so each pixel occupies 4 bytes of CPU
-     * address space. */
-    doom_draw_frame_asm((unsigned char *)DG_ScreenBuffer);
+    /* Blit Doom's 320x200 screen buffer to FPGC's pixel framebuffer
+     * via the DMA engine. DG_ScreenBuffer is 32-byte aligned (see
+     * doomgeneric.c) and 64000 bytes is a multiple of 32. The 20-line
+     * top margin (320*20 = 6400 bytes) keeps the dest 32-byte aligned.
+     *
+     * dma_blit_to_vram is synchronous — it flushes the data cache for
+     * the source region, kicks the DMA, and waits for completion. */
+    dma_blit_to_vram(0x1EC01900,
+                     (unsigned int)DG_ScreenBuffer,
+                     (unsigned int)(DOOM_WIDTH * DOOM_HEIGHT));
 
     /* Update the FPGC palette from Doom's colors array */
 #ifdef CMAP256

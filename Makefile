@@ -529,7 +529,9 @@ USERLIB_SOURCES = \
 	Software/C/userlib/src/fixed64_asm.asm \
 	Software/C/userlib/src/fixed64.c \
 	Software/C/userlib/src/plot.c \
-	Software/C/userlib/src/fnp.c
+	Software/C/userlib/src/fnp.c \
+	Software/C/userlib/src/dma_asm.asm \
+	Software/C/userlib/src/dma.c
 
 USERLIB_FLAGS = --libc -I Software/C/userlib/include -h -i
 
@@ -641,6 +643,8 @@ compile-doom: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 		Software/C/userlib/src/syscall_asm.asm \
 		Software/C/userlib/src/syscall.c \
 		Software/C/userlib/src/time.c \
+		Software/C/userlib/src/dma_asm.asm \
+		Software/C/userlib/src/dma.c \
 		$(DOOM_SOURCES) \
 		$(DOOM_FLAGS) \
 		-o Software/ASM/Output/code.bin

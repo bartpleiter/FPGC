@@ -259,6 +259,11 @@ wire [7:0]  vramPX_cpu_d;
 wire        vramPX_cpu_we;
 wire [7:0]  vramPX_cpu_q;
 
+// VRAMPX write-port mux: DMA wins over CPU writes when active.
+wire [16:0] vramPX_w_addr = dma_vp_we ? dma_vp_addr : vramPX_cpu_addr;
+wire [7:0]  vramPX_w_data = dma_vp_we ? dma_vp_data : vramPX_cpu_d;
+wire        vramPX_w_we   = dma_vp_we | vramPX_cpu_we;
+
 // GPU will not write to VRAM
 assign vramPX_gpu_we = 1'b0;
 assign vramPX_gpu_d  = 8'd0;
@@ -272,9 +277,9 @@ VRAM #(
 ) vramPX (
     // CPU port
     .cpu_clk (clk),
-    .cpu_d   (vramPX_cpu_d),
-    .cpu_addr(vramPX_cpu_addr),
-    .cpu_we  (vramPX_cpu_we),
+    .cpu_d   (vramPX_w_data),
+    .cpu_addr(vramPX_w_addr),
+    .cpu_we  (vramPX_w_we),
     .cpu_q   (vramPX_cpu_q),
 
     // GPU port
@@ -752,6 +757,7 @@ DMAengine dma_engine (
     .vp_we(dma_vp_we),
     .vp_addr(dma_vp_addr),
     .vp_data(dma_vp_data),
+    .vp_full(1'b0),
 
     // DMA SPI burst port (Phase B)
     .dma_burst_spi_id(dma_burst_spi_id),

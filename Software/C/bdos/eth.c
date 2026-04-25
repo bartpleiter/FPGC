@@ -1,13 +1,6 @@
 #include "bdos.h"
 
-/* FNP state variables (declared extern in bdos_fnp.h).
- *
- * The enc28j60 driver's DMA fast path requires 32-byte aligned addresses
- * and counts; whatever the linker hands us here is fine because the
- * driver peels off unaligned head/tail with the per-byte SPI loop and
- * DMAs the 32-byte-aligned middle. For a 1518-byte ethernet frame the
- * middle is ~1488+ bytes regardless of buffer alignment.
- */
+/* FNP state variables (declared extern in bdos_fnp.h) */
 char fnp_rx_buf[FNP_FRAME_BUF_SIZE];
 char fnp_tx_buf[FNP_FRAME_BUF_SIZE];
 int fnp_our_mac[6];

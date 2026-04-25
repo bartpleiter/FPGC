@@ -47,6 +47,25 @@ int dma_copy(unsigned int dst, unsigned int src, unsigned int count);
 void dma_start_mem2mem(unsigned int dst, unsigned int src, unsigned int count);
 
 /*
+ * Synchronous SDRAM-to-VRAMPX blit.
+ *
+ *   src must be 32-byte aligned in SDRAM, dst must be 32-byte aligned and
+ *   lie in the VRAMPX byte range (0x1EC00000 .. 0x1EC20000), and count
+ *   must be a multiple of 32. Returns 0 on success and -1 on engine error.
+ *
+ * Flushes the L1 data cache before the transfer so the engine reads the
+ * latest source bytes; VRAMPX is write-only from the CPU side so no
+ * post-invalidate is needed.
+ */
+int dma_blit_to_vram(unsigned int dst, unsigned int src, unsigned int count);
+
+/*
+ * Asynchronous start of a MEM2VRAM transfer. Caller must poll dma_busy()
+ * and is responsible for cache coherency.
+ */
+void dma_start_mem2vram(unsigned int dst, unsigned int src, unsigned int count);
+
+/*
  * Asynchronous SPI<->memory burst on the given SPI controller (0 or 4).
  * The mode argument selects direction: DMA_SPI2MEM or DMA_MEM2SPI.
  *

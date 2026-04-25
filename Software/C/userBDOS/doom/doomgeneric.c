@@ -28,7 +28,15 @@ void doomgeneric_Create(int argc, char **argv)
 	M_FindResponseFile();
 
 	printf("DG_Create: malloc screen buffer\n");
-	DG_ScreenBuffer = malloc(DOOMGENERIC_RESX * DOOMGENERIC_RESY * sizeof(pixel_t));
+	/* Allocate with 32-byte slack so we can hand DG_ScreenBuffer back
+	 * 32-byte aligned — required by the DMA engine for MEM2VRAM blits
+	 * (DG_DrawFrame uses dma_blit_to_vram). */
+	{
+		unsigned char *raw = (unsigned char *)malloc(
+			DOOMGENERIC_RESX * DOOMGENERIC_RESY * sizeof(pixel_t) + 32);
+		DG_ScreenBuffer = (pixel_t *)
+			(((unsigned int)raw + 31u) & ~31u);
+	}
 	printf("DG_Create: buffer=%p\n", DG_ScreenBuffer);
 
 	printf("DG_Create: DG_Init\n");

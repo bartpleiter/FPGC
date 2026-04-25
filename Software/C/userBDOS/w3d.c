@@ -9,6 +9,7 @@
 #include <fixedmath.h>
 #include <plot.h>
 #include <time.h>
+#include <dma.h>
 
 // ---- ANSI / VFS shims for retired syscalls ----
 // Raw /dev/tty supplies non-blocking key events (used to drain stale
@@ -101,6 +102,10 @@ int rotationAngle;
 
 unsigned int *textures;
 
+// ---- Back buffer (SDRAM scratch, 32-byte aligned, blitted to VRAMPX via DMA) ----
+
+unsigned int back_buf_addr;   // 32-byte-aligned base address used for all pixel writes
+
 // ---- Functions ----
 
 void update_camera(void)
@@ -114,10 +119,11 @@ void update_camera(void)
 void clear_framebuffer(void)
 {
   int i;
-  /* VRAMPX is byte-addressable: one byte per pixel. */
+  /* VRAMPX is byte-addressable: one byte per pixel. Writes go to the
+     back buffer; caller is expected to DMA-blit afterwards. */
   for (i = 0; i < SCREEN_W * SCREEN_H; i++)
   {
-    __builtin_storeb(PIXEL_FB_ADDR + i, 0);
+    __builtin_storeb(back_buf_addr + i, 0);
   }
 }
 
@@ -131,7 +137,7 @@ void draw_border(void)
   {
     for (x = 0; x < SCREEN_W; x++)
     {
-      __builtin_storeb(PIXEL_FB_ADDR + (y * SCREEN_W + x), BORDER_COLOR);
+      __builtin_storeb(back_buf_addr + (y * SCREEN_W + x), BORDER_COLOR);
     }
   }
 
@@ -140,7 +146,7 @@ void draw_border(void)
   {
     for (x = 0; x < SCREEN_W; x++)
     {
-      __builtin_storeb(PIXEL_FB_ADDR + (y * SCREEN_W + x), BORDER_COLOR);
+      __builtin_storeb(back_buf_addr + (y * SCREEN_W + x), BORDER_COLOR);
     }
   }
 
@@ -149,11 +155,11 @@ void draw_border(void)
   {
     for (x = 0; x < VIEW_X; x++)
     {
-      __builtin_storeb(PIXEL_FB_ADDR + (y * SCREEN_W + x), BORDER_COLOR);
+      __builtin_storeb(back_buf_addr + (y * SCREEN_W + x), BORDER_COLOR);
     }
     for (x = VIEW_X + VIEW_W; x < SCREEN_W; x++)
     {
-      __builtin_storeb(PIXEL_FB_ADDR + (y * SCREEN_W + x), BORDER_COLOR);
+      __builtin_storeb(back_buf_addr + (y * SCREEN_W + x), BORDER_COLOR);
     }
   }
 }
@@ -286,8 +292,9 @@ void draw_textured_column(int screenX, int drawStart, int drawEnd, int side,
   int color;
 
   // Base address for this column in the viewport
-  /* VRAMPX is byte-addressable: one byte per pixel; column stride = SCREEN_W. */
-  addr = PIXEL_FB_ADDR + (VIEW_Y * SCREEN_W + VIEW_X + screenX);
+  /* VRAMPX is byte-addressable: one byte per pixel; column stride = SCREEN_W.
+     Writes go to the SDRAM back buffer; main loop DMA-blits after render. */
+  addr = back_buf_addr + (VIEW_Y * SCREEN_W + VIEW_X + screenX);
 
   // Ceiling
   for (row = 0; row < drawStart; row++)
@@ -541,6 +548,16 @@ int main(void)
   unsigned int now;
   unsigned int dt_us;
   int dt_ms;
+  unsigned char *raw;
+
+  /* Allocate back buffer (76800 bytes + 32 for alignment slack). */
+  raw = (unsigned char *)sys_heap_alloc(SCREEN_W * SCREEN_H + 32);
+  if (raw == 0)
+  {
+    sys_putstr("w3d: back buffer allocation failed\n");
+    return 1;
+  }
+  back_buf_addr = ((unsigned int)raw + 31U) & ~31U;
 
   posX = int2fixed(15);
   posY = int2fixed(11) + FIXED_HALF;
@@ -562,12 +579,18 @@ int main(void)
   term_clear();
   clear_framebuffer();
   draw_border();
+  /* Initial blit so the screen shows borders before the first frame. */
+  dma_blit_to_vram(PIXEL_FB_ADDR, back_buf_addr,
+                   (unsigned int)(SCREEN_W * SCREEN_H));
 
   last_time = get_micros();
 
   while (1)
   {
     render_frame();
+    /* Atomic frame present: blit the SDRAM back buffer to VRAMPX. */
+    dma_blit_to_vram(PIXEL_FB_ADDR, back_buf_addr,
+                     (unsigned int)(SCREEN_W * SCREEN_H));
 
     now = get_micros();
     dt_us = now - last_time;
@@ -588,6 +611,8 @@ int main(void)
   }
 
   clear_framebuffer();
+  dma_blit_to_vram(PIXEL_FB_ADDR, back_buf_addr,
+                   (unsigned int)(SCREEN_W * SCREEN_H));
   term_clear();
   sys_close(g_tty_fd);
   return 0;

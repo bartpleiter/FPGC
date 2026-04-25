@@ -389,6 +389,13 @@ wire        vramPX_cpu_we;
 wire [7:0]  vramPX_cpu_q;  // Not used in this design (write-only from CPU)
 wire        vramPX_fifo_full; // FIFO backpressure to CPU
 
+// VRAMPX write-port mux: DMA engine writes win over CPU writes when active.
+// (CPU is parked in dma_copy()'s busy-wait during a DMA blit, so this is
+// just defensive against accidental interleaving.)
+wire [16:0] vramPX_w_addr = dma_vp_we ? dma_vp_addr : vramPX_cpu_addr;
+wire [7:0]  vramPX_w_data = dma_vp_we ? dma_vp_data : vramPX_cpu_d;
+wire        vramPX_w_we   = dma_vp_we | vramPX_cpu_we;
+
 // Pixel palette CPU write signals
 wire        palette_cpu_we;
 wire [7:0]  palette_cpu_addr;
@@ -411,10 +418,11 @@ VRAMPXSram vrampx_sram (
     .clk_pixel(clkGPU),
     .reset(reset),
     
-    // CPU interface (100MHz)
-    .cpu_addr(vramPX_cpu_addr),
-    .cpu_data(vramPX_cpu_d),
-    .cpu_we(vramPX_cpu_we),
+    // CPU/DMA write port (DMA wins when dma_vp_we is high; CPU spins on
+    // dma_busy during dma_copy() so there is no real contention)
+    .cpu_addr(vramPX_w_addr),
+    .cpu_data(vramPX_w_data),
+    .cpu_we(vramPX_w_we),
     
     // GPU interface - direct SRAM read
     .gpu_addr(gpu_pixel_addr),
@@ -885,6 +893,7 @@ DMAengine dma_engine (
     .vp_we(dma_vp_we),
     .vp_addr(dma_vp_addr),
     .vp_data(dma_vp_data),
+    .vp_full(vramPX_fifo_full),
 
     // DMA SPI burst port (Phase B)
     .dma_burst_spi_id(dma_burst_spi_id),

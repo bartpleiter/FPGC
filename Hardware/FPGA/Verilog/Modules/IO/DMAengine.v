@@ -71,19 +71,22 @@ module DMAengine (
     input  wire         dma_burst_busy,
     input  wire         dma_burst_done,
 
-    // ---- VRAMPX peer port (to MemoryUnit vp_*; unused this commit) ----
+    // ---- VRAMPX peer port (to MemoryUnit vp_*) ----
+    // vp_full is the VRAMPXSram CPU-write-FIFO full flag, routed back through
+    // the top-level mux. The engine pauses byte emission while it is high.
+    // vp_we / vp_addr / vp_data are driven combinationally so the FIFO
+    // wr_en (gated by !full inside the FIFO) is consistent with the
+    // !vp_full check the engine uses to advance state -- a registered
+    // vp_we would let one byte through after the FIFO transitioned to
+    // full and silently drop it.
     output wire         vp_we,
     output wire [16:0]  vp_addr,
     output wire [7:0]   vp_data,
+    input  wire         vp_full,
 
     // ---- Interrupt to InterruptController bit 6 (INT_ID_DMA = 7) ----
     output reg          irq       = 1'b0
 );
-
-// MEM2MEM + MEM2SPI + SPI2MEM commit: VRAMPX peer port still inactive
-assign vp_we     = 1'b0;
-assign vp_addr   = 17'd0;
-assign vp_data   = 8'd0;
 
 // Legacy iop_* port is no longer driven by the engine -- the Phase-B SPI
 // burst port (dma_burst_*) replaces it. Tie off so MemoryUnit's iop_*
@@ -137,7 +140,8 @@ localparam
     ST_M2S_FILL      = 4'd10,  // MEM2SPI: push 32 line_buf bytes into TX FIFO
     ST_M2S_BURST     = 4'd11,  // MEM2SPI: kick off 32-byte SPI burst
     ST_M2S_BWAIT     = 4'd12,  // MEM2SPI: wait for burst done
-    ST_M2S_DRAIN     = 4'd13;  // MEM2SPI: drain 32 RX bytes (discarded)
+    ST_M2S_DRAIN     = 4'd13,  // MEM2SPI: drain 32 RX bytes (discarded)
+    ST_M2V_DRAIN     = 4'd14;  // MEM2VRAM: emit 32 bytes from line_buf to vp_*
 
 reg [3:0] state = ST_IDLE;
 
@@ -184,12 +188,29 @@ wire spi2mem_args_aligned =
     (dma_count[4:0] == 5'd0) &&
     (dma_count != 32'd0);
 
+// MEM2VRAM: SDRAM source line-aligned, byte count line-aligned, and the
+// destination must lie entirely within the VRAMPX byte range
+// (0x1EC00000 .. 0x1EC20000).
+wire mem2vram_args_aligned =
+    (dma_src[4:0]   == 5'd0)         &&
+    (dma_dst[4:0]   == 5'd0)         &&
+    (dma_count[4:0] == 5'd0)         &&
+    (dma_count      != 32'd0)        &&
+    (dma_dst        >= 32'h1EC00000) &&
+    ((dma_dst + dma_count) <= 32'h1EC20000);
+
 // Only SPI0 (id=0, Flash) and SPI4 (id=4, Ethernet) are wired through
 // MemoryUnit's iop_* port today. Reject other SPI ids cleanly.
 wire ctrl_spi_id_valid = (ctrl_spi_id == 3'd0) || (ctrl_spi_id == 3'd1) || (ctrl_spi_id == 3'd4);
 
-// Reading STATUS clears the sticky bits next cycle
-wire status_read = reg_we == 1'b0 && reg_addr == 3'd4;
+// Reading STATUS clears the sticky bits, but the MemoryUnit holds reg_addr=4
+// across an entire poll loop, so status_read sits high for many cycles in a
+// row. We rising-edge-detect it so a multi-cycle hold counts as a single
+// read; otherwise the engine's done/error bits would be cleared the cycle
+// after they were set and the CPU would never see them.
+wire status_read = (reg_we == 1'b0) && (reg_addr == 3'd4);
+reg  status_read_d = 1'b0;
+wire status_read_pulse = status_read && !status_read_d;
 
 always @(posedge clk)
 begin
@@ -213,6 +234,7 @@ begin
         line_buf        <= 256'd0;
         spi_byte_idx    <= 6'd0;
         spi_id_sel      <= 3'd0;
+        status_read_d   <= 1'b0;
         dma_burst_spi_id <= 3'd0;
         dma_burst_select <= 1'b0;
         dma_burst_we     <= 1'b0;
@@ -248,7 +270,8 @@ begin
         end
 
         // ---- Status sticky-clear on read ----
-        if (status_read)
+        status_read_d <= status_read;
+        if (status_read_pulse)
         begin
             sticky_done  <= 1'b0;
             sticky_error <= 1'b0;
@@ -263,6 +286,11 @@ begin
                     // Self-clear the start bit (W1S)
                     dma_ctrl[31] <= 1'b0;
                     busy <= 1'b1;
+                    // Clear leftover sticky bits from the previous transfer
+                    // so the new transfer's status reads see only its own
+                    // outcome.
+                    sticky_done  <= 1'b0;
+                    sticky_error <= 1'b0;
 
                     if (ctrl_mode == MODE_MEM2MEM)
                     begin
@@ -315,9 +343,25 @@ begin
                             state <= ST_ERROR;
                         end
                     end
+                    else if (ctrl_mode == MODE_MEM2VRAM)
+                    begin
+                        if (mem2vram_args_aligned)
+                        begin
+                            src_cur         <= dma_src;
+                            dst_cur         <= dma_dst;
+                            bytes_remaining <= dma_count;
+                            // First step: read the SDRAM line, then drain
+                            // it into VRAMPX byte-by-byte.
+                            state           <= ST_RD_REQ;
+                        end
+                        else
+                        begin
+                            state <= ST_ERROR;
+                        end
+                    end
                     else
                     begin
-                        // MEM2VRAM / MEM2IO / IO2MEM not implemented yet.
+                        // MEM2IO / IO2MEM not implemented yet.
                         state <= ST_ERROR;
                     end
                 end
@@ -343,6 +387,12 @@ begin
                     line_buf <= sd_q;
                     if (ctrl_mode == MODE_MEM2MEM)
                         state <= ST_WR_REQ;
+                    else if (ctrl_mode == MODE_MEM2VRAM)
+                    begin
+                        // Drain line_buf into VRAMPX one byte per cycle.
+                        spi_byte_idx <= 6'd0;
+                        state        <= ST_M2V_DRAIN;
+                    end
                     else
                     begin
                         // MEM2SPI: push the line into the SPI TX FIFO,
@@ -588,6 +638,34 @@ begin
                 end
             end
 
+            // ---- MEM2VRAM drain: emit 32 line_buf bytes to VRAMPX ----
+            // vp_we / vp_addr / vp_data are combinational (see assigns at
+            // the bottom of the module). This block only advances the
+            // engine's bookkeeping when the FIFO actually accepts the
+            // byte, i.e. when !vp_full this same cycle.
+            ST_M2V_DRAIN:
+            begin
+                if (!vp_full)
+                begin
+                    dst_cur <= dst_cur + 32'd1;
+                    if (spi_byte_idx == 6'd31)
+                    begin
+                        // Whole line emitted. Advance and either fetch
+                        // the next line or finish.
+                        src_cur         <= src_cur + 32'd32;
+                        bytes_remaining <= bytes_remaining - 32'd32;
+                        if (bytes_remaining == 32'd32)
+                            state <= ST_DONE;
+                        else
+                            state <= ST_RD_REQ;
+                    end
+                    else
+                    begin
+                        spi_byte_idx <= spi_byte_idx + 6'd1;
+                    end
+                end
+            end
+
             ST_DONE:
             begin
                 dma_burst_select <= 1'b0;
@@ -612,5 +690,45 @@ begin
         endcase
     end
 end
+
+// ---- VRAMPX peer-port combinational drives ----
+// Drive vp_we / vp_addr / vp_data combinationally from the engine state so
+// the FIFO write_enable lines up with the FIFO's own !full check the same
+// cycle. (See the long comment on the vp_we port declaration.)
+assign vp_we   = (state == ST_M2V_DRAIN) && !vp_full;
+assign vp_addr = dst_cur[16:0];
+assign vp_data =
+    (spi_byte_idx == 6'd0)  ? line_buf[  7:  0] :
+    (spi_byte_idx == 6'd1)  ? line_buf[ 15:  8] :
+    (spi_byte_idx == 6'd2)  ? line_buf[ 23: 16] :
+    (spi_byte_idx == 6'd3)  ? line_buf[ 31: 24] :
+    (spi_byte_idx == 6'd4)  ? line_buf[ 39: 32] :
+    (spi_byte_idx == 6'd5)  ? line_buf[ 47: 40] :
+    (spi_byte_idx == 6'd6)  ? line_buf[ 55: 48] :
+    (spi_byte_idx == 6'd7)  ? line_buf[ 63: 56] :
+    (spi_byte_idx == 6'd8)  ? line_buf[ 71: 64] :
+    (spi_byte_idx == 6'd9)  ? line_buf[ 79: 72] :
+    (spi_byte_idx == 6'd10) ? line_buf[ 87: 80] :
+    (spi_byte_idx == 6'd11) ? line_buf[ 95: 88] :
+    (spi_byte_idx == 6'd12) ? line_buf[103: 96] :
+    (spi_byte_idx == 6'd13) ? line_buf[111:104] :
+    (spi_byte_idx == 6'd14) ? line_buf[119:112] :
+    (spi_byte_idx == 6'd15) ? line_buf[127:120] :
+    (spi_byte_idx == 6'd16) ? line_buf[135:128] :
+    (spi_byte_idx == 6'd17) ? line_buf[143:136] :
+    (spi_byte_idx == 6'd18) ? line_buf[151:144] :
+    (spi_byte_idx == 6'd19) ? line_buf[159:152] :
+    (spi_byte_idx == 6'd20) ? line_buf[167:160] :
+    (spi_byte_idx == 6'd21) ? line_buf[175:168] :
+    (spi_byte_idx == 6'd22) ? line_buf[183:176] :
+    (spi_byte_idx == 6'd23) ? line_buf[191:184] :
+    (spi_byte_idx == 6'd24) ? line_buf[199:192] :
+    (spi_byte_idx == 6'd25) ? line_buf[207:200] :
+    (spi_byte_idx == 6'd26) ? line_buf[215:208] :
+    (spi_byte_idx == 6'd27) ? line_buf[223:216] :
+    (spi_byte_idx == 6'd28) ? line_buf[231:224] :
+    (spi_byte_idx == 6'd29) ? line_buf[239:232] :
+    (spi_byte_idx == 6'd30) ? line_buf[247:240] :
+                              line_buf[255:248];
 
 endmodule
