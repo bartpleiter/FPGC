@@ -25,7 +25,8 @@ typedef enum {
     DMA_SPI2MEM  = FPGC_DMA_MODE_SPI2MEM,
     DMA_MEM2VRAM = FPGC_DMA_MODE_MEM2VRAM,
     DMA_MEM2IO   = FPGC_DMA_MODE_MEM2IO,
-    DMA_IO2MEM   = FPGC_DMA_MODE_IO2MEM
+    DMA_IO2MEM   = FPGC_DMA_MODE_IO2MEM,
+    DMA_SPI2MEM_QSPI = FPGC_DMA_MODE_SPI2MEM_QSPI
 } dma_mode_t;
 
 /*
@@ -83,6 +84,20 @@ void dma_start_mem2vram(unsigned int dst, unsigned int src, unsigned int count);
  */
 void dma_start_spi(dma_mode_t mode, int spi_id, unsigned int dst,
                    unsigned int src, unsigned int count);
+
+/*
+ * Asynchronous SPI2MEM QSPI Fast Read on SPI1 (BRFS flash).
+ *
+ * The DMA engine drives QSPIflash to issue opcode 0xEB + 24-bit
+ * `qspi_addr` + M=0xA5 + 4 dummy SCK + read of `count` bytes (4 bits
+ * per SCK). The caller is responsible for asserting CS low before this
+ * call and CS high after `dma_busy()` returns 0. `dst` must be 32-byte
+ * aligned in SDRAM and `count` must be a multiple of 32.
+ *
+ * No cache flushing is performed; callers should ccached as needed.
+ */
+void dma_start_spi_qspi_read(int spi_id, unsigned int dst,
+                             unsigned int qspi_addr, unsigned int count);
 
 /* Returns non-zero while the engine is busy. */
 int dma_busy(void);

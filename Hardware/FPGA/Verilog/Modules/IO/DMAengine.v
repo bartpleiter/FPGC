@@ -137,6 +137,9 @@ reg [2:0]  spi_id_sel   = 3'd0;  // 0 = SPI0 (Flash), 1 = SPI1 (Flash 2 / BRFS),
 // Per-burst cursor for SPI2MEM_QSPI: starts at dma_qspi_addr, advances by 32
 // after every committed cache line. Tracked separately from src_cur (SDRAM)
 // because for QSPI the "source address" is a flash byte offset, not SDRAM.
+// Today QSPI is constrained to one 32-byte line per DMA call (see
+// qspi_args_aligned) so this register only carries the start address; the
+// per-line advance is harmless.
 reg [23:0] qspi_addr_cur = 24'd0;
 
 localparam
@@ -201,6 +204,15 @@ wire spi2mem_args_aligned =
     (dma_dst[4:0] == 5'd0) &&
     (dma_count[4:0] == 5'd0) &&
     (dma_count != 32'd0);
+
+// QSPI Fast Read: same as SPI2MEM but additionally restrict to a single
+// 32-byte line per DMA call. Multi-line bursts would require toggling CS
+// between lines (the W25Q does not accept a fresh opcode mid-transaction)
+// and the DMA engine doesn't drive CS. Software is expected to loop with
+// spi_deselect/spi_select between calls for >32-byte reads.
+wire qspi_args_aligned =
+    (dma_dst[4:0] == 5'd0) &&
+    (dma_count    == 32'd32);
 
 // MEM2VRAM: SDRAM source line-aligned, byte count line-aligned, and the
 // destination must lie entirely within the VRAMPX byte range
@@ -366,7 +378,9 @@ begin
                     begin
                         // QSPI Fast Read is only wired through QSPIflash
                         // on SPI1 (BRFS flash). Other SPI ids -> error.
-                        if (spi2mem_args_aligned && (ctrl_spi_id == 3'd1))
+                        // Constrained to a single 32-byte line per call;
+                        // software loops with CS toggle for larger reads.
+                        if (qspi_args_aligned && (ctrl_spi_id == 3'd1))
                         begin
                             dst_cur          <= dma_dst;
                             bytes_remaining  <= dma_count;
@@ -504,6 +518,13 @@ begin
                 // addr+M+dummy+data instead of 32 1-bit dummy SPI bytes.
                 // qspi_addr_cur tracks the per-burst flash byte address;
                 // it advances by 32 in ST_WR_WAIT after each line commit.
+                //
+                // Multi-line QSPI transfers require the caller to toggle
+                // CS between bursts (the W25Q does not accept a fresh
+                // opcode mid-transaction). For now `dma_start_spi_qspi_read`
+                // is constrained to <=32 bytes per call, and software is
+                // expected to loop with spi_deselect/spi_select between
+                // calls.
                 dma_burst_select <= 1'b1;
                 dma_burst_dummy  <= 1'b1;
                 dma_burst_len    <= 16'd32;
@@ -526,11 +547,11 @@ begin
                 dma_burst_select <= 1'b1;
                 if (dma_burst_done)
                 begin
-                    // Pre-assert re_rx so SimpleSPI2 pops byte 0 on the
-                    // first DRAIN cycle (re_rx is an output reg with a
-                    // one-cycle propagation delay; capturing rx_data and
-                    // asserting re_rx in the same cycle would otherwise
-                    // double-read byte 0 and skip byte 31).
+                    // Pre-assert re_rx so the controller pops byte 0 on
+                    // the first DRAIN cycle (re_rx is an output reg with
+                    // a one-cycle propagation delay; capturing rx_data
+                    // and asserting re_rx in the same cycle would
+                    // otherwise double-read byte 0 and skip byte 31).
                     dma_burst_re_rx <= 1'b1;
                     state           <= ST_S2M_DRAIN;
                 end

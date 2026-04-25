@@ -57,6 +57,7 @@
 #define FPGC_DMA_COUNT      0x1C000078
 #define FPGC_DMA_CTRL       0x1C00007C
 #define FPGC_DMA_STATUS     0x1C000080
+#define FPGC_DMA_QSPI_ADDR  0x1C000084
 
 /* DMA_CTRL bit fields */
 #define FPGC_DMA_MODE_MEM2MEM   0
@@ -65,6 +66,7 @@
 #define FPGC_DMA_MODE_MEM2VRAM  3
 #define FPGC_DMA_MODE_MEM2IO    4
 #define FPGC_DMA_MODE_IO2MEM    5
+#define FPGC_DMA_MODE_SPI2MEM_QSPI 6
 #define FPGC_DMA_CTRL_IRQ_EN    (1u << 4)
 #define FPGC_DMA_CTRL_SPI_SHIFT 5
 #define FPGC_DMA_CTRL_START     (1u << 31)

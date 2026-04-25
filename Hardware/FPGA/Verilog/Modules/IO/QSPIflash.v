@@ -314,7 +314,7 @@ begin
                         spi_mosi_r       <= 1'b1;       // 0xEB MSB = 1
                         tx_shift         <= 8'hEB;
                         tx_bit_idx       <= 3'd6;
-                        q_addr_mode      <= { muxed_qspi_addr, 8'hA5 };
+                        q_addr_mode      <= { muxed_qspi_addr, 8'h00 };
 
                         if (q_continuous)
                         begin
@@ -566,9 +566,14 @@ begin
                         burst_remaining <= burst_remaining - 1'b1;
                         if (burst_remaining == 16'd1)
                         begin
-                            // This was the last byte. Latch continuous-mode
-                            // and finish.
-                            q_continuous <= 1'b1;
+                            // This was the last byte. Do NOT latch
+                            // continuous-mode: M was driven as 0x00 (top
+                            // nibble != 0xA), so the flash will require a
+                            // fresh opcode 0xEB next burst. Keeping
+                            // q_continuous=0 also ensures any subsequent
+                            // 1-bit READ_DATA on this controller is not
+                            // mis-interpreted as a quad-mode address.
+                            q_continuous <= 1'b0;
                             state        <= STATE_DONE;
                         end
                     end

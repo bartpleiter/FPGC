@@ -747,6 +747,36 @@ compile-spi1-dma-test: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 
 run-spi1-dma-test: compile-spi1-dma-test run-uart
 
+# Standalone target: build the SPI1 QSPI DMA bring-up baremetal test
+# (Software/C/bareMetal/qspi_dma_test.c). Exercises MODE_SPI2MEM_QSPI
+# against the real W25Q-style flash on the BRFS port.
+compile-spi1-qspi-test: $(QBE_OUTPUT) $(CPROC_OUTPUT)
+	@mkdir -p Software/ASM/Output
+	./Scripts/BCC/compile_modern_c.sh \
+		Software/ASM/crt0/crt0_baremetal.asm \
+		Software/C/libc/sys/_exit.asm \
+		Software/C/libc/sys/syscalls.c \
+		Software/C/libc/string/string.c \
+		Software/C/libc/stdlib/stdlib.c \
+		Software/C/libc/stdlib/malloc.c \
+		Software/C/libc/ctype/ctype.c \
+		Software/C/libc/stdio/stdio.c \
+		Software/C/libfpgc/sys/sys_asm.asm \
+		Software/C/libfpgc/sys/sys.c \
+		Software/C/libfpgc/io/spi.c \
+		Software/C/libfpgc/io/uart.c \
+		Software/C/libfpgc/io/timer.c \
+		Software/C/libfpgc/io/spi_flash.c \
+		Software/C/libfpgc/io/dma_asm.asm \
+		Software/C/libfpgc/io/dma.c \
+		Software/C/bareMetal/qspi_dma_test.c \
+		--libc \
+		-I Software/C/libfpgc/include \
+		-h \
+		-o Software/ASM/Output/code.bin
+
+run-spi1-qspi-test: compile-spi1-qspi-test run-uart
+
 flash-c-baremetal-spi: compile-c-baremetal $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	@if [ -z "$(file)" ]; then \
 		echo "Usage: make flash-c-baremetal-spi file=<c_filename_in_bareMetal_dir_without_extension>"; \
