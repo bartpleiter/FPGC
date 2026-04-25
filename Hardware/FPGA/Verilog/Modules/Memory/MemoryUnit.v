@@ -294,11 +294,18 @@ reg [7:0] SPI1_in = 8'd0;
 wire [7:0] SPI1_out;
 wire SPI1_done;
 
-// SPI1 (Flash 2 / BRFS) 25 MHz -- via SimpleSPI2 with cmd_skip_fifos=1, same
-// pattern as SPI0 / SPI4. Behaves bit-for-bit like the original SimpleSPI on
-// the CPU MMIO + DMA iop_* paths; the FIFO path is reserved for a future
-// multi-byte burst DMA mode.
-SimpleSPI2 #(
+// SPI1 (Flash 2 / BRFS) 25 MHz -- via QSPIflash. Iteration 1 of the QSPI
+// migration (Docs/plans/dma-followups.md §A.4.1): the module behaves
+// bit-for-bit like the SimpleSPI2 it replaces (1-bit SPI Mode 0 with a
+// constant OE pattern of 4'b1101). The 4-line bidirectional pin
+// interface is collapsed back to mosi/miso/wp_n/hold_n right here so the
+// top-level pin map and .qsf are unaffected. Subsequent iterations will
+// add a Quad I/O Fast Read state machine and lift the OE wires to the
+// FPGA top level for true bidirectional IO.
+wire [3:0] SPI1_io_out_w;
+wire [3:0] SPI1_io_oe_w;
+wire [3:0] SPI1_io_in_w;
+QSPIflash #(
     .CLKS_PER_HALF_BIT(2),
     .FIFO_DEPTH(32)
 ) SPI1 (
@@ -326,9 +333,15 @@ SimpleSPI2 #(
     .dma_dummy       (dma_burst_dummy),
     .dma_re_rx       (dma_burst_re_rx),
     .spi_clk         (SPI1_clk),
-    .spi_miso        (SPI1_miso),
-    .spi_mosi        (SPI1_mosi)
+    .spi_io_out      (SPI1_io_out_w),
+    .spi_io_oe       (SPI1_io_oe_w),
+    .spi_io_in       (SPI1_io_in_w)
 );
+// Pin adapter: legacy single-direction mosi/miso while OE is constant.
+//   IO0 = MOSI (out), IO1 = MISO (in), IO2/IO3 driven high externally
+//   by the existing flash2_wp_n / flash2_hold_n tie-offs in FPGC.v.
+assign SPI1_mosi    = SPI1_io_out_w[0];
+assign SPI1_io_in_w = { 1'b1, 1'b1, SPI1_miso, 1'b0 };
 
 // SPI2 (USB Host 1) 12.5 MHz
 reg SPI2_start = 1'b0;
