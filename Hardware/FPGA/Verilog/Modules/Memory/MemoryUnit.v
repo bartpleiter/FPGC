@@ -170,6 +170,7 @@ assign vramPX_dma_d    = vp_data;
 wire dma_sel_spi0 = dma_burst_select && (dma_burst_spi_id == 3'd0);
 wire dma_sel_spi1 = dma_burst_select && (dma_burst_spi_id == 3'd1);
 wire dma_sel_spi4 = dma_burst_select && (dma_burst_spi_id == 3'd4);
+wire dma_sel_spi5 = dma_burst_select && (dma_burst_spi_id == 3'd5);
 
 // Per-SPI burst-side wires from SimpleSPI2 (declared here, hooked up at the
 // instances below, mux'd back to the engine at the bottom of the file).
@@ -180,6 +181,8 @@ wire [7:0]  SPI1_rx_data_w;
 wire [7:0]  SPI1_rx_count_w;
 wire        SPI4_tx_full_w, SPI4_rx_empty_w, SPI4_busy_w;
 wire [7:0]  SPI4_rx_data_w;
+wire        SPI5_tx_full_w, SPI5_rx_empty_w, SPI5_busy_w;
+wire [7:0]  SPI5_rx_data_w;
 
 // SPI*_done are declared further down alongside their SimpleSPI2 instances;
 // the demux for dma_burst_done/busy/tx_full/rx_empty/rx_data lives at the
@@ -430,24 +433,44 @@ SimpleSPI2 #(
     .spi_mosi        (SPI4_mosi)
 );
 
-// SPI5 (SD Card) 25 MHz
+// SPI5 (SD Card) 25 MHz -- via SimpleSPI2 with cmd_skip_fifos=1 (see SPI0
+// note above and dma-followups.md §3.1 / §B.5.3). SPI5 is wired into the DMA
+// burst port so 512-byte SD block payloads can be moved by DMA.
 reg SPI5_start = 1'b0;
 reg [7:0] SPI5_in = 8'd0;
 wire [7:0] SPI5_out;
 wire SPI5_done;
 
-SimpleSPI #(
-    .CLKS_PER_HALF_BIT(2)
+SimpleSPI2 #(
+    .CLKS_PER_HALF_BIT(2),
+    .FIFO_DEPTH(32)
 ) SPI5 (
-    .clk        (clk),
-    .reset      (reset),
-    .data_in    (SPI5_in),
-    .start      (SPI5_start),
-    .done       (SPI5_done),
-    .data_out   (SPI5_out),
-    .spi_clk    (SPI5_clk),
-    .spi_miso   (SPI5_miso),
-    .spi_mosi   (SPI5_mosi)
+    .clk             (clk),
+    .reset           (reset),
+    .cmd_we          (1'b0),          // FIFOs unused on CPU port (skip mode)
+    .cmd_data        (SPI5_in),
+    .cmd_start_burst (SPI5_start),
+    .cmd_burst_len   (16'd1),
+    .cmd_dummy       (1'b0),
+    .cmd_skip_fifos  (1'b1),
+    .tx_full         (SPI5_tx_full_w),
+    .rx_empty        (SPI5_rx_empty_w),
+    .rx_data         (SPI5_rx_data_w),
+    .cmd_re_rx       (1'b0),
+    .last_rx_byte    (SPI5_out),
+    .busy            (SPI5_busy_w),
+    .done            (SPI5_done),
+    // DMA burst master
+    .dma_select      (dma_sel_spi5),
+    .dma_we          (dma_burst_we),
+    .dma_data        (dma_burst_data),
+    .dma_start_burst (dma_burst_start),
+    .dma_burst_len   (dma_burst_len),
+    .dma_dummy       (dma_burst_dummy),
+    .dma_re_rx       (dma_burst_re_rx),
+    .spi_clk         (SPI5_clk),
+    .spi_miso        (SPI5_miso),
+    .spi_mosi        (SPI5_mosi)
 );
 
 // Micros counter
@@ -1176,26 +1199,31 @@ end
 assign dma_burst_tx_full =
     (dma_burst_spi_id == 3'd0) ? SPI0_tx_full_w :
     (dma_burst_spi_id == 3'd1) ? SPI1_tx_full_w :
-    (dma_burst_spi_id == 3'd4) ? SPI4_tx_full_w : 1'b1;
+    (dma_burst_spi_id == 3'd4) ? SPI4_tx_full_w :
+    (dma_burst_spi_id == 3'd5) ? SPI5_tx_full_w : 1'b1;
 assign dma_burst_rx_empty =
     (dma_burst_spi_id == 3'd0) ? SPI0_rx_empty_w :
     (dma_burst_spi_id == 3'd1) ? SPI1_rx_empty_w :
-    (dma_burst_spi_id == 3'd4) ? SPI4_rx_empty_w : 1'b1;
+    (dma_burst_spi_id == 3'd4) ? SPI4_rx_empty_w :
+    (dma_burst_spi_id == 3'd5) ? SPI5_rx_empty_w : 1'b1;
 assign dma_burst_rx_data =
     (dma_burst_spi_id == 3'd0) ? SPI0_rx_data_w :
     (dma_burst_spi_id == 3'd1) ? SPI1_rx_data_w :
-    (dma_burst_spi_id == 3'd4) ? SPI4_rx_data_w : 8'd0;
-// Only QSPIflash (SPI1) exposes rx_count; SPI0/SPI4 (SimpleSPI2) report 0.
+    (dma_burst_spi_id == 3'd4) ? SPI4_rx_data_w :
+    (dma_burst_spi_id == 3'd5) ? SPI5_rx_data_w : 8'd0;
+// Only QSPIflash (SPI1) exposes rx_count; SPI0/SPI4/SPI5 (SimpleSPI2) report 0.
 // The DMA engine only consults this in MODE_SPI2MEM_QSPI which is SPI1-only.
 assign dma_burst_rx_count =
     (dma_burst_spi_id == 3'd1) ? SPI1_rx_count_w : 8'd0;
 assign dma_burst_busy =
     (dma_burst_spi_id == 3'd0) ? SPI0_busy_w :
     (dma_burst_spi_id == 3'd1) ? SPI1_busy_w :
-    (dma_burst_spi_id == 3'd4) ? SPI4_busy_w : 1'b0;
+    (dma_burst_spi_id == 3'd4) ? SPI4_busy_w :
+    (dma_burst_spi_id == 3'd5) ? SPI5_busy_w : 1'b0;
 assign dma_burst_done =
     (dma_burst_spi_id == 3'd0) ? SPI0_done :
     (dma_burst_spi_id == 3'd1) ? SPI1_done :
-    (dma_burst_spi_id == 3'd4) ? SPI4_done : 1'b0;
+    (dma_burst_spi_id == 3'd4) ? SPI4_done :
+    (dma_burst_spi_id == 3'd5) ? SPI5_done : 1'b0;
 
 endmodule

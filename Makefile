@@ -34,7 +34,7 @@ CPROC_OUTPUT = $(CPROC_DIR)/output/cproc-qbe
 .PHONY: sim-cpu sim-sdram sim-bootloader
 .PHONY: test-cpu test-cpu-single debug-cpu quartus-timing
 .PHONY: test-c test-c-single
-.PHONY: compile-asm compile-bootloader compile-c-baremetal compile-bdos
+.PHONY: compile-asm compile-bootloader compile-c-baremetal compile-bdos compile-sdcard-init-test compile-sdcard-rw-test compile-sdcard-multi-test
 .PHONY: compile-userbdos compile-userbdos-all compile-doom
 .PHONY: run-uart uart-monitor run-asm-uart run-c-baremetal-uart run-bdos
 .PHONY: compile-spi1-dma-test run-spi1-dma-test
@@ -469,6 +469,7 @@ BDOS_V3_SOURCES = \
 	Software/C/libfpgc/io/uart.c \
 	Software/C/libfpgc/io/timer.c \
 	Software/C/libfpgc/io/spi_flash.c \
+	Software/C/libfpgc/io/sd.c \
 	Software/C/libfpgc/io/ch376.c \
 	Software/C/libfpgc/io/enc28j60.c \
 	Software/C/libfpgc/io/dma_asm.asm \
@@ -776,6 +777,96 @@ compile-spi1-qspi-test: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 		-o Software/ASM/Output/code.bin
 
 run-spi1-qspi-test: compile-spi1-qspi-test run-uart
+
+# Standalone target: build the SD card SPI init bring-up baremetal test
+# (Software/C/bareMetal/sdcard_init_test.c). Exercises sd_init() against
+# the microSD card in the SPI5 slot.
+compile-sdcard-init-test: $(QBE_OUTPUT) $(CPROC_OUTPUT)
+	@mkdir -p Software/ASM/Output
+	./Scripts/BCC/compile_modern_c.sh \
+		Software/ASM/crt0/crt0_baremetal.asm \
+		Software/C/libc/sys/_exit.asm \
+		Software/C/libc/sys/syscalls.c \
+		Software/C/libc/string/string.c \
+		Software/C/libc/stdlib/stdlib.c \
+		Software/C/libc/stdlib/malloc.c \
+		Software/C/libc/ctype/ctype.c \
+		Software/C/libc/stdio/stdio.c \
+		Software/C/libfpgc/sys/sys_asm.asm \
+		Software/C/libfpgc/sys/sys.c \
+		Software/C/libfpgc/io/spi.c \
+		Software/C/libfpgc/io/uart.c \
+		Software/C/libfpgc/io/timer.c \
+		Software/C/libfpgc/io/dma_asm.asm \
+		Software/C/libfpgc/io/dma.c \
+		Software/C/libfpgc/io/sd.c \
+		Software/C/bareMetal/sdcard_init_test.c \
+		--libc \
+		-I Software/C/libfpgc/include \
+		-h \
+		-o Software/ASM/Output/code.bin
+
+run-sdcard-init-test: compile-sdcard-init-test run-uart
+
+# Standalone target: B.5.2 SD card read+write smoke test
+# (Software/C/bareMetal/sdcard_rw_test.c). Reads LBA 0 (MBR),
+# round-trips a pattern through LBA 1 (saved+restored).
+compile-sdcard-rw-test: $(QBE_OUTPUT) $(CPROC_OUTPUT)
+	@mkdir -p Software/ASM/Output
+	./Scripts/BCC/compile_modern_c.sh \
+		Software/ASM/crt0/crt0_baremetal.asm \
+		Software/C/libc/sys/_exit.asm \
+		Software/C/libc/sys/syscalls.c \
+		Software/C/libc/string/string.c \
+		Software/C/libc/stdlib/stdlib.c \
+		Software/C/libc/stdlib/malloc.c \
+		Software/C/libc/ctype/ctype.c \
+		Software/C/libc/stdio/stdio.c \
+		Software/C/libfpgc/sys/sys_asm.asm \
+		Software/C/libfpgc/sys/sys.c \
+		Software/C/libfpgc/io/spi.c \
+		Software/C/libfpgc/io/uart.c \
+		Software/C/libfpgc/io/timer.c \
+		Software/C/libfpgc/io/dma_asm.asm \
+		Software/C/libfpgc/io/dma.c \
+		Software/C/libfpgc/io/sd.c \
+		Software/C/bareMetal/sdcard_rw_test.c \
+		--libc \
+		-I Software/C/libfpgc/include \
+		-h \
+		-o Software/ASM/Output/code.bin
+
+run-sdcard-rw-test: compile-sdcard-rw-test run-uart
+
+# Standalone target: B.5.4 SD card multi-block (CMD18 / CMD25 + STOP_TRAN)
+# smoke test (Software/C/bareMetal/sdcard_multi_test.c). Reads, writes,
+# verifies, and restores 4 sectors at TEST_LBA.
+compile-sdcard-multi-test: $(QBE_OUTPUT) $(CPROC_OUTPUT)
+	@mkdir -p Software/ASM/Output
+	./Scripts/BCC/compile_modern_c.sh \
+		Software/ASM/crt0/crt0_baremetal.asm \
+		Software/C/libc/sys/_exit.asm \
+		Software/C/libc/sys/syscalls.c \
+		Software/C/libc/string/string.c \
+		Software/C/libc/stdlib/stdlib.c \
+		Software/C/libc/stdlib/malloc.c \
+		Software/C/libc/ctype/ctype.c \
+		Software/C/libc/stdio/stdio.c \
+		Software/C/libfpgc/sys/sys_asm.asm \
+		Software/C/libfpgc/sys/sys.c \
+		Software/C/libfpgc/io/spi.c \
+		Software/C/libfpgc/io/uart.c \
+		Software/C/libfpgc/io/timer.c \
+		Software/C/libfpgc/io/dma_asm.asm \
+		Software/C/libfpgc/io/dma.c \
+		Software/C/libfpgc/io/sd.c \
+		Software/C/bareMetal/sdcard_multi_test.c \
+		--libc \
+		-I Software/C/libfpgc/include \
+		-h \
+		-o Software/ASM/Output/code.bin
+
+run-sdcard-multi-test: compile-sdcard-multi-test run-uart
 
 flash-c-baremetal-spi: compile-c-baremetal $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	@if [ -z "$(file)" ]; then \

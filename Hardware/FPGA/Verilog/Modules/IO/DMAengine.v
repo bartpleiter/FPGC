@@ -134,7 +134,7 @@ reg [255:0] line_buf        = 256'd0;
 // Counts bytes within the current 32-byte cache line, 0..31.
 reg [5:0]  spi_byte_idx = 6'd0;  // 6 bits so we can hold 32 (== done) without wrap
 // Latched at start: which SPI bus is the target.
-reg [2:0]  spi_id_sel   = 3'd0;  // 0 = SPI0 (Flash), 1 = SPI1 (Flash 2 / BRFS), 4 = SPI4 (Eth)
+reg [2:0]  spi_id_sel   = 3'd0;  // 0 = SPI0 (Flash), 1 = SPI1 (Flash 2 / BRFS), 4 = SPI4 (Eth), 5 = SPI5 (SD)
 // Per-burst cursor for SPI2MEM_QSPI: starts at dma_qspi_addr, advances by 32
 // after every committed cache line. Tracked separately from src_cur (SDRAM)
 // because for QSPI the "source address" is a flash byte offset, not SDRAM.
@@ -231,9 +231,11 @@ wire mem2vram_args_aligned =
     (dma_dst        >= 32'h1EC00000) &&
     ((dma_dst + dma_count) <= 32'h1EC20000);
 
-// Only SPI0 (id=0, Flash) and SPI4 (id=4, Ethernet) are wired through
-// MemoryUnit's iop_* port today. Reject other SPI ids cleanly.
-wire ctrl_spi_id_valid = (ctrl_spi_id == 3'd0) || (ctrl_spi_id == 3'd1) || (ctrl_spi_id == 3'd4);
+// SPI0 (Flash 1), SPI1 (Flash 2 / BRFS via QSPI), SPI4 (Ethernet) and SPI5
+// (SD card) are the four controllers wired through MemoryUnit's DMA burst
+// port. Reject other SPI ids cleanly.
+wire ctrl_spi_id_valid = (ctrl_spi_id == 3'd0) || (ctrl_spi_id == 3'd1) ||
+                         (ctrl_spi_id == 3'd4) || (ctrl_spi_id == 3'd5);
 
 // Reading STATUS clears the sticky bits, but the MemoryUnit holds reg_addr=4
 // across an entire poll loop, so status_read sits high for many cycles in a
