@@ -423,212 +423,55 @@ sd_write_block(unsigned int lba, const void *buf)
     return SD_OK;
 }
 
-/* B.5.4 -- multi-block read (CMD18 / READ_MULTIPLE_BLOCK).
+/* B.5.4 -- multi-block read.
  *
- * Flow:
- *   1. CMD18 with arg = lba.
- *   2. R1 must be 0x00.
- *   3. For each of `count` blocks: poll for 0xFE start token, then
- *      consume 512 data bytes and 2 CRC bytes.
- *   4. Send CMD12 (STOP_TRANSMISSION). The first byte after the
- *      command is a stuff byte; then R1; then the card holds DO low
- *      while it flushes -- wait for non-zero.
- *
- * Per-block payload uses the DMA fast path when the destination
- * pointer (advanced for each block) is 32-byte aligned and in SDRAM.
+ * v1 implementation: loop over sd_read_block. True CMD18 streaming
+ * was attempted but produced count-dependent PROTOCOL errors on the
+ * test microSD card (works at <=4 blocks, leaves the card stuck at
+ * larger counts -- subsequent CMD17/CMD18 also fail until power-
+ * cycle). The CMD17-per-block path is slower (one command frame and
+ * one start-token wait per 512 B) but is identical to the proven
+ * B.5.3 single-block path and recovers cleanly on any per-block
+ * failure. A future iteration can revisit true CMD18 streaming once
+ * we understand the failure mode (likely related to mid-stream CMD12
+ * timing or per-block start-token timeout vs the card's Nac).
  */
 sd_result_t
 sd_read_blocks(unsigned int lba, void *buf, unsigned int count)
 {
     unsigned char *p = (unsigned char *)buf;
-    int  r1;
-    int  tok;
-    int  tries;
-    int  i;
-    unsigned int blk;
-    int  busy;
+    sd_result_t r;
+    unsigned int i;
 
     if (buf == 0 || count == 0)
         return SD_ERR_PROTOCOL;
-    if (count == 1)
-        return sd_read_block(lba, buf);
 
-    spi_select(SPI_SD);
-    r1 = send_command(CMD18, lba, 0xFF);
-    if (r1 != 0) {
-        spi_deselect(SPI_SD);
-        (void)xfer(SD_DUMMY);
-        return (r1 == 0xFF) ? SD_ERR_TIMEOUT : SD_ERR_PROTOCOL;
-    }
-
-    for (blk = 0; blk < count; blk++) {
-        tok = 0xFF;
-        for (tries = 0; tries < 4096; tries++) {
-            tok = xfer(SD_DUMMY) & 0xFF;
-            if (tok == DATA_TOKEN_READ_WRITE_SINGLE)
-                break;
-            if (tok != 0xFF) {
-                /* Try to terminate the stream cleanly before bailing. */
-                (void)send_command(CMD12, 0, 0xFF);
-                spi_deselect(SPI_SD);
-                (void)xfer(SD_DUMMY);
-                return SD_ERR_PROTOCOL;
-            }
-        }
-        if (tok != DATA_TOKEN_READ_WRITE_SINGLE) {
-            (void)send_command(CMD12, 0, 0xFF);
-            spi_deselect(SPI_SD);
-            (void)xfer(SD_DUMMY);
-            return SD_ERR_TIMEOUT;
-        }
-
-        if (SD_DMA_OK(p)) {
-            cache_flush_data();
-            dma_start_spi(DMA_SPI2MEM, SPI_SD, (unsigned int)p, 0u,
-                          (unsigned int)SD_BLOCK_SIZE);
-            while (dma_busy())
-                ;
-            (void)dma_status();
-            cache_flush_data();
-        } else {
-            for (i = 0; i < SD_BLOCK_SIZE; i++)
-                p[i] = xfer(SD_DUMMY) & 0xFF;
-        }
-
-        (void)xfer(SD_DUMMY);   /* CRC[0] */
-        (void)xfer(SD_DUMMY);   /* CRC[1] */
+    for (i = 0; i < count; i++) {
+        r = sd_read_block(lba + i, p);
+        if (r != SD_OK)
+            return r;
         p += SD_BLOCK_SIZE;
     }
-
-    /* CMD12 -- STOP_TRANSMISSION. The first byte read after a CMD12
-     * during a multi-block read is a stuff byte; the second is R1. */
-    (void)xfer(SD_DUMMY);
-    (void)xfer(0x40 | CMD12);
-    (void)xfer(0x00);
-    (void)xfer(0x00);
-    (void)xfer(0x00);
-    (void)xfer(0x00);
-    (void)xfer(0x01);            /* dummy CRC, LSB=1 */
-    (void)xfer(SD_DUMMY);        /* stuff byte */
-    /* Drain R1. */
-    for (i = 0; i < 16; i++) {
-        r1 = xfer(SD_DUMMY) & 0xFF;
-        if ((r1 & 0x80) == 0)
-            break;
-    }
-
-    /* Card may hold DO low while flushing -- wait for non-zero. */
-    busy = 0;
-    for (tries = 0; tries < 2000000L; tries++) {
-        busy = xfer(SD_DUMMY) & 0xFF;
-        if (busy != 0)
-            break;
-    }
-    spi_deselect(SPI_SD);
-    (void)xfer(SD_DUMMY);
-    if (busy == 0)
-        return SD_ERR_TIMEOUT;
     return SD_OK;
 }
 
-/* B.5.4 -- multi-block write (CMD25 / WRITE_MULTIPLE_BLOCK).
- *
- * Flow:
- *   1. CMD25 with arg = lba.
- *   2. R1 must be 0x00.
- *   3. For each block: send 0xFC (multi-block start token), 512
- *      data bytes, 2 CRC filler bytes, then read the data response
- *      token; then poll busy until DO goes non-zero.
- *   4. Send 0xFD (stop tran token), then poll busy one final time.
- */
+/* B.5.4 -- multi-block write. Same v1 strategy as sd_read_blocks:
+ * loop over sd_write_block (CMD24-per-block) for reliability. */
 sd_result_t
 sd_write_blocks(unsigned int lba, const void *buf, unsigned int count)
 {
     const unsigned char *p = (const unsigned char *)buf;
-    int  r1;
-    int  resp;
-    int  busy;
-    long tries;
-    int  i;
-    unsigned int blk;
+    sd_result_t r;
+    unsigned int i;
 
     if (buf == 0 || count == 0)
         return SD_ERR_PROTOCOL;
-    if (count == 1)
-        return sd_write_block(lba, buf);
 
-    spi_select(SPI_SD);
-    r1 = send_command(CMD25, lba, 0xFF);
-    if (r1 != 0) {
-        spi_deselect(SPI_SD);
-        (void)xfer(SD_DUMMY);
-        return (r1 == 0xFF) ? SD_ERR_TIMEOUT : SD_ERR_PROTOCOL;
-    }
-
-    for (blk = 0; blk < count; blk++) {
-        (void)xfer(SD_DUMMY);                         /* gap */
-        (void)xfer(DATA_TOKEN_WRITE_MULTI);           /* per-block start */
-        if (SD_DMA_OK(p)) {
-            cache_flush_data();
-            dma_start_spi(DMA_MEM2SPI, SPI_SD, 0u, (unsigned int)p,
-                          (unsigned int)SD_BLOCK_SIZE);
-            while (dma_busy())
-                ;
-            (void)dma_status();
-        } else {
-            for (i = 0; i < SD_BLOCK_SIZE; i++)
-                (void)xfer(p[i]);
-        }
-        (void)xfer(0xFF);                             /* CRC[0] filler */
-        (void)xfer(0xFF);                             /* CRC[1] filler */
-
-        resp = xfer(SD_DUMMY) & 0xFF;
-        if ((resp & DATA_RESP_MASK) != DATA_RESP_ACCEPTED) {
-            /* Send stop tran token + best-effort drain so the card
-             * doesn't stay in receive-data state. */
-            (void)xfer(DATA_TOKEN_WRITE_STOP_TRAN);
-            (void)xfer(SD_DUMMY);
-            busy = 0;
-            for (tries = 0; tries < 2000000L; tries++) {
-                busy = xfer(SD_DUMMY) & 0xFF;
-                if (busy != 0)
-                    break;
-            }
-            spi_deselect(SPI_SD);
-            (void)xfer(SD_DUMMY);
-            return SD_ERR_WRITE;
-        }
-
-        /* Per-block busy wait. */
-        busy = 0;
-        for (tries = 0; tries < 2000000L; tries++) {
-            busy = xfer(SD_DUMMY) & 0xFF;
-            if (busy != 0)
-                break;
-        }
-        if (busy == 0) {
-            (void)xfer(DATA_TOKEN_WRITE_STOP_TRAN);
-            spi_deselect(SPI_SD);
-            (void)xfer(SD_DUMMY);
-            return SD_ERR_TIMEOUT;
-        }
-
+    for (i = 0; i < count; i++) {
+        r = sd_write_block(lba + i, p);
+        if (r != SD_OK)
+            return r;
         p += SD_BLOCK_SIZE;
     }
-
-    /* Stop tran token: 0xFD followed by one dummy byte; then the
-     * card holds DO low while it programs the last block. */
-    (void)xfer(DATA_TOKEN_WRITE_STOP_TRAN);
-    (void)xfer(SD_DUMMY);
-    busy = 0;
-    for (tries = 0; tries < 2000000L; tries++) {
-        busy = xfer(SD_DUMMY) & 0xFF;
-        if (busy != 0)
-            break;
-    }
-    spi_deselect(SPI_SD);
-    (void)xfer(SD_DUMMY);
-    if (busy == 0)
-        return SD_ERR_TIMEOUT;
     return SD_OK;
 }
