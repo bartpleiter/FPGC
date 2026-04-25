@@ -1,6 +1,7 @@
 #include "enc28j60.h"
 #include "spi.h"
 #include "timer.h"
+#include "dma.h"
 
 /* ---- External State ---- */
 int enc28j60_spi_in_use = 0;
@@ -100,12 +101,39 @@ static void enc28j60_write_phy(int address, int data)
 
 /* ---- Buffer Memory Read/Write ---- */
 
+/*
+ * Bulk SPI4 buffer transfers use the DMAengine SPI<->mem burst path when
+ * possible. The engine requires both the memory address and the byte count
+ * to be 32-byte (cache-line) aligned, so we peel off an unaligned head
+ * with the per-byte loop, DMA the largest 32-byte-aligned middle, and
+ * peel off the tail with the per-byte loop. Buffers handed in by the
+ * BDOS FNP layer are 32-byte aligned so the typical case is pure DMA.
+ */
+
 static void enc28j60_read_buffer(char *buf, int len)
 {
   int i;
+  unsigned int middle;
   spi_select(ENC28J60_SPI_ID);
   spi_transfer(ENC28J60_SPI_ID, ENC_OP_RBM);
   i = 0;
+  while (i < len && (((unsigned int)(buf + i)) & 31u) != 0u)
+  {
+    buf[i] = spi_transfer(ENC28J60_SPI_ID, 0x00);
+    i = i + 1;
+  }
+  middle = ((unsigned int)(len - i)) & ~31u;
+  if (middle > 0u)
+  {
+    cache_flush_data();
+    dma_start_spi(DMA_SPI2MEM, ENC28J60_SPI_ID,
+                  (unsigned int)(buf + i), 0u, middle);
+    while (dma_busy())
+      ;
+    (void)dma_status();
+    cache_flush_data();
+    i = i + (int)middle;
+  }
   while (i < len)
   {
     buf[i] = spi_transfer(ENC28J60_SPI_ID, 0x00);
@@ -117,9 +145,26 @@ static void enc28j60_read_buffer(char *buf, int len)
 static void enc28j60_write_buffer(char *buf, int len)
 {
   int i;
+  unsigned int middle;
   spi_select(ENC28J60_SPI_ID);
   spi_transfer(ENC28J60_SPI_ID, ENC_OP_WBM);
   i = 0;
+  while (i < len && (((unsigned int)(buf + i)) & 31u) != 0u)
+  {
+    spi_transfer(ENC28J60_SPI_ID, buf[i]);
+    i = i + 1;
+  }
+  middle = ((unsigned int)(len - i)) & ~31u;
+  if (middle > 0u)
+  {
+    cache_flush_data();
+    dma_start_spi(DMA_MEM2SPI, ENC28J60_SPI_ID,
+                  0u, (unsigned int)(buf + i), middle);
+    while (dma_busy())
+      ;
+    (void)dma_status();
+    i = i + (int)middle;
+  }
   while (i < len)
   {
     spi_transfer(ENC28J60_SPI_ID, buf[i]);

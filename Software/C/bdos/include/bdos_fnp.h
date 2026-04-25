@@ -47,9 +47,16 @@
 #define FNP_STATE_IDLE      0
 #define FNP_STATE_RECEIVING 1
 
-/* Ring buffer configuration */
+/* Ring buffer configuration.
+ *
+ * NET_RINGBUF_FRAME_SIZE is the per-slot stride. Padded to a 32-byte
+ * multiple so that, if the array base lands on a 32-byte boundary, every
+ * slot is also 32-byte aligned and hits the enc28j60 DMA fast path with
+ * no head/tail spillover. Actual ethernet frames are still capped at
+ * 1518 bytes by the driver.
+ */
 #define NET_RINGBUF_SLOTS      32
-#define NET_RINGBUF_FRAME_SIZE 1518
+#define NET_RINGBUF_FRAME_SIZE 1536
 
 /* Extern state variables */
 extern char fnp_rx_buf[];

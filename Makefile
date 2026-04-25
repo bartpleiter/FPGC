@@ -287,7 +287,7 @@ selfhost-all: selfhost-qbe selfhost-cproc
 #   /lib/include/*.h            — libc + userlib headers
 #   /lib/src/*.c                — libc + userlib C sources (compiled on device)
 #   /lib/asm/*.asm              — hand-written crt0 + asm helpers
-#   /tmp/.keep                  — ensure /tmp exists for shell pipes & cc
+#   /tmp/                       — ensure /tmp exists for shell pipes & cc
 #   /user/hello.c               — sample test program
 #
 # Everything is compiled ON-DEVICE: each `cc` invocation re-runs cpp|cproc|qbe
@@ -332,7 +332,6 @@ stage-cc-toolchain: selfhost-all $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	@echo "=== Staging modern-C on-device toolchain into $(STAGE_DIR)/ ==="
 	@mkdir -p $(STAGE_BIN) $(STAGE_LIB_INC) $(STAGE_LIB_SRC) $(STAGE_LIB_ASM) \
 	          $(STAGE_DIR)/tmp $(STAGE_DIR)/user
-	@touch $(STAGE_DIR)/tmp/.keep
 	@echo "--- Building cpp + asm-link userBDOS programs ---"
 	@$(MAKE) compile-userbdos file=cpp      > /dev/null
 	@$(MAKE) compile-userbdos file=asm-link > /dev/null
