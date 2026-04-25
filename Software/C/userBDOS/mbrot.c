@@ -214,8 +214,8 @@ void upscale_to_fb(void)
     for (ox = 0; ox < SCREEN_WIDTH; ox++)
     {
       sx = UPSCALE_X0 + (ox * UPSCALE_W) / SCREEN_WIDTH;
-      __builtin_store(PIXEL_FB_ADDR + (oy * SCREEN_WIDTH + ox) * 4,
-                      backbuf[sy * SCREEN_WIDTH + sx] & 0xFF);
+      __builtin_storeb(PIXEL_FB_ADDR + (oy * SCREEN_WIDTH + ox),
+                       backbuf[sy * SCREEN_WIDTH + sx] & 0xFF);
     }
   }
 }
@@ -290,7 +290,7 @@ void render_frame(void)
       }
 
       backbuf[y * SCREEN_WIDTH + x] = px;
-      __builtin_store(PIXEL_FB_ADDR + (y * SCREEN_WIDTH + x) * 4, px);
+      __builtin_storeb(PIXEL_FB_ADDR + (y * SCREEN_WIDTH + x), px);
 
       // Advance c_re by step
       mbrot_load_step(step_hi, step_lo);
@@ -367,7 +367,7 @@ int main(void)
   term_clear();
   for (ci = 0; ci < SCREEN_WIDTH * SCREEN_HEIGHT; ci++)
   {
-    __builtin_store(PIXEL_FB_ADDR + ci * 4, 0);
+    __builtin_storeb(PIXEL_FB_ADDR + ci, 0);
   }
 
   // Allocate off-screen backbuffer (1 byte per pixel)
@@ -474,7 +474,7 @@ int main(void)
     int ci;
     for (ci = 0; ci < SCREEN_WIDTH * SCREEN_HEIGHT; ci++)
     {
-      __builtin_store(PIXEL_FB_ADDR + ci * 4, 0);
+      __builtin_storeb(PIXEL_FB_ADDR + ci, 0);
     }
   }
   term_clear();

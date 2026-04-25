@@ -64,14 +64,14 @@ Main:
     ClearVRAMPX:
         load32 0x1EC00000 r1    ; VRAMPX address
         load 0 r2               ; r2 = 0, counter
-        load32 0x12C00 r3       ; r3 = loop end
+        load32 0x12C00 r3       ; r3 = loop end (76800 pixels = 76800 bytes)
 
         ClearVRAMPXLoop:
             write 0 r1 r0        ; write 0 to VRAM
-            add r1 4 r1          ; increase address
+            add r1 1 r1          ; increase address (byte-addressable)
             add r2 1 r2          ; increase counter
 
-            beq r3 r2 8          ; keep looping until all words are cleared
+            beq r3 r2 8          ; keep looping until all bytes are cleared
                 jump ClearVRAMPXLoop
 
 

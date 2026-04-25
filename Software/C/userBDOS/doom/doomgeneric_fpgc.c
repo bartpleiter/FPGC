@@ -79,8 +79,9 @@ static unsigned char translate_bdos_key(int bdos_key);
 static void fpgc_clear_vrampx(void)
 {
     int i;
+    /* VRAMPX is byte-addressable: one byte per pixel. */
     for (i = 0; i < FB_WIDTH * FB_HEIGHT; i++)
-        __builtin_storeb(0x1EC00000 + i * 4, 0);
+        __builtin_storeb(0x1EC00000 + i, 0);
 }
 
 static void fpgc_restore_display(void)

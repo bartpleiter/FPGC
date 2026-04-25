@@ -306,7 +306,8 @@ int process_result_chunk(int worker_id, char *data, int data_len)
     int px;
     px = data[CHUNK_HEADER_SIZE + i] & 0xFF;
     backbuf[pixel_offset + i] = px;
-    __builtin_store(PIXEL_FB_ADDR + (pixel_offset + i) * 4, px);
+    /* VRAMPX is byte-addressable. */
+    __builtin_storeb(PIXEL_FB_ADDR + (pixel_offset + i), px);
     i = i + 1;
   }
 
@@ -321,7 +322,7 @@ void blit_backbuf(void)
   int i;
   for (i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++)
   {
-    __builtin_store(PIXEL_FB_ADDR + i * 4, backbuf[i]);
+    __builtin_storeb(PIXEL_FB_ADDR + i, backbuf[i]);
   }
 }
 
@@ -335,8 +336,8 @@ void upscale_to_fb(void)
     for (ox = 0; ox < SCREEN_WIDTH; ox++)
     {
       sx = UPSCALE_X0 + (ox * UPSCALE_W) / SCREEN_WIDTH;
-      __builtin_store(PIXEL_FB_ADDR + (oy * SCREEN_WIDTH + ox) * 4,
-                      backbuf[sy * SCREEN_WIDTH + sx]);
+      __builtin_storeb(PIXEL_FB_ADDR + (oy * SCREEN_WIDTH + ox),
+                       backbuf[sy * SCREEN_WIDTH + sx]);
     }
   }
 }
@@ -483,7 +484,7 @@ int main(void)
   term_clear();
   for (ci = 0; ci < SCREEN_WIDTH * SCREEN_HEIGHT; ci++)
   {
-    __builtin_store(PIXEL_FB_ADDR + ci * 4, 0);
+    __builtin_storeb(PIXEL_FB_ADDR + ci, 0);
     backbuf[ci] = 0;
   }
 
@@ -566,7 +567,7 @@ int main(void)
     pixpal_load_all(defpal);
   }
   for (ci = 0; ci < SCREEN_WIDTH * SCREEN_HEIGHT; ci++)
-    __builtin_store(PIXEL_FB_ADDR + ci * 4, 0);
+    __builtin_storeb(PIXEL_FB_ADDR + ci, 0);
   term_clear();
 
   sys_close(g_tty_fd);

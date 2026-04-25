@@ -691,7 +691,8 @@ void dispatch_pending_assigns(void)
 
 void fb_write(int offset, int color)
 {
-  __builtin_store(PIXEL_FB_ADDR + offset * 4, color);
+  /* VRAMPX is byte-addressable: one byte per pixel. */
+  __builtin_storeb(PIXEL_FB_ADDR + offset, color);
 }
 
 void draw_rect(int x, int y, int w, int h, int color)

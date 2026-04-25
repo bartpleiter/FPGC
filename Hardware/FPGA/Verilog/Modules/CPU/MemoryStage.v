@@ -155,7 +155,11 @@ assign ex_mem_addr_calc = ex_addr_captured ? ex_mem_addr_calc_reg : ex_mem_addr_
 wire ex_sel_rom    = ex_mem_addr_calc >= 32'h1E000000 && ex_mem_addr_calc < 32'h1E400000;
 wire ex_sel_vram32 = ex_mem_addr_calc >= 32'h1E400000 && ex_mem_addr_calc < 32'h1E800000;
 wire ex_sel_vram8  = ex_mem_addr_calc >= 32'h1E800000 && ex_mem_addr_calc < 32'h1EC00000;
-wire ex_sel_vrampx_pixel  = ex_mem_addr_calc >= 32'h1EC00000 && ex_mem_addr_calc < 32'h1EC80000;
+// VRAMPX is now byte-addressable: 17-bit byte index = 128 KiB span.
+// The pixel framebuffer itself is 320*240 = 76800 bytes; addresses
+// 0x1EC12C00..0x1EC1FFFF land in unused SRAM (off-screen, no visible
+// effect). Palette block is unchanged at 0x1EC80000.
+wire ex_sel_vrampx_pixel  = ex_mem_addr_calc >= 32'h1EC00000 && ex_mem_addr_calc < 32'h1EC20000;
 wire ex_sel_palette       = ex_mem_addr_calc >= 32'h1EC80000 && ex_mem_addr_calc < 32'h1EC80400;
 wire ex_sel_vrampx        = ex_sel_vrampx_pixel || ex_sel_palette;
 
@@ -164,7 +168,8 @@ wire ex_sel_vrampx        = ex_sel_vrampx_pixel || ex_sel_palette;
 wire [31:0] ex_local_addr_rom    = (ex_mem_addr_calc - 32'h1E000000) >> 2;
 wire [31:0] ex_local_addr_vram32 = (ex_mem_addr_calc - 32'h1E400000) >> 2;
 wire [31:0] ex_local_addr_vram8  = (ex_mem_addr_calc - 32'h1E800000) >> 2;
-wire [31:0] ex_local_addr_vrampx = (ex_mem_addr_calc - 32'h1EC00000) >> 2;
+// VRAMPX pixel: byte-addressable, no shift.
+wire [31:0] ex_local_addr_vrampx = (ex_mem_addr_calc - 32'h1EC00000);
 
 // ---- MEM-STAGE ADDRESS DECODE ----
 assign mem_sel_sdram = ex_mem_mem_addr >= 32'h00000000 && ex_mem_mem_addr < 32'h1C000000;
@@ -172,7 +177,7 @@ wire   mem_sel_io     = ex_mem_mem_addr >= 32'h1C000000 && ex_mem_mem_addr < 32'
 wire   mem_sel_rom    = ex_mem_mem_addr >= 32'h1E000000 && ex_mem_mem_addr < 32'h1E400000;
 wire   mem_sel_vram32 = ex_mem_mem_addr >= 32'h1E400000 && ex_mem_mem_addr < 32'h1E800000;
 wire   mem_sel_vram8  = ex_mem_mem_addr >= 32'h1E800000 && ex_mem_mem_addr < 32'h1EC00000;
-wire   mem_sel_vrampx_pixel = ex_mem_mem_addr >= 32'h1EC00000 && ex_mem_mem_addr < 32'h1EC80000;
+wire   mem_sel_vrampx_pixel = ex_mem_mem_addr >= 32'h1EC00000 && ex_mem_mem_addr < 32'h1EC20000;
 wire   mem_sel_palette      = ex_mem_mem_addr >= 32'h1EC80000 && ex_mem_mem_addr < 32'h1EC80400;
 wire   mem_sel_vrampx       = mem_sel_vrampx_pixel || mem_sel_palette;
 
@@ -183,11 +188,14 @@ wire [31:0] cpu_io_read_data = (ex_mem_mem_addr == CPU_IO_PC_BACKUP) ? pc_backup
                                {24'd0, stack_ptr_out};
 
 // ---- LOCAL ADDRESS (MEM stage) ----
-// For word-addressed BRAM ports, convert byte address to word address
-wire [31:0] mem_local_addr = mem_sel_rom    ? (ex_mem_mem_addr - 32'h1E000000) >> 2 :
-                             mem_sel_vram32 ? (ex_mem_mem_addr - 32'h1E400000) >> 2 :
-                             mem_sel_vram8  ? (ex_mem_mem_addr - 32'h1E800000) >> 2 :
-                             mem_sel_vrampx ? (ex_mem_mem_addr - 32'h1EC00000) >> 2 :
+// For word-addressed BRAM ports, convert byte address to word address.
+// VRAMPX pixel is now byte-addressable so no shift; palette stays
+// word-stride (entry i at offset i*4).
+wire [31:0] mem_local_addr = mem_sel_rom           ? (ex_mem_mem_addr - 32'h1E000000) >> 2 :
+                             mem_sel_vram32        ? (ex_mem_mem_addr - 32'h1E400000) >> 2 :
+                             mem_sel_vram8         ? (ex_mem_mem_addr - 32'h1E800000) >> 2 :
+                             mem_sel_vrampx_pixel  ? (ex_mem_mem_addr - 32'h1EC00000)      :
+                             mem_sel_palette       ? (ex_mem_mem_addr - 32'h1EC80000) >> 2 :
                              ex_mem_mem_addr;
 
 // ---- ROM DATA PORT ----

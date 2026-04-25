@@ -54,7 +54,8 @@ void
 gpu_clear_pixel(void)
 {
     int i;
-    unsigned int *p = (unsigned int *)FPGC_GPU_PIXEL_DATA;
+    /* VRAMPX is byte-addressable: 320*240 bytes, one byte per pixel. */
+    unsigned char *p = (unsigned char *)FPGC_GPU_PIXEL_DATA;
     for (i = 0; i < (320 * 240); i++)
         p[i] = 0;
 }
@@ -153,14 +154,15 @@ gpu_write_bg_tile(unsigned int x, unsigned int y,
 void
 gpu_write_pixel_data(unsigned int x, unsigned int y, unsigned int color)
 {
-    unsigned int *p = (unsigned int *)FPGC_GPU_PIXEL_DATA;
+    /* VRAMPX is byte-addressable: one byte per pixel. */
+    unsigned char *p = (unsigned char *)FPGC_GPU_PIXEL_DATA;
     unsigned int idx;
 
     if (x >= 320) x = x % 320;
     if (y >= 240) y = y % 240;
     idx = y * 320 + x;
 
-    p[idx] = color;
+    p[idx] = (unsigned char)color;
 }
 
 void

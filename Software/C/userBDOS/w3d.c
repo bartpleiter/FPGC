@@ -114,9 +114,10 @@ void update_camera(void)
 void clear_framebuffer(void)
 {
   int i;
+  /* VRAMPX is byte-addressable: one byte per pixel. */
   for (i = 0; i < SCREEN_W * SCREEN_H; i++)
   {
-    __builtin_store(PIXEL_FB_ADDR + i * 4, 0);
+    __builtin_storeb(PIXEL_FB_ADDR + i, 0);
   }
 }
 
@@ -130,7 +131,7 @@ void draw_border(void)
   {
     for (x = 0; x < SCREEN_W; x++)
     {
-      __builtin_store(PIXEL_FB_ADDR + (y * SCREEN_W + x) * 4, BORDER_COLOR);
+      __builtin_storeb(PIXEL_FB_ADDR + (y * SCREEN_W + x), BORDER_COLOR);
     }
   }
 
@@ -139,7 +140,7 @@ void draw_border(void)
   {
     for (x = 0; x < SCREEN_W; x++)
     {
-      __builtin_store(PIXEL_FB_ADDR + (y * SCREEN_W + x) * 4, BORDER_COLOR);
+      __builtin_storeb(PIXEL_FB_ADDR + (y * SCREEN_W + x), BORDER_COLOR);
     }
   }
 
@@ -148,11 +149,11 @@ void draw_border(void)
   {
     for (x = 0; x < VIEW_X; x++)
     {
-      __builtin_store(PIXEL_FB_ADDR + (y * SCREEN_W + x) * 4, BORDER_COLOR);
+      __builtin_storeb(PIXEL_FB_ADDR + (y * SCREEN_W + x), BORDER_COLOR);
     }
     for (x = VIEW_X + VIEW_W; x < SCREEN_W; x++)
     {
-      __builtin_store(PIXEL_FB_ADDR + (y * SCREEN_W + x) * 4, BORDER_COLOR);
+      __builtin_storeb(PIXEL_FB_ADDR + (y * SCREEN_W + x), BORDER_COLOR);
     }
   }
 }
@@ -285,13 +286,14 @@ void draw_textured_column(int screenX, int drawStart, int drawEnd, int side,
   int color;
 
   // Base address for this column in the viewport
-  addr = PIXEL_FB_ADDR + (VIEW_Y * SCREEN_W + VIEW_X + screenX) * 4;
+  /* VRAMPX is byte-addressable: one byte per pixel; column stride = SCREEN_W. */
+  addr = PIXEL_FB_ADDR + (VIEW_Y * SCREEN_W + VIEW_X + screenX);
 
   // Ceiling
   for (row = 0; row < drawStart; row++)
   {
-    __builtin_store(addr, CEIL_COLOR);
-    addr += SCREEN_W * 4;
+    __builtin_storeb(addr, CEIL_COLOR);
+    addr += SCREEN_W;
   }
 
   // Textured wall
@@ -303,16 +305,16 @@ void draw_textured_column(int screenX, int drawStart, int drawEnd, int side,
     {
       color = (color >> 1) & 0x6D;
     }
-    __builtin_store(addr, color);
-    addr += SCREEN_W * 4;
+    __builtin_storeb(addr, color);
+    addr += SCREEN_W;
     texPos += texStep;
   }
 
   // Floor
   for (row = drawEnd + 1; row < VIEW_H; row++)
   {
-    __builtin_store(addr, FLOOR_COLOR);
-    addr += SCREEN_W * 4;
+    __builtin_storeb(addr, FLOOR_COLOR);
+    addr += SCREEN_W;
   }
 }
 
