@@ -55,10 +55,15 @@ module FPGC (
 
     output wire         flash2_cs,
     output wire         flash2_clk,
-    output wire         flash2_mosi,
-    input  wire         flash2_miso,
-    output wire         flash2_wp_n,
-    output wire         flash2_hold_n,
+    // QSPI-capable flash bus: IO0=mosi, IO1=miso, IO2=wp_n, IO3=hold_n.
+    // Bidirectional so QSPIflash can drive all four lines during the
+    // address/mode phase of a Fast Read and tristate them during the
+    // dummy + data phases. In 1-bit mode IO2/IO3 are driven high (matching
+    // the original wp_n/hold_n tie-off) and IO1 is left tristated.
+    inout  wire         flash2_mosi,
+    inout  wire         flash2_miso,
+    inout  wire         flash2_wp_n,
+    inout  wire         flash2_hold_n,
 
     // UART
     input wire          uart_rx,
@@ -125,8 +130,20 @@ module FPGC (
 // SPI Flash is currently in 1x mode
 assign flash1_wp_n   = 1'b1;
 assign flash1_hold_n = 1'b1;
-assign flash2_wp_n   = 1'b1;
-assign flash2_hold_n = 1'b1;
+// flash2 (BRFS) lines are bidirectional and driven by SPI1_io_oe/out below.
+//
+// Pin map: IO0=flash2_mosi, IO1=flash2_miso, IO2=flash2_wp_n, IO3=flash2_hold_n.
+// QSPIflash drives flash2_io_out[3:0] gated by flash2_io_oe[3:0]; we tristate
+// the pad when oe=0 so the chip can drive it back during the data phase of a
+// QSPI Fast Read. The chip-side tristate logic lives in QSPIflash.v.
+wire [3:0] flash2_io_out;
+wire [3:0] flash2_io_oe;
+wire [3:0] flash2_io_in;
+assign flash2_mosi   = flash2_io_oe[0] ? flash2_io_out[0] : 1'bz;
+assign flash2_miso   = flash2_io_oe[1] ? flash2_io_out[1] : 1'bz;
+assign flash2_wp_n   = flash2_io_oe[2] ? flash2_io_out[2] : 1'bz;
+assign flash2_hold_n = flash2_io_oe[3] ? flash2_io_out[3] : 1'bz;
+assign flash2_io_in  = { flash2_hold_n, flash2_wp_n, flash2_miso, flash2_mosi };
 
 // SD Card is currently in SPI mode
 assign sd_data2_nc = 1'b1;
@@ -658,6 +675,8 @@ wire            dma_burst_start;
 wire [15:0]     dma_burst_len;
 wire            dma_burst_dummy;
 wire            dma_burst_re_rx;
+wire            dma_burst_qspi_read;
+wire [23:0]     dma_burst_qspi_addr;
 wire            dma_burst_tx_full;
 wire            dma_burst_rx_empty;
 wire [7:0]      dma_burst_rx_data;
@@ -796,10 +815,11 @@ MemoryUnit memory_unit (
     .SPI0_miso(flash1_miso),
     .SPI0_cs(flash1_cs),
 
-    // Flash 2
+    // Flash 2 (QSPI-capable; 4-bit bidirectional bus tristated below)
     .SPI1_clk(flash2_clk),
-    .SPI1_mosi(flash2_mosi),
-    .SPI1_miso(flash2_miso),
+    .SPI1_io_out(flash2_io_out),
+    .SPI1_io_oe(flash2_io_oe),
+    .SPI1_io_in(flash2_io_in),
     .SPI1_cs(flash2_cs),
 
     // USB 1
@@ -852,6 +872,8 @@ MemoryUnit memory_unit (
     .dma_burst_len(dma_burst_len),
     .dma_burst_dummy(dma_burst_dummy),
     .dma_burst_re_rx(dma_burst_re_rx),
+    .dma_burst_qspi_read(dma_burst_qspi_read),
+    .dma_burst_qspi_addr(dma_burst_qspi_addr),
     .dma_burst_tx_full(dma_burst_tx_full),
     .dma_burst_rx_empty(dma_burst_rx_empty),
     .dma_burst_rx_data(dma_burst_rx_data),
@@ -904,6 +926,8 @@ DMAengine dma_engine (
     .dma_burst_len(dma_burst_len),
     .dma_burst_dummy(dma_burst_dummy),
     .dma_burst_re_rx(dma_burst_re_rx),
+    .dma_burst_qspi_read(dma_burst_qspi_read),
+    .dma_burst_qspi_addr(dma_burst_qspi_addr),
     .dma_burst_tx_full(dma_burst_tx_full),
     .dma_burst_rx_empty(dma_burst_rx_empty),
     .dma_burst_rx_data(dma_burst_rx_data),

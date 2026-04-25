@@ -16,13 +16,16 @@
  * Register interface (1-cycle write, combinatorial read):
  *
  *   reg_addr  Register
- *     0       DMA_SRC      (RW, 32-bit byte source address)
- *     1       DMA_DST      (RW, 32-bit byte destination address)
- *     2       DMA_COUNT    (RW, 32-bit byte count)
- *     3       DMA_CTRL     (RW; bit [31] is W1S "start", self-clears)
- *     4       DMA_STATUS   (R; reads return {..., err, done, busy};
- *                          reading the register clears the sticky done
- *                          and error bits.)
+ *     0       DMA_SRC       (RW, 32-bit byte source address)
+ *     1       DMA_DST       (RW, 32-bit byte destination address)
+ *     2       DMA_COUNT     (RW, 32-bit byte count)
+ *     3       DMA_CTRL      (RW; bit [31] is W1S "start", self-clears)
+ *     4       DMA_STATUS    (R; reads return {..., err, done, busy};
+ *                           reading the register clears the sticky done
+ *                           and error bits.)
+ *     5       DMA_QSPI_ADDR (RW, 24-bit byte address into the QSPI flash;
+ *                           used as the start address for the QSPI Fast
+ *                           Read issued by mode SPI2MEM_QSPI.)
  *
  * SDRAM master port mirrors the SDRAMcontrollers CPU-side protocol:
  * pulse sd_start with sd_addr (line address, 21 bits, byte_addr >> 5),
@@ -65,6 +68,10 @@ module DMAengine (
     output reg  [15:0]  dma_burst_len    = 16'd0,
     output reg          dma_burst_dummy  = 1'b0,
     output reg          dma_burst_re_rx  = 1'b0,
+    // QSPI Fast Read controls (only meaningful when dma_burst_select=1
+    // and the SPI port wired through is QSPIflash, i.e. SPI1).
+    output reg          dma_burst_qspi_read = 1'b0,
+    output reg  [23:0]  dma_burst_qspi_addr = 24'd0,
     input  wire         dma_burst_tx_full,
     input  wire         dma_burst_rx_empty,
     input  wire [7:0]   dma_burst_rx_data,
@@ -97,18 +104,20 @@ assign iop_addr  = 32'd0;
 assign iop_data  = 32'd0;
 
 // ---- Mode constants (mirror libfpgc/io/dma.h) ----
-localparam MODE_MEM2MEM  = 4'd0;
-localparam MODE_MEM2SPI  = 4'd1;
-localparam MODE_SPI2MEM  = 4'd2;
-localparam MODE_MEM2VRAM = 4'd3;
-localparam MODE_MEM2IO   = 4'd4;
-localparam MODE_IO2MEM   = 4'd5;
+localparam MODE_MEM2MEM       = 4'd0;
+localparam MODE_MEM2SPI       = 4'd1;
+localparam MODE_SPI2MEM       = 4'd2;
+localparam MODE_MEM2VRAM      = 4'd3;
+localparam MODE_MEM2IO        = 4'd4;
+localparam MODE_IO2MEM        = 4'd5;
+localparam MODE_SPI2MEM_QSPI  = 4'd6;   // SPI1 only (QSPIflash)
 
 // ---- Register backing storage ----
-reg [31:0] dma_src   = 32'd0;
-reg [31:0] dma_dst   = 32'd0;
-reg [31:0] dma_count = 32'd0;
-reg [31:0] dma_ctrl  = 32'd0;
+reg [31:0] dma_src       = 32'd0;
+reg [31:0] dma_dst       = 32'd0;
+reg [31:0] dma_count     = 32'd0;
+reg [31:0] dma_ctrl      = 32'd0;
+reg [31:0] dma_qspi_addr = 32'd0;   // only [23:0] is meaningful
 
 reg        sticky_done  = 1'b0;
 reg        sticky_error = 1'b0;
@@ -120,11 +129,15 @@ reg [31:0] dst_cur          = 32'd0;
 reg [31:0] bytes_remaining  = 32'd0;
 reg [255:0] line_buf        = 256'd0;
 
-// ---- SPI byte cursor (used by MEM2SPI / SPI2MEM) ----
+// ---- SPI byte cursor (used by MEM2SPI / SPI2MEM / SPI2MEM_QSPI) ----
 // Counts bytes within the current 32-byte cache line, 0..31.
 reg [5:0]  spi_byte_idx = 6'd0;  // 6 bits so we can hold 32 (== done) without wrap
 // Latched at start: which SPI bus is the target.
 reg [2:0]  spi_id_sel   = 3'd0;  // 0 = SPI0 (Flash), 1 = SPI1 (Flash 2 / BRFS), 4 = SPI4 (Eth)
+// Per-burst cursor for SPI2MEM_QSPI: starts at dma_qspi_addr, advances by 32
+// after every committed cache line. Tracked separately from src_cur (SDRAM)
+// because for QSPI the "source address" is a flash byte offset, not SDRAM.
+reg [23:0] qspi_addr_cur = 24'd0;
 
 localparam
     ST_IDLE          = 4'd0,
@@ -154,6 +167,7 @@ begin
         3'd2:    reg_q = dma_count;
         3'd3:    reg_q = dma_ctrl;
         3'd4:    reg_q = {29'd0, sticky_error, sticky_done, busy};
+        3'd5:    reg_q = dma_qspi_addr;
         default: reg_q = 32'd0;
     endcase
 end
@@ -220,6 +234,7 @@ begin
         dma_dst         <= 32'd0;
         dma_count       <= 32'd0;
         dma_ctrl        <= 32'd0;
+        dma_qspi_addr   <= 32'd0;
         sticky_done     <= 1'b0;
         sticky_error    <= 1'b0;
         busy            <= 1'b0;
@@ -243,6 +258,9 @@ begin
         dma_burst_len    <= 16'd0;
         dma_burst_dummy  <= 1'b0;
         dma_burst_re_rx  <= 1'b0;
+        dma_burst_qspi_read <= 1'b0;
+        dma_burst_qspi_addr <= 24'd0;
+        qspi_addr_cur    <= 24'd0;
         state           <= ST_IDLE;
     end
     else
@@ -261,10 +279,11 @@ begin
         if (reg_we)
         begin
             case (reg_addr)
-                3'd0: dma_src   <= reg_data;
-                3'd1: dma_dst   <= reg_data;
-                3'd2: dma_count <= reg_data;
-                3'd3: dma_ctrl  <= reg_data;
+                3'd0: dma_src       <= reg_data;
+                3'd1: dma_dst       <= reg_data;
+                3'd2: dma_count     <= reg_data;
+                3'd3: dma_ctrl      <= reg_data;
+                3'd5: dma_qspi_addr <= reg_data;
                 default: ; // STATUS is read-only
             endcase
         end
@@ -336,6 +355,26 @@ begin
                             // controller will accumulate 32 RX bytes
                             // which we drain into line_buf, then commit
                             // the line to SDRAM.
+                            state            <= ST_S2M_BURST;
+                        end
+                        else
+                        begin
+                            state <= ST_ERROR;
+                        end
+                    end
+                    else if (ctrl_mode == MODE_SPI2MEM_QSPI)
+                    begin
+                        // QSPI Fast Read is only wired through QSPIflash
+                        // on SPI1 (BRFS flash). Other SPI ids -> error.
+                        if (spi2mem_args_aligned && (ctrl_spi_id == 3'd1))
+                        begin
+                            dst_cur          <= dma_dst;
+                            bytes_remaining  <= dma_count;
+                            spi_id_sel       <= 3'd1;
+                            dma_burst_spi_id <= 3'd1;
+                            spi_byte_idx     <= 6'd0;
+                            line_buf         <= 256'd0;
+                            qspi_addr_cur    <= dma_qspi_addr[23:0];
                             state            <= ST_S2M_BURST;
                         end
                         else
@@ -431,10 +470,15 @@ begin
                     end
                     else
                     begin
-                        // SPI2MEM: this line is committed to SDRAM, advance
-                        // and either start the next line or finish.
+                        // SPI2MEM (and SPI2MEM_QSPI): this line is committed
+                        // to SDRAM, advance and either start the next line
+                        // or finish.
                         dst_cur         <= dst_cur + 32'd32;
                         bytes_remaining <= bytes_remaining - 32'd32;
+                        // QSPI: advance the per-burst flash address by 32
+                        // bytes. Harmless for plain SPI2MEM (qspi_addr_cur
+                        // isn't read by ST_S2M_BURST in that mode).
+                        qspi_addr_cur   <= qspi_addr_cur + 24'd32;
                         if (bytes_remaining == 32'd32)
                             state <= ST_DONE;
                         else
@@ -454,11 +498,26 @@ begin
                 // mux routes our signals. Pulse start_burst for one cycle
                 // with dummy=1 so the controller sends 32 zero bytes and
                 // captures 32 RX bytes into its RX FIFO.
+                //
+                // For MODE_SPI2MEM_QSPI we additionally drive the QSPI
+                // Fast Read controls so QSPIflash issues opcode 0xEB +
+                // addr+M+dummy+data instead of 32 1-bit dummy SPI bytes.
+                // qspi_addr_cur tracks the per-burst flash byte address;
+                // it advances by 32 in ST_WR_WAIT after each line commit.
                 dma_burst_select <= 1'b1;
                 dma_burst_dummy  <= 1'b1;
                 dma_burst_len    <= 16'd32;
                 dma_burst_start  <= 1'b1;
                 spi_byte_idx     <= 6'd0;
+                if (ctrl_mode == MODE_SPI2MEM_QSPI)
+                begin
+                    dma_burst_qspi_read <= 1'b1;
+                    dma_burst_qspi_addr <= qspi_addr_cur;
+                end
+                else
+                begin
+                    dma_burst_qspi_read <= 1'b0;
+                end
                 state            <= ST_S2M_BWAIT;
             end
 

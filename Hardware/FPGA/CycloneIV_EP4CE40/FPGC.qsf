@@ -399,7 +399,16 @@ set_location_assignment PIN_AB20 -to gpio_9
 set_global_assignment -name POWER_PRESET_COOLING_SOLUTION "23 MM HEAT SINK WITH 200 LFPM AIRFLOW"
 set_global_assignment -name POWER_BOARD_THERMAL_MODEL "NONE (CONSERVATIVE)"
 set_global_assignment -name VERILOG_SHOW_LMF_MAPPING_MESSAGES OFF
+
+
+
+
+
+
+
+set_global_assignment -name OPTIMIZATION_MODE "HIGH PERFORMANCE EFFORT"
 set_global_assignment -name VERILOG_FILE FPGC.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/QSPIflash.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/MultiCycleAluOps/IDivider.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/MultiCycleAluOps/FPDivider.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/Memory/VRAM.v
@@ -446,12 +455,4 @@ set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/MemoryStage.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/ALU.v
 set_global_assignment -name QIP_FILE main_pll.qip
 set_global_assignment -name QIP_FILE ddr.qip
-
-
-
-
-
-
-
-set_global_assignment -name OPTIMIZATION_MODE "HIGH PERFORMANCE EFFORT"
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

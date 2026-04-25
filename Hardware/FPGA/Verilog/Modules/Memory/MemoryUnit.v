@@ -45,11 +45,15 @@ module MemoryUnit (
     output wire         SPI0_mosi,
     input wire          SPI0_miso,
 
-    // SPI1 (Flash 2)
+    // SPI1 (Flash 2) -- 4-bit bidirectional bus for QSPIflash.
+    // IO0 = MOSI, IO1 = MISO, IO2 = WP_n (1-bit) / IO2 (QSPI),
+    // IO3 = HOLD_n (1-bit) / IO3 (QSPI). Tristate is handled at the
+    // FPGC top level (or in the testbench) using SPI1_io_oe.
     output wire         SPI1_clk,
     output reg          SPI1_cs = 1'b1,
-    output wire         SPI1_mosi,
-    input wire          SPI1_miso,
+    output wire [3:0]   SPI1_io_out,
+    output wire [3:0]   SPI1_io_oe,
+    input  wire [3:0]   SPI1_io_in,
 
     // SPI2 (USB Host 1)
     output wire         SPI2_clk,
@@ -113,6 +117,10 @@ module MemoryUnit (
     input  wire [15:0]  dma_burst_len,
     input  wire         dma_burst_dummy,
     input  wire         dma_burst_re_rx,
+    // QSPI Fast Read controls (only meaningful when dma_burst_select=1
+    // and the targeted controller is QSPIflash, i.e. spi_id=1).
+    input  wire         dma_burst_qspi_read,
+    input  wire [23:0]  dma_burst_qspi_addr,
     output wire         dma_burst_tx_full,
     output wire         dma_burst_rx_empty,
     output wire [7:0]   dma_burst_rx_data,
@@ -294,17 +302,13 @@ reg [7:0] SPI1_in = 8'd0;
 wire [7:0] SPI1_out;
 wire SPI1_done;
 
-// SPI1 (Flash 2 / BRFS) 25 MHz -- via QSPIflash. Iteration 1 of the QSPI
-// migration (Docs/plans/dma-followups.md §A.4.1): the module behaves
-// bit-for-bit like the SimpleSPI2 it replaces (1-bit SPI Mode 0 with a
-// constant OE pattern of 4'b1101). The 4-line bidirectional pin
-// interface is collapsed back to mosi/miso/wp_n/hold_n right here so the
-// top-level pin map and .qsf are unaffected. Subsequent iterations will
-// add a Quad I/O Fast Read state machine and lift the OE wires to the
-// FPGA top level for true bidirectional IO.
-wire [3:0] SPI1_io_out_w;
-wire [3:0] SPI1_io_oe_w;
-wire [3:0] SPI1_io_in_w;
+// SPI1 (Flash 2 / BRFS) 25 MHz -- via QSPIflash. Iteration 3 of the QSPI
+// migration (Docs/plans/dma-followups.md §A.4.3): the 4-bit bidirectional
+// pin interface is now exposed at the MemoryUnit boundary. Tristate is
+// handled at the FPGC top level (or by the testbench), so QSPIflash drives
+// SPI1_io_out[3:0] gated by SPI1_io_oe[3:0]. In 1-bit mode the OE pattern
+// stays at 4'b1101 (drive IO0/IO2/IO3, sample IO1) -- functionally identical
+// to the old separate mosi/miso/wp_n/hold_n wiring.
 QSPIflash #(
     .CLKS_PER_HALF_BIT(2),
     .FIFO_DEPTH(32)
@@ -317,6 +321,8 @@ QSPIflash #(
     .cmd_burst_len   (16'd1),
     .cmd_dummy       (1'b0),
     .cmd_skip_fifos  (1'b1),
+    .cmd_qspi_read   (1'b0),          // QSPI Fast Read disabled (iter 2 plumbing)
+    .cmd_qspi_addr   (24'd0),
     .tx_full         (SPI1_tx_full_w),
     .rx_empty        (SPI1_rx_empty_w),
     .rx_data         (SPI1_rx_data_w),
@@ -331,17 +337,16 @@ QSPIflash #(
     .dma_start_burst (dma_burst_start),
     .dma_burst_len   (dma_burst_len),
     .dma_dummy       (dma_burst_dummy),
+    .dma_qspi_read   (dma_sel_spi1 ? dma_burst_qspi_read : 1'b0),
+    .dma_qspi_addr   (dma_burst_qspi_addr),
     .dma_re_rx       (dma_burst_re_rx),
     .spi_clk         (SPI1_clk),
-    .spi_io_out      (SPI1_io_out_w),
-    .spi_io_oe       (SPI1_io_oe_w),
-    .spi_io_in       (SPI1_io_in_w)
+    .spi_io_out      (SPI1_io_out),
+    .spi_io_oe       (SPI1_io_oe),
+    .spi_io_in       (SPI1_io_in)
 );
-// Pin adapter: legacy single-direction mosi/miso while OE is constant.
-//   IO0 = MOSI (out), IO1 = MISO (in), IO2/IO3 driven high externally
-//   by the existing flash2_wp_n / flash2_hold_n tie-offs in FPGC.v.
-assign SPI1_mosi    = SPI1_io_out_w[0];
-assign SPI1_io_in_w = { 1'b1, 1'b1, SPI1_miso, 1'b0 };
+// (Pin tristate / wp_n / hold_n tie-offs are handled at the FPGC top
+// level by the parent module.)
 
 // SPI2 (USB Host 1) 12.5 MHz
 reg SPI2_start = 1'b0;
@@ -486,6 +491,7 @@ localparam
     ADDR_DMA_COUNT       = 32'h1C000078, // DMA byte count
     ADDR_DMA_CTRL        = 32'h1C00007C, // DMA control: [3:0] mode, [4] irq_en, [7:5] sub-target, [31] start
     ADDR_DMA_STATUS      = 32'h1C000080, // DMA status: [0] busy, [1] done, [2] error (sticky, read-clear)
+    ADDR_DMA_QSPI_ADDR   = 32'h1C000084, // DMA QSPI Fast Read source address (24-bit byte offset into flash)
     ADDR_OOB             = 32'h1C000084; // All addresses >= this are out of bounds
 
 // ---- State encoding ----
@@ -882,6 +888,13 @@ always @(posedge clk) begin
                         dma_reg_addr <= 3'd4;
                         dma_reg_we   <= 1'b0; // STATUS is read-only; reading also clears stickies
                         dma_reg_data <= 32'd0;
+                        state        <= STATE_RETURN_DMA_REG;
+                    end
+                    else if (addr == ADDR_DMA_QSPI_ADDR)
+                    begin
+                        dma_reg_addr <= 3'd5;
+                        dma_reg_we   <= we;
+                        dma_reg_data <= data;
                         state        <= STATE_RETURN_DMA_REG;
                     end
                     else

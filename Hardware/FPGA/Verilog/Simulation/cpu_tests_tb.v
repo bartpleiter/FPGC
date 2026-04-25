@@ -37,6 +37,7 @@
 `include "Hardware/FPGA/Verilog/Modules/IO/SimpleSPI.v"
 `include "Hardware/FPGA/Verilog/Modules/IO/SimpleSPI2.v"
 `include "Hardware/FPGA/Verilog/Modules/IO/QSPIflash.v"
+`include "Hardware/FPGA/Verilog/Simulation/qspi_flash_sim.v"
 `include "Hardware/FPGA/Verilog/Modules/IO/MicrosCounter.v"
 `include "Hardware/FPGA/Verilog/Modules/IO/OStimer.v"
 
@@ -464,6 +465,8 @@ wire            dma_burst_start;
 wire [15:0]     dma_burst_len;
 wire            dma_burst_dummy;
 wire            dma_burst_re_rx;
+wire            dma_burst_qspi_read;
+wire [23:0]     dma_burst_qspi_addr;
 wire            dma_burst_tx_full;
 wire            dma_burst_rx_empty;
 wire [7:0]      dma_burst_rx_data;
@@ -521,25 +524,41 @@ W25Q128JV #(
 .DO     (SPI0_miso)
 );
 
-// SPI1 Flash 2
+// SPI1 Flash 2 (QSPI-capable; 4-bit bidirectional bus)
 wire SPI1_clk;
 wire SPI1_cs;
-wire SPI1_mosi;
-wire SPI1_miso;
-wire SPI1_wp = 1'b1;
-wire SPI1_hold = 1'b1;
+wire [3:0] SPI1_io_out;
+wire [3:0] SPI1_io_oe;
+wire [3:0] SPI1_io_in;
 
+// QSPI flash sim model on SPI1.
+// It only drives IO[3:0] during the data phase of a Fast Read (opcode
+// 0xEB); for any other transaction it stays tristated, so 1-bit-only
+// tests behave exactly as before.
+wire [3:0] qspisim_io_out;
+wire [3:0] qspisim_io_oe;
+qspi_flash_sim qspisim (
+    .cs_n   (SPI1_cs),
+    .spi_clk(SPI1_clk),
+    .io_in  (SPI1_io_out),
+    .io_out (qspisim_io_out),
+    .io_oe  (qspisim_io_oe)
+);
 
-// W25Q128JV #(
-//     .LIST("Hardware/FPGA/Verilog/Simulation/MemoryLists/spiflash2.list")
-// ) spiflash2 (
-// .CLK    (SPI1_clk),
-// .DIO    (SPI1_mosi),
-// .CSn    (SPI1_cs),
-// .WPn    (SPI1_wp),
-// .HOLDn  (SPI1_hold),
-// .DO     (SPI1_miso)
-// );
+// Tristate: each IO line is driven by the controller when SPI1_io_oe[i]=1,
+// or by the slave when qspisim_io_oe[i]=1, or floats high otherwise.
+// (Both driving the same line at once is a protocol violation that won't
+// happen as long as QSPIflash and qspi_flash_sim implement the protocol
+// correctly -- in practice the slave only drives during ST_DATA, and the
+// controller has IO[3:0] tristated then.)
+assign SPI1_io_in[0] = SPI1_io_oe[0]    ? SPI1_io_out[0]    :
+                       qspisim_io_oe[0] ? qspisim_io_out[0] : 1'b1;
+assign SPI1_io_in[1] = SPI1_io_oe[1]    ? SPI1_io_out[1]    :
+                       qspisim_io_oe[1] ? qspisim_io_out[1] : 1'b1;
+assign SPI1_io_in[2] = SPI1_io_oe[2]    ? SPI1_io_out[2]    :
+                       qspisim_io_oe[2] ? qspisim_io_out[2] : 1'b1;
+assign SPI1_io_in[3] = SPI1_io_oe[3]    ? SPI1_io_out[3]    :
+                       qspisim_io_oe[3] ? qspisim_io_out[3] : 1'b1;
 
 //------------------Memory Unit (50MHz)----------------------
 wire        mu_start;
@@ -607,8 +626,9 @@ MemoryUnit memory_unit (
     .SPI0_cs(SPI0_cs),
 
     .SPI1_clk(SPI1_clk),
-    .SPI1_mosi(SPI1_mosi),
-    .SPI1_miso(SPI1_miso),
+    .SPI1_io_out(SPI1_io_out),
+    .SPI1_io_oe(SPI1_io_oe),
+    .SPI1_io_in(SPI1_io_in),
     .SPI1_cs(SPI1_cs),
 
     .SPI2_clk(SPI2_clk),
@@ -654,6 +674,8 @@ MemoryUnit memory_unit (
     .dma_burst_len(dma_burst_len),
     .dma_burst_dummy(dma_burst_dummy),
     .dma_burst_re_rx(dma_burst_re_rx),
+    .dma_burst_qspi_read(dma_burst_qspi_read),
+    .dma_burst_qspi_addr(dma_burst_qspi_addr),
     .dma_burst_tx_full(dma_burst_tx_full),
     .dma_burst_rx_empty(dma_burst_rx_empty),
     .dma_burst_rx_data(dma_burst_rx_data),
@@ -703,6 +725,8 @@ DMAengine dma_engine (
     .dma_burst_len(dma_burst_len),
     .dma_burst_dummy(dma_burst_dummy),
     .dma_burst_re_rx(dma_burst_re_rx),
+    .dma_burst_qspi_read(dma_burst_qspi_read),
+    .dma_burst_qspi_addr(dma_burst_qspi_addr),
     .dma_burst_tx_full(dma_burst_tx_full),
     .dma_burst_rx_empty(dma_burst_rx_empty),
     .dma_burst_rx_data(dma_burst_rx_data),

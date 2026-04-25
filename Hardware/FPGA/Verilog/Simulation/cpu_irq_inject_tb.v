@@ -464,6 +464,8 @@ wire            dma_burst_start;
 wire [15:0]     dma_burst_len;
 wire            dma_burst_dummy;
 wire            dma_burst_re_rx;
+wire            dma_burst_qspi_read;
+wire [23:0]     dma_burst_qspi_addr;
 wire            dma_burst_tx_full;
 wire            dma_burst_rx_empty;
 wire [7:0]      dma_burst_rx_data;
@@ -524,22 +526,15 @@ W25Q128JV #(
 // SPI1 Flash 2
 wire SPI1_clk;
 wire SPI1_cs;
-wire SPI1_mosi;
-wire SPI1_miso;
-wire SPI1_wp = 1'b1;
-wire SPI1_hold = 1'b1;
-
-
-// W25Q128JV #(
-//     .LIST("Hardware/FPGA/Verilog/Simulation/MemoryLists/spiflash2.list")
-// ) spiflash2 (
-// .CLK    (SPI1_clk),
-// .DIO    (SPI1_mosi),
-// .CSn    (SPI1_cs),
-// .WPn    (SPI1_wp),
-// .HOLDn  (SPI1_hold),
-// .DO     (SPI1_miso)
-// );
+wire [3:0] SPI1_io_out;
+wire [3:0] SPI1_io_oe;
+wire [3:0] SPI1_io_in;
+// In-sim tristate: when SPI1_io_oe[i]=1, the controller drives the line;
+// otherwise the line floats high (no chip on SPI1 in this testbench).
+assign SPI1_io_in[0] = SPI1_io_oe[0] ? SPI1_io_out[0] : 1'b1;
+assign SPI1_io_in[1] = SPI1_io_oe[1] ? SPI1_io_out[1] : 1'b1;
+assign SPI1_io_in[2] = SPI1_io_oe[2] ? SPI1_io_out[2] : 1'b1;
+assign SPI1_io_in[3] = SPI1_io_oe[3] ? SPI1_io_out[3] : 1'b1;
 
 //------------------Memory Unit (50MHz)----------------------
 wire        mu_start;
@@ -607,8 +602,9 @@ MemoryUnit memory_unit (
     .SPI0_cs(SPI0_cs),
 
     .SPI1_clk(SPI1_clk),
-    .SPI1_mosi(SPI1_mosi),
-    .SPI1_miso(SPI1_miso),
+    .SPI1_io_out(SPI1_io_out),
+    .SPI1_io_oe(SPI1_io_oe),
+    .SPI1_io_in(SPI1_io_in),
     .SPI1_cs(SPI1_cs),
 
     .SPI2_clk(SPI2_clk),
@@ -654,6 +650,8 @@ MemoryUnit memory_unit (
     .dma_burst_len(dma_burst_len),
     .dma_burst_dummy(dma_burst_dummy),
     .dma_burst_re_rx(dma_burst_re_rx),
+    .dma_burst_qspi_read(dma_burst_qspi_read),
+    .dma_burst_qspi_addr(dma_burst_qspi_addr),
     .dma_burst_tx_full(dma_burst_tx_full),
     .dma_burst_rx_empty(dma_burst_rx_empty),
     .dma_burst_rx_data(dma_burst_rx_data),
@@ -703,6 +701,8 @@ DMAengine dma_engine (
     .dma_burst_len(dma_burst_len),
     .dma_burst_dummy(dma_burst_dummy),
     .dma_burst_re_rx(dma_burst_re_rx),
+    .dma_burst_qspi_read(dma_burst_qspi_read),
+    .dma_burst_qspi_addr(dma_burst_qspi_addr),
     .dma_burst_tx_full(dma_burst_tx_full),
     .dma_burst_rx_empty(dma_burst_rx_empty),
     .dma_burst_rx_data(dma_burst_rx_data),
