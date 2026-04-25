@@ -81,10 +81,10 @@ For games that need per-pixel control (like Doom), the BGW renderer doesn't cut 
 
 ### Pixel Format
 
-Each pixel is an 8-bit index into a **programmable 256-entry color palette**. The framebuffer lives in external SRAM at CPU addresses `0x1EC00000` through `0x1EC4AFFC`. Each pixel occupies one word (32-bit) in the CPU address space, even though only 8 bits are used. Pixels are stored linearly:
+Each pixel is an 8-bit index into a **programmable 256-entry color palette**. The framebuffer lives in external SRAM at CPU addresses `0x1EC00000` through `0x1EC1FFFF` (a 128 KiB byte-addressable decode window; only the first 76,800 bytes are visible on the display). Each pixel is one byte:
 
 ```
-address = 0x1EC00000 + (y × 320 + x) × 4
+address = 0x1EC00000 + (y × 320 + x)
 ```
 
 ### Color Palette

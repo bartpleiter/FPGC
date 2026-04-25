@@ -34,6 +34,7 @@ The ISA has 16 instructions, all 32 bits wide. There are no variable-length inst
  JUMP      1  0  0  1||--------------------------------27 BIT CONSTANT--------------------------------||O|
  JUMPR     1  0  0  0||----------------16 BIT CONSTANT---------------| x  x  x  x |--B REG---| x  x  x |O|
  CCACHE    0  1  1  1| x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x
+ CCACHED   0  1  1  1| x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  1
  BRANCH    0  1  1  0||----------------16 BIT CONSTANT---------------||--A REG---||--B REG---||-OPCODE||S|
  SAVPC     0  1  0  1| x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x |--D REG---|
  RETI      0  1  0  0| x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x
@@ -53,7 +54,7 @@ The instruction set is split into four categories:
 
 **Arithmetic/Logic (multi-cycle):** ARITHM and ARITHMC use the multi-cycle ALU for multiplication, division, and modulo. Division takes about 32 cycles.
 
-**Miscellaneous:** INTID (get interrupt ID), CCACHE (clear all caches)
+**Miscellaneous:** INTID (get interrupt ID), CCACHE (flush + invalidate the L1 instruction cache; required after self-modifying code or loading new code into SDRAM), CCACHED (flush + invalidate the L1 data cache; required for DMA producers/consumers — see [Memory Map](../Memory-Map.md) for the DMA register block)
 
 ### READ/WRITE Sub-Opcodes
 
@@ -188,7 +189,7 @@ The handler uses INTID to determine which interrupt fired, handles it, then exec
 | 3 | 4 | Timer 3 (OST3) | OS timer 3 (delay) |
 | 4 | 5 | Frame Drawn | GPU vblank signal |
 | 5 | 6 | ENC28J60 RX | Ethernet packet received (inverted `~INT` pin) |
-| 6 | 7 | *(unused)* | — |
+| 6 | 7 | DMA Done | DMA engine transfer complete (or error) |
 | 7 | 8 | *(unused)* | — |
 
 An important constraint: interrupts only fire when a jump or branch is being taken in the MEM stage. This greatly simplifies pipeline hazard handling during interrupt delivery, at the cost of slightly delayed interrupt response. In practice, most code has enough jumps (function calls, loops) that the latency is negligible.

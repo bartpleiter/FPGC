@@ -161,4 +161,3 @@ line editor and `sys_read(0, ...)` users expect.
 
 - [OS.md — VFS / process model](OS.md#virtual-file-system-vfs)
 - [Shell.md — shell syntax / built-ins](Shell.md)
-- [shell-terminal-v2 plan](../../plans/shell-terminal-v2.md)

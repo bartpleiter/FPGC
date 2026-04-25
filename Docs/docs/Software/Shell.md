@@ -1,8 +1,7 @@
 # Shell
 
 The BDOS v2 shell is a Bourne-style command interpreter that drops in once
-[BDOS](OS.md) finishes booting. It is the "shell" half of the
-[shell-terminal-v2](../../plans/shell-terminal-v2.md) redesign.
+[BDOS](OS.md) finishes booting.
 
 It is split across several source files in `Software/C/bdos/`:
 
@@ -124,11 +123,9 @@ the following extras are available:
 - `set -e` aborts the script the moment any command exits non-zero.
 - Comments starting with `#` are stripped per line.
 
-There is no flow control (`if`/`then`/`fi`, loops, functions) yet —
-those are listed in the plan's §2 as deferred features.
+There is no flow control (`if`/`then`/`fi`, loops, functions) yet.
 
 ## See also
 
 - [OS.md — Process model & VFS](OS.md#process-model)
 - [Terminal.md — libterm + supported ANSI escapes](Terminal.md)
-- [shell-terminal-v2 plan](../../plans/shell-terminal-v2.md)

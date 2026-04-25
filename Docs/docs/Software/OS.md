@@ -46,8 +46,7 @@ Divided into 8 slots of 2 MiB each. Programs are compiled with the modern C tool
 
 ## Shell
 
-BDOS ships with a Bourne-style interactive shell (the v2 shell, landed by the
-[shell-terminal-v2 plan](../../plans/shell-terminal-v2.md)). It supports
+BDOS ships with a Bourne-style interactive shell (the v2 shell). It supports
 quoting, pipes (`|`, implemented over temporary files), redirection
 (`<`, `>`, `>>`), boolean chains (`&&`, `||`, `;`), variable expansion
 (`$VAR`, `${VAR}`), and `#!/bin/sh` script execution.

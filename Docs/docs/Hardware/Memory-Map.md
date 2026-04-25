@@ -49,6 +49,11 @@ Accessed through L1I and L1D caches. Most reads complete in 1 cycle on a cache h
 | `0x1C000064` | Boot mode | Read |
 | `0x1C000068` | Microsecond counter | Read |
 | `0x1C00006C` | User LED | Write |
+| `0x1C000070` | DMA SRC address | R/W |
+| `0x1C000074` | DMA DST address | R/W |
+| `0x1C000078` | DMA byte count | R/W |
+| `0x1C00007C` | DMA CTRL (mode/start) | R/W |
+| `0x1C000080` | DMA STATUS (busy/done/error) | Read |
 
 All I/O accesses go through the [Memory Unit](Memory-Unit.md), which stalls the CPU pipeline until complete.
 
@@ -61,7 +66,7 @@ These are implemented in on-chip block RAM (BRAM) or external SRAM and are acces
 | `0x1E000000` | `0x1E000FFF` | ROM | 4 KiB (1 KiW) boot ROM. Initial PC value. |
 | `0x1E400000` | `0x1E40107C` | VRAM32 | Tile patterns and palette table |
 | `0x1E800000` | `0x1E808004` | VRAM8 | Tile maps, color tables, scroll parameters |
-| `0x1EC00000` | `0x1EC4AFFC` | VRAMpixel | 320x240 pixel framebuffer (external SRAM) |
+| `0x1EC00000` | `0x1EC1FFFF` | VRAMpixel | 320x240 pixel framebuffer (external SRAM, byte-addressable, 128 KiB decode window; only the first 76,800 bytes are visible on the display) |
 
 See [GPU](GPU.md) for details on the VRAM contents and how the GPU reads them.
 
