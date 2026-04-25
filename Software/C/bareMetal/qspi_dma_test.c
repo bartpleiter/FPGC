@@ -101,36 +101,24 @@ cpu_read(int spi_id, int address, unsigned int *buf, int word_count)
     spi_deselect(spi_id);
 }
 
-/* DMA QSPI Fast Read. The DMA engine is constrained to a single 32-byte
- * line per call (the W25Q does not accept a fresh opcode mid-transaction
- * and the engine doesn't drive CS). Software loops here in 32-byte chunks
- * with spi_select/spi_deselect around each chunk. Returns the OR of all
- * per-chunk status words. */
+/* DMA QSPI Fast Read. The DMA engine now issues ONE big QSPIflash burst
+ * for the whole transfer (iter 5b), so a single dma_start_spi_qspi_read
+ * call handles any aligned byte count. */
 static unsigned int
 qspi_dma_read(int spi_id, unsigned int address, unsigned int *buf,
               int word_count)
 {
-    unsigned int status_acc = 0;
-    int          words_left = word_count;
-    int          words_off  = 0;
-    while (words_left > 0) {
-        int chunk_words = words_left > 8 ? 8 : words_left;
-        unsigned int chunk_bytes = (unsigned int)chunk_words * 4u;
-        spi_select(spi_id);
-        cache_flush_data();
-        dma_start_spi_qspi_read(spi_id,
-                                (unsigned int)(buf + words_off),
-                                address + (unsigned int)(words_off * 4),
-                                chunk_bytes);
-        while (dma_busy())
-            ;
-        status_acc |= dma_status();
-        cache_flush_data();
-        spi_deselect(spi_id);
-        words_off  += chunk_words;
-        words_left -= chunk_words;
-    }
-    return status_acc;
+    unsigned int byte_count = (unsigned int)word_count * 4u;
+    unsigned int status;
+    spi_select(spi_id);
+    cache_flush_data();
+    dma_start_spi_qspi_read(spi_id, (unsigned int)buf, address, byte_count);
+    while (dma_busy())
+        ;
+    status = dma_status();
+    cache_flush_data();
+    spi_deselect(spi_id);
+    return status;
 }
 
 static void

@@ -202,6 +202,31 @@ spi_flash_read_words(int spi_id, int address, unsigned int *buffer, int word_cou
     int i;
     unsigned int b0, b1, b2, b3;
     unsigned int byte_count;
+    byte_count = (unsigned int)word_count * 4u;
+    /*
+     * QSPI Fast Read fast-path: SPI1 (QSPIflash) only.
+     * The DMA engine issues ONE big QSPIflash burst for the whole
+     * transfer; CS stays low for the whole call. The QSPI engine
+     * issues opcode 0xEB + addr + M + dummy + data internally, so
+     * no 1-bit prologue is needed. Cache flush is amortised.
+     */
+    if (spi_id == 1 &&
+        ((unsigned int)buffer % 32u == 0u) &&
+        (byte_count % 32u == 0u) &&
+        byte_count > 0u) {
+        spi_select(spi_id);
+        cache_flush_data();
+        dma_start_spi_qspi_read(spi_id,
+                                (unsigned int)buffer,
+                                (unsigned int)address,
+                                byte_count);
+        while (dma_busy())
+            ;
+        (void)dma_status();
+        cache_flush_data();
+        spi_deselect(spi_id);
+        return;
+    }
     spi_select(spi_id);
     spi_transfer(spi_id, SPIFLASH_CMD_READ_DATA);
     send_addr(spi_id, address);
@@ -209,8 +234,7 @@ spi_flash_read_words(int spi_id, int address, unsigned int *buffer, int word_cou
      * Fast path: aligned destination buffer and byte count -- pull the
      * payload via DMA SPI2MEM (available on SPI controllers 0, 1, and 4).
      */
-    byte_count = (unsigned int)word_count * 4u;
-    if ((spi_id == 0 || spi_id == 1 || spi_id == 4) &&
+    if ((spi_id == 0 || spi_id == 4) &&
         ((unsigned int)buffer % 32u == 0u) &&
         (byte_count % 32u == 0u) &&
         byte_count > 0u) {

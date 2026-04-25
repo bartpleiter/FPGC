@@ -124,6 +124,7 @@ module MemoryUnit (
     output wire         dma_burst_tx_full,
     output wire         dma_burst_rx_empty,
     output wire [7:0]   dma_burst_rx_data,
+    output wire [7:0]   dma_burst_rx_count,
     output wire         dma_burst_busy,
     output wire         dma_burst_done,
 
@@ -176,6 +177,7 @@ wire        SPI0_tx_full_w, SPI0_rx_empty_w, SPI0_busy_w;
 wire [7:0]  SPI0_rx_data_w;
 wire        SPI1_tx_full_w, SPI1_rx_empty_w, SPI1_busy_w;
 wire [7:0]  SPI1_rx_data_w;
+wire [7:0]  SPI1_rx_count_w;
 wire        SPI4_tx_full_w, SPI4_rx_empty_w, SPI4_busy_w;
 wire [7:0]  SPI4_rx_data_w;
 
@@ -326,6 +328,7 @@ QSPIflash #(
     .tx_full         (SPI1_tx_full_w),
     .rx_empty        (SPI1_rx_empty_w),
     .rx_data         (SPI1_rx_data_w),
+    .rx_count_out    (SPI1_rx_count_w),
     .cmd_re_rx       (1'b0),
     .last_rx_byte    (SPI1_out),
     .busy            (SPI1_busy_w),
@@ -1182,6 +1185,10 @@ assign dma_burst_rx_data =
     (dma_burst_spi_id == 3'd0) ? SPI0_rx_data_w :
     (dma_burst_spi_id == 3'd1) ? SPI1_rx_data_w :
     (dma_burst_spi_id == 3'd4) ? SPI4_rx_data_w : 8'd0;
+// Only QSPIflash (SPI1) exposes rx_count; SPI0/SPI4 (SimpleSPI2) report 0.
+// The DMA engine only consults this in MODE_SPI2MEM_QSPI which is SPI1-only.
+assign dma_burst_rx_count =
+    (dma_burst_spi_id == 3'd1) ? SPI1_rx_count_w : 8'd0;
 assign dma_burst_busy =
     (dma_burst_spi_id == 3'd0) ? SPI0_busy_w :
     (dma_burst_spi_id == 3'd1) ? SPI1_busy_w :

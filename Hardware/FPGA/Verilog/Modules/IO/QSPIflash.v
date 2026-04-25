@@ -59,6 +59,7 @@ module QSPIflash #(
     output wire        tx_full,
     output wire        rx_empty,
     output wire [7:0]  rx_data,
+    output wire [7:0]  rx_count_out, // current bytes-in-FIFO (zero-extended)
     input  wire        cmd_re_rx,
     output reg  [7:0]  last_rx_byte = 8'd0,
 
@@ -112,6 +113,7 @@ reg [FIFO_AW-1:0] rx_wr_ptr = 0;
 assign            rx_empty   = (rx_count == 0);
 wire              rx_full_w  = (rx_count == FIFO_DEPTH);
 assign            rx_data    = rx_mem[rx_rd_ptr];
+assign            rx_count_out = {{(8-FIFO_AW-1){1'b0}}, rx_count};
 
 reg               tx_pop  = 1'b0;
 reg               rx_push = 1'b0;

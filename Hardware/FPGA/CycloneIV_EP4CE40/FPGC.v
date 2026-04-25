@@ -680,6 +680,7 @@ wire [23:0]     dma_burst_qspi_addr;
 wire            dma_burst_tx_full;
 wire            dma_burst_rx_empty;
 wire [7:0]      dma_burst_rx_data;
+wire [7:0]      dma_burst_rx_count;
 wire            dma_burst_busy;
 wire            dma_burst_done;
 
@@ -877,6 +878,7 @@ MemoryUnit memory_unit (
     .dma_burst_tx_full(dma_burst_tx_full),
     .dma_burst_rx_empty(dma_burst_rx_empty),
     .dma_burst_rx_data(dma_burst_rx_data),
+    .dma_burst_rx_count(dma_burst_rx_count),
     .dma_burst_busy(dma_burst_busy),
     .dma_burst_done(dma_burst_done),
 
@@ -931,6 +933,7 @@ DMAengine dma_engine (
     .dma_burst_tx_full(dma_burst_tx_full),
     .dma_burst_rx_empty(dma_burst_rx_empty),
     .dma_burst_rx_data(dma_burst_rx_data),
+    .dma_burst_rx_count(dma_burst_rx_count),
     .dma_burst_busy(dma_burst_busy),
     .dma_burst_done(dma_burst_done),
 

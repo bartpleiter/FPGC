@@ -75,6 +75,7 @@ module DMAengine (
     input  wire         dma_burst_tx_full,
     input  wire         dma_burst_rx_empty,
     input  wire [7:0]   dma_burst_rx_data,
+    input  wire [7:0]   dma_burst_rx_count,
     input  wire         dma_burst_busy,
     input  wire         dma_burst_done,
 
@@ -137,10 +138,14 @@ reg [2:0]  spi_id_sel   = 3'd0;  // 0 = SPI0 (Flash), 1 = SPI1 (Flash 2 / BRFS),
 // Per-burst cursor for SPI2MEM_QSPI: starts at dma_qspi_addr, advances by 32
 // after every committed cache line. Tracked separately from src_cur (SDRAM)
 // because for QSPI the "source address" is a flash byte offset, not SDRAM.
-// Today QSPI is constrained to one 32-byte line per DMA call (see
-// qspi_args_aligned) so this register only carries the start address; the
-// per-line advance is harmless.
 reg [23:0] qspi_addr_cur = 24'd0;
+
+// MODE_SPI2MEM_QSPI: kick off ONE QSPIflash burst of the full transfer
+// length, then drain the rolling RX FIFO line-by-line. This avoids the
+// per-32B opcode + addr + M + dummy prologue (~24% of each chunk's SCK
+// time). qspi_burst_open is set on the first ST_S2M_BURST entry of a
+// transfer and stays high until ST_DONE / ST_ERROR.
+reg        qspi_burst_open = 1'b0;
 
 localparam
     ST_IDLE          = 4'd0,
@@ -205,14 +210,15 @@ wire spi2mem_args_aligned =
     (dma_count[4:0] == 5'd0) &&
     (dma_count != 32'd0);
 
-// QSPI Fast Read: same as SPI2MEM but additionally restrict to a single
-// 32-byte line per DMA call. Multi-line bursts would require toggling CS
-// between lines (the W25Q does not accept a fresh opcode mid-transaction)
-// and the DMA engine doesn't drive CS. Software is expected to loop with
-// spi_deselect/spi_select between calls for >32-byte reads.
+// QSPI Fast Read: same alignment as plain SPI2MEM. Multi-line transfers
+// are now handled by issuing a single big QSPIflash burst per DMA call
+// and draining 32 bytes per SDRAM line. CS is held low for the whole
+// transfer (the engine doesn't toggle CS), and the W25Q is happy with
+// that as long as we don't try to issue a second opcode mid-transaction.
 wire qspi_args_aligned =
     (dma_dst[4:0] == 5'd0) &&
-    (dma_count    == 32'd32);
+    (dma_count[4:0] == 5'd0) &&
+    (dma_count != 32'd0);
 
 // MEM2VRAM: SDRAM source line-aligned, byte count line-aligned, and the
 // destination must lie entirely within the VRAMPX byte range
@@ -273,6 +279,7 @@ begin
         dma_burst_qspi_read <= 1'b0;
         dma_burst_qspi_addr <= 24'd0;
         qspi_addr_cur    <= 24'd0;
+        qspi_burst_open  <= 1'b0;
         state           <= ST_IDLE;
     end
     else
@@ -389,6 +396,7 @@ begin
                             spi_byte_idx     <= 6'd0;
                             line_buf         <= 256'd0;
                             qspi_addr_cur    <= dma_qspi_addr[23:0];
+                            qspi_burst_open  <= 1'b0;
                             state            <= ST_S2M_BURST;
                         end
                         else
@@ -513,31 +521,40 @@ begin
                 // with dummy=1 so the controller sends 32 zero bytes and
                 // captures 32 RX bytes into its RX FIFO.
                 //
-                // For MODE_SPI2MEM_QSPI we additionally drive the QSPI
-                // Fast Read controls so QSPIflash issues opcode 0xEB +
-                // addr+M+dummy+data instead of 32 1-bit dummy SPI bytes.
-                // qspi_addr_cur tracks the per-burst flash byte address;
-                // it advances by 32 in ST_WR_WAIT after each line commit.
-                //
-                // Multi-line QSPI transfers require the caller to toggle
-                // CS between bursts (the W25Q does not accept a fresh
-                // opcode mid-transaction). For now `dma_start_spi_qspi_read`
-                // is constrained to <=32 bytes per call, and software is
-                // expected to loop with spi_deselect/spi_select between
-                // calls.
+                // For MODE_SPI2MEM_QSPI we drive the QSPI Fast Read
+                // controls (cmd_qspi_read + cmd_qspi_addr) so QSPIflash
+                // issues opcode 0xEB + addr + M + dummy + data instead
+                // of 32 1-bit dummy SPI bytes. We issue a SINGLE big
+                // burst of the full transfer length so the W25Q stays
+                // in one CS-low transaction; subsequent cache lines in
+                // the same DMA call skip the kickoff and just drain
+                // another 32 bytes from the rolling FIFO. qspi_burst_open
+                // tracks whether the kickoff has happened.
                 dma_burst_select <= 1'b1;
                 dma_burst_dummy  <= 1'b1;
-                dma_burst_len    <= 16'd32;
-                dma_burst_start  <= 1'b1;
                 spi_byte_idx     <= 6'd0;
                 if (ctrl_mode == MODE_SPI2MEM_QSPI)
                 begin
-                    dma_burst_qspi_read <= 1'b1;
-                    dma_burst_qspi_addr <= qspi_addr_cur;
+                    if (!qspi_burst_open)
+                    begin
+                        // First line of this DMA call: kick off one big
+                        // QSPI burst that covers all bytes_remaining.
+                        dma_burst_qspi_read <= 1'b1;
+                        dma_burst_qspi_addr <= qspi_addr_cur;
+                        dma_burst_len       <= bytes_remaining[15:0];
+                        dma_burst_start     <= 1'b1;
+                        qspi_burst_open     <= 1'b1;
+                    end
+                    // Either way, go to BWAIT which for QSPI waits for a
+                    // full 32-byte line in the FIFO (dma_burst_rx_count
+                    // >= 32) before transitioning to DRAIN.
                 end
                 else
                 begin
+                    // Plain SPI2MEM: per-line 32-byte burst as before.
                     dma_burst_qspi_read <= 1'b0;
+                    dma_burst_len       <= 16'd32;
+                    dma_burst_start     <= 1'b1;
                 end
                 state            <= ST_S2M_BWAIT;
             end
@@ -545,8 +562,22 @@ begin
             ST_S2M_BWAIT:
             begin
                 dma_burst_select <= 1'b1;
-                if (dma_burst_done)
+                if (ctrl_mode == MODE_SPI2MEM_QSPI)
                 begin
+                    // Wait until at least one full 32-byte cache line is
+                    // sitting in the RX FIFO. The big burst keeps pushing
+                    // bytes in the background; the FIFO is sized to 32 so
+                    // it never overflows (drain rate 1 byte/cycle is ~8x
+                    // the 4-bit-per-SCK fill rate).
+                    if (dma_burst_rx_count >= 8'd32)
+                    begin
+                        dma_burst_re_rx <= 1'b1;
+                        state           <= ST_S2M_DRAIN;
+                    end
+                end
+                else if (dma_burst_done)
+                begin
+                    // Plain SPI2MEM: wait for the 32-byte burst to finish.
                     // Pre-assert re_rx so the controller pops byte 0 on
                     // the first DRAIN cycle (re_rx is an output reg with
                     // a one-cycle propagation delay; capturing rx_data
@@ -751,6 +782,7 @@ begin
                 dma_burst_select <= 1'b0;
                 busy        <= 1'b0;
                 sticky_done <= 1'b1;
+                qspi_burst_open <= 1'b0;
                 if (ctrl_irq_en)
                     irq <= 1'b1;
                 state <= ST_IDLE;
@@ -761,6 +793,7 @@ begin
                 dma_burst_select <= 1'b0;
                 busy         <= 1'b0;
                 sticky_error <= 1'b1;
+                qspi_burst_open <= 1'b0;
                 if (ctrl_irq_en)
                     irq <= 1'b1;
                 state <= ST_IDLE;
