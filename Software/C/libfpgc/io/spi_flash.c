@@ -169,11 +169,15 @@ spi_flash_write_words(int spi_id, int address, unsigned int *data, int word_coun
     send_addr(spi_id, address);
     /*
      * Fast path: when the source buffer and byte count are 32-byte aligned
-     * and the SPI controller supports DMA (id 0, 1, or 4), push the payload
-     * with the DMAengine in MEM2SPI mode while the CPU is free.
+     * and the SPI controller supports DMA burst writes (SimpleSPI2 only:
+     * id 0 or 4), push the payload with the DMAengine in MEM2SPI mode.
+     * SPI1 (QSPIflash) is excluded: its 1-bit burst path hangs under DMA
+     * MEM2SPI due to dma_select mux cycling between 32-byte chunks, and
+     * page-program is bottlenecked by the flash's internal program cycle
+     * (~1 ms) anyway, not bus bandwidth.
      */
     byte_count = (unsigned int)word_count * 4u;
-    if ((spi_id == 0 || spi_id == 1 || spi_id == 4) &&
+    if ((spi_id == 0 || spi_id == 4) &&
         ((unsigned int)data % 32u == 0u) &&
         (byte_count % 32u == 0u) &&
         byte_count > 0u) {

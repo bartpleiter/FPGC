@@ -107,6 +107,21 @@ The selected SPI peripheral is chosen by `SPI_ID` in `DMA_CTRL` and
 must already be selected (`CS` low) by the driver before starting
 the transfer.
 
+**SPI flash writes (page-program) are not DMA-accelerated on
+SPI1 (QSPIflash).** The QSPIflash controller's 1-bit SPI burst
+path does not reliably handle the DMA engine's per-32-byte
+`dma_select` cycling between SDRAM reads and SPI pushes.
+`spi_flash_write_words` falls back to byte-by-byte `spi_transfer`
+for SPI1; this is not a bottleneck because page-program latency is
+dominated by the flash chip's internal program cycle (~1 ms), not
+bus bandwidth. SPI flash **reads** on SPI1 use the dedicated QSPI
+Fast Read DMA path (`SPI2MEM_QSPI` mode), which issues a single
+continuous burst without per-chunk select cycling.
+
+DMA MEM2SPI is used for SPI0 (Flash 0) and SPI4 (ENC28J60), which
+are `SimpleSPI2` instances that handle the per-chunk cycling
+correctly.
+
 ### MEM2VRAM
 
 Streams a 32-byte-aligned region of SDRAM into the VRAMPX
