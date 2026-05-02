@@ -67,6 +67,7 @@
 #define SYSCALL_LSEEK            38
 #define SYSCALL_DUP2             39
 #define SYSCALL_FS_FORMAT        40   /* args: blocks, words_per_block, label_ptr */
+#define SYSCALL_SD_FORMAT        41   /* args: blocks, words_per_block, label_ptr (SD card) */
 
 /* Syscall dispatch function */
 int bdos_syscall_dispatch(int num, int a1, int a2, int a3);

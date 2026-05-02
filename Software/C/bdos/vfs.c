@@ -71,6 +71,11 @@ static int pixpal_write(bdos_fd_t *f, const void *buf, int len);
 static int pixpal_close(bdos_fd_t *f);
 static int pixpal_lseek(bdos_fd_t *f, int off, int whence);
 
+static int sdfile_read (bdos_fd_t *f, void *buf, int len);
+static int sdfile_write(bdos_fd_t *f, const void *buf, int len);
+static int sdfile_close(bdos_fd_t *f);
+static int sdfile_lseek(bdos_fd_t *f, int off, int whence);
+
 typedef struct {
     int (*read )(bdos_fd_t *, void *, int);
     int (*write)(bdos_fd_t *, const void *, int);
@@ -84,6 +89,7 @@ static const dev_ops_t dev_table[] = {
     { file_read,   file_write,   file_close,   file_lseek   }, /* DEV_FILE   */
     { null_read,   null_write,   null_close,   null_lseek   }, /* DEV_NULL   */
     { pixpal_read, pixpal_write, pixpal_close, pixpal_lseek }, /* DEV_PIXPAL */
+    { sdfile_read, sdfile_write, sdfile_close, sdfile_lseek }, /* DEV_SDFILE */
 };
 #define DEV_TABLE_LEN ((int)(sizeof(dev_table) / sizeof(dev_table[0])))
 
@@ -112,6 +118,16 @@ static int str_eq(const char *a, const char *b)
 {
     while (*a && *a == *b) { a++; b++; }
     return *a == *b;
+}
+
+static int str_startswith(const char *s, const char *prefix)
+{
+    while (*prefix) {
+        if (*s != *prefix) return 0;
+        s++;
+        prefix++;
+    }
+    return 1;
 }
 
 /* ============================================================ TTY dev === */
@@ -206,18 +222,18 @@ static int tty_lseek(bdos_fd_t *f, int off, int whence)
 static int file_read(bdos_fd_t *f, void *buf, int len)
 {
     if (len <= 0) return 0;
-    return brfs_read(f->handle, buf, (unsigned int)len);
+    return brfs_read(&brfs_spi, f->handle, buf, (unsigned int)len);
 }
 
 static int file_write(bdos_fd_t *f, const void *buf, int len)
 {
     if (len <= 0) return 0;
-    return brfs_write(f->handle, buf, (unsigned int)len);
+    return brfs_write(&brfs_spi, f->handle, buf, (unsigned int)len);
 }
 
 static int file_close(bdos_fd_t *f)
 {
-    return brfs_close(f->handle);
+    return brfs_close(&brfs_spi, f->handle);
 }
 
 static int file_lseek(bdos_fd_t *f, int off, int whence)
@@ -231,12 +247,12 @@ static int file_lseek(bdos_fd_t *f, int off, int whence)
             newpos = off;
             break;
         case BDOS_SEEK_CUR:
-            cur = brfs_tell(f->handle);
+            cur = brfs_tell(&brfs_spi, f->handle);
             if (cur < 0) return -1;
             newpos = cur + off;
             break;
         case BDOS_SEEK_END:
-            sz = brfs_file_size(f->handle);
+            sz = brfs_file_size(&brfs_spi, f->handle);
             if (sz < 0) return -1;
             newpos = sz + off;
             break;
@@ -244,7 +260,7 @@ static int file_lseek(bdos_fd_t *f, int off, int whence)
             return -1;
     }
     if (newpos < 0) newpos = 0;
-    return brfs_seek(f->handle, (unsigned int)newpos);
+    return brfs_seek(&brfs_spi, f->handle, (unsigned int)newpos);
 }
 
 /* ============================================================ Null dev == */
@@ -331,6 +347,56 @@ static int pixpal_lseek(bdos_fd_t *f, int off, int whence)
     return newpos;
 }
 
+/* ============================================================ SD file dev =
+ *
+ * DEV_SDFILE — files on the SD card BRFS instance (brfs_sd).
+ * Same pass-through approach as DEV_FILE but using brfs_sd instead of brfs_spi.
+ */
+
+static int sdfile_read(bdos_fd_t *f, void *buf, int len)
+{
+    if (len <= 0) return 0;
+    return brfs_read(&brfs_sd, f->handle, buf, (unsigned int)len);
+}
+
+static int sdfile_write(bdos_fd_t *f, const void *buf, int len)
+{
+    if (len <= 0) return 0;
+    return brfs_write(&brfs_sd, f->handle, buf, (unsigned int)len);
+}
+
+static int sdfile_close(bdos_fd_t *f)
+{
+    return brfs_close(&brfs_sd, f->handle);
+}
+
+static int sdfile_lseek(bdos_fd_t *f, int off, int whence)
+{
+    int newpos;
+    int cur;
+    int sz;
+
+    switch (whence) {
+        case BDOS_SEEK_SET:
+            newpos = off;
+            break;
+        case BDOS_SEEK_CUR:
+            cur = brfs_tell(&brfs_sd, f->handle);
+            if (cur < 0) return -1;
+            newpos = cur + off;
+            break;
+        case BDOS_SEEK_END:
+            sz = brfs_file_size(&brfs_sd, f->handle);
+            if (sz < 0) return -1;
+            newpos = sz + off;
+            break;
+        default:
+            return -1;
+    }
+    if (newpos < 0) newpos = 0;
+    return brfs_seek(&brfs_sd, f->handle, (unsigned int)newpos);
+}
+
 /* ============================================================ Public ==== */
 
 void bdos_vfs_init(void)
@@ -384,25 +450,43 @@ int bdos_vfs_open(const char *path, int flags)
             return -1;
         dev = BDOS_DEV_PIXPAL;
         handle = 0;  /* byte cursor starts at 0 */
+    } else if (str_startswith(path, "/sdcard/") || str_eq(path, "/sdcard")) {
+        if (!bdos_sd_ready) return -1;
+        dev = BDOS_DEV_SDFILE;
+        /* Strip "/sdcard" prefix: "/sdcard/foo" → "/foo" */
+        {
+            const char *sd_path = path + 7;  /* skip "/sdcard" */
+            if (*sd_path == '\0') sd_path = "/";
+            if ((flags & BDOS_O_TRUNC) && (flags & BDOS_O_WRONLY)) {
+                if (brfs_exists(&brfs_sd, sd_path) > 0) brfs_delete(&brfs_sd, sd_path);
+            }
+            handle = brfs_open(&brfs_sd, sd_path);
+            if (handle < 0 && (flags & BDOS_O_CREAT)) {
+                if (brfs_create_file(&brfs_sd, sd_path) < 0) return -1;
+                handle = brfs_open(&brfs_sd, sd_path);
+            }
+            if (handle < 0) return -1;
+        }
     } else {
         dev = BDOS_DEV_FILE;
         /* Honor O_TRUNC: if the file exists and the caller asked to
          * truncate, delete it first so the recreation below starts from
          * an empty file. (BRFS has no in-place truncate.) */
         if ((flags & BDOS_O_TRUNC) && (flags & BDOS_O_WRONLY)) {
-            if (brfs_exists(path) > 0) brfs_delete(path);
+            if (brfs_exists(&brfs_spi, path) > 0) brfs_delete(&brfs_spi, path);
         }
-        handle = brfs_open(path);
+        handle = brfs_open(&brfs_spi, path);
         if (handle < 0 && (flags & BDOS_O_CREAT)) {
-            if (brfs_create_file(path) < 0) return -1;
-            handle = brfs_open(path);
+            if (brfs_create_file(&brfs_spi, path) < 0) return -1;
+            handle = brfs_open(&brfs_spi, path);
         }
         if (handle < 0) return -1;
     }
 
     fd = alloc_fd();
     if (fd < 0) {
-        if (dev == BDOS_DEV_FILE) brfs_close(handle);
+        if (dev == BDOS_DEV_FILE) brfs_close(&brfs_spi, handle);
+        if (dev == BDOS_DEV_SDFILE) brfs_close(&brfs_sd, handle);
         return -1;
     }
     f = &fds()[fd];

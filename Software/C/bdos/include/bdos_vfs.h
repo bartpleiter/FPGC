@@ -9,6 +9,7 @@
  *   DEV_NULL   — /dev/null.
  *   DEV_PIXPAL — /dev/pixpal, the 256-entry × 4-byte 8-bit pixel
  *                palette DAC (see vfs-devices.md).
+ *   DEV_SDFILE — backed by SD card BRFS instance, mounted at /sdcard.
  *
  * fd table is global for now (BDOS still only has one foreground program
  * at a time at the syscall level). Phase C splits it per-process.
@@ -17,6 +18,7 @@
  *   "/dev/tty"     → DEV_TTY
  *   "/dev/null"    → DEV_NULL
  *   "/dev/pixpal"  → DEV_PIXPAL
+ *   "/sdcard/*"    → DEV_SDFILE via SD card BRFS
  *   anything else  → DEV_FILE via BRFS
  */
 
@@ -27,6 +29,7 @@
 #define BDOS_DEV_FILE      2
 #define BDOS_DEV_NULL      3
 #define BDOS_DEV_PIXPAL    4
+#define BDOS_DEV_SDFILE    5
 
 #define BDOS_O_RDONLY      0x01
 #define BDOS_O_WRONLY      0x02

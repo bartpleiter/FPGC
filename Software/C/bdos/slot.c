@@ -208,7 +208,7 @@ int bdos_exec_program(char *resolved_path)
   strncpy(bdos_slot_name[slot], basename, 31);
   bdos_slot_name[slot][31] = 0;
 
-  fd = brfs_open(resolved_path);
+  fd = brfs_open(&brfs_spi, resolved_path);
   if (fd < 0)
   {
     bdos_shell_print_fs_error("open", fd);
@@ -216,11 +216,11 @@ int bdos_exec_program(char *resolved_path)
     return -1;
   }
 
-  file_size = brfs_file_size(fd);
+  file_size = brfs_file_size(&brfs_spi, fd);
   if (file_size <= 0)
   {
     term_puts("error: empty or invalid binary\n");
-    brfs_close(fd);
+    brfs_close(&brfs_spi, fd);
     bdos_slot_free(slot);
     return -1;
   }
@@ -230,7 +230,7 @@ int bdos_exec_program(char *resolved_path)
     term_puts("error: binary too large for slot (max ");
     term_putint((int)MEM_SLOT_SIZE);
     term_puts(" bytes)\n");
-    brfs_close(fd);
+    brfs_close(&brfs_spi, fd);
     bdos_slot_free(slot);
     return -1;
   }
@@ -252,11 +252,11 @@ int bdos_exec_program(char *resolved_path)
       chunk_len = 1024;
     }
 
-    bytes_read = brfs_read(fd, dest, (unsigned int)chunk_len);
+    bytes_read = brfs_read(&brfs_spi, fd, dest, (unsigned int)chunk_len);
     if (bytes_read < 0)
     {
       bdos_shell_print_fs_error("read", bytes_read);
-      brfs_close(fd);
+      brfs_close(&brfs_spi, fd);
       bdos_slot_free(slot);
       return -1;
     }
@@ -270,7 +270,7 @@ int bdos_exec_program(char *resolved_path)
     bytes_remaining = bytes_remaining - bytes_read;
   }
 
-  brfs_close(fd);
+  brfs_close(&brfs_spi, fd);
 
   /* Apply load-time relocations if present */
   {
@@ -351,7 +351,7 @@ int bdos_exec_program(char *resolved_path)
   /* Execute via asm trampoline — returns when user program exits */
   bdos_exec_trampoline();
 
-  brfs_close_all();
+  brfs_close_all(&brfs_spi);
   bdos_ccache();
 
   bdos_active_slot = BDOS_SLOT_NONE;
@@ -397,7 +397,7 @@ void bdos_resume_program(int slot)
   bdos_resume_trampoline(slot);
 
   /* Reached when user program exits normally via trampoline return */
-  brfs_close_all();
+  brfs_close_all(&brfs_spi);
   bdos_ccache();
 
   bdos_active_slot = BDOS_SLOT_NONE;

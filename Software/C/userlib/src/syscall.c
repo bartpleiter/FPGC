@@ -72,6 +72,11 @@ int sys_fs_format(int blocks, int words_per_block, char *label)
     return syscall(SYSCALL_FS_FORMAT, blocks, words_per_block, (int)label);
 }
 
+int sys_sd_format(int blocks, int words_per_block, char *label)
+{
+    return syscall(SYSCALL_SD_FORMAT, blocks, words_per_block, (int)label);
+}
+
 /* ---- Shell ---- */
 
 int    sys_shell_argc  (void) { return        syscall(SYSCALL_SHELL_ARGC,   0, 0, 0); }

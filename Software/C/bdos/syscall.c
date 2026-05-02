@@ -19,17 +19,17 @@ int bdos_syscall_dispatch(int num, int a1, int a2, int a3)
   switch (num)
   {
     /* ---- Filesystem (raw BRFS — kept for tools that want word-level I/O) ---- */
-    case SYSCALL_FS_OPEN:      return brfs_open((char *)a1);
-    case SYSCALL_FS_CLOSE:     return brfs_close(a1);
-    case SYSCALL_FS_READ:      return brfs_read(a1, (void *)a2, (unsigned int)a3);
-    case SYSCALL_FS_WRITE:     return brfs_write(a1, (const void *)a2, (unsigned int)a3);
-    case SYSCALL_FS_SEEK:      return brfs_seek(a1, (unsigned int)a2);
-    case SYSCALL_FS_STAT:      return brfs_stat((char *)a1, (struct brfs_dir_entry *)a2);
-    case SYSCALL_FS_DELETE:    return brfs_delete((char *)a1);
-    case SYSCALL_FS_CREATE:    return brfs_create_file((char *)a1);
-    case SYSCALL_FS_FILESIZE:  return brfs_file_size(a1);
-    case SYSCALL_FS_READDIR:   return brfs_read_dir((char *)a1, (struct brfs_dir_entry *)a2, (unsigned int)a3);
-    case SYSCALL_FS_MKDIR:     return brfs_create_dir((char *)a1);
+    case SYSCALL_FS_OPEN:      return brfs_open(&brfs_spi, (char *)a1);
+    case SYSCALL_FS_CLOSE:     return brfs_close(&brfs_spi, a1);
+    case SYSCALL_FS_READ:      return brfs_read(&brfs_spi, a1, (void *)a2, (unsigned int)a3);
+    case SYSCALL_FS_WRITE:     return brfs_write(&brfs_spi, a1, (const void *)a2, (unsigned int)a3);
+    case SYSCALL_FS_SEEK:      return brfs_seek(&brfs_spi, a1, (unsigned int)a2);
+    case SYSCALL_FS_STAT:      return brfs_stat(&brfs_spi, (char *)a1, (struct brfs_dir_entry *)a2);
+    case SYSCALL_FS_DELETE:    return brfs_delete(&brfs_spi, (char *)a1);
+    case SYSCALL_FS_CREATE:    return brfs_create_file(&brfs_spi, (char *)a1);
+    case SYSCALL_FS_FILESIZE:  return brfs_file_size(&brfs_spi, a1);
+    case SYSCALL_FS_READDIR:   return brfs_read_dir(&brfs_spi, (char *)a1, (struct brfs_dir_entry *)a2, (unsigned int)a3);
+    case SYSCALL_FS_MKDIR:     return brfs_create_dir(&brfs_spi, (char *)a1);
 
     case SYSCALL_FS_FORMAT:
       /* args: a1 = blocks, a2 = words_per_block, a3 = label_ptr.
@@ -38,6 +38,12 @@ int bdos_syscall_dispatch(int num, int a1, int a2, int a3)
                                      (unsigned int)a2,
                                      (char *)a3,
                                      1 /* full format */);
+
+    case SYSCALL_SD_FORMAT:
+      return bdos_fs_sd_format_and_sync((unsigned int)a1,
+                                        (unsigned int)a2,
+                                        (char *)a3,
+                                        1 /* full format */);
 
     /* ---- Shell integration ---- */
     case SYSCALL_SHELL_ARGC:   return bdos_shell_prog_argc;

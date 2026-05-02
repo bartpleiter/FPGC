@@ -203,7 +203,7 @@ int bdos_shell_run_cmd(int argc, char **argv)
     if (!bdos_shell_require_fs_ready()) return 1;
 
     if (bdos_shell_resolve_program(argv[0], prog_path) != BRFS_OK ||
-        !brfs_exists(prog_path) || brfs_is_dir(prog_path)) {
+        !brfs_exists(&brfs_spi, prog_path) || brfs_is_dir(&brfs_spi, prog_path)) {
         term_puts(argv[0]);
         term_puts(": command not found\n");
         return 127;
@@ -253,7 +253,7 @@ static int run_pipeline(const sh_pipeline_t *pl)
             for (n = 0; pre[n]; n++) *p++ = pre[n];
             bdos_shell_u32_to_str(g_pipe_seq++, p);
             next_pipe = pipe_b;
-            brfs_create_file(next_pipe);
+            brfs_create_file(&brfs_spi, next_pipe);
         }
 
         /* Wire stdin from the previous pipe stage's temp file. */
@@ -284,7 +284,7 @@ static int run_pipeline(const sh_pipeline_t *pl)
         reset_stdio();
 
         /* Delete the just-consumed prev_pipe temp file. */
-        if (prev_pipe) brfs_delete(prev_pipe);
+        if (prev_pipe) brfs_delete(&brfs_spi, prev_pipe);
         if (next_pipe) {
             /* Move next_pipe \u2192 pipe_a so we can reuse pipe_b next iter. */
             int n;
@@ -296,7 +296,7 @@ static int run_pipeline(const sh_pipeline_t *pl)
         }
     }
 
-    if (prev_pipe) brfs_delete(prev_pipe);
+    if (prev_pipe) brfs_delete(&brfs_spi, prev_pipe);
     return exit_code;
 }
 

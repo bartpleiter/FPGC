@@ -1,30 +1,31 @@
 #include "brfs.h"
 #include <string.h>
 
-/* ---- Global State ---- */
-struct brfs_state brfs;
-static brfs_progress_callback_t brfs_progress_callback = NULL;
+/* ---- Global instance removed; callers own their brfs_state. ---- */
 
-static void brfs_report_progress(const char *phase, unsigned int current, unsigned int total)
+static void brfs_report_progress(struct brfs_state *fs, const char *phase, unsigned int current, unsigned int total)
 {
-  if (brfs_progress_callback != NULL)
+  if (fs->progress_callback != NULL)
   {
-    brfs_progress_callback(phase, current, total);
+    fs->progress_callback(phase, current, total);
   }
 }
 
 /* ---- Internal Helper Functions - Forward Declarations ---- */
-static unsigned int *brfs_get_superblock(void);
-static unsigned int *brfs_get_fat(void);
-static unsigned int *brfs_get_data_block(unsigned int block_idx);
-static int brfs_find_free_block(void);
-static int brfs_find_free_dir_entry(unsigned int *dir_block);
-static int brfs_get_dir_fat_idx(const char *dir_path);
-static int brfs_find_in_directory(unsigned int dir_fat_idx, const char *name,
+static unsigned int *brfs_get_superblock(struct brfs_state *fs);
+static unsigned int *brfs_get_fat(struct brfs_state *fs);
+static unsigned int *brfs_get_data_block(struct brfs_state *fs, unsigned int block_idx);
+static int brfs_find_free_block(struct brfs_state *fs);
+static int brfs_find_free_dir_entry(struct brfs_state *fs, unsigned int *dir_block);
+static int brfs_get_dir_fat_idx(struct brfs_state *fs, const char *dir_path);
+static int brfs_find_in_directory(struct brfs_state *fs, unsigned int dir_fat_idx,
+                                  const char *name,
                                   struct brfs_dir_entry **entry_out);
-static void brfs_mark_block_dirty(unsigned int block_idx);
-static int brfs_get_fat_idx_at_offset(unsigned int start_fat_idx, unsigned int offset);
-static void brfs_init_directory_block(unsigned int *block_addr, unsigned int dir_fat_idx,
+static void brfs_mark_block_dirty(struct brfs_state *fs, unsigned int block_idx);
+static int brfs_get_fat_idx_at_offset(struct brfs_state *fs, unsigned int start_fat_idx,
+                                      unsigned int offset);
+static void brfs_init_directory_block(struct brfs_state *fs, unsigned int *block_addr,
+                                      unsigned int dir_fat_idx,
                                       unsigned int parent_fat_idx);
 static void brfs_create_dir_entry(struct brfs_dir_entry *entry, const char *filename,
                                   unsigned int fat_idx, unsigned int filesize,
@@ -182,31 +183,31 @@ int brfs_parse_path(const char *path, char *dir_path, char *filename,
 
 /* ---- Internal Cache Access Functions ---- */
 
-static unsigned int *brfs_get_superblock(void)
+static unsigned int *brfs_get_superblock(struct brfs_state *fs)
 {
-  return brfs_cache_superblock(&brfs.cache_state);
+  return brfs_cache_superblock(&fs->cache_state);
 }
 
-static unsigned int *brfs_get_fat(void)
+static unsigned int *brfs_get_fat(struct brfs_state *fs)
 {
-  return brfs_cache_fat(&brfs.cache_state);
+  return brfs_cache_fat(&fs->cache_state);
 }
 
-static unsigned int *brfs_get_data_block(unsigned int block_idx)
+static unsigned int *brfs_get_data_block(struct brfs_state *fs, unsigned int block_idx)
 {
-  return brfs_cache_data(&brfs.cache_state, block_idx);
+  return brfs_cache_data(&fs->cache_state, block_idx);
 }
 
 /* ---- Block Allocation Functions ---- */
 
-static int brfs_find_free_block(void)
+static int brfs_find_free_block(struct brfs_state *fs)
 {
   struct brfs_superblock *sb;
   unsigned int *fat;
   unsigned int i;
 
-  sb = (struct brfs_superblock *)brfs_get_superblock();
-  fat = brfs_get_fat();
+  sb = (struct brfs_superblock *)brfs_get_superblock(fs);
+  fat = brfs_get_fat(fs);
 
   for (i = 0; i < sb->total_blocks; i++)
   {
@@ -219,14 +220,14 @@ static int brfs_find_free_block(void)
   return BRFS_ERR_NO_SPACE;
 }
 
-static int brfs_find_free_dir_entry(unsigned int *dir_block)
+static int brfs_find_free_dir_entry(struct brfs_state *fs, unsigned int *dir_block)
 {
   struct brfs_superblock *sb;
   unsigned int max_entries;
   unsigned int i;
   struct brfs_dir_entry *entry;
 
-  sb = (struct brfs_superblock *)brfs_get_superblock();
+  sb = (struct brfs_superblock *)brfs_get_superblock(fs);
   max_entries = sb->words_per_block / BRFS_DIR_ENTRY_SIZE;
 
   for (i = 0; i < max_entries; i++)
@@ -241,15 +242,15 @@ static int brfs_find_free_dir_entry(unsigned int *dir_block)
   return BRFS_ERR_NO_ENTRY;
 }
 
-static void brfs_mark_block_dirty(unsigned int block_idx)
+static void brfs_mark_block_dirty(struct brfs_state *fs, unsigned int block_idx)
 {
-  brfs_cache_mark_dirty(&brfs.cache_state, block_idx);
+  brfs_cache_mark_dirty(&fs->cache_state, block_idx);
 }
 
 /* ---- FAT Chain Navigation ----
  * v2: byte_offset selects a block via byte_offset / (words_per_block*4). */
 
-static int brfs_get_fat_idx_at_offset(unsigned int start_fat_idx, unsigned int byte_offset)
+static int brfs_get_fat_idx_at_offset(struct brfs_state *fs, unsigned int start_fat_idx, unsigned int byte_offset)
 {
   struct brfs_superblock *sb;
   unsigned int *fat;
@@ -257,8 +258,8 @@ static int brfs_get_fat_idx_at_offset(unsigned int start_fat_idx, unsigned int b
   unsigned int blocks_to_skip;
   unsigned int bytes_per_block;
 
-  sb = (struct brfs_superblock *)brfs_get_superblock();
-  fat = brfs_get_fat();
+  sb = (struct brfs_superblock *)brfs_get_superblock(fs);
+  fat = brfs_get_fat(fs);
 
   current_idx = start_fat_idx;
   bytes_per_block = sb->words_per_block * 4u;
@@ -279,7 +280,7 @@ static int brfs_get_fat_idx_at_offset(unsigned int start_fat_idx, unsigned int b
 
 /* ---- Directory Navigation and Lookup ---- */
 
-static int brfs_get_dir_fat_idx(const char *dir_path)
+static int brfs_get_dir_fat_idx(struct brfs_state *fs, const char *dir_path)
 {
   struct brfs_superblock *sb;
   unsigned int current_fat_idx;
@@ -307,7 +308,7 @@ static int brfs_get_dir_fat_idx(const char *dir_path)
     return 0;
   }
 
-  sb = (struct brfs_superblock *)brfs_get_superblock();
+  sb = (struct brfs_superblock *)brfs_get_superblock(fs);
   current_fat_idx = 0;
 
   strcpy(path_copy, dir_path);
@@ -341,7 +342,7 @@ static int brfs_get_dir_fat_idx(const char *dir_path)
       continue;
     }
 
-    result = brfs_find_in_directory(current_fat_idx, token, &found_entry);
+    result = brfs_find_in_directory(fs, current_fat_idx, token, &found_entry);
     if (result != BRFS_OK)
     {
       return result;
@@ -358,7 +359,7 @@ static int brfs_get_dir_fat_idx(const char *dir_path)
   return (int)current_fat_idx;
 }
 
-static int brfs_find_in_directory(unsigned int dir_fat_idx, const char *name,
+static int brfs_find_in_directory(struct brfs_state *fs, unsigned int dir_fat_idx, const char *name,
                                   struct brfs_dir_entry **entry_out)
 {
   struct brfs_superblock *sb;
@@ -368,8 +369,8 @@ static int brfs_find_in_directory(unsigned int dir_fat_idx, const char *name,
   struct brfs_dir_entry *entry;
   char entry_name[BRFS_MAX_FILENAME_LENGTH + 1];
 
-  sb = (struct brfs_superblock *)brfs_get_superblock();
-  dir_block = brfs_get_data_block(dir_fat_idx);
+  sb = (struct brfs_superblock *)brfs_get_superblock(fs);
+  dir_block = brfs_get_data_block(fs, dir_fat_idx);
   max_entries = sb->words_per_block / BRFS_DIR_ENTRY_SIZE;
 
   for (i = 0; i < max_entries; i++)
@@ -408,14 +409,14 @@ static void brfs_create_dir_entry(struct brfs_dir_entry *entry, const char *file
   entry->modify_date = 0;
 }
 
-static void brfs_init_directory_block(unsigned int *block_addr, unsigned int dir_fat_idx,
+static void brfs_init_directory_block(struct brfs_state *fs, unsigned int *block_addr, unsigned int dir_fat_idx,
                                       unsigned int parent_fat_idx)
 {
   struct brfs_superblock *sb;
   struct brfs_dir_entry entry;
   unsigned int max_entries;
 
-  sb = (struct brfs_superblock *)brfs_get_superblock();
+  sb = (struct brfs_superblock *)brfs_get_superblock(fs);
   max_entries = sb->words_per_block / BRFS_DIR_ENTRY_SIZE;
 
   memset(block_addr, 0, sb->words_per_block * sizeof(unsigned int));
@@ -431,36 +432,37 @@ static void brfs_init_directory_block(unsigned int *block_addr, unsigned int dir
 
 /* ---- Initialization Functions ---- */
 
-int brfs_init(brfs_storage_t *storage, unsigned int *cache_addr, unsigned int cache_size)
+int brfs_init(struct brfs_state *fs, brfs_storage_t *storage, unsigned int *cache_addr, unsigned int cache_size)
 {
   unsigned int i;
 
-  brfs.cache = cache_addr;
-  brfs.cache_size = cache_size;
-  brfs.initialized = 0;
+  fs->cache = cache_addr;
+  fs->cache_size = cache_size;
+  fs->initialized = 0;
+  fs->progress_callback = NULL;
 
-  brfs_cache_init(&brfs.cache_state, storage, cache_addr, cache_size);
-  brfs_cache_set_layout(&brfs.cache_state,
+  brfs_cache_init(&fs->cache_state, storage, cache_addr, cache_size);
+  brfs_cache_set_layout(&fs->cache_state,
                         BRFS_FLASH_SUPERBLOCK_ADDR,
                         BRFS_FLASH_FAT_ADDR,
                         BRFS_FLASH_DATA_ADDR);
 
   for (i = 0; i < BRFS_MAX_OPEN_FILES; i++)
   {
-    brfs.open_files[i].fat_idx = 0;
-    brfs.open_files[i].cursor = 0;
-    brfs.open_files[i].dir_entry = NULL;
+    fs->open_files[i].fat_idx = 0;
+    fs->open_files[i].cursor = 0;
+    fs->open_files[i].dir_entry = NULL;
   }
 
   return BRFS_OK;
 }
 
-void brfs_set_progress_callback(brfs_progress_callback_t callback)
+void brfs_set_progress_callback(struct brfs_state *fs, brfs_progress_callback_t callback)
 {
-  brfs_progress_callback = callback;
+  fs->progress_callback = callback;
 }
 
-int brfs_format(unsigned int total_blocks, unsigned int words_per_block,
+int brfs_format(struct brfs_state *fs, unsigned int total_blocks, unsigned int words_per_block,
                 const char *label, int full_format)
 {
   struct brfs_superblock *sb;
@@ -495,12 +497,12 @@ int brfs_format(unsigned int total_blocks, unsigned int words_per_block,
   }
 
   data_size = BRFS_SUPERBLOCK_SIZE + total_blocks + (total_blocks * words_per_block);
-  if (data_size > brfs.cache_size)
+  if (data_size > fs->cache_size)
   {
     return BRFS_ERR_NO_SPACE;
   }
 
-  sb = (struct brfs_superblock *)brfs_get_superblock();
+  sb = (struct brfs_superblock *)brfs_get_superblock(fs);
   memset(sb, 0, sizeof(struct brfs_superblock));
 
   sb->magic = BRFS_MAGIC;
@@ -509,7 +511,7 @@ int brfs_format(unsigned int total_blocks, unsigned int words_per_block,
   sb->brfs_version = BRFS_VERSION;
 
   /* Cache geometry must be known before any brfs_get_fat/data call below. */
-  brfs_cache_configure(&brfs.cache_state, total_blocks, words_per_block);
+  brfs_cache_configure(&fs->cache_state, total_blocks, words_per_block);
 
   if (label != NULL)
   {
@@ -519,12 +521,12 @@ int brfs_format(unsigned int total_blocks, unsigned int words_per_block,
     }
   }
 
-  fat = brfs_get_fat();
+  fat = brfs_get_fat(fs);
   memset(fat, 0, total_blocks * sizeof(unsigned int));
 
   if (full_format)
   {
-    root_block = brfs_get_data_block(0);
+    root_block = brfs_get_data_block(fs, 0);
     data_words = total_blocks * words_per_block;
     data_sectors = (data_words + BRFS_FLASH_WORDS_PER_SECTOR - 1) / BRFS_FLASH_WORDS_PER_SECTOR;
 
@@ -539,23 +541,23 @@ int brfs_format(unsigned int total_blocks, unsigned int words_per_block,
       }
 
       memset(root_block + sector_offset, 0, words_in_sector * sizeof(unsigned int));
-      brfs_report_progress("format-zero", sector + 1, data_sectors);
+      brfs_report_progress(fs, "format-zero", sector + 1, data_sectors);
     }
   }
 
-  root_block = brfs_get_data_block(0);
-  brfs_init_directory_block(root_block, 0, 0);
+  root_block = brfs_get_data_block(fs, 0);
+  brfs_init_directory_block(fs, root_block, 0, 0);
 
   fat[0] = BRFS_FAT_EOF;
 
   for (i = 0; i < total_blocks; i++)
   {
-    brfs_mark_block_dirty(i);
+    brfs_mark_block_dirty(fs, i);
   }
 
-  brfs_cache_flush_superblock(&brfs.cache_state);
+  brfs_cache_flush_superblock(&fs->cache_state);
 
-  brfs.initialized = 1;
+  fs->initialized = 1;
 
   return BRFS_OK;
 }
@@ -594,17 +596,17 @@ static int brfs_validate_superblock(struct brfs_superblock *sb)
 
 /* ---- Mount/Unmount Functions ---- */
 
-int brfs_mount(void)
+int brfs_mount(struct brfs_state *fs)
 {
   struct brfs_superblock *sb;
   unsigned int data_size;
   unsigned int i;
   int result;
 
-  result = brfs_cache_load_superblock(&brfs.cache_state);
+  result = brfs_cache_load_superblock(&fs->cache_state);
   if (result != BRFS_OK) return result;
 
-  sb = (struct brfs_superblock *)brfs_get_superblock();
+  sb = (struct brfs_superblock *)brfs_get_superblock(fs);
   result = brfs_validate_superblock(sb);
   if (result != BRFS_OK)
   {
@@ -613,39 +615,39 @@ int brfs_mount(void)
 
   data_size = BRFS_SUPERBLOCK_SIZE + sb->total_blocks +
               (sb->total_blocks * sb->words_per_block);
-  if (data_size > brfs.cache_size)
+  if (data_size > fs->cache_size)
   {
     return BRFS_ERR_NO_SPACE;
   }
 
-  brfs_cache_configure(&brfs.cache_state, sb->total_blocks, sb->words_per_block);
+  brfs_cache_configure(&fs->cache_state, sb->total_blocks, sb->words_per_block);
 
-  result = brfs_cache_load(&brfs.cache_state, brfs_progress_callback);
+  result = brfs_cache_load(&fs->cache_state, fs->progress_callback);
   if (result != BRFS_OK) return result;
 
   for (i = 0; i < BRFS_MAX_OPEN_FILES; i++)
   {
-    brfs.open_files[i].fat_idx = 0;
-    brfs.open_files[i].cursor = 0;
-    brfs.open_files[i].dir_entry = NULL;
+    fs->open_files[i].fat_idx = 0;
+    fs->open_files[i].cursor = 0;
+    fs->open_files[i].dir_entry = NULL;
   }
 
-  brfs.initialized = 1;
+  fs->initialized = 1;
 
   return BRFS_OK;
 }
 
-int brfs_unmount(void)
+int brfs_unmount(struct brfs_state *fs)
 {
   int result;
   unsigned int i;
 
-  if (!brfs.initialized)
+  if (!fs->initialized)
   {
     return BRFS_ERR_NOT_INITIALIZED;
   }
 
-  result = brfs_sync();
+  result = brfs_sync(fs);
   if (result != BRFS_OK)
   {
     return result;
@@ -653,12 +655,12 @@ int brfs_unmount(void)
 
   for (i = 0; i < BRFS_MAX_OPEN_FILES; i++)
   {
-    brfs.open_files[i].fat_idx = 0;
-    brfs.open_files[i].cursor = 0;
-    brfs.open_files[i].dir_entry = NULL;
+    fs->open_files[i].fat_idx = 0;
+    fs->open_files[i].cursor = 0;
+    fs->open_files[i].dir_entry = NULL;
   }
 
-  brfs.initialized = 0;
+  fs->initialized = 0;
 
   return BRFS_OK;
 }
@@ -667,18 +669,18 @@ int brfs_unmount(void)
  * Per-sector write helpers and brfs_sync's dirty-walking now live in
  * brfs_cache.c. brfs_sync is a thin wrapper. */
 
-int brfs_sync(void)
+int brfs_sync(struct brfs_state *fs)
 {
-  if (!brfs.initialized)
+  if (!fs->initialized)
   {
     return BRFS_ERR_NOT_INITIALIZED;
   }
-  return brfs_cache_flush(&brfs.cache_state, brfs_progress_callback);
+  return brfs_cache_flush(&fs->cache_state, fs->progress_callback);
 }
 
 /* ---- File Creation ---- */
 
-int brfs_create_file(const char *path)
+int brfs_create_file(struct brfs_state *fs, const char *path)
 {
   char dir_path[BRFS_MAX_PATH_LENGTH + 1];
   char filename[BRFS_MAX_FILENAME_LENGTH + 1];
@@ -692,7 +694,7 @@ int brfs_create_file(const char *path)
   struct brfs_dir_entry new_entry;
   struct brfs_superblock *sb;
 
-  if (!brfs.initialized)
+  if (!fs->initialized)
   {
     return BRFS_ERR_NOT_INITIALIZED;
   }
@@ -703,26 +705,26 @@ int brfs_create_file(const char *path)
     return result;
   }
 
-  dir_fat_idx = brfs_get_dir_fat_idx(dir_path);
+  dir_fat_idx = brfs_get_dir_fat_idx(fs, dir_path);
   if (dir_fat_idx < 0)
   {
     return dir_fat_idx;
   }
 
-  result = brfs_find_in_directory(dir_fat_idx, filename, &entry);
+  result = brfs_find_in_directory(fs, dir_fat_idx, filename, &entry);
   if (result == BRFS_OK)
   {
     return BRFS_ERR_EXISTS;
   }
 
-  free_block = brfs_find_free_block();
+  free_block = brfs_find_free_block(fs);
   if (free_block < 0)
   {
     return free_block;
   }
 
-  dir_block = brfs_get_data_block(dir_fat_idx);
-  free_entry_idx = brfs_find_free_dir_entry(dir_block);
+  dir_block = brfs_get_data_block(fs, dir_fat_idx);
+  free_entry_idx = brfs_find_free_dir_entry(fs, dir_block);
   if (free_entry_idx < 0)
   {
     return free_entry_idx;
@@ -733,21 +735,21 @@ int brfs_create_file(const char *path)
   entry = (struct brfs_dir_entry *)(dir_block + (free_entry_idx * BRFS_DIR_ENTRY_SIZE));
   memcpy(entry, &new_entry, sizeof(struct brfs_dir_entry));
 
-  fat = brfs_get_fat();
+  fat = brfs_get_fat(fs);
   fat[free_block] = BRFS_FAT_EOF;
 
-  sb = (struct brfs_superblock *)brfs_get_superblock();
-  memset(brfs_get_data_block(free_block), 0, sb->words_per_block * sizeof(unsigned int));
+  sb = (struct brfs_superblock *)brfs_get_superblock(fs);
+  memset(brfs_get_data_block(fs, free_block), 0, sb->words_per_block * sizeof(unsigned int));
 
-  brfs_mark_block_dirty(dir_fat_idx);
-  brfs_mark_block_dirty(free_block);
+  brfs_mark_block_dirty(fs, dir_fat_idx);
+  brfs_mark_block_dirty(fs, free_block);
 
   return BRFS_OK;
 }
 
 /* ---- Directory Creation ---- */
 
-int brfs_create_dir(const char *path)
+int brfs_create_dir(struct brfs_state *fs, const char *path)
 {
   char dir_path[BRFS_MAX_PATH_LENGTH + 1];
   char dirname[BRFS_MAX_FILENAME_LENGTH + 1];
@@ -763,7 +765,7 @@ int brfs_create_dir(const char *path)
   struct brfs_superblock *sb;
   unsigned int max_entries;
 
-  if (!brfs.initialized)
+  if (!fs->initialized)
   {
     return BRFS_ERR_NOT_INITIALIZED;
   }
@@ -774,32 +776,32 @@ int brfs_create_dir(const char *path)
     return result;
   }
 
-  parent_fat_idx = brfs_get_dir_fat_idx(dir_path);
+  parent_fat_idx = brfs_get_dir_fat_idx(fs, dir_path);
   if (parent_fat_idx < 0)
   {
     return parent_fat_idx;
   }
 
-  result = brfs_find_in_directory(parent_fat_idx, dirname, &entry);
+  result = brfs_find_in_directory(fs, parent_fat_idx, dirname, &entry);
   if (result == BRFS_OK)
   {
     return BRFS_ERR_EXISTS;
   }
 
-  free_block = brfs_find_free_block();
+  free_block = brfs_find_free_block(fs);
   if (free_block < 0)
   {
     return free_block;
   }
 
-  parent_dir_block = brfs_get_data_block(parent_fat_idx);
-  free_entry_idx = brfs_find_free_dir_entry(parent_dir_block);
+  parent_dir_block = brfs_get_data_block(fs, parent_fat_idx);
+  free_entry_idx = brfs_find_free_dir_entry(fs, parent_dir_block);
   if (free_entry_idx < 0)
   {
     return free_entry_idx;
   }
 
-  sb = (struct brfs_superblock *)brfs_get_superblock();
+  sb = (struct brfs_superblock *)brfs_get_superblock(fs);
   max_entries = sb->words_per_block / BRFS_DIR_ENTRY_SIZE;
 
   brfs_create_dir_entry(&new_entry, dirname, free_block,
@@ -808,21 +810,21 @@ int brfs_create_dir(const char *path)
   entry = (struct brfs_dir_entry *)(parent_dir_block + (free_entry_idx * BRFS_DIR_ENTRY_SIZE));
   memcpy(entry, &new_entry, sizeof(struct brfs_dir_entry));
 
-  new_dir_block = brfs_get_data_block(free_block);
-  brfs_init_directory_block(new_dir_block, free_block, parent_fat_idx);
+  new_dir_block = brfs_get_data_block(fs, free_block);
+  brfs_init_directory_block(fs, new_dir_block, free_block, parent_fat_idx);
 
-  fat = brfs_get_fat();
+  fat = brfs_get_fat(fs);
   fat[free_block] = BRFS_FAT_EOF;
 
-  brfs_mark_block_dirty(parent_fat_idx);
-  brfs_mark_block_dirty(free_block);
+  brfs_mark_block_dirty(fs, parent_fat_idx);
+  brfs_mark_block_dirty(fs, free_block);
 
   return BRFS_OK;
 }
 
 /* ---- File Open/Close ---- */
 
-int brfs_open(const char *path)
+int brfs_open(struct brfs_state *fs, const char *path)
 {
   char dir_path[BRFS_MAX_PATH_LENGTH + 1];
   char filename[BRFS_MAX_FILENAME_LENGTH + 1];
@@ -832,7 +834,7 @@ int brfs_open(const char *path)
   int fd;
   unsigned int i;
 
-  if (!brfs.initialized)
+  if (!fs->initialized)
   {
     return BRFS_ERR_NOT_INITIALIZED;
   }
@@ -843,13 +845,13 @@ int brfs_open(const char *path)
     return result;
   }
 
-  dir_fat_idx = brfs_get_dir_fat_idx(dir_path);
+  dir_fat_idx = brfs_get_dir_fat_idx(fs, dir_path);
   if (dir_fat_idx < 0)
   {
     return dir_fat_idx;
   }
 
-  result = brfs_find_in_directory(dir_fat_idx, filename, &entry);
+  result = brfs_find_in_directory(fs, dir_fat_idx, filename, &entry);
   if (result != BRFS_OK)
   {
     return result;
@@ -862,8 +864,8 @@ int brfs_open(const char *path)
 
   for (i = 0; i < BRFS_MAX_OPEN_FILES; i++)
   {
-    if (brfs.open_files[i].fat_idx == entry->fat_idx &&
-        brfs.open_files[i].dir_entry != NULL)
+    if (fs->open_files[i].fat_idx == entry->fat_idx &&
+        fs->open_files[i].dir_entry != NULL)
     {
       return BRFS_ERR_IS_OPEN;
     }
@@ -872,7 +874,7 @@ int brfs_open(const char *path)
   fd = -1;
   for (i = 0; i < BRFS_MAX_OPEN_FILES; i++)
   {
-    if (brfs.open_files[i].dir_entry == NULL)
+    if (fs->open_files[i].dir_entry == NULL)
     {
       fd = (int)i;
       break;
@@ -884,16 +886,16 @@ int brfs_open(const char *path)
     return BRFS_ERR_TOO_MANY_OPEN;
   }
 
-  brfs.open_files[fd].fat_idx = entry->fat_idx;
-  brfs.open_files[fd].cursor = 0;
-  brfs.open_files[fd].dir_entry = entry;
+  fs->open_files[fd].fat_idx = entry->fat_idx;
+  fs->open_files[fd].cursor = 0;
+  fs->open_files[fd].dir_entry = entry;
 
   return fd;
 }
 
-int brfs_close(int fd)
+int brfs_close(struct brfs_state *fs, int fd)
 {
-  if (!brfs.initialized)
+  if (!fs->initialized)
   {
     return BRFS_ERR_NOT_INITIALIZED;
   }
@@ -903,14 +905,14 @@ int brfs_close(int fd)
     return BRFS_ERR_INVALID_PARAM;
   }
 
-  if (brfs.open_files[fd].dir_entry == NULL)
+  if (fs->open_files[fd].dir_entry == NULL)
   {
     return BRFS_ERR_NOT_OPEN;
   }
 
-  brfs.open_files[fd].fat_idx = 0;
-  brfs.open_files[fd].cursor = 0;
-  brfs.open_files[fd].dir_entry = NULL;
+  fs->open_files[fd].fat_idx = 0;
+  fs->open_files[fd].cursor = 0;
+  fs->open_files[fd].dir_entry = NULL;
 
   return BRFS_OK;
 }
@@ -920,22 +922,22 @@ int brfs_close(int fd)
  * Called by BDOS after a user program exits (normally or via crash)
  * to ensure no stale file handles remain.
  */
-void brfs_close_all(void)
+void brfs_close_all(struct brfs_state *fs)
 {
   int i;
-  if (!brfs.initialized)
+  if (!fs->initialized)
     return;
   for (i = 0; i < BRFS_MAX_OPEN_FILES; i++)
   {
-    brfs.open_files[i].fat_idx = 0;
-    brfs.open_files[i].cursor = 0;
-    brfs.open_files[i].dir_entry = NULL;
+    fs->open_files[i].fat_idx = 0;
+    fs->open_files[i].cursor = 0;
+    fs->open_files[i].dir_entry = NULL;
   }
 }
 
 /* ---- File Read (byte-mode) ---- */
 
-int brfs_read(int fd, void *buffer, unsigned int length)
+int brfs_read(struct brfs_state *fs, int fd, void *buffer, unsigned int length)
 {
   struct brfs_superblock *sb;
   struct brfs_file *file;
@@ -950,15 +952,15 @@ int brfs_read(int fd, void *buffer, unsigned int length)
   unsigned int total_read;
   unsigned int remaining;
 
-  if (!brfs.initialized) return BRFS_ERR_NOT_INITIALIZED;
+  if (!fs->initialized) return BRFS_ERR_NOT_INITIALIZED;
   if (fd < 0 || fd >= BRFS_MAX_OPEN_FILES) return BRFS_ERR_INVALID_PARAM;
 
-  file = &brfs.open_files[fd];
+  file = &fs->open_files[fd];
   if (file->dir_entry == NULL) return BRFS_ERR_NOT_OPEN;
   if (buffer == NULL) return BRFS_ERR_INVALID_PARAM;
 
-  sb = (struct brfs_superblock *)brfs_get_superblock();
-  fat = brfs_get_fat();
+  sb = (struct brfs_superblock *)brfs_get_superblock(fs);
+  fat = brfs_get_fat(fs);
   bytes_per_block = sb->words_per_block * 4u;
 
   if (file->cursor >= file->dir_entry->filesize) return 0;
@@ -966,7 +968,7 @@ int brfs_read(int fd, void *buffer, unsigned int length)
   remaining = file->dir_entry->filesize - file->cursor;
   if (length > remaining) length = remaining;
 
-  current_fat_idx = brfs_get_fat_idx_at_offset(file->fat_idx, file->cursor);
+  current_fat_idx = brfs_get_fat_idx_at_offset(fs, file->fat_idx, file->cursor);
   if ((int)current_fat_idx < 0) return BRFS_ERR_READ_ERROR;
 
   out = (unsigned char *)buffer;
@@ -978,7 +980,7 @@ int brfs_read(int fd, void *buffer, unsigned int length)
     bytes_until_end = bytes_per_block - cursor_in_block;
     bytes_to_read = (bytes_until_end < length) ? bytes_until_end : length;
 
-    block_bytes = (unsigned char *)brfs_get_data_block(current_fat_idx);
+    block_bytes = (unsigned char *)brfs_get_data_block(fs, current_fat_idx);
     memcpy(out, block_bytes + cursor_in_block, bytes_to_read);
 
     out += bytes_to_read;
@@ -998,7 +1000,7 @@ int brfs_read(int fd, void *buffer, unsigned int length)
 
 /* ---- File Write (byte-mode) ---- */
 
-int brfs_write(int fd, const void *buffer, unsigned int length)
+int brfs_write(struct brfs_state *fs, int fd, const void *buffer, unsigned int length)
 {
   struct brfs_superblock *sb;
   struct brfs_file *file;
@@ -1014,19 +1016,19 @@ int brfs_write(int fd, const void *buffer, unsigned int length)
   int next_block;
   int result;
 
-  if (!brfs.initialized) return BRFS_ERR_NOT_INITIALIZED;
+  if (!fs->initialized) return BRFS_ERR_NOT_INITIALIZED;
   if (fd < 0 || fd >= BRFS_MAX_OPEN_FILES) return BRFS_ERR_INVALID_PARAM;
 
-  file = &brfs.open_files[fd];
+  file = &fs->open_files[fd];
   if (file->dir_entry == NULL) return BRFS_ERR_NOT_OPEN;
   if (buffer == NULL && length > 0) return BRFS_ERR_INVALID_PARAM;
   if (length == 0) return 0;
 
-  sb = (struct brfs_superblock *)brfs_get_superblock();
-  fat = brfs_get_fat();
+  sb = (struct brfs_superblock *)brfs_get_superblock(fs);
+  fat = brfs_get_fat(fs);
   bytes_per_block = sb->words_per_block * 4u;
 
-  result = brfs_get_fat_idx_at_offset(file->fat_idx, file->cursor);
+  result = brfs_get_fat_idx_at_offset(fs, file->fat_idx, file->cursor);
   if (result < 0)
   {
     /* Cursor sits exactly at the end of the last block (filesize is a
@@ -1041,12 +1043,12 @@ int brfs_write(int fd, const void *buffer, unsigned int length)
       {
         last_idx = fat[last_idx];
       }
-      next_block = brfs_find_free_block();
+      next_block = brfs_find_free_block(fs);
       if (next_block < 0) return BRFS_ERR_NO_SPACE;
       fat[last_idx] = next_block;
       fat[next_block] = BRFS_FAT_EOF;
-      memset(brfs_get_data_block(next_block), 0, sb->words_per_block * sizeof(unsigned int));
-      brfs_mark_block_dirty(next_block);
+      memset(brfs_get_data_block(fs, next_block), 0, sb->words_per_block * sizeof(unsigned int));
+      brfs_mark_block_dirty(fs, next_block);
       current_fat_idx = (unsigned int)next_block;
     }
     else
@@ -1068,10 +1070,10 @@ int brfs_write(int fd, const void *buffer, unsigned int length)
     bytes_until_end = bytes_per_block - cursor_in_block;
     bytes_to_write = (bytes_until_end < length) ? bytes_until_end : length;
 
-    block_bytes = (unsigned char *)brfs_get_data_block(current_fat_idx);
+    block_bytes = (unsigned char *)brfs_get_data_block(fs, current_fat_idx);
     memcpy(block_bytes + cursor_in_block, in, bytes_to_write);
 
-    brfs_mark_block_dirty(current_fat_idx);
+    brfs_mark_block_dirty(fs, current_fat_idx);
 
     in += bytes_to_write;
     file->cursor += bytes_to_write;
@@ -1082,7 +1084,7 @@ int brfs_write(int fd, const void *buffer, unsigned int length)
     {
       if (fat[current_fat_idx] == BRFS_FAT_EOF)
       {
-        next_block = brfs_find_free_block();
+        next_block = brfs_find_free_block(fs);
         if (next_block < 0)
         {
           if (file->cursor > file->dir_entry->filesize)
@@ -1093,8 +1095,8 @@ int brfs_write(int fd, const void *buffer, unsigned int length)
         }
         fat[current_fat_idx] = next_block;
         fat[next_block] = BRFS_FAT_EOF;
-        memset(brfs_get_data_block(next_block), 0, sb->words_per_block * sizeof(unsigned int));
-        brfs_mark_block_dirty(next_block);
+        memset(brfs_get_data_block(fs, next_block), 0, sb->words_per_block * sizeof(unsigned int));
+        brfs_mark_block_dirty(fs, next_block);
         current_fat_idx = next_block;
       }
       else
@@ -1114,11 +1116,11 @@ int brfs_write(int fd, const void *buffer, unsigned int length)
 
 /* ---- File Seek/Tell ---- */
 
-int brfs_seek(int fd, unsigned int offset)
+int brfs_seek(struct brfs_state *fs, int fd, unsigned int offset)
 {
   struct brfs_file *file;
 
-  if (!brfs.initialized)
+  if (!fs->initialized)
   {
     return BRFS_ERR_NOT_INITIALIZED;
   }
@@ -1128,7 +1130,7 @@ int brfs_seek(int fd, unsigned int offset)
     return BRFS_ERR_INVALID_PARAM;
   }
 
-  file = &brfs.open_files[fd];
+  file = &fs->open_files[fd];
 
   if (file->dir_entry == NULL)
   {
@@ -1145,11 +1147,11 @@ int brfs_seek(int fd, unsigned int offset)
   return (int)offset;
 }
 
-int brfs_tell(int fd)
+int brfs_tell(struct brfs_state *fs, int fd)
 {
   struct brfs_file *file;
 
-  if (!brfs.initialized)
+  if (!fs->initialized)
   {
     return BRFS_ERR_NOT_INITIALIZED;
   }
@@ -1159,7 +1161,7 @@ int brfs_tell(int fd)
     return BRFS_ERR_INVALID_PARAM;
   }
 
-  file = &brfs.open_files[fd];
+  file = &fs->open_files[fd];
 
   if (file->dir_entry == NULL)
   {
@@ -1169,11 +1171,11 @@ int brfs_tell(int fd)
   return (int)file->cursor;
 }
 
-int brfs_file_size(int fd)
+int brfs_file_size(struct brfs_state *fs, int fd)
 {
   struct brfs_file *file;
 
-  if (!brfs.initialized)
+  if (!fs->initialized)
   {
     return BRFS_ERR_NOT_INITIALIZED;
   }
@@ -1183,7 +1185,7 @@ int brfs_file_size(int fd)
     return BRFS_ERR_INVALID_PARAM;
   }
 
-  file = &brfs.open_files[fd];
+  file = &fs->open_files[fd];
 
   if (file->dir_entry == NULL)
   {
@@ -1195,7 +1197,7 @@ int brfs_file_size(int fd)
 
 /* ---- Directory Reading ---- */
 
-int brfs_read_dir(const char *path, struct brfs_dir_entry *buffer, unsigned int max_entries)
+int brfs_read_dir(struct brfs_state *fs, const char *path, struct brfs_dir_entry *buffer, unsigned int max_entries)
 {
   struct brfs_superblock *sb;
   int dir_fat_idx;
@@ -1205,7 +1207,7 @@ int brfs_read_dir(const char *path, struct brfs_dir_entry *buffer, unsigned int 
   unsigned int i;
   struct brfs_dir_entry *entry;
 
-  if (!brfs.initialized)
+  if (!fs->initialized)
   {
     return BRFS_ERR_NOT_INITIALIZED;
   }
@@ -1215,14 +1217,14 @@ int brfs_read_dir(const char *path, struct brfs_dir_entry *buffer, unsigned int 
     return BRFS_ERR_INVALID_PARAM;
   }
 
-  dir_fat_idx = brfs_get_dir_fat_idx(path);
+  dir_fat_idx = brfs_get_dir_fat_idx(fs, path);
   if (dir_fat_idx < 0)
   {
     return dir_fat_idx;
   }
 
-  sb = (struct brfs_superblock *)brfs_get_superblock();
-  dir_block = brfs_get_data_block(dir_fat_idx);
+  sb = (struct brfs_superblock *)brfs_get_superblock(fs);
+  dir_block = brfs_get_data_block(fs, dir_fat_idx);
   dir_max_entries = sb->words_per_block / BRFS_DIR_ENTRY_SIZE;
 
   count = 0;
@@ -1243,7 +1245,7 @@ int brfs_read_dir(const char *path, struct brfs_dir_entry *buffer, unsigned int 
 
 /* ---- Delete ---- */
 
-int brfs_delete(const char *path)
+int brfs_delete(struct brfs_state *fs, const char *path)
 {
   char dir_path[BRFS_MAX_PATH_LENGTH + 1];
   char filename[BRFS_MAX_FILENAME_LENGTH + 1];
@@ -1255,7 +1257,7 @@ int brfs_delete(const char *path)
   unsigned int next_fat_idx;
   unsigned int i;
 
-  if (!brfs.initialized)
+  if (!fs->initialized)
   {
     return BRFS_ERR_NOT_INITIALIZED;
   }
@@ -1266,13 +1268,13 @@ int brfs_delete(const char *path)
     return result;
   }
 
-  dir_fat_idx = brfs_get_dir_fat_idx(dir_path);
+  dir_fat_idx = brfs_get_dir_fat_idx(fs, dir_path);
   if (dir_fat_idx < 0)
   {
     return dir_fat_idx;
   }
 
-  result = brfs_find_in_directory(dir_fat_idx, filename, &entry);
+  result = brfs_find_in_directory(fs, dir_fat_idx, filename, &entry);
   if (result != BRFS_OK)
   {
     return result;
@@ -1286,8 +1288,8 @@ int brfs_delete(const char *path)
     struct brfs_dir_entry *sub_entry;
     unsigned int non_empty_count;
 
-    sb = (struct brfs_superblock *)brfs_get_superblock();
-    target_dir_block = brfs_get_data_block(entry->fat_idx);
+    sb = (struct brfs_superblock *)brfs_get_superblock(fs);
+    target_dir_block = brfs_get_data_block(fs, entry->fat_idx);
     max_entries = sb->words_per_block / BRFS_DIR_ENTRY_SIZE;
 
     non_empty_count = 0;
@@ -1308,33 +1310,33 @@ int brfs_delete(const char *path)
 
   for (i = 0; i < BRFS_MAX_OPEN_FILES; i++)
   {
-    if (brfs.open_files[i].dir_entry == entry)
+    if (fs->open_files[i].dir_entry == entry)
     {
       return BRFS_ERR_IS_OPEN;
     }
   }
 
-  fat = brfs_get_fat();
+  fat = brfs_get_fat(fs);
   current_fat_idx = entry->fat_idx;
 
   while (current_fat_idx != BRFS_FAT_EOF)
   {
     next_fat_idx = fat[current_fat_idx];
     fat[current_fat_idx] = BRFS_FAT_FREE;
-    brfs_mark_block_dirty(current_fat_idx);
+    brfs_mark_block_dirty(fs, current_fat_idx);
     current_fat_idx = next_fat_idx;
   }
 
   memset(entry, 0, sizeof(struct brfs_dir_entry));
 
-  brfs_mark_block_dirty(dir_fat_idx);
+  brfs_mark_block_dirty(fs, dir_fat_idx);
 
   return BRFS_OK;
 }
 
 /* ---- Stat Functions ---- */
 
-int brfs_stat(const char *path, struct brfs_dir_entry *entry)
+int brfs_stat(struct brfs_state *fs, const char *path, struct brfs_dir_entry *entry)
 {
   char dir_path[BRFS_MAX_PATH_LENGTH + 1];
   char filename[BRFS_MAX_FILENAME_LENGTH + 1];
@@ -1343,7 +1345,7 @@ int brfs_stat(const char *path, struct brfs_dir_entry *entry)
   struct brfs_dir_entry *found_entry;
   int len;
 
-  if (!brfs.initialized)
+  if (!fs->initialized)
   {
     return BRFS_ERR_NOT_INITIALIZED;
   }
@@ -1357,7 +1359,7 @@ int brfs_stat(const char *path, struct brfs_dir_entry *entry)
   if (len == 0 || (len == 1 && path[0] == '/'))
   {
     struct brfs_superblock *sb;
-    sb = (struct brfs_superblock *)brfs_get_superblock();
+    sb = (struct brfs_superblock *)brfs_get_superblock(fs);
 
     memset(entry, 0, sizeof(struct brfs_dir_entry));
     entry->flags = BRFS_FLAG_DIRECTORY;
@@ -1373,13 +1375,13 @@ int brfs_stat(const char *path, struct brfs_dir_entry *entry)
     return result;
   }
 
-  dir_fat_idx = brfs_get_dir_fat_idx(dir_path);
+  dir_fat_idx = brfs_get_dir_fat_idx(fs, dir_path);
   if (dir_fat_idx < 0)
   {
     return dir_fat_idx;
   }
 
-  result = brfs_find_in_directory(dir_fat_idx, filename, &found_entry);
+  result = brfs_find_in_directory(fs, dir_fat_idx, filename, &found_entry);
   if (result != BRFS_OK)
   {
     return result;
@@ -1390,17 +1392,17 @@ int brfs_stat(const char *path, struct brfs_dir_entry *entry)
   return BRFS_OK;
 }
 
-int brfs_exists(const char *path)
+int brfs_exists(struct brfs_state *fs, const char *path)
 {
   struct brfs_dir_entry entry;
-  return (brfs_stat(path, &entry) == BRFS_OK) ? 1 : 0;
+  return (brfs_stat(fs, path, &entry) == BRFS_OK) ? 1 : 0;
 }
 
-int brfs_is_dir(const char *path)
+int brfs_is_dir(struct brfs_state *fs, const char *path)
 {
   struct brfs_dir_entry entry;
 
-  if (brfs_stat(path, &entry) != BRFS_OK)
+  if (brfs_stat(fs, path, &entry) != BRFS_OK)
   {
     return 0;
   }
@@ -1410,7 +1412,7 @@ int brfs_is_dir(const char *path)
 
 /* ---- Filesystem Statistics ---- */
 
-int brfs_statfs(unsigned int *total_blocks, unsigned int *free_blocks,
+int brfs_statfs(struct brfs_state *fs, unsigned int *total_blocks, unsigned int *free_blocks,
                 unsigned int *block_size)
 {
   struct brfs_superblock *sb;
@@ -1418,13 +1420,13 @@ int brfs_statfs(unsigned int *total_blocks, unsigned int *free_blocks,
   unsigned int free_count;
   unsigned int i;
 
-  if (!brfs.initialized)
+  if (!fs->initialized)
   {
     return BRFS_ERR_NOT_INITIALIZED;
   }
 
-  sb = (struct brfs_superblock *)brfs_get_superblock();
-  fat = brfs_get_fat();
+  sb = (struct brfs_superblock *)brfs_get_superblock(fs);
+  fat = brfs_get_fat(fs);
 
   free_count = 0;
   for (i = 0; i < sb->total_blocks; i++)
@@ -1453,12 +1455,12 @@ int brfs_statfs(unsigned int *total_blocks, unsigned int *free_blocks,
   return BRFS_OK;
 }
 
-int brfs_get_label(char *label_buffer, unsigned int buffer_size)
+int brfs_get_label(struct brfs_state *fs, char *label_buffer, unsigned int buffer_size)
 {
   struct brfs_superblock *sb;
   unsigned int i;
 
-  if (!brfs.initialized)
+  if (!fs->initialized)
   {
     return BRFS_ERR_NOT_INITIALIZED;
   }
@@ -1468,7 +1470,7 @@ int brfs_get_label(char *label_buffer, unsigned int buffer_size)
     return BRFS_ERR_INVALID_PARAM;
   }
 
-  sb = (struct brfs_superblock *)brfs_get_superblock();
+  sb = (struct brfs_superblock *)brfs_get_superblock(fs);
 
   i = 0;
   while (i < 10 && i < (buffer_size - 1))

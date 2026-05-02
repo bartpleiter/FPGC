@@ -22,6 +22,11 @@
 #define MEM_SLOT_SIZE             FPGC_SLOT_SIZE
 #define MEM_SLOT_COUNT            FPGC_SLOT_COUNT
 
+/* SD card BRFS cache */
+#define MEM_SD_CACHE_START        FPGC_BRFS_SD_START
+#define MEM_SD_CACHE_END          FPGC_BRFS_SD_END
+#define MEM_SD_CACHE_SIZE         (FPGC_BRFS_SD_END - FPGC_BRFS_SD_START)
+
 /* BRFS cache */
 #define MEM_BRFS_START            FPGC_BRFS_START
 #define MEM_BRFS_END              FPGC_BRFS_END

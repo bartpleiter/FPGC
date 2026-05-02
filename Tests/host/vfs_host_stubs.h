@@ -41,16 +41,18 @@ typedef struct {
 bdos_proc_t *bdos_proc_current(void);
 
 /* ---- BRFS stubs (DEV_FILE never exercised in pixpal tests) ------- */
-static inline int  brfs_open(const char *p)              { (void)p; return -1; }
-static inline int  brfs_close(int h)                     { (void)h; return -1; }
-static inline int  brfs_read(int h, void *b, unsigned n) { (void)h; (void)b; (void)n; return -1; }
-static inline int  brfs_write(int h, const void *b, unsigned n) { (void)h; (void)b; (void)n; return -1; }
-static inline int  brfs_seek(int h, unsigned p)          { (void)h; (void)p; return -1; }
-static inline int  brfs_tell(int h)                      { (void)h; return -1; }
-static inline int  brfs_file_size(int h)                 { (void)h; return -1; }
-static inline int  brfs_exists(const char *p)            { (void)p; return 0; }
-static inline int  brfs_create_file(const char *p)       { (void)p; return -1; }
-static inline int  brfs_delete(const char *p)            { (void)p; return -1; }
+struct brfs_state;
+static struct brfs_state brfs_spi;
+static inline int  brfs_open(struct brfs_state *fs, const char *p)              { (void)fs; (void)p; return -1; }
+static inline int  brfs_close(struct brfs_state *fs, int h)                     { (void)fs; (void)h; return -1; }
+static inline int  brfs_read(struct brfs_state *fs, int h, void *b, unsigned n) { (void)fs; (void)h; (void)b; (void)n; return -1; }
+static inline int  brfs_write(struct brfs_state *fs, int h, const void *b, unsigned n) { (void)fs; (void)h; (void)b; (void)n; return -1; }
+static inline int  brfs_seek(struct brfs_state *fs, int h, unsigned p)          { (void)fs; (void)h; (void)p; return -1; }
+static inline int  brfs_tell(struct brfs_state *fs, int h)                      { (void)fs; (void)h; return -1; }
+static inline int  brfs_file_size(struct brfs_state *fs, int h)                 { (void)fs; (void)h; return -1; }
+static inline int  brfs_exists(struct brfs_state *fs, const char *p)            { (void)fs; (void)p; return 0; }
+static inline int  brfs_create_file(struct brfs_state *fs, const char *p)       { (void)fs; (void)p; return -1; }
+static inline int  brfs_delete(struct brfs_state *fs, const char *p)            { (void)fs; (void)p; return -1; }
 
 /* ---- TTY stubs (DEV_TTY never exercised in pixpal tests) --------- */
 static inline int bdos_keyboard_event_available(void) { return 0; }

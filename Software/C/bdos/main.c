@@ -38,6 +38,7 @@ int main(void)
 {
   bdos_init();
   bdos_fs_boot_init();
+  bdos_fs_sd_init();
   bdos_shell_init();
   bdos_loop();
 

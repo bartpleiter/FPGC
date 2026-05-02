@@ -105,44 +105,50 @@ struct brfs_state
   unsigned int initialized;
   brfs_cache_t cache_state;
   struct brfs_file open_files[BRFS_MAX_OPEN_FILES];
+  brfs_progress_callback_t progress_callback;
 };
 
 /* ---- Initialization ---- */
-int  brfs_init(brfs_storage_t *storage, unsigned int *cache_addr, unsigned int cache_size);
-void brfs_set_progress_callback(brfs_progress_callback_t callback);
-int  brfs_format(unsigned int total_blocks, unsigned int words_per_block,
+int  brfs_init(struct brfs_state *fs, brfs_storage_t *storage,
+               unsigned int *cache_addr, unsigned int cache_size);
+void brfs_set_progress_callback(struct brfs_state *fs,
+                                brfs_progress_callback_t callback);
+int  brfs_format(struct brfs_state *fs, unsigned int total_blocks,
+                 unsigned int words_per_block,
                  const char *label, int full_format);
-int  brfs_mount(void);
-int  brfs_unmount(void);
-int  brfs_sync(void);
+int  brfs_mount(struct brfs_state *fs);
+int  brfs_unmount(struct brfs_state *fs);
+int  brfs_sync(struct brfs_state *fs);
 
 /* ---- File Operations ---- */
-int brfs_create_file(const char *path);
-int brfs_open(const char *path);
-int brfs_close(int fd);
-void brfs_close_all(void);
+int brfs_create_file(struct brfs_state *fs, const char *path);
+int brfs_open(struct brfs_state *fs, const char *path);
+int brfs_close(struct brfs_state *fs, int fd);
+void brfs_close_all(struct brfs_state *fs);
 /* v2: read/write/seek operate on BYTES, not words. */
-int brfs_read(int fd, void *buffer, unsigned int length);
-int brfs_write(int fd, const void *buffer, unsigned int length);
-int brfs_seek(int fd, unsigned int offset);
-int brfs_tell(int fd);
-int brfs_file_size(int fd);
+int brfs_read(struct brfs_state *fs, int fd, void *buffer, unsigned int length);
+int brfs_write(struct brfs_state *fs, int fd, const void *buffer, unsigned int length);
+int brfs_seek(struct brfs_state *fs, int fd, unsigned int offset);
+int brfs_tell(struct brfs_state *fs, int fd);
+int brfs_file_size(struct brfs_state *fs, int fd);
 
 /* ---- Directory Operations ---- */
-int brfs_create_dir(const char *path);
-int brfs_read_dir(const char *path, struct brfs_dir_entry *buffer, unsigned int max_entries);
+int brfs_create_dir(struct brfs_state *fs, const char *path);
+int brfs_read_dir(struct brfs_state *fs, const char *path,
+                  struct brfs_dir_entry *buffer, unsigned int max_entries);
 
 /* ---- File/Directory Management ---- */
-int brfs_delete(const char *path);
-int brfs_stat(const char *path, struct brfs_dir_entry *entry);
-int brfs_exists(const char *path);
-int brfs_is_dir(const char *path);
+int brfs_delete(struct brfs_state *fs, const char *path);
+int brfs_stat(struct brfs_state *fs, const char *path, struct brfs_dir_entry *entry);
+int brfs_exists(struct brfs_state *fs, const char *path);
+int brfs_is_dir(struct brfs_state *fs, const char *path);
 
 /* ---- Utility ---- */
 const char *brfs_strerror(int error_code);
-int brfs_statfs(unsigned int *total_blocks, unsigned int *free_blocks,
-                unsigned int *block_size);
-int brfs_get_label(char *label_buffer, unsigned int buffer_size);
+int brfs_statfs(struct brfs_state *fs, unsigned int *total_blocks,
+                unsigned int *free_blocks, unsigned int *block_size);
+int brfs_get_label(struct brfs_state *fs, char *label_buffer,
+                   unsigned int buffer_size);
 
 /* ---- Internal Helpers (exposed for testing) ---- */
 void brfs_compress_string(unsigned int *dest, const char *src);

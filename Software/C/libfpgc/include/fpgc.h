@@ -115,11 +115,13 @@
 
 /* User program region */
 #define FPGC_PROGRAM_START       0x2000000
-#define FPGC_PROGRAM_END         0x3000000
+#define FPGC_PROGRAM_END         0x2C00000
 #define FPGC_SLOT_SIZE           0x200000
-#define FPGC_SLOT_COUNT          8
+#define FPGC_SLOT_COUNT          6
 
 /* BRFS cache */
+#define FPGC_BRFS_SD_START       0x2C00000
+#define FPGC_BRFS_SD_END         0x3000000
 #define FPGC_BRFS_START          0x3000000
 #define FPGC_BRFS_END            0x4000000
 

@@ -135,7 +135,7 @@ static void fnp_abort_transfer(void)
   {
     if (fnp_transfer_fd >= 0)
     {
-      brfs_close(fnp_transfer_fd);
+      brfs_close(&brfs_spi, fnp_transfer_fd);
       fnp_transfer_fd = -1;
     }
     fnp_transfer_state = FNP_STATE_IDLE;
@@ -196,18 +196,18 @@ static void fnp_handle_file_start(char *data, int data_len, int seq)
   uart_putint(file_size * 4);
   uart_puts(" bytes)\n");
 
-  if (brfs_exists(path_buf))
+  if (brfs_exists(&brfs_spi, path_buf))
   {
-    brfs_delete(path_buf);
+    brfs_delete(&brfs_spi, path_buf);
   }
 
-  if (brfs_create_file(path_buf) < 0)
+  if (brfs_create_file(&brfs_spi, path_buf) < 0)
   {
     fnp_send_nack(seq, FNP_ERR_GENERIC, "Cannot create file");
     return;
   }
 
-  fd = brfs_open(path_buf);
+  fd = brfs_open(&brfs_spi, path_buf);
   if (fd < 0)
   {
     fnp_send_nack(seq, FNP_ERR_GENERIC, "Cannot open file");
@@ -266,7 +266,7 @@ static void fnp_handle_file_data(char *data, int data_len, int seq)
   }
 
   /* BRFS v2 stores raw bytes; write the wire bytes directly. */
-  write_result = brfs_write(fnp_transfer_fd, data, (unsigned int)data_len);
+  write_result = brfs_write(&brfs_spi, fnp_transfer_fd, data, (unsigned int)data_len);
   if (write_result < 0)
   {
     fnp_send_nack(seq, FNP_ERR_GENERIC, "Write failed");
@@ -323,7 +323,7 @@ static void fnp_handle_file_end(char *data, int data_len, int seq)
 
   if (fnp_transfer_fd >= 0)
   {
-    brfs_close(fnp_transfer_fd);
+    brfs_close(&brfs_spi, fnp_transfer_fd);
     fnp_transfer_fd = -1;
   }
 

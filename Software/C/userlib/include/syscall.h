@@ -61,6 +61,7 @@
 #define SYSCALL_LSEEK            38
 #define SYSCALL_DUP2             39
 #define SYSCALL_FS_FORMAT        40
+#define SYSCALL_SD_FORMAT        41
 
 /* Flags for sys_open() (must match BDOS_O_* in bdos_vfs.h) */
 #define O_RDONLY    0x01
@@ -146,6 +147,7 @@ int  sys_fs_filesize(int fd);
 int  sys_fs_readdir (const char *path, void *entry_buf, int max_entries);
 int  sys_fs_mkdir   (const char *path);
 int  sys_fs_format  (int blocks, int words_per_block, char *label);
+int  sys_sd_format  (int blocks, int words_per_block, char *label);
 
 /* ---- Convenience wrappers: Shell ---- */
 int    sys_shell_argc  (void);
