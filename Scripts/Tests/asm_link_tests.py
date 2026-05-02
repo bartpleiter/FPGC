@@ -10,7 +10,6 @@ For each userBDOS program:
 The host asm-link binary is built once per session via gcc -DASMLINK_HOST.
 """
 
-import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -64,10 +63,15 @@ def asm_link_bin(tmp_path_factory):
     out_dir = tmp_path_factory.mktemp("asm-link-bin")
     binary = out_dir / "asm-link"
     cmd = [
-        "gcc", "-O0", "-g", "-Wall",
-        "-Wno-parentheses", "-Wno-unused-function",
+        "gcc",
+        "-O0",
+        "-g",
+        "-Wall",
+        "-Wno-parentheses",
+        "-Wno-unused-function",
         "-DASMLINK_HOST",
-        "-o", str(binary),
+        "-o",
+        str(binary),
         str(ASM_LINK_SRC),
     ]
     subprocess.run(cmd, check=True)
@@ -86,18 +90,25 @@ def _compile_to_asm(c_or_asm_src: Path, out_dir: Path) -> Path:
         shutil.copy(c_or_asm_src, asm_file)
         return asm_file
     cpp_cmd = [
-        "cpp", "-nostdinc", "-P",
-        f"-I{LIBC_INCLUDE}", f"-I{USERLIB_INCLUDE}",
+        "cpp",
+        "-nostdinc",
+        "-P",
+        f"-I{LIBC_INCLUDE}",
+        f"-I{USERLIB_INCLUDE}",
         str(c_or_asm_src),
     ]
     cpp = subprocess.run(cpp_cmd, check=True, capture_output=True)
     cproc = subprocess.run(
         [str(CPROC), "-t", "b32p3"],
-        input=cpp.stdout, capture_output=True, check=True,
+        input=cpp.stdout,
+        capture_output=True,
+        check=True,
     )
     qbe = subprocess.run(
         [str(QBE)],
-        input=cproc.stdout, capture_output=True, check=True,
+        input=cproc.stdout,
+        capture_output=True,
+        check=True,
     )
     asm_file.write_bytes(qbe.stdout)
     return asm_file
@@ -141,18 +152,26 @@ def test_byte_for_byte_match(program, asm_link_bin, tmp_path):
     asmpy_list = tmp_path / "asmpy.list"
     asmpy_bin = tmp_path / "asmpy.bin"
     subprocess.run(
-        ["python", "-m", "asmpy.linker", *map(str, asm_files),
-         str(asmpy_list), "-H", "-i"],
-        check=True, capture_output=True,
+        [
+            "python",
+            "-m",
+            "asmpy.linker",
+            *map(str, asm_files),
+            str(asmpy_list),
+            "-H",
+            "-i",
+        ],
+        check=True,
+        capture_output=True,
     )
     _list_to_bin(asmpy_list, asmpy_bin)
 
     # Step 3: asm-link
     asmlink_bin = tmp_path / "asmlink.bin"
     subprocess.run(
-        [str(asm_link_bin), *map(str, asm_files),
-         "-o", str(asmlink_bin)],
-        check=True, capture_output=True,
+        [str(asm_link_bin), *map(str, asm_files), "-o", str(asmlink_bin)],
+        check=True,
+        capture_output=True,
     )
 
     # Step 4: byte compare

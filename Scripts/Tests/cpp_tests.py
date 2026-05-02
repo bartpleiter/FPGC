@@ -44,9 +44,17 @@ USERLIB_SOURCES = [
 ]
 
 PROGRAMS = [
-    "argtest", "bench", "cmatrix", "edit",
-    "mbrot", "mbrotc", "mbroth",
-    "snake", "tetrisc", "tetrish", "tree",
+    "argtest",
+    "bench",
+    "cmatrix",
+    "edit",
+    "mbrot",
+    "mbrotc",
+    "mbroth",
+    "snake",
+    "tetrisc",
+    "tetrish",
+    "tree",
 ]
 
 
@@ -56,18 +64,37 @@ def tools(tmp_path_factory):
     out_dir = tmp_path_factory.mktemp("cpp-bin")
     asm_link = out_dir / "asm-link"
     cpp = out_dir / "cpp"
-    subprocess.run([
-        "gcc", "-O0", "-Wall",
-        "-Wno-parentheses", "-Wno-unused-function",
-        "-DASMLINK_HOST", "-o", str(asm_link), str(ASM_LINK_SRC),
-    ], check=True)
-    subprocess.run([
-        "gcc", "-O0", "-Wall",
-        "-Wno-parentheses", "-Wno-unused-function",
-        "-Wno-unused-variable", "-Wno-unused-but-set-variable",
-        "-Wno-comment",
-        "-DCPP_HOST", "-o", str(cpp), str(CPP_SRC),
-    ], check=True)
+    subprocess.run(
+        [
+            "gcc",
+            "-O0",
+            "-Wall",
+            "-Wno-parentheses",
+            "-Wno-unused-function",
+            "-DASMLINK_HOST",
+            "-o",
+            str(asm_link),
+            str(ASM_LINK_SRC),
+        ],
+        check=True,
+    )
+    subprocess.run(
+        [
+            "gcc",
+            "-O0",
+            "-Wall",
+            "-Wno-parentheses",
+            "-Wno-unused-function",
+            "-Wno-unused-variable",
+            "-Wno-unused-but-set-variable",
+            "-Wno-comment",
+            "-DCPP_HOST",
+            "-o",
+            str(cpp),
+            str(CPP_SRC),
+        ],
+        check=True,
+    )
     return asm_link, cpp
 
 
@@ -85,10 +112,15 @@ def _compile_via(src: Path, out_dir: Path, cpp_argv: list) -> Path:
     cpp = subprocess.run(cpp_argv + [str(src)], capture_output=True, check=True)
     cproc = subprocess.run(
         [str(CPROC), "-t", "b32p3"],
-        input=cpp.stdout, capture_output=True, check=True,
+        input=cpp.stdout,
+        capture_output=True,
+        check=True,
     )
     qbe = subprocess.run(
-        [str(QBE)], input=cproc.stdout, capture_output=True, check=True,
+        [str(QBE)],
+        input=cproc.stdout,
+        capture_output=True,
+        check=True,
     )
     asm_file.write_bytes(qbe.stdout)
     return asm_file
@@ -114,12 +146,16 @@ def test_my_cpp_matches_gcc_cpp(program, tools, tmp_path):
     my_dir.mkdir()
 
     gcc_cpp = [
-        "cpp", "-nostdinc", "-P",
-        f"-I{LIBC_INCLUDE}", f"-I{USERLIB_INCLUDE}",
+        "cpp",
+        "-nostdinc",
+        "-P",
+        f"-I{LIBC_INCLUDE}",
+        f"-I{USERLIB_INCLUDE}",
     ]
     my_cpp_argv = [
         str(my_cpp),
-        f"-I{LIBC_INCLUDE}", f"-I{USERLIB_INCLUDE}",
+        f"-I{LIBC_INCLUDE}",
+        f"-I{USERLIB_INCLUDE}",
     ]
 
     gcc_asms = [_compile_via(s, gcc_dir, gcc_cpp) for s in sources]
@@ -129,11 +165,13 @@ def test_my_cpp_matches_gcc_cpp(program, tools, tmp_path):
     my_bin = tmp_path / "my.bin"
     subprocess.run(
         [str(asm_link), *map(str, gcc_asms), "-o", str(gcc_bin)],
-        check=True, capture_output=True,
+        check=True,
+        capture_output=True,
     )
     subprocess.run(
         [str(asm_link), *map(str, my_asms), "-o", str(my_bin)],
-        check=True, capture_output=True,
+        check=True,
+        capture_output=True,
     )
 
     a = gcc_bin.read_bytes()

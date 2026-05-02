@@ -17,14 +17,14 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-HOST_DIR  = REPO_ROOT / "Tests/host"
-BDOS_SRC  = REPO_ROOT / "Software/C/bdos"
-INCLUDE   = BDOS_SRC / "include"
+HOST_DIR = REPO_ROOT / "Tests/host"
+BDOS_SRC = REPO_ROOT / "Software/C/bdos"
+INCLUDE = BDOS_SRC / "include"
 
 CASES = [
     # (test name, list of source files to compile)
-    ("test_shell_lex",    ["test_shell_lex.c",    "shell_lex.c"]),
-    ("test_shell_parse",  ["test_shell_parse.c",  "shell_parse.c", "shell_lex.c"]),
+    ("test_shell_lex", ["test_shell_lex.c", "shell_lex.c"]),
+    ("test_shell_parse", ["test_shell_parse.c", "shell_parse.c", "shell_lex.c"]),
     ("test_shell_expand", ["test_shell_expand.c", "shell_vars.c"]),
 ]
 
@@ -37,13 +37,21 @@ def _resolve(name: str) -> Path:
 
 def _build(tmp_path: Path, name: str, srcs: list[str]) -> Path:
     out = tmp_path / name
-    cmd = [
-        "gcc", "-O0", "-Wall", "-Wextra", "-Werror",
-        "-Wno-unused-function",
-        "-DSHELL_HOST_TEST",
-        f"-I{INCLUDE}",
-        f"-I{HOST_DIR}",
-    ] + [str(_resolve(s)) for s in srcs] + ["-o", str(out)]
+    cmd = (
+        [
+            "gcc",
+            "-O0",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-Wno-unused-function",
+            "-DSHELL_HOST_TEST",
+            f"-I{INCLUDE}",
+            f"-I{HOST_DIR}",
+        ]
+        + [str(_resolve(s)) for s in srcs]
+        + ["-o", str(out)]
+    )
     subprocess.run(cmd, check=True)
     return out
 
@@ -53,6 +61,5 @@ def test_shell_host(tmp_path, name, srcs):
     binary = _build(tmp_path, name, srcs)
     result = subprocess.run([str(binary)], capture_output=True, text=True)
     assert result.returncode == 0, (
-        f"{name} failed:\nstdout:\n{result.stdout}\n"
-        f"stderr:\n{result.stderr}"
+        f"{name} failed:\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
     )
