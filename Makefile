@@ -48,6 +48,7 @@ CPROC_OUTPUT = $(CPROC_DIR)/output/cproc-qbe
 .PHONY: fnp-keyboard fnp-detect-iface fnp-sync-files fnp-run
 .PHONY: fnp-debug-userbdos
 .PHONY: convert-w3d-textures
+.PHONY: sd-read-brfs
 
 # -----------------------------------------------------------------------------
 # Default Target
@@ -1034,6 +1035,18 @@ clean:
 	@echo "Cleanup complete!"
 
 # =============================================================================
+# SD Card BRFS Tools
+# =============================================================================
+
+sd-read-brfs:
+	@echo "=== Reading BRFS from SD card ==="
+	@if [ -z "$(dev)" ]; then \
+		echo "Usage: sudo make sd-read-brfs dev=/dev/sdX"; \
+		exit 1; \
+	fi
+	sudo python3 Scripts/BDOS/sd_read_brfs.py "$(dev)" -o Files/BRFS-sd-transfer
+
+# =============================================================================
 # Help
 # =============================================================================
 
@@ -1152,6 +1165,10 @@ help:
 	@echo ""
 	@echo "--- Cleanup ---"
 	@echo "  clean               - Clean all build artifacts and environments"
+	@echo ""
+	@echo "--- SD Card Tools ---"
+	@echo "  sd-read-brfs          - Read BRFS filesystem from SD card to Files/BRFS-sd-transfer/"
+	@echo "                          Usage: sudo make sd-read-brfs dev=/dev/sdX"
 	@echo ""
 	@echo "==================================================================="
 
