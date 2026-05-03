@@ -248,8 +248,8 @@ begin
                 end
                 else if (dummy_latched)
                 begin
-                    tx_shift   <= 8'd0;
-                    spi_mosi   <= 1'b0;
+                    tx_shift   <= 8'hFF;
+                    spi_mosi   <= 1'b1;
                 end
                 else if (!tx_empty_w)
                 begin

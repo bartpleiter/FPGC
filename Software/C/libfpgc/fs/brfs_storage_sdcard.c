@@ -26,14 +26,12 @@
 
 /*
  * Scratch buffer for partial-block read-modify-write.
- *
- * Intentionally NOT 32-byte aligned: SD_DMA_OK(sdb_scratch) will
- * fail, forcing sd_read/write_block to use the CPU byte-at-a-time
- * SPI path. The DMA SPI burst path has an unresolved reliability
- * issue (see sd-brfs-implementation.md "DMA Investigation").
- * The CPU path is slower but correct.
+ * Over-allocated by 31 bytes so we can manually 32-byte-align the
+ * pointer, ensuring SD_DMA_OK(sdb_scratch) passes and sd_read/write_block
+ * uses the DMA fast path. cproc's _Alignas(32) is broken on B32P3.
  */
-static unsigned char sdb_scratch[SDB_BYTES];
+static unsigned char sdb_raw[SDB_BYTES + 31];
+static unsigned char *sdb_scratch;
 
 static int
 sd_rmw_partial_read(unsigned int lba, unsigned int off,
@@ -96,19 +94,14 @@ sd_read_words_op(brfs_storage_t *self,
         lba     += 1u;
     }
 
-    /* Body: aligned full blocks.
-     * DMA SPI2MEM to the BRFS cache at high SDRAM addresses fails for
-     * a still-unknown reason; bounce through the manually-aligned
-     * sdb_scratch buffer (in kernel BSS) which SD_DMA_OK passes for. */
+    /* Body: aligned full blocks — DMA directly to destination.
+     * After head adjustment, d is at a 512-byte boundary within the
+     * BRFS cache (which starts at 0x2C00000, 32-byte aligned), so
+     * SD_DMA_OK(d) passes and sd_read_block uses the DMA fast path. */
     while (n_bytes >= SDB_BYTES) {
-        r = sd_read_block(lba, sdb_scratch);
+        r = sd_read_block(lba, d);
         if (r != SD_OK)
             return -1;
-        {
-            unsigned int ci;
-            for (ci = 0; ci < SDB_BYTES; ci++)
-                d[ci] = sdb_scratch[ci];
-        }
         d       += SDB_BYTES;
         n_bytes -= SDB_BYTES;
         lba     += 1u;
@@ -151,15 +144,9 @@ sd_write_words_op(brfs_storage_t *self,
         lba     += 1u;
     }
 
-    /* Body: aligned full blocks.
-     * Bounce through sdb_scratch (manually aligned, DMA-eligible). */
+    /* Body: aligned full blocks — DMA directly from source. */
     while (n_bytes >= SDB_BYTES) {
-        {
-            unsigned int ci;
-            for (ci = 0; ci < SDB_BYTES; ci++)
-                sdb_scratch[ci] = s[ci];
-        }
-        r = sd_write_block(lba, sdb_scratch);
+        r = sd_write_block(lba, (void *)s);
         if (r != SD_OK)
             return -1;
         s       += SDB_BYTES;
@@ -189,6 +176,7 @@ sd_erase_sector_op(brfs_storage_t *self, unsigned int addr)
 void
 brfs_storage_sdcard_init(brfs_sdcard_storage_t *out)
 {
+    sdb_scratch = (unsigned char *)(((unsigned int)sdb_raw + 31u) & ~31u);
     out->base.read_words   = sd_read_words_op;
     out->base.write_words  = sd_write_words_op;
     out->base.erase_sector = sd_erase_sector_op;
