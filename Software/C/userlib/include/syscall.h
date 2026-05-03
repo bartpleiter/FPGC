@@ -31,29 +31,19 @@
  *   sys_uart_print_str(s)                  -> sys_write(2, s, n) (stderr)
  */
 
-/* Syscall numbers — kept in sync with BDOS bdos_syscall.h */
-#define SYSCALL_FS_OPEN          4
-#define SYSCALL_FS_CLOSE         5
-#define SYSCALL_FS_READ          6
-#define SYSCALL_FS_WRITE         7
-#define SYSCALL_FS_SEEK          8
-#define SYSCALL_FS_STAT          9
-#define SYSCALL_FS_DELETE        10
-#define SYSCALL_FS_CREATE        11
-#define SYSCALL_FS_FILESIZE      12
+/* Syscall numbers — kept in sync with BDOS bdos_syscall.h.
+ * Legacy raw-BRFS slots (4–12, 24, 33) removed — use VFS API instead. */
 #define SYSCALL_SHELL_ARGC       13
 #define SYSCALL_SHELL_ARGV       14
 #define SYSCALL_SHELL_GETCWD     15
 #define SYSCALL_HEAP_ALLOC       20
 #define SYSCALL_DELAY            21
 #define SYSCALL_EXIT             23
-#define SYSCALL_FS_READDIR       24
 #define SYSCALL_GET_KEY_STATE    25
 #define SYSCALL_NET_SEND         27
 #define SYSCALL_NET_RECV         28
 #define SYSCALL_NET_PACKET_COUNT 29
 #define SYSCALL_NET_GET_MAC      30
-#define SYSCALL_FS_MKDIR         33
 #define SYSCALL_OPEN             34
 #define SYSCALL_READ             35
 #define SYSCALL_WRITE            36
@@ -62,6 +52,9 @@
 #define SYSCALL_DUP2             39
 #define SYSCALL_FS_FORMAT        40
 #define SYSCALL_SD_FORMAT        41
+#define SYSCALL_UNLINK           42
+#define SYSCALL_MKDIR            43
+#define SYSCALL_READDIR          44
 
 /* Flags for sys_open() (must match BDOS_O_* in bdos_vfs.h) */
 #define O_RDONLY    0x01
@@ -134,18 +127,7 @@ int syscall(int num, int a1, int a2, int a3);
 void sys_putc  (int ch);            /* fd 1, honours redirection */
 void sys_putstr(const char *s);     /* fd 1, honours redirection */
 
-/* ---- Convenience wrappers: Filesystem ---- */
-int  sys_fs_open    (const char *path);
-int  sys_fs_close   (int fd);
-int  sys_fs_read    (int fd, void *buf, int count);
-int  sys_fs_write   (int fd, void *buf, int count);
-int  sys_fs_seek    (int fd, int offset);
-int  sys_fs_stat    (const char *path, void *entry_buf);
-int  sys_fs_delete  (const char *path);
-int  sys_fs_create  (const char *path);
-int  sys_fs_filesize(int fd);
-int  sys_fs_readdir (const char *path, void *entry_buf, int max_entries);
-int  sys_fs_mkdir   (const char *path);
+/* ---- Convenience wrappers: Filesystem (format utilities) ---- */
 int  sys_fs_format  (int blocks, int words_per_block, char *label);
 int  sys_sd_format  (int blocks, int words_per_block, char *label);
 
@@ -173,6 +155,9 @@ int  sys_read (int fd, void *buf, int len);
 int  sys_write(int fd, const void *buf, int len);
 int  sys_lseek(int fd, int offset, int whence);
 int  sys_dup2 (int oldfd, int newfd);
+int  sys_unlink(const char *path);
+int  sys_mkdir(const char *path);
+int  sys_readdir(const char *path, void *entry_buf, int max_entries);
 
 /* ---- Convenience wrappers: Process control ---- */
 void sys_exit(int code);

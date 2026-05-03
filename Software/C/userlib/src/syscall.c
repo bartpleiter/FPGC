@@ -53,19 +53,7 @@ void sys_putstr(const char *s)
     sys_write(1, s, n);
 }
 
-/* ---- Filesystem ---- */
-
-int sys_fs_open    (const char *path)              { return syscall(SYSCALL_FS_OPEN,    (int)path, 0, 0); }
-int sys_fs_close   (int fd)                        { return syscall(SYSCALL_FS_CLOSE,   fd, 0, 0); }
-int sys_fs_read    (int fd, void *buf, int count)  { return syscall(SYSCALL_FS_READ,    fd, (int)buf, count); }
-int sys_fs_write   (int fd, void *buf, int count)  { return syscall(SYSCALL_FS_WRITE,   fd, (int)buf, count); }
-int sys_fs_seek    (int fd, int offset)            { return syscall(SYSCALL_FS_SEEK,    fd, offset, 0); }
-int sys_fs_stat    (const char *p, void *e)        { return syscall(SYSCALL_FS_STAT,    (int)p, (int)e, 0); }
-int sys_fs_delete  (const char *path)              { return syscall(SYSCALL_FS_DELETE,  (int)path, 0, 0); }
-int sys_fs_create  (const char *path)              { return syscall(SYSCALL_FS_CREATE,  (int)path, 0, 0); }
-int sys_fs_filesize(int fd)                        { return syscall(SYSCALL_FS_FILESIZE, fd, 0, 0); }
-int sys_fs_readdir (const char *p, void *e, int n) { return syscall(SYSCALL_FS_READDIR, (int)p, (int)e, n); }
-int sys_fs_mkdir   (const char *path)              { return syscall(SYSCALL_FS_MKDIR,   (int)path, 0, 0); }
+/* ---- Filesystem (format utilities only — raw FS wrappers removed) ---- */
 
 int sys_fs_format(int blocks, int words_per_block, char *label)
 {
@@ -106,6 +94,12 @@ int sys_read (int fd, void *buf, int len)          { return syscall(SYSCALL_READ
 int sys_write(int fd, const void *buf, int len)    { return syscall(SYSCALL_WRITE, fd, (int)buf, len); }
 int sys_lseek(int fd, int offset, int whence)      { return syscall(SYSCALL_LSEEK, fd, offset, whence); }
 int sys_dup2 (int oldfd, int newfd)                { return syscall(SYSCALL_DUP2,  oldfd, newfd, 0); }
+int sys_unlink(const char *path)                   { return syscall(SYSCALL_UNLINK, (int)path, 0, 0); }
+int sys_mkdir(const char *path)                    { return syscall(SYSCALL_MKDIR, (int)path, 0, 0); }
+int sys_readdir(const char *path, void *entry_buf, int max_entries)
+{
+    return syscall(SYSCALL_READDIR, (int)path, (int)entry_buf, max_entries);
+}
 
 /* ---- TTY raw event helpers ---- */
 

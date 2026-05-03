@@ -230,7 +230,7 @@ void tree_dir(char *path, int *continues, int depth)
     return;
   }
 
-  count = sys_fs_readdir(path, entry_buf, MAX_ENTRIES);
+  count = sys_readdir(path, entry_buf, MAX_ENTRIES);
   if (count <= 0)
   {
     return;

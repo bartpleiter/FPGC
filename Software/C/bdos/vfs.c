@@ -558,3 +558,43 @@ int bdos_vfs_dup2(int oldfd, int newfd)
     t[oldfd].in_use = 0;
     return newfd;
 }
+
+/* ---- VFS unlink (delete) ---- */
+int bdos_vfs_unlink(const char *path)
+{
+    if (!path) return -1;
+    if (str_startswith(path, "/sdcard/")) {
+        if (!bdos_sd_ready) return -1;
+        return brfs_delete(&brfs_sd, path + 7);
+    }
+    return brfs_delete(&brfs_spi, path);
+}
+
+/* ---- VFS mkdir ---- */
+int bdos_vfs_mkdir(const char *path)
+{
+    if (!path) return -1;
+    if (str_startswith(path, "/sdcard/")) {
+        if (!bdos_sd_ready) return -1;
+        return brfs_create_dir(&brfs_sd, path + 7);
+    }
+    return brfs_create_dir(&brfs_spi, path);
+}
+
+/* ---- VFS readdir ---- */
+int bdos_vfs_readdir(const char *path, void *entry_buf, int max_entries)
+{
+    if (!path) return -1;
+    if (str_startswith(path, "/sdcard/") || str_eq(path, "/sdcard")) {
+        const char *sd_path;
+        if (!bdos_sd_ready) return -1;
+        sd_path = path + 7;
+        if (*sd_path == '\0') sd_path = "/";
+        return brfs_read_dir(&brfs_sd, (char *)sd_path,
+                             (struct brfs_dir_entry *)entry_buf,
+                             (unsigned int)max_entries);
+    }
+    return brfs_read_dir(&brfs_spi, (char *)path,
+                         (struct brfs_dir_entry *)entry_buf,
+                         (unsigned int)max_entries);
+}

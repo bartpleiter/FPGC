@@ -176,23 +176,24 @@ int load_textures_from_file(void)
 
   expected = NUM_TEXTURES * TEX_PIXELS;
 
-  fd = sys_fs_open(TEXTURE_FILE);
+  fd = sys_open(TEXTURE_FILE, 1 /* O_RDONLY */);
   if (fd < 0)
   {
     return 0;
   }
 
-  fsize = sys_fs_filesize(fd);
+  fsize = sys_lseek(fd, 0, 2 /* SEEK_END */);
+  sys_lseek(fd, 0, 0 /* SEEK_SET */);
   if (fsize < expected * 4)
   {
-    sys_fs_close(fd);
+    sys_close(fd);
     return 0;
   }
 
   textures = (unsigned int *)sys_heap_alloc(expected);
   if (textures == (unsigned int *)0)
   {
-    sys_fs_close(fd);
+    sys_close(fd);
     return 0;
   }
 
@@ -206,7 +207,7 @@ int load_textures_from_file(void)
       chunk = 256;
     }
     /* BRFS v2: byte-counted reads. */
-    words_read = sys_fs_read(fd, &textures[dest_idx], chunk * 4) / 4;
+    words_read = sys_read(fd, &textures[dest_idx], chunk * 4) / 4;
     if (words_read <= 0)
     {
       break;
@@ -215,7 +216,7 @@ int load_textures_from_file(void)
     words_remaining = words_remaining - words_read;
   }
 
-  sys_fs_close(fd);
+  sys_close(fd);
   return (words_remaining == 0) ? 1 : 0;
 }
 

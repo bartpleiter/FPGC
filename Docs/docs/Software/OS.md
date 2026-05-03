@@ -170,35 +170,33 @@ The ASMPY assembler header places a `jump Syscall` instruction at absolute addre
 
 | Number | Name | Arguments | Returns | Description |
 |--------|------|-----------|---------|-------------|
-| 4  | `FS_OPEN`         | `a1` = path                                           | brfs fd          | Open a BRFS entry (raw word-oriented API; prefer `OPEN`) |
-| 5  | `FS_CLOSE`        | `a1` = fd                                             | 0 ok             | Close a BRFS fd |
-| 6  | `FS_READ`         | `a1` = fd, `a2` = buf, `a3` = bytes                   | bytes read       | Byte-oriented BRFS read |
-| 7  | `FS_WRITE`        | `a1` = fd, `a2` = buf, `a3` = bytes                   | bytes written    | Byte-oriented BRFS write |
-| 8  | `FS_SEEK`         | `a1` = fd, `a2` = byte offset                         | 0 ok             | BRFS seek |
-| 9  | `FS_STAT`         | `a1` = path, `a2` = `brfs_dir_entry *`                | 0 ok             | Stat a path |
-| 10 | `FS_DELETE`       | `a1` = path                                           | 0 ok             | Delete a file or empty dir |
-| 11 | `FS_CREATE`       | `a1` = path                                           | 0 ok             | Create an empty file |
-| 12 | `FS_FILESIZE`     | `a1` = fd                                             | size in bytes    | Size of an open BRFS file |
 | 13 | `SHELL_ARGC`      | —                                                     | argc             | Argument count for current process |
 | 14 | `SHELL_ARGV`      | —                                                     | `char **argv`    | Argument vector pointer |
 | 15 | `SHELL_GETCWD`    | —                                                     | `char *cwd`      | Shell's current working directory |
 | 20 | `HEAP_ALLOC`      | `a1` = size in bytes                                  | pointer / 0      | Allocate from kernel heap (released on exit) |
 | 21 | `DELAY`           | `a1` = milliseconds                                   | 0                | Sleep for the given number of ms |
 | 23 | `EXIT`            | `a1` = exit code                                      | *(no return)*    | Terminate calling process |
-| 24 | `FS_READDIR`      | `a1` = path, `a2` = `brfs_dir_entry *`, `a3` = max    | entries returned | Enumerate a directory |
 | 25 | `GET_KEY_STATE`   | —                                                     | bitmap           | Held-key bitmap (see `KEYSTATE_*`) |
 | 27 | `NET_SEND`        | `a1` = buffer, `a2` = length                          | 1 ok / 0 err     | Send raw Ethernet frame (takes net ownership) |
 | 28 | `NET_RECV`        | `a1` = buffer, `a2` = max length                      | bytes received   | Pop a packet from RX ring (takes net ownership) |
 | 29 | `NET_PACKET_COUNT`| —                                                     | count            | Packets queued in RX ring |
 | 30 | `NET_GET_MAC`     | `a1` = 6-int buffer                                   | 0                | Copy our MAC address |
-| 33 | `FS_MKDIR`        | `a1` = path                                           | 0 ok             | Create a directory |
-| 34 | `OPEN`            | `a1` = path, `a2` = flags (`O_RDONLY` … `O_RAW` …)    | fd               | VFS `open()` (file / `/dev/tty` / `/dev/null` / pipe) |
+| 34 | `OPEN`            | `a1` = path, `a2` = flags (`O_RDONLY` … `O_RAW` …)    | fd               | VFS `open()` — routes by path: `/dev/*` → devices, `/sdcard/*` → SD BRFS, else → SPI flash BRFS |
 | 35 | `READ`            | `a1` = fd, `a2` = buf, `a3` = bytes                   | bytes read       | Byte-oriented VFS read |
 | 36 | `WRITE`           | `a1` = fd, `a2` = buf, `a3` = bytes                   | bytes written    | Byte-oriented VFS write |
 | 37 | `CLOSE`           | `a1` = fd                                             | 0 ok             | VFS close |
-| 38 | `LSEEK`           | `a1` = fd, `a2` = offset, `a3` = whence               | new offset       | VFS lseek |
-| 39 | `DUP2`            | `a1` = oldfd, `a2` = newfd                            | newfd / -1       | Duplicate a fd; used by the shell for `<`/`>`/`|` |
-| 40 | `FS_FORMAT`       | `a1` = blocks, `a2` = words/blk, `a3` = label         | 0 ok             | Format BRFS + sync (drives `/bin/format`) |
+| 38 | `LSEEK`           | `a1` = fd, `a2` = offset, `a3` = whence               | new offset       | VFS lseek (`SEEK_SET`=0, `SEEK_CUR`=1, `SEEK_END`=2) |
+| 39 | `DUP2`            | `a1` = oldfd, `a2` = newfd                            | newfd / -1       | Duplicate a fd; used by the shell for `<`/`>`/`\|` |
+| 40 | `FS_FORMAT`       | `a1` = blocks, `a2` = words/blk, `a3` = label         | 0 ok             | Format SPI flash BRFS + sync (drives `/bin/format`) |
+| 41 | `SD_FORMAT`       | `a1` = blocks, `a2` = words/blk, `a3` = label         | 0 ok             | Format SD card BRFS + sync (drives `/bin/sdformat`) |
+| 42 | `UNLINK`          | `a1` = path                                           | 0 ok             | VFS delete — routes by path prefix like `OPEN` |
+| 43 | `MKDIR`           | `a1` = path                                           | 0 ok             | VFS mkdir — routes by path prefix like `OPEN` |
+| 44 | `READDIR`         | `a1` = path, `a2` = `brfs_dir_entry *`, `a3` = max    | entries returned | VFS readdir — routes by path prefix like `OPEN` |
+
+Slots 0–3 (display/input), 4–12 (raw BRFS file I/O), 16–19 (terminal),
+22, 24 (raw readdir), 26 (pixel palette), 31–32 (UART), 33 (raw mkdir)
+are retired — the dispatcher returns `-1`. See `bdos_syscall.h` for the
+migration notes.
 
 The syscall ABI allows a maximum of 3 arguments (`a1`–`a3` in `r5`–`r7`),
 with the return value in `r1`. Where more data is needed, pointers are

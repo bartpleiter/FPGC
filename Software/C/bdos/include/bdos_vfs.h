@@ -90,5 +90,8 @@ int  bdos_vfs_read(int fd, void *buf, int len);
 int  bdos_vfs_write(int fd, const void *buf, int len);
 int  bdos_vfs_lseek(int fd, int offset, int whence);
 int  bdos_vfs_dup2(int oldfd, int newfd);
+int  bdos_vfs_unlink(const char *path);
+int  bdos_vfs_mkdir(const char *path);
+int  bdos_vfs_readdir(const char *path, void *entry_buf, int max_entries);
 
 #endif /* BDOS_VFS_H */

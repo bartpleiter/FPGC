@@ -108,12 +108,19 @@ static int host_read_bytes(int fd, void *buf, int n)
 
 #else /* BDOS build: BRFS v2 is byte-native, so I/O is plain pass-through. */
 
-#define IO_OPEN(p)            sys_fs_open(p)
-#define IO_CLOSE(fd)          sys_fs_close(fd)
-#define IO_FILESIZE_BYTES(fd) sys_fs_filesize(fd)
-#define IO_READ_BYTES(fd, b, n) sys_fs_read(fd, b, n)
+#define IO_OPEN(p)            sys_open(p, 1 /* O_RDONLY */)
+#define IO_CLOSE(fd)          sys_close(fd)
+#define IO_FILESIZE_BYTES(fd) cpp_filesize(fd)
+#define IO_READ_BYTES(fd, b, n) sys_read(fd, b, n)
 #define IO_HEAP_ALLOC(n)      sys_heap_alloc(n)
 #define IO_PRINT_ERR(s)       sys_putstr(s)
+
+static int cpp_filesize(int fd)
+{
+  int sz = sys_lseek(fd, 0, 2 /* SEEK_END */);
+  sys_lseek(fd, 0, 0 /* SEEK_SET */);
+  return sz;
+}
 
 #endif
 
@@ -170,7 +177,7 @@ static void out_flush(void) { if (out_fp) fflush(out_fp); else fflush(stdout); }
 #else
 static void out_write(const char *s, int n)
 {
-  if (n > 0) sys_fs_write(out_fd, (void *)s, n);
+  if (n > 0) sys_write(out_fd, (void *)s, n);
 }
 static void out_flush(void) { /* BRFS v2 is byte-native, nothing to flush. */ }
 #endif
@@ -1250,9 +1257,7 @@ int main()
 
   if (output_path)
   {
-    sys_fs_delete(output_path);
-    sys_fs_create(output_path);
-    out_fd = sys_fs_open(output_path);
+    out_fd = sys_open(output_path, 0x1A /* O_WRONLY | O_CREAT | O_TRUNC */);
     if (out_fd < 0) { sys_putstr("cpp: cannot open output\n"); return 1; }
   }
   else
@@ -1272,7 +1277,7 @@ int main()
   }
 
   out_flush();
-  if (out_fd > 0) sys_fs_close(out_fd);
+  if (out_fd > 0) sys_close(out_fd);
   return has_error ? 1 : 0;
 }
 #endif

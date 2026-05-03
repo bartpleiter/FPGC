@@ -154,20 +154,26 @@ static char **host_argv;
 
 #else /* BDOS build */
 
-#define IO_OPEN(p)            sys_fs_open(p)
-#define IO_CREATE(p)          sys_fs_create(p)
-#define IO_DELETE(p)          sys_fs_delete(p)
-#define IO_CLOSE(fd)          sys_fs_close(fd)
+#define IO_OPEN(p)            sys_open(p, 1 /* O_RDONLY */)
+#define IO_OPEN_WRITE(p)      sys_open(p, 0x1A /* O_WRONLY | O_CREAT | O_TRUNC */)
+#define IO_CLOSE(fd)          sys_close(fd)
 /* BRFS v2 is byte-native. Wrap the byte API so the rest of the code can
  * keep speaking in 32-bit words. */
-#define IO_FILESIZE_BYTES(fd) sys_fs_filesize(fd)
-#define IO_FILESIZE_WORDS(fd) ((sys_fs_filesize(fd) + 3) / 4)
-#define IO_READ_WORDS(fd, b, n)  ((sys_fs_read(fd, b, (n) * 4) + 3) / 4)
-#define IO_WRITE_WORDS(fd, b, n) (sys_fs_write(fd, b, (n) * 4) / 4)
+#define IO_FILESIZE_BYTES(fd) asm_filesize(fd)
+#define IO_FILESIZE_WORDS(fd) ((asm_filesize(fd) + 3) / 4)
+#define IO_READ_WORDS(fd, b, n)  ((sys_read(fd, b, (n) * 4) + 3) / 4)
+#define IO_WRITE_WORDS(fd, b, n) (sys_write(fd, b, (n) * 4) / 4)
 #define IO_PRINT(s)           sys_putstr(s)
 #define IO_HEAP_ALLOC(n)      sys_heap_alloc(n)
 #define IO_ARGC()             sys_shell_argc()
 #define IO_ARGV()             sys_shell_argv()
+
+static int asm_filesize(int fd)
+{
+  int sz = sys_lseek(fd, 0, 2 /* SEEK_END */);
+  sys_lseek(fd, 0, 0 /* SEEK_SET */);
+  return sz;
+}
 #define IO_GETCWD()           sys_shell_getcwd()
 
 #endif
@@ -2554,9 +2560,13 @@ static int write_output(const char *path)
   int wrote = 0;
   int i;
 
+#ifdef ASMLINK_HOST
   IO_DELETE((char *)path);
   IO_CREATE((char *)path);
   fd = IO_OPEN((char *)path);
+#else
+  fd = IO_OPEN_WRITE((char *)path);
+#endif
   if (fd < 0) { emsg2("cannot open output: ", path); return -1; }
 
 #ifdef ASMLINK_HOST

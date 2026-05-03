@@ -76,7 +76,7 @@ int _lseek(int fd, int offset, int whence)
 
 int _remove(const char *pathname)
 {
-    return sys_fs_delete((char *)pathname);
+    return sys_unlink(pathname);
 }
 
 int _rename(const char *oldpath, const char *newpath)

@@ -43,7 +43,7 @@
 
 void M_MakeDirectory(char *path)
 {
-    sys_fs_mkdir(path);
+    sys_mkdir(path);
 }
 
 // Check if a file exists

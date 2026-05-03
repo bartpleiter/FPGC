@@ -793,18 +793,19 @@ int file_load(void)
   int ri;
   int c;
 
-  fd = sys_fs_open(filepath);
+  fd = sys_open(filepath, 1 /* O_RDONLY */);
   if (fd < 0)
   {
     sys_putstr("edit: cannot open file\n");
     return -1;
   }
 
-  fsize = sys_fs_filesize(fd);
+  fsize = sys_lseek(fd, 0, 2 /* SEEK_END */);
   if (fsize < 0)
   {
     fsize = 0;
   }
+  sys_lseek(fd, 0, 0 /* SEEK_SET */);
 
   /* BRFS v2: filesize is in bytes. */
   alloc_size = fsize + GAP_INITIAL + 256;
@@ -812,7 +813,7 @@ int file_load(void)
   if (buf == (unsigned int *)0)
   {
     sys_putstr("edit: out of memory\n");
-    sys_fs_close(fd);
+    sys_close(fd);
     return -1;
   }
   buf_size = alloc_size;
@@ -832,7 +833,7 @@ int file_load(void)
       chunk = (int)sizeof(read_buf);
     }
 
-    bytes_read = sys_fs_read(fd, read_buf, chunk);
+    bytes_read = sys_read(fd, read_buf, chunk);
     if (bytes_read <= 0)
     {
       break;
@@ -849,7 +850,7 @@ int file_load(void)
     bytes_remaining = bytes_remaining - bytes_read;
   }
 
-  sys_fs_close(fd);
+  sys_close(fd);
 
   buf_size = dest_idx;
 
@@ -863,10 +864,7 @@ int file_save(void)
   unsigned char chunk_buf[256];
   int chunk_idx;
 
-  sys_fs_delete(filepath);
-  sys_fs_create(filepath);
-
-  fd = sys_fs_open(filepath);
+  fd = sys_open(filepath, 0x1A /* O_WRONLY | O_CREAT | O_TRUNC */);
   if (fd < 0)
   {
     return -1;
@@ -879,7 +877,7 @@ int file_save(void)
     chunk_buf[chunk_idx++] = (unsigned char)(buf[i] & 0xFF);
     if (chunk_idx == (int)sizeof(chunk_buf))
     {
-      sys_fs_write(fd, chunk_buf, chunk_idx);
+      sys_write(fd, chunk_buf, chunk_idx);
       chunk_idx = 0;
     }
   }
@@ -893,17 +891,17 @@ int file_save(void)
     chunk_buf[chunk_idx++] = (unsigned char)(buf[i] & 0xFF);
     if (chunk_idx == (int)sizeof(chunk_buf))
     {
-      sys_fs_write(fd, chunk_buf, chunk_idx);
+      sys_write(fd, chunk_buf, chunk_idx);
       chunk_idx = 0;
     }
   }
 
   if (chunk_idx > 0)
   {
-    sys_fs_write(fd, chunk_buf, chunk_idx);
+    sys_write(fd, chunk_buf, chunk_idx);
   }
 
-  sys_fs_close(fd);
+  sys_close(fd);
   modified = 0;
   return 0;
 }

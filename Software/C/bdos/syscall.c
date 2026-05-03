@@ -18,19 +18,12 @@ int bdos_syscall_dispatch(int num, int a1, int a2, int a3)
 {
   switch (num)
   {
-    /* ---- Filesystem (raw BRFS — kept for tools that want word-level I/O) ---- */
-    case SYSCALL_FS_OPEN:      return brfs_open(&brfs_spi, (char *)a1);
-    case SYSCALL_FS_CLOSE:     return brfs_close(&brfs_spi, a1);
-    case SYSCALL_FS_READ:      return brfs_read(&brfs_spi, a1, (void *)a2, (unsigned int)a3);
-    case SYSCALL_FS_WRITE:     return brfs_write(&brfs_spi, a1, (const void *)a2, (unsigned int)a3);
-    case SYSCALL_FS_SEEK:      return brfs_seek(&brfs_spi, a1, (unsigned int)a2);
-    case SYSCALL_FS_STAT:      return brfs_stat(&brfs_spi, (char *)a1, (struct brfs_dir_entry *)a2);
-    case SYSCALL_FS_DELETE:    return brfs_delete(&brfs_spi, (char *)a1);
-    case SYSCALL_FS_CREATE:    return brfs_create_file(&brfs_spi, (char *)a1);
-    case SYSCALL_FS_FILESIZE:  return brfs_file_size(&brfs_spi, a1);
-    case SYSCALL_FS_READDIR:   return brfs_read_dir(&brfs_spi, (char *)a1, (struct brfs_dir_entry *)a2, (unsigned int)a3);
-    case SYSCALL_FS_MKDIR:     return brfs_create_dir(&brfs_spi, (char *)a1);
+    /* ---- Legacy raw-BRFS file I/O (slots 4–12, 24, 33) ----
+     * Removed: all userland callers now use the VFS API (SYSCALL_OPEN,
+     * _READ, _WRITE, _CLOSE, _LSEEK, _UNLINK, _MKDIR, _READDIR).
+     * Slots kept reserved — fall through to default:-1. */
 
+    /* ---- Format utilities (kept — special admin tools) ---- */
     case SYSCALL_FS_FORMAT:
       /* args: a1 = blocks, a2 = words_per_block, a3 = label_ptr.
          Performs format + sync; the userland `format` tool wraps this. */
@@ -88,6 +81,11 @@ int bdos_syscall_dispatch(int num, int a1, int a2, int a3)
     case SYSCALL_CLOSE:  return bdos_vfs_close(a1);
     case SYSCALL_LSEEK:  return bdos_vfs_lseek(a1, a2, a3);
     case SYSCALL_DUP2:   return bdos_vfs_dup2(a1, a2);
+
+    /* ---- VFS path operations ---- */
+    case SYSCALL_UNLINK:  return bdos_vfs_unlink((const char *)a1);
+    case SYSCALL_MKDIR:   return bdos_vfs_mkdir((const char *)a1);
+    case SYSCALL_READDIR: return bdos_vfs_readdir((const char *)a1, (void *)a2, a3);
 
     default:
       return -1;
