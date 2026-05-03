@@ -4,21 +4,27 @@
 #include "brfs_storage.h"
 
 /*
- * BRFS in-RAM block cache (Phase 2 of BRFS v2 — see Docs/plans/BRFS-v2.md).
+ * BRFS in-RAM block cache.
  *
- * Today the cache is a single linear buffer that mirrors the entire
- * on-disk image: [superblock | FAT | data]. The cache module owns the
- * buffer, the per-FS-block dirty bitmap, and the load/flush traffic
- * against the storage backend. BRFS file/dir logic talks only to the
- * cache API and never to the storage backend directly.
+ * Two operating modes:
  *
- * Phase 4 will swap the linear buffer for an LRU pool of fixed-size
- * slots (each one storage sector) that can hold an FS larger than
- * the cache itself. The API below is designed so that swap is local
- * to brfs_cache.c — `brfs_cache_data(blk)` returns a pointer that is
- * guaranteed valid until the next cache call, no callers cache the
- * pointer across yields. Today everything is pinned, so the contract
- * is trivially satisfied; Phase 4 makes pinning explicit.
+ * 1. **Linear (pinned)** — the entire on-disk image fits in the cache
+ *    buffer: [superblock | FAT | data].  Every block is always resident.
+ *    Used for SPI flash.
+ *
+ * 2. **LRU** — the data region is larger than the cache buffer. The
+ *    superblock and FAT are always pinned; data blocks live in a
+ *    fixed-size slot pool managed by a doubly-linked LRU list.  Cache
+ *    misses load on demand; eviction flushes dirty slots.  Used for
+ *    the SD card.
+ *
+ * The mode is selected automatically by brfs_cache_configure(): if the
+ * full linear image fits in buf_words the cache uses linear mode,
+ * otherwise it switches to LRU.
+ *
+ * brfs_cache_data(blk) returns a pointer that is guaranteed valid until
+ * the next brfs_cache_data() call.  Callers must never hold two data
+ * pointers across a brfs_cache_data() call.
  */
 
 /* Progress callback type matches brfs.h's brfs_progress_callback_t.
@@ -32,6 +38,18 @@ typedef void (*brfs_progress_callback_t)(const char *phase,
 #endif
 
 #define BRFS_CACHE_MAX_BLOCKS 65536  /* matches BRFS_MAX_BLOCKS */
+
+#define BRFS_LRU_SLOT_NONE   0xFFFFFFFFu
+#define BRFS_LRU_BLOCK_NONE  0xFFFFFFFFu
+
+/* Per-slot metadata for LRU mode.  Stored as 4 consecutive words in
+ * the cache buffer (sizeof == 4 * sizeof(unsigned int) == 16 bytes). */
+typedef struct brfs_lru_slot {
+    unsigned int block_idx;     /* FS data block held, or BRFS_LRU_BLOCK_NONE */
+    unsigned int pin_count;     /* >0 means pinned, cannot evict */
+    unsigned int lru_prev;      /* prev slot in LRU chain, or BRFS_LRU_SLOT_NONE */
+    unsigned int lru_next;      /* next slot in LRU chain, or BRFS_LRU_SLOT_NONE */
+} brfs_lru_slot_t;
 
 typedef struct brfs_cache {
     brfs_storage_t *storage;
@@ -49,8 +67,17 @@ typedef struct brfs_cache {
     unsigned int total_blocks;
     unsigned int words_per_block;
 
-    /* Per-FS-block dirty bitmap. */
+    /* Per-FS-block dirty bitmap (used in both modes). */
     unsigned int dirty[(BRFS_CACHE_MAX_BLOCKS + 31) / 32];
+
+    /* --- LRU mode fields (only meaningful when lru_enabled != 0) --- */
+    int           lru_enabled;  /* 0 = linear, 1 = LRU */
+    unsigned int  num_slots;    /* number of data-block slots */
+    unsigned int *slot_of;      /* [total_blocks] block→slot, in buf */
+    brfs_lru_slot_t *slots;     /* [num_slots] slot metadata, in buf */
+    unsigned int *data_base;    /* start of slot data area, in buf */
+    unsigned int  lru_head;     /* MRU end of LRU list */
+    unsigned int  lru_tail;     /* LRU end (eviction candidate) */
 } brfs_cache_t;
 
 /* One-shot wiring: associate cache with backend + buffer. Does no I/O. */
@@ -90,5 +117,10 @@ int brfs_cache_load(brfs_cache_t *c, brfs_progress_callback_t progress);
 
 /* Flush every dirty FS-block to storage, sector-granular. Clears dirty bits. */
 int brfs_cache_flush(brfs_cache_t *c, brfs_progress_callback_t progress);
+
+/* Pin / unpin a data block (LRU mode only; no-op in linear mode).
+ * A pinned block cannot be evicted.  Every pin must be balanced by an unpin. */
+void brfs_cache_pin(brfs_cache_t *c, unsigned int block_idx);
+void brfs_cache_unpin(brfs_cache_t *c, unsigned int block_idx);
 
 #endif /* FPGC_BRFS_CACHE_H */

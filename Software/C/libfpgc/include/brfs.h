@@ -93,9 +93,12 @@ struct brfs_dir_entry
 
 struct brfs_file
 {
-  unsigned int fat_idx;
-  unsigned int cursor;
-  struct brfs_dir_entry *dir_entry;
+  unsigned int fat_idx;          /* starting FAT block */
+  unsigned int cursor;           /* byte cursor */
+  unsigned int dir_fat_idx;      /* FAT idx of parent directory block */
+  unsigned int dir_entry_idx;    /* index of dir entry within parent block */
+  unsigned int filesize;         /* cached filesize (written back on close) */
+  int          in_use;           /* 1 if open, 0 if closed */
 };
 
 struct brfs_state

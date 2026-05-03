@@ -183,7 +183,16 @@ void bdos_fs_sd_init(void)
   if (result == BRFS_OK)
   {
     bdos_sd_ready = 1;
-    term_puts("SD card mounted at /sdcard\n");
+    if (brfs_sd.cache_state.lru_enabled)
+    {
+      term_puts("SD card mounted at /sdcard (LRU cache, ");
+      term_putint((int)brfs_sd.cache_state.num_slots);
+      term_puts(" slots)\n");
+    }
+    else
+    {
+      term_puts("SD card mounted at /sdcard\n");
+    }
   }
   else
   {
@@ -233,12 +242,19 @@ int bdos_fs_sd_format_and_sync(unsigned int total_blocks, unsigned int words_per
     return BRFS_ERR_NOT_INITIALIZED;
   }
 
-  /* Verify the requested FS fits in the SD cache buffer */
+  /* Verify the requested FS fits in the SD cache buffer (linearly or via LRU). */
   needed_words = BRFS_SUPERBLOCK_SIZE + total_blocks +
                  total_blocks * words_per_block;
   if (needed_words > brfs_sd.cache_size)
   {
-    return BRFS_ERR_INVALID_PARAM;
+    /* Doesn't fit linearly — check LRU minimum (sb + FAT + slot_of + 1 slot). */
+    unsigned int min_lru = BRFS_SUPERBLOCK_SIZE +
+                           total_blocks * 2u +
+                           words_per_block + 4u;
+    if (min_lru > brfs_sd.cache_size)
+    {
+      return BRFS_ERR_INVALID_PARAM;
+    }
   }
 
   bdos_fs_progress_reset();
