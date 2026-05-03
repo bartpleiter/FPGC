@@ -10,12 +10,14 @@ BRFS v2 has the following characteristics:
 
 - **FAT-based** — A File Allocation Table tracks block allocation and
   per-file chains.
-- **RAM-cached** — Blocks live in a contiguous in-RAM cache for fast
-  access. The whole filesystem currently fits inside the cache (the
-  LRU eviction layer is planned for v2.1 alongside SD-card support).
+- **RAM-cached** — Blocks live in an in-RAM cache for fast
+  access. When the filesystem fits in the cache buffer, all blocks
+  are pinned (linear mode). When the FS is larger than the cache
+  (e.g. SD card), an LRU eviction pool is used automatically.
 - **Pluggable storage backend** — A small `brfs_storage_t` vtable
-  abstracts the persistent medium. Only the SPI-flash backend ships
-  today; the SD-card backend is a v2.1 follow-up.
+  abstracts the persistent medium. Two backends ship today:
+  SPI flash (for the internal filesystem) and SD card (for
+  removable storage mounted at `/sdcard`).
 - **Byte-native API** — `brfs_read` / `brfs_write` / `brfs_seek` and the
   on-disk `filesize` field are byte-counted. Internally the cache still
   reads/writes whole blocks; partial-block writes are handled
@@ -42,10 +44,10 @@ BRFS v2 is split into the layers described in §4.1 of the plan:
 |   path walk · directory ops · FAT · file ops        |
 +-----------------------------------------------------+
 | Block cache    (Software/C/libfpgc/fs/brfs_cache.c) |
-|   linear-pinned today; LRU pool in v2.1             |
+|   linear-pinned  or  LRU pool (auto-detected)       |
 +-----------------------------------------------------+
 | Storage backend vtable  (brfs_storage_t)            |
-|   spi_flash today; sd_card and ram-test in v2.1     |
+|   spi_flash · sd_card                               |
 +-----------------------------------------------------+
 | Hardware drivers  (Software/C/libfpgc/io/spi_flash.c, …) |
 +-----------------------------------------------------+
@@ -125,23 +127,53 @@ Concrete backends:
 
 - **`brfs_storage_spi_flash`** — wraps `spi_flash_read_words` /
   `spi_flash_write_words` / `spi_flash_erase_sector`. `block_size = 4096`,
-  `erase_unit_blocks = 1`. This is the production backend used by BDOS.
-- **SD-card backend** — designed for v2.1 once a real
-  `Software/C/libfpgc/io/sd.c` driver lands. `block_size = 512`,
-  no erase needed.
+  `erase_unit_blocks = 1`. This is the production backend used by BDOS
+  for the internal flash filesystem.
+- **`brfs_storage_sdcard`** — wraps `sd_read_block` / `sd_write_block`
+  via a byte-addressed word-granular API. Handles partial-block
+  read-modify-write through a 512-byte scratch buffer. `erase_sector`
+  is a no-op (SD cards manage their own wear-levelling). Used for the
+  SD card filesystem mounted at `/sdcard`.
 - **RAM backend** — small in-memory backend for host-side unit tests
   of the cache and FS core. Not exposed in BDOS.
 
 ## Cache
 
-In v2.0 the cache is a single contiguous buffer sized for the entire
-mounted filesystem (`superblock + FAT + data_blocks * block_size`).
-On the current 4 MiB SPI-flash partition this is ~4 MiB of BDOS heap,
-well within budget, and every block is effectively pinned —
-`brfs_cache_get_data_block(blk)` returns a pointer that stays valid
-for the lifetime of the mount. This keeps the v1 "everything in RAM"
-performance characteristics while the new vtable + byte-native API
-shipped underneath. An LRU cache will be added in v2.1.
+BRFS uses a block cache (`brfs_cache.c`) with two operating modes,
+selected automatically by `brfs_cache_configure()` based on whether
+the full filesystem fits in the cache buffer.
+
+### Linear mode (pinned)
+
+When `superblock + FAT + all_data ≤ buf_words`, the cache uses a
+single contiguous buffer that mirrors the entire on-disk image. Every
+block is permanently resident. This is the mode used for the SPI-flash
+filesystem (4 MiB partition in a 16 MiB cache buffer).
+
+### LRU mode
+
+When the FS is too large for the buffer, the cache switches to an LRU
+pool. The superblock and FAT are always pinned; data blocks live in a
+fixed-size slot pool. Cache misses load blocks on demand from storage;
+evictions flush dirty slots before reusing them.
+
+Buffer layout in LRU mode:
+
+```
+[ superblock 16w ][ FAT total_blocks w ][ slot_of[] total_blocks w ]
+[ slot metadata num_slots × 4w ][ slot data num_slots × words_per_block w ]
+```
+
+- `slot_of[]` — direct-mapped block→slot lookup (0xFFFFFFFF = not cached)
+- Each slot has: `{block_idx, pin_count, lru_prev, lru_next}`
+- Doubly-linked LRU list for O(1) eviction and promotion
+- `brfs_cache_pin()` / `brfs_cache_unpin()` protect blocks from eviction
+  during multi-step operations (e.g. `brfs_delete` which needs the parent
+  directory block to survive across subdirectory reads)
+
+The SD card uses LRU mode: 4 MiB cache for a potentially much larger
+SD partition. The number of data slots depends on the partition size
+(fewer blocks in the FAT = more room for data slots).
 
 ### Dirty-block tracking
 
@@ -209,5 +241,20 @@ For a 4 MiB partition the proper settings are
 - No file permissions, owners, or ACLs.
 - No timestamps (RTC support reserved but not implemented).
 - Single-user, single-foreground; no locking.
-- The v2.0 cache requires the entire FS to fit in the BDOS heap budget
-  (~4 MiB today). The v2.1 LRU cache lifts this limit.
+
+## Host-side SD card tools
+
+Two Python scripts in `Scripts/BDOS/` allow reading and writing the
+BRFS filesystem on an SD card from the host PC:
+
+- **`sd_read_brfs.py`** — reads the SD card's BRFS partition and
+  extracts all files and directories to `Files/BRFS-sd-transfer/`.
+  Usage: `make sd-read-brfs dev=/dev/sdX`
+- **`sd_write_brfs.py`** — writes the contents of
+  `Files/BRFS-sd-transfer/` back to the SD card, replacing all existing
+  contents. Preserves the existing partition geometry.
+  Usage: `make sd-write-brfs dev=/dev/sdX`
+
+The device should be `chown`ed to the current user (or run with `sudo`).
+Filenames use the FPGC's big-endian character packing
+(`brfs_compress_string`); file data uses native LE byte addressing.

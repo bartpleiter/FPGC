@@ -38,8 +38,8 @@ See [Specifications](System-overview/Specifications.md) for the full hardware/so
 - [ ] 3D-printed case and monitor for a single standalone physical computer
 - [x] Self-hosted assembler and C compiler running on the FPGC
 - [x] Ethernet communication via custom layer 2 protocol
-- [ ] SD card mass storage
+- [x] SD card mass storage
 - [x] Modern C compiler setup with linker support in toolchain, and a proper standard library (libc) to make porting existing C code easier
 - [x] Modify the CPU design and software stack to become byte-addressable instead of the word-addressable design I have been using since the start of FPGC
 - [x] Efficient CPU design to allow 100 MHz execution
-- [ ] DMA support for faster data transfers
+- [x] DMA support for faster data transfers
