@@ -101,6 +101,8 @@ static int bdos_shell_cmd_pwd(int argc, char **argv)
 static int bdos_shell_cmd_cd(int argc, char **argv)
 {
   char resolved[BDOS_SHELL_PATH_MAX];
+  struct brfs_state *fs;
+  const char *rp;
   int result;
 
   if (!bdos_shell_require_fs_ready())
@@ -127,7 +129,8 @@ static int bdos_shell_cmd_cd(int argc, char **argv)
     return 0;
   }
 
-  if (!brfs_is_dir(&brfs_spi, resolved))
+  fs = bdos_fs_for_path(resolved, &rp);
+  if (!brfs_is_dir(fs, rp))
   {
     term_puts("error: not a directory\n");
     return 0;
@@ -146,6 +149,8 @@ static int bdos_shell_cmd_ls(int argc, char **argv)
   char resolved[BDOS_SHELL_PATH_MAX];
   char size_buf[20];
   char name[BRFS_MAX_FILENAME_LENGTH + 1];
+  struct brfs_state *fs;
+  const char *rp;
   int result;
   int count;
   int i;
@@ -183,7 +188,8 @@ static int bdos_shell_cmd_ls(int argc, char **argv)
     return 0;
   }
 
-  count = brfs_read_dir(&brfs_spi, resolved, entries, BDOS_SHELL_LS_MAX_ENTRIES);
+  fs = bdos_fs_for_path(resolved, &rp);
+  count = brfs_read_dir(fs, rp, entries, BDOS_SHELL_LS_MAX_ENTRIES);
   if (count < 0)
   {
     bdos_shell_print_fs_error("ls", count);
@@ -225,6 +231,14 @@ static int bdos_shell_cmd_ls(int argc, char **argv)
   bdos_shell_sort_names(dir_names, dir_count);
   bdos_shell_sort_files(file_names, file_sizes, file_count);
 
+  /* Inject synthetic /sdcard mount point when listing root */
+  if (strcmp(resolved, "/") == 0 && bdos_sd_initialized &&
+      dir_count < BDOS_SHELL_LS_MAX_ENTRIES)
+  {
+    strcpy(dir_names[dir_count], "sdcard");
+    dir_count++;
+  }
+
   for (i = 0; i < dir_count; i++)
   {
     term_puts(dir_names[i]);
@@ -259,6 +273,8 @@ static int bdos_shell_cmd_ls(int argc, char **argv)
 static int bdos_shell_cmd_mkdir(int argc, char **argv)
 {
   char resolved[BDOS_SHELL_PATH_MAX];
+  struct brfs_state *fs;
+  const char *rp;
   int result;
 
   if (!bdos_shell_require_fs_ready())
@@ -279,7 +295,8 @@ static int bdos_shell_cmd_mkdir(int argc, char **argv)
     return 0;
   }
 
-  result = brfs_create_dir(&brfs_spi, resolved);
+  fs = bdos_fs_for_path(resolved, &rp);
+  result = brfs_create_dir(fs, rp);
   if (result != BRFS_OK)
   {
     bdos_shell_print_fs_error("mkdir", result);
@@ -291,6 +308,8 @@ static int bdos_shell_cmd_mkdir(int argc, char **argv)
 static int bdos_shell_cmd_mkfile(int argc, char **argv)
 {
   char resolved[BDOS_SHELL_PATH_MAX];
+  struct brfs_state *fs;
+  const char *rp;
   int result;
 
   if (!bdos_shell_require_fs_ready())
@@ -311,7 +330,8 @@ static int bdos_shell_cmd_mkfile(int argc, char **argv)
     return 0;
   }
 
-  result = brfs_create_file(&brfs_spi, resolved);
+  fs = bdos_fs_for_path(resolved, &rp);
+  result = brfs_create_file(fs, rp);
   if (result != BRFS_OK)
   {
     bdos_shell_print_fs_error("mkfile", result);
@@ -325,12 +345,15 @@ static int bdos_shell_rm_recursive(char *path)
   struct brfs_dir_entry entries[BDOS_SHELL_LS_MAX_ENTRIES];
   char name[BRFS_MAX_FILENAME_LENGTH + 1];
   char child_path[BDOS_SHELL_PATH_MAX];
+  struct brfs_state *fs;
+  const char *rp;
   int count;
   int i;
   int result;
   int path_len;
 
-  count = brfs_read_dir(&brfs_spi, path, entries, BDOS_SHELL_LS_MAX_ENTRIES);
+  fs = bdos_fs_for_path(path, &rp);
+  count = brfs_read_dir(fs, rp, entries, BDOS_SHELL_LS_MAX_ENTRIES);
   if (count < 0)
   {
     return count;
@@ -363,7 +386,12 @@ static int bdos_shell_rm_recursive(char *path)
       }
     }
 
-    result = brfs_delete(&brfs_spi, child_path);
+    {
+      struct brfs_state *cfs;
+      const char *crp;
+      cfs = bdos_fs_for_path(child_path, &crp);
+      result = brfs_delete(cfs, crp);
+    }
     if (result != BRFS_OK)
     {
       return result;
@@ -376,6 +404,8 @@ static int bdos_shell_rm_recursive(char *path)
 static int bdos_shell_cmd_rm(int argc, char **argv)
 {
   char resolved[BDOS_SHELL_PATH_MAX];
+  struct brfs_state *fs;
+  const char *rp;
   int result;
   int recursive;
   char *path_arg;
@@ -423,6 +453,8 @@ static int bdos_shell_cmd_rm(int argc, char **argv)
     return 0;
   }
 
+  fs = bdos_fs_for_path(resolved, &rp);
+
   if (recursive)
   {
     result = bdos_shell_rm_recursive(resolved);
@@ -433,7 +465,7 @@ static int bdos_shell_cmd_rm(int argc, char **argv)
     }
   }
 
-  result = brfs_delete(&brfs_spi, resolved);
+  result = brfs_delete(fs, rp);
   if (result != BRFS_OK)
   {
     bdos_shell_print_fs_error("rm", result);
@@ -490,6 +522,8 @@ static int bdos_shell_cmd_write(int argc, char **argv)
 {
   char resolved[BDOS_SHELL_PATH_MAX];
   unsigned char buf[BDOS_SHELL_INPUT_MAX];
+  struct brfs_state *fs;
+  const char *rp;
   int result;
   int fd;
   int i;
@@ -514,15 +548,17 @@ static int bdos_shell_cmd_write(int argc, char **argv)
     return 0;
   }
 
-  if (brfs_exists(&brfs_spi, resolved))
+  fs = bdos_fs_for_path(resolved, &rp);
+
+  if (brfs_exists(fs, rp))
   {
-    if (brfs_is_dir(&brfs_spi, resolved))
+    if (brfs_is_dir(fs, rp))
     {
       term_puts("error: cannot write to directory\n");
       return 0;
     }
 
-    result = brfs_delete(&brfs_spi, resolved);
+    result = brfs_delete(fs, rp);
     if (result != BRFS_OK)
     {
       bdos_shell_print_fs_error("replace file", result);
@@ -530,14 +566,14 @@ static int bdos_shell_cmd_write(int argc, char **argv)
     }
   }
 
-  result = brfs_create_file(&brfs_spi, resolved);
+  result = brfs_create_file(fs, rp);
   if (result != BRFS_OK)
   {
     bdos_shell_print_fs_error("create file", result);
     return 0;
   }
 
-  fd = brfs_open(&brfs_spi, resolved);
+  fd = brfs_open(fs, rp);
   if (fd < 0)
   {
     bdos_shell_print_fs_error("open", fd);
@@ -552,7 +588,7 @@ static int bdos_shell_cmd_write(int argc, char **argv)
       if (byte_count >= BDOS_SHELL_INPUT_MAX)
       {
         term_puts("error: text too long\n");
-        brfs_close(&brfs_spi, fd);
+        brfs_close(fs, fd);
         return 0;
       }
       buf[byte_count++] = ' ';
@@ -563,22 +599,22 @@ static int bdos_shell_cmd_write(int argc, char **argv)
       if (byte_count >= BDOS_SHELL_INPUT_MAX)
       {
         term_puts("error: text too long\n");
-        brfs_close(&brfs_spi, fd);
+        brfs_close(fs, fd);
         return 0;
       }
       buf[byte_count++] = (unsigned char)argv[i][j];
     }
   }
 
-  result = brfs_write(&brfs_spi, fd, buf, (unsigned int)byte_count);
+  result = brfs_write(fs, fd, buf, (unsigned int)byte_count);
   if (result < 0)
   {
     bdos_shell_print_fs_error("write", result);
-    brfs_close(&brfs_spi, fd);
+    brfs_close(fs, fd);
     return 0;
   }
 
-  brfs_close(&brfs_spi, fd);
+  brfs_close(fs, fd);
 
   term_puts("wrote ");
   term_putint(byte_count);
@@ -591,6 +627,10 @@ static int bdos_shell_cmd_cp(int argc, char **argv)
   char src_resolved[BDOS_SHELL_PATH_MAX];
   char dst_resolved[BDOS_SHELL_PATH_MAX];
   unsigned char chunk[BDOS_SHELL_IO_CHUNK_WORDS * 4];
+  struct brfs_state *sfs;
+  struct brfs_state *dfs;
+  const char *srp;
+  const char *drp;
   int result;
   int src_fd;
   int dst_fd;
@@ -618,13 +658,15 @@ static int bdos_shell_cmd_cp(int argc, char **argv)
     return 0;
   }
 
-  if (!brfs_exists(&brfs_spi, src_resolved))
+  sfs = bdos_fs_for_path(src_resolved, &srp);
+
+  if (!brfs_exists(sfs, srp))
   {
     term_puts("cp: source not found\n");
     return 0;
   }
 
-  if (brfs_is_dir(&brfs_spi, src_resolved))
+  if (brfs_is_dir(sfs, srp))
   {
     term_puts("cp: cannot copy a directory\n");
     return 0;
@@ -637,7 +679,9 @@ static int bdos_shell_cmd_cp(int argc, char **argv)
     return 0;
   }
 
-  if (brfs_exists(&brfs_spi, dst_resolved) && brfs_is_dir(&brfs_spi, dst_resolved))
+  dfs = bdos_fs_for_path(dst_resolved, &drp);
+
+  if (brfs_exists(dfs, drp) && brfs_is_dir(dfs, drp))
   {
     slash = strrchr(src_resolved, '/');
     if (slash != 0)
@@ -650,11 +694,12 @@ static int bdos_shell_cmd_cp(int argc, char **argv)
       strcat(dst_resolved, "/");
       strcat(dst_resolved, src_resolved);
     }
+    dfs = bdos_fs_for_path(dst_resolved, &drp);
   }
 
-  if (brfs_exists(&brfs_spi, dst_resolved) && !brfs_is_dir(&brfs_spi, dst_resolved))
+  if (brfs_exists(dfs, drp) && !brfs_is_dir(dfs, drp))
   {
-    result = brfs_delete(&brfs_spi, dst_resolved);
+    result = brfs_delete(dfs, drp);
     if (result != BRFS_OK)
     {
       bdos_shell_print_fs_error("cp: replace dest", result);
@@ -662,29 +707,29 @@ static int bdos_shell_cmd_cp(int argc, char **argv)
     }
   }
 
-  result = brfs_create_file(&brfs_spi, dst_resolved);
+  result = brfs_create_file(dfs, drp);
   if (result != BRFS_OK)
   {
     bdos_shell_print_fs_error("cp: create dest", result);
     return 0;
   }
 
-  src_fd = brfs_open(&brfs_spi, src_resolved);
+  src_fd = brfs_open(sfs, srp);
   if (src_fd < 0)
   {
     bdos_shell_print_fs_error("cp: open source", src_fd);
     return 0;
   }
 
-  dst_fd = brfs_open(&brfs_spi, dst_resolved);
+  dst_fd = brfs_open(dfs, drp);
   if (dst_fd < 0)
   {
     bdos_shell_print_fs_error("cp: open dest", dst_fd);
-    brfs_close(&brfs_spi, src_fd);
+    brfs_close(sfs, src_fd);
     return 0;
   }
 
-  remaining = brfs_file_size(&brfs_spi, src_fd);
+  remaining = brfs_file_size(sfs, src_fd);
   while (remaining > 0)
   {
     chunk_len = remaining;
@@ -693,7 +738,7 @@ static int bdos_shell_cmd_cp(int argc, char **argv)
       chunk_len = (int)sizeof(chunk);
     }
 
-    bytes_read = brfs_read(&brfs_spi, src_fd, chunk, (unsigned int)chunk_len);
+    bytes_read = brfs_read(sfs, src_fd, chunk, (unsigned int)chunk_len);
     if (bytes_read <= 0)
     {
       if (bytes_read < 0)
@@ -703,7 +748,7 @@ static int bdos_shell_cmd_cp(int argc, char **argv)
       break;
     }
 
-    bytes_written = brfs_write(&brfs_spi, dst_fd, chunk, (unsigned int)bytes_read);
+    bytes_written = brfs_write(dfs, dst_fd, chunk, (unsigned int)bytes_read);
     if (bytes_written < 0)
     {
       bdos_shell_print_fs_error("cp: write", bytes_written);
@@ -713,8 +758,8 @@ static int bdos_shell_cmd_cp(int argc, char **argv)
     remaining -= bytes_read;
   }
 
-  brfs_close(&brfs_spi, src_fd);
-  brfs_close(&brfs_spi, dst_fd);
+  brfs_close(sfs, src_fd);
+  brfs_close(dfs, dst_fd);
   return 0;
 }
 
@@ -723,6 +768,10 @@ static int bdos_shell_cmd_mv(int argc, char **argv)
   char src_resolved[BDOS_SHELL_PATH_MAX];
   char dst_resolved[BDOS_SHELL_PATH_MAX];
   unsigned char chunk[BDOS_SHELL_IO_CHUNK_WORDS * 4];
+  struct brfs_state *sfs;
+  struct brfs_state *dfs;
+  const char *srp;
+  const char *drp;
   int result;
   int src_fd;
   int dst_fd;
@@ -750,13 +799,15 @@ static int bdos_shell_cmd_mv(int argc, char **argv)
     return 0;
   }
 
-  if (!brfs_exists(&brfs_spi, src_resolved))
+  sfs = bdos_fs_for_path(src_resolved, &srp);
+
+  if (!brfs_exists(sfs, srp))
   {
     term_puts("mv: source not found\n");
     return 0;
   }
 
-  if (brfs_is_dir(&brfs_spi, src_resolved))
+  if (brfs_is_dir(sfs, srp))
   {
     term_puts("mv: cannot move a directory\n");
     return 0;
@@ -769,7 +820,9 @@ static int bdos_shell_cmd_mv(int argc, char **argv)
     return 0;
   }
 
-  if (brfs_exists(&brfs_spi, dst_resolved) && brfs_is_dir(&brfs_spi, dst_resolved))
+  dfs = bdos_fs_for_path(dst_resolved, &drp);
+
+  if (brfs_exists(dfs, drp) && brfs_is_dir(dfs, drp))
   {
     slash = strrchr(src_resolved, '/');
     if (slash != 0)
@@ -782,11 +835,12 @@ static int bdos_shell_cmd_mv(int argc, char **argv)
       strcat(dst_resolved, "/");
       strcat(dst_resolved, src_resolved);
     }
+    dfs = bdos_fs_for_path(dst_resolved, &drp);
   }
 
-  if (brfs_exists(&brfs_spi, dst_resolved) && !brfs_is_dir(&brfs_spi, dst_resolved))
+  if (brfs_exists(dfs, drp) && !brfs_is_dir(dfs, drp))
   {
-    result = brfs_delete(&brfs_spi, dst_resolved);
+    result = brfs_delete(dfs, drp);
     if (result != BRFS_OK)
     {
       bdos_shell_print_fs_error("mv: replace dest", result);
@@ -794,29 +848,29 @@ static int bdos_shell_cmd_mv(int argc, char **argv)
     }
   }
 
-  result = brfs_create_file(&brfs_spi, dst_resolved);
+  result = brfs_create_file(dfs, drp);
   if (result != BRFS_OK)
   {
     bdos_shell_print_fs_error("mv: create dest", result);
     return 0;
   }
 
-  src_fd = brfs_open(&brfs_spi, src_resolved);
+  src_fd = brfs_open(sfs, srp);
   if (src_fd < 0)
   {
     bdos_shell_print_fs_error("mv: open source", src_fd);
     return 0;
   }
 
-  dst_fd = brfs_open(&brfs_spi, dst_resolved);
+  dst_fd = brfs_open(dfs, drp);
   if (dst_fd < 0)
   {
     bdos_shell_print_fs_error("mv: open dest", dst_fd);
-    brfs_close(&brfs_spi, src_fd);
+    brfs_close(sfs, src_fd);
     return 0;
   }
 
-  remaining = brfs_file_size(&brfs_spi, src_fd);
+  remaining = brfs_file_size(sfs, src_fd);
   while (remaining > 0)
   {
     chunk_len = remaining;
@@ -825,7 +879,7 @@ static int bdos_shell_cmd_mv(int argc, char **argv)
       chunk_len = (int)sizeof(chunk);
     }
 
-    bytes_read = brfs_read(&brfs_spi, src_fd, chunk, (unsigned int)chunk_len);
+    bytes_read = brfs_read(sfs, src_fd, chunk, (unsigned int)chunk_len);
     if (bytes_read <= 0)
     {
       if (bytes_read < 0)
@@ -835,7 +889,7 @@ static int bdos_shell_cmd_mv(int argc, char **argv)
       break;
     }
 
-    bytes_written = brfs_write(&brfs_spi, dst_fd, chunk, (unsigned int)bytes_read);
+    bytes_written = brfs_write(dfs, dst_fd, chunk, (unsigned int)bytes_read);
     if (bytes_written < 0)
     {
       bdos_shell_print_fs_error("mv: write", bytes_written);
@@ -845,12 +899,12 @@ static int bdos_shell_cmd_mv(int argc, char **argv)
     remaining -= bytes_read;
   }
 
-  brfs_close(&brfs_spi, src_fd);
-  brfs_close(&brfs_spi, dst_fd);
+  brfs_close(sfs, src_fd);
+  brfs_close(dfs, dst_fd);
 
   if (remaining <= 0)
   {
-    result = brfs_delete(&brfs_spi, src_resolved);
+    result = brfs_delete(sfs, srp);
     if (result != BRFS_OK)
     {
       bdos_shell_print_fs_error("mv: delete source", result);
@@ -1036,8 +1090,14 @@ int bdos_shell_resolve_program(char *name, char *out_path)
     }
     strcat(search, name);
     result = bdos_shell_resolve_path(search, out_path);
-    if (result == BRFS_OK && brfs_exists(&brfs_spi, out_path) && !brfs_is_dir(&brfs_spi, out_path))
-      return BRFS_OK;
+    if (result == BRFS_OK)
+    {
+      struct brfs_state *pfs;
+      const char *prp;
+      pfs = bdos_fs_for_path(out_path, &prp);
+      if (brfs_exists(pfs, prp) && !brfs_is_dir(pfs, prp))
+        return BRFS_OK;
+    }
     if (*p == ':') p++;
   }
 

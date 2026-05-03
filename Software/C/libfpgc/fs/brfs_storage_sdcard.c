@@ -24,7 +24,16 @@
 
 #define SDB_BYTES SD_BLOCK_SIZE   /* 512 */
 
-static _Alignas(32) unsigned char sdb_scratch[SDB_BYTES];
+/*
+ * Scratch buffer for partial-block read-modify-write.
+ *
+ * Intentionally NOT 32-byte aligned: SD_DMA_OK(sdb_scratch) will
+ * fail, forcing sd_read/write_block to use the CPU byte-at-a-time
+ * SPI path. The DMA SPI burst path has an unresolved reliability
+ * issue (see sd-brfs-implementation.md "DMA Investigation").
+ * The CPU path is slower but correct.
+ */
+static unsigned char sdb_scratch[SDB_BYTES];
 
 static int
 sd_rmw_partial_read(unsigned int lba, unsigned int off,
@@ -87,15 +96,22 @@ sd_read_words_op(brfs_storage_t *self,
         lba     += 1u;
     }
 
-    /* Body: aligned full blocks. */
-    if (n_bytes >= SDB_BYTES) {
-        unsigned int blocks = n_bytes / SDB_BYTES;
-        r = sd_read_blocks(lba, d, blocks);
+    /* Body: aligned full blocks.
+     * DMA SPI2MEM to the BRFS cache at high SDRAM addresses fails for
+     * a still-unknown reason; bounce through the manually-aligned
+     * sdb_scratch buffer (in kernel BSS) which SD_DMA_OK passes for. */
+    while (n_bytes >= SDB_BYTES) {
+        r = sd_read_block(lba, sdb_scratch);
         if (r != SD_OK)
             return -1;
-        d       += blocks * SDB_BYTES;
-        n_bytes -= blocks * SDB_BYTES;
-        lba     += blocks;
+        {
+            unsigned int ci;
+            for (ci = 0; ci < SDB_BYTES; ci++)
+                d[ci] = sdb_scratch[ci];
+        }
+        d       += SDB_BYTES;
+        n_bytes -= SDB_BYTES;
+        lba     += 1u;
     }
 
     /* Tail partial. */
@@ -135,15 +151,20 @@ sd_write_words_op(brfs_storage_t *self,
         lba     += 1u;
     }
 
-    /* Body: aligned full blocks. */
-    if (n_bytes >= SDB_BYTES) {
-        unsigned int blocks = n_bytes / SDB_BYTES;
-        r = sd_write_blocks(lba, s, blocks);
+    /* Body: aligned full blocks.
+     * Bounce through sdb_scratch (manually aligned, DMA-eligible). */
+    while (n_bytes >= SDB_BYTES) {
+        {
+            unsigned int ci;
+            for (ci = 0; ci < SDB_BYTES; ci++)
+                sdb_scratch[ci] = s[ci];
+        }
+        r = sd_write_block(lba, sdb_scratch);
         if (r != SD_OK)
             return -1;
-        s       += blocks * SDB_BYTES;
-        n_bytes -= blocks * SDB_BYTES;
-        lba     += blocks;
+        s       += SDB_BYTES;
+        n_bytes -= SDB_BYTES;
+        lba     += 1u;
     }
 
     /* Tail partial. */

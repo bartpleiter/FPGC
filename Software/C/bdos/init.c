@@ -127,5 +127,12 @@ void bdos_init(void)
   bdos_proc_init();
   term_puts("VFS + process model initialized\n");
 
+  term_puts("Mounting filesystems\n");
+  term_puts("  SPI flash\n");
+  bdos_fs_boot_init();
+  
+  term_puts("  SD card\n");
+  bdos_fs_sd_init();
+
   set_user_led(0);
 }

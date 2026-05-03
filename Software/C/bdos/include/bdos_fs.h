@@ -13,6 +13,7 @@ extern int bdos_fs_last_mount_error;
 /* Shared filesystem state — SD card */
 extern struct brfs_state brfs_sd;
 extern int bdos_sd_ready;
+extern int bdos_sd_initialized;
 
 /* Filesystem functions */
 void bdos_fs_boot_init(void);
@@ -23,5 +24,12 @@ int bdos_fs_sd_format_and_sync(unsigned int total_blocks, unsigned int words_per
                                char *label, int full_format);
 int bdos_fs_sync_now(void);
 char *bdos_fs_error_string(int error_code);
+
+/*
+ * Path routing: returns the BRFS instance for the given path, and sets
+ * *rel_path to the path relative to that mount (stripping /sdcard prefix).
+ * Returns &brfs_sd for /sdcard/* paths, &brfs_spi for everything else.
+ */
+struct brfs_state *bdos_fs_for_path(const char *path, const char **rel_path);
 
 #endif /* BDOS_FS_H */

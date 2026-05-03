@@ -202,11 +202,20 @@ int bdos_shell_run_cmd(int argc, char **argv)
 
     if (!bdos_shell_require_fs_ready()) return 1;
 
-    if (bdos_shell_resolve_program(argv[0], prog_path) != BRFS_OK ||
-        !brfs_exists(&brfs_spi, prog_path) || brfs_is_dir(&brfs_spi, prog_path)) {
+    if (bdos_shell_resolve_program(argv[0], prog_path) != BRFS_OK) {
         term_puts(argv[0]);
         term_puts(": command not found\n");
         return 127;
+    }
+    {
+        struct brfs_state *pfs;
+        const char *prp;
+        pfs = bdos_fs_for_path(prog_path, &prp);
+        if (!brfs_exists(pfs, prp) || brfs_is_dir(pfs, prp)) {
+            term_puts(argv[0]);
+            term_puts(": command not found\n");
+            return 127;
+        }
     }
 
     /* If the file starts with "#!" treat it as a script. We peek by

@@ -88,7 +88,10 @@ int main(void)
   puts1("Formatting SD card (this may take a while)...\n");
   rc = sys_sd_format(blocks, words_per_block, label);
   if (rc != 0) {
-    puts2("sdformat: format failed (is SD card inserted?)\n");
+    if (rc == -1) /* BRFS_ERR_INVALID_PARAM */
+      puts2("sdformat: FS too large for SD cache (reduce blocks or block size)\n");
+    else
+      puts2("sdformat: format failed (is SD card inserted?)\n");
     return 1;
   }
   puts1("SD card format complete.\n");

@@ -15,7 +15,8 @@ struct brfs_state brfs_sd;
 int bdos_fs_ready = 0;
 int bdos_fs_boot_needs_format = 0;
 int bdos_fs_last_mount_error = BRFS_OK;
-int bdos_sd_ready = 0;
+int bdos_sd_ready = 0;       /* FS mounted and usable */
+int bdos_sd_initialized = 0; /* hardware init + brfs_init OK (can format) */
 
 static char bdos_fs_progress_label[12] = "";
 static int bdos_fs_progress_last_pct = -1;
@@ -122,8 +123,6 @@ void bdos_fs_boot_init(void)
 {
   int result;
 
-  term_puts("Initializing BRFS\n");
-
   brfs_storage_spi_flash_init(&bdos_fs_storage, BDOS_FS_FLASH_ID);
   result = brfs_init(&brfs_spi, &bdos_fs_storage.base, (unsigned int *)MEM_BRFS_START, MEM_BRFS_SIZE / sizeof(unsigned int));
   if (result != BRFS_OK)
@@ -158,6 +157,7 @@ void bdos_fs_sd_init(void)
   if (sd_init(&info) != SD_OK)
   {
     bdos_sd_ready = 0;
+    bdos_sd_initialized = 0;
     return;
   }
 
@@ -168,8 +168,12 @@ void bdos_fs_sd_init(void)
   if (result != BRFS_OK)
   {
     bdos_sd_ready = 0;
+    bdos_sd_initialized = 0;
     return;
   }
+
+  /* Hardware + BRFS subsystem ready — can format even if mount fails */
+  bdos_sd_initialized = 1;
 
   bdos_fs_progress_reset();
   brfs_set_progress_callback(&brfs_sd, bdos_fs_progress_callback);
@@ -184,6 +188,7 @@ void bdos_fs_sd_init(void)
   else
   {
     bdos_sd_ready = 0;
+    term_puts("SD card could not be mounted\n");
   }
 }
 
@@ -221,10 +226,19 @@ int bdos_fs_sd_format_and_sync(unsigned int total_blocks, unsigned int words_per
                                char *label, int full_format)
 {
   int result;
+  unsigned int needed_words;
 
-  if (!bdos_sd_ready)
+  if (!bdos_sd_initialized)
   {
     return BRFS_ERR_NOT_INITIALIZED;
+  }
+
+  /* Verify the requested FS fits in the SD cache buffer */
+  needed_words = BRFS_SUPERBLOCK_SIZE + total_blocks +
+                 total_blocks * words_per_block;
+  if (needed_words > brfs_sd.cache_size)
+  {
+    return BRFS_ERR_INVALID_PARAM;
   }
 
   bdos_fs_progress_reset();
@@ -242,6 +256,9 @@ int bdos_fs_sd_format_and_sync(unsigned int total_blocks, unsigned int words_per
   {
     return result;
   }
+
+  /* Format succeeded — the SD FS is now mounted and usable */
+  bdos_sd_ready = 1;
 
   return BRFS_OK;
 }
@@ -280,4 +297,24 @@ int bdos_fs_sync_now(void)
 char *bdos_fs_error_string(int error_code)
 {
   return (char *)brfs_strerror(error_code);
+}
+
+struct brfs_state *bdos_fs_for_path(const char *path, const char **rel_path)
+{
+  /* Check for /sdcard prefix */
+  if (path[0] == '/' && path[1] == 's' && path[2] == 'd' &&
+      path[3] == 'c' && path[4] == 'a' && path[5] == 'r' &&
+      path[6] == 'd')
+  {
+    if (path[7] == '/' || path[7] == '\0')
+    {
+      if (bdos_sd_ready)
+      {
+        *rel_path = (path[7] == '\0') ? "/" : path + 7;
+        return &brfs_sd;
+      }
+    }
+  }
+  *rel_path = path;
+  return &brfs_spi;
 }

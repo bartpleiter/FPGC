@@ -44,8 +44,7 @@ dma_copy(unsigned int dst, unsigned int src, unsigned int count)
 
     cache_flush_data();
     dma_start_mem2mem(dst, src, count);
-    while (dma_busy()) { /* idle */ }
-    status = dma_status();
+    do { status = dma_status(); } while (status & FPGC_DMA_STATUS_BUSY);
     cache_flush_data();
     if (status & FPGC_DMA_STATUS_ERROR) return -1;
     return 0;
@@ -58,8 +57,7 @@ dma_blit_to_vram(unsigned int dst, unsigned int src, unsigned int count)
 
     cache_flush_data();
     dma_start_mem2vram(dst, src, count);
-    while (dma_busy()) { /* idle */ }
-    status = dma_status();
+    do { status = dma_status(); } while (status & FPGC_DMA_STATUS_BUSY);
     /* No post-invalidate: VRAMPX is write-only from the CPU side. */
     if (status & FPGC_DMA_STATUS_ERROR) return -1;
     return 0;

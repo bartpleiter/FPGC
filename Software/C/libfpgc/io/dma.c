@@ -72,16 +72,18 @@ dma_copy(unsigned int dst, unsigned int src, unsigned int count)
 
     dma_start_mem2mem(dst, src, count);
 
-    /* Spin until the engine is no longer busy. */
-    while (dma_busy()) {
-        /* idle */
-    }
-
     /*
-     * Read STATUS exactly once -- this also clears the sticky done/error
-     * flags so the next transfer starts clean.
+     * Spin-read STATUS until the engine is no longer busy.
+     *
+     * We must NOT call dma_busy() followed by dma_status() separately:
+     * the Verilog status_read_pulse clears the sticky done/error bits on
+     * each read, so a dma_busy() read that sees busy=0 would clear the
+     * error flag before dma_status() can observe it. Instead, read STATUS
+     * in the loop and exit with the value that first shows busy=0.
      */
-    status = dma_status();
+    do {
+        status = dma_status();
+    } while (status & FPGC_DMA_STATUS_BUSY);
 
     /* Invalidate L1d so subsequent CPU reads see the new SDRAM contents. */
     cache_flush_data();
@@ -102,11 +104,10 @@ dma_blit_to_vram(unsigned int dst, unsigned int src, unsigned int count)
 
     dma_start_mem2vram(dst, src, count);
 
-    while (dma_busy()) {
-        /* idle */
-    }
-
-    status = dma_status();
+    /* Same single-read loop as dma_copy to avoid losing the error flag. */
+    do {
+        status = dma_status();
+    } while (status & FPGC_DMA_STATUS_BUSY);
 
     /* No post-invalidate: VRAMPX is write-only from the CPU side. */
 
