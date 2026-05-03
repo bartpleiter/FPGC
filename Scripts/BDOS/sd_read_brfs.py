@@ -4,8 +4,8 @@ Read a BRFS v2 filesystem from an FPGC SD card and extract all
 files and directories to the host filesystem.
 
 Usage:
-    sudo python3 Scripts/BDOS/sd_read_brfs.py /dev/sda
-    sudo python3 Scripts/BDOS/sd_read_brfs.py /dev/sda -o /tmp/sdcard-dump
+    python3 Scripts/BDOS/sd_read_brfs.py /dev/sda
+    python3 Scripts/BDOS/sd_read_brfs.py /dev/sda -o /tmp/sdcard-dump
 
 The BRFS partition starts at byte 0 of the device with this layout:
     0x00000  superblock  (16 words = 64 bytes)
@@ -245,17 +245,18 @@ def main():
     reader.extract(out)
     reader.close()
 
-    # Fix ownership when run under sudo
-    sudo_uid = os.environ.get('SUDO_UID')
-    sudo_gid = os.environ.get('SUDO_GID')
-    if sudo_uid and sudo_gid:
-        uid, gid = int(sudo_uid), int(sudo_gid)
-        for root, dirs, files in os.walk(out):
-            os.chown(root, uid, gid)
-            for d in dirs:
-                os.chown(os.path.join(root, d), uid, gid)
-            for f in files:
-                os.chown(os.path.join(root, f), uid, gid)
+    # Currently commented out as the user is expected to run chown on /dev/sdx instead
+    # # Fix ownership when run under sudo
+    # sudo_uid = os.environ.get('SUDO_UID')
+    # sudo_gid = os.environ.get('SUDO_GID')
+    # if sudo_uid and sudo_gid:
+    #     uid, gid = int(sudo_uid), int(sudo_gid)
+    #     for root, dirs, files in os.walk(out):
+    #         os.chown(root, uid, gid)
+    #         for d in dirs:
+    #             os.chown(os.path.join(root, d), uid, gid)
+    #         for f in files:
+    #             os.chown(os.path.join(root, f), uid, gid)
 
     print('Done.')
 
