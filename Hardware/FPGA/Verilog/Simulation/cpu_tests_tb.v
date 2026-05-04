@@ -40,6 +40,11 @@
 `include "Hardware/FPGA/Verilog/Simulation/qspi_flash_sim.v"
 `include "Hardware/FPGA/Verilog/Modules/IO/MicrosCounter.v"
 `include "Hardware/FPGA/Verilog/Modules/IO/OStimer.v"
+`include "Hardware/FPGA/Verilog/Modules/IO/CameraCapture.v"
+`include "Hardware/FPGA/Verilog/Modules/IO/SCCB_master.v"
+`include "Hardware/FPGA/Verilog/Modules/IO/OV7670_config_rom.v"
+`include "Hardware/FPGA/Verilog/Modules/IO/CameraConfigure.v"
+`include "Hardware/FPGA/Verilog/Modules/Memory/CameraSubArbiter.v"
 
 
 
@@ -433,12 +438,34 @@ wire            cpu_sdc_done;
 wire [255:0]    cpu_sdc_q;
 
 // ---- DMA engine wires (step 8) ----
+wire [20:0]     dma_raw_sd_addr;
+wire [255:0]    dma_raw_sd_data;
+wire            dma_raw_sd_we;
+wire            dma_raw_sd_start;
+wire            dma_raw_sd_done;
+wire [255:0]    dma_raw_sd_q;
+
+// ---- Camera sub-arbiter → SDRAM arbiter wires ----
 wire [20:0]     dma_sd_addr;
 wire [255:0]    dma_sd_data;
 wire            dma_sd_we;
 wire            dma_sd_start;
 wire            dma_sd_done;
 wire [255:0]    dma_sd_q;
+
+// ---- Camera capture → sub-arbiter wires ----
+wire [20:0]     cam_sd_addr;
+wire [255:0]    cam_sd_data;
+wire            cam_sd_we;
+wire            cam_sd_start;
+wire            cam_sd_done;
+
+// ---- Camera control wires (from MemoryUnit) ----
+wire            cam_ctrl_enable;
+wire [20:0]     cam_ctrl_base_buf0;
+wire [20:0]     cam_ctrl_base_buf1;
+wire            cam_frame_done;
+wire            cam_current_buf;
 
 wire [2:0]      dma_reg_addr;
 wire            dma_reg_we;
@@ -687,7 +714,18 @@ MemoryUnit memory_unit (
     .dma_reg_addr(dma_reg_addr),
     .dma_reg_we(dma_reg_we),
     .dma_reg_data(dma_reg_data),
-    .dma_reg_q(dma_reg_q)
+    .dma_reg_q(dma_reg_q),
+
+    // Camera control/status (tied off — no real sensor in sim)
+    .cam_ctrl_enable(cam_ctrl_enable),
+    .cam_ctrl_base_buf0(cam_ctrl_base_buf0),
+    .cam_ctrl_base_buf1(cam_ctrl_base_buf1),
+    .cam_frame_done(cam_frame_done),
+    .cam_current_buf(cam_current_buf),
+    .cam_sccb_addr(),
+    .cam_sccb_data(),
+    .cam_sccb_start(),
+    .cam_sccb_ready(1'b1)
 );
 
 DMAengine dma_engine (
@@ -699,12 +737,12 @@ DMAengine dma_engine (
     .reg_data(dma_reg_data),
     .reg_q(dma_reg_q),
 
-    .sd_addr(dma_sd_addr),
-    .sd_data(dma_sd_data),
-    .sd_we(dma_sd_we),
-    .sd_start(dma_sd_start),
-    .sd_done(dma_sd_done),
-    .sd_q(dma_sd_q),
+    .sd_addr(dma_raw_sd_addr),
+    .sd_data(dma_raw_sd_data),
+    .sd_we(dma_raw_sd_we),
+    .sd_start(dma_raw_sd_start),
+    .sd_done(dma_raw_sd_done),
+    .sd_q(dma_raw_sd_q),
 
     .iop_start(dma_iop_start),
     .iop_we(dma_iop_we),
@@ -737,6 +775,48 @@ DMAengine dma_engine (
     .dma_burst_done(dma_burst_done),
 
     .irq(dma_irq)
+);
+
+//-----------------------Camera (no real sensor in sim)-------------------------
+CameraCapture camera_capture (
+    .clk(clk),
+    .reset(reset || uart_reset),
+    .ctrl_enable(cam_ctrl_enable),
+    .ctrl_base_buf0(cam_ctrl_base_buf0),
+    .ctrl_base_buf1(cam_ctrl_base_buf1),
+    .cam_pclk(1'b0),
+    .cam_vsync(1'b0),
+    .cam_href(1'b0),
+    .cam_data(8'd0),
+    .sd_addr(cam_sd_addr),
+    .sd_data(cam_sd_data),
+    .sd_we(cam_sd_we),
+    .sd_start(cam_sd_start),
+    .sd_done(cam_sd_done),
+    .frame_done(cam_frame_done),
+    .current_buf(cam_current_buf)
+);
+
+CameraSubArbiter camera_sub_arbiter (
+    .clk(clk),
+    .reset(reset || uart_reset),
+    .dma_addr(dma_raw_sd_addr),
+    .dma_data(dma_raw_sd_data),
+    .dma_we(dma_raw_sd_we),
+    .dma_start(dma_raw_sd_start),
+    .dma_done(dma_raw_sd_done),
+    .dma_q(dma_raw_sd_q),
+    .cam_addr(cam_sd_addr),
+    .cam_data(cam_sd_data),
+    .cam_we(cam_sd_we),
+    .cam_start(cam_sd_start),
+    .cam_done(cam_sd_done),
+    .sd_addr(dma_sd_addr),
+    .sd_data(dma_sd_data),
+    .sd_we(dma_sd_we),
+    .sd_start(dma_sd_start),
+    .sd_done(dma_sd_done),
+    .sd_q(dma_sd_q)
 );
 
 //-----------------------CPU-------------------------

@@ -112,7 +112,7 @@ module CameraConfigure #(
 
             S_DONE: begin
                 done  <= 1'b1;
-                state <= S_IDLE;
+                // Stay in S_DONE — done remains latched high permanently
             end
 
             S_TIMER: begin

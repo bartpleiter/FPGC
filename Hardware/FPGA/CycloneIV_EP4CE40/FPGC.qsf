@@ -422,6 +422,11 @@ set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/UARTrx.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/SimpleSPI.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/SimpleSPI2.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/DMAengine.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/CameraCapture.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/SCCB_master.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/OV7670_config_rom.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/CameraConfigure.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/Memory/CameraSubArbiter.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/OStimer.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/MicrosCounter.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/ActivityLED.v

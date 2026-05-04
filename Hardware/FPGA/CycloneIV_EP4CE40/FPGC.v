@@ -983,7 +983,6 @@ assign disp_3 = (!cam_configure_done) ? cam_cfg_sioc :
                 (cam_manual_sioc_oe   ? 1'b0 : 1'bz);
 assign disp_4 = (!cam_configure_done) ? cam_cfg_siod :
                 (cam_manual_siod_oe   ? 1'b0 : 1'bz);
-);
 
 CameraSubArbiter camera_sub_arbiter (
     .clk        (clk100),
