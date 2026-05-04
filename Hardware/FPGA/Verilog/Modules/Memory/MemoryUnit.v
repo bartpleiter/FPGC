@@ -151,6 +151,10 @@ module MemoryUnit (
 // cam_frame_done_latch is managed entirely in the main FSM below
 reg cam_frame_done_latch = 1'b0;
 
+// q_hold: latches the return value for STATE_RETURN_Q so it survives
+// the default q<=0 assignment that runs every cycle.
+reg [31:0] q_hold = 32'd0;
+
 // ---- DMA peer-port plumbing (step 9: iop_* routes SPI0/SPI4 byte MMIO) ----
 // The DMA engine drives iop_start/iop_we/iop_addr/iop_data with a single-byte
 // transaction targeting either ADDR_SPI0_DATA or ADDR_SPI4_DATA. We route it
@@ -955,12 +959,12 @@ always @(posedge clk) begin
                     else if (addr == ADDR_CAM_CTRL)
                     begin
                         if (we) cam_ctrl_enable <= data[0];
-                        q     <= {31'd0, cam_ctrl_enable};
-                        state <= STATE_RETURN_Q;
+                        q_hold <= {31'd0, cam_ctrl_enable};
+                        state  <= STATE_RETURN_Q;
                     end
                     else if (addr == ADDR_CAM_STATUS)
                     begin
-                        q     <= {30'd0, cam_current_buf, cam_frame_done_latch};
+                        q_hold <= {30'd0, cam_current_buf, cam_frame_done_latch};
                         // Read-clear the frame_done latch
                         cam_frame_done_latch <= 1'b0;
                         state <= STATE_RETURN_Q;
@@ -972,20 +976,20 @@ always @(posedge clk) begin
                             cam_sccb_data  <= data[7:0];
                             cam_sccb_start <= 1'b1;
                         end
-                        q     <= {31'd0, cam_sccb_ready};
-                        state <= STATE_RETURN_Q;
+                        q_hold <= {31'd0, cam_sccb_ready};
+                        state  <= STATE_RETURN_Q;
                     end
                     else if (addr == ADDR_CAM_BUF0)
                     begin
                         if (we) cam_ctrl_base_buf0 <= data[20:0];
-                        q     <= {11'd0, cam_ctrl_base_buf0};
-                        state <= STATE_RETURN_Q;
+                        q_hold <= {11'd0, cam_ctrl_base_buf0};
+                        state  <= STATE_RETURN_Q;
                     end
                     else if (addr == ADDR_CAM_BUF1)
                     begin
                         if (we) cam_ctrl_base_buf1 <= data[20:0];
-                        q     <= {11'd0, cam_ctrl_base_buf1};
-                        state <= STATE_RETURN_Q;
+                        q_hold <= {11'd0, cam_ctrl_base_buf1};
+                        state  <= STATE_RETURN_Q;
                     end
                     else
                     begin
@@ -1207,7 +1211,9 @@ always @(posedge clk) begin
 
             STATE_RETURN_Q:
             begin
-                // q was pre-loaded by the handler
+                // q was pre-loaded by the handler; re-assert it to
+                // override the default q<=0 that runs each cycle.
+                q     <= q_hold;
                 done  <= 1'b1;
                 state <= STATE_IDLE;
             end
