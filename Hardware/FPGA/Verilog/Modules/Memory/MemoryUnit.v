@@ -132,10 +132,24 @@ module MemoryUnit (
     output reg  [2:0]   dma_reg_addr = 3'd0,
     output reg          dma_reg_we   = 1'b0,
     output reg  [31:0]  dma_reg_data = 32'd0,
-    input  wire [31:0]  dma_reg_q
+    input  wire [31:0]  dma_reg_q,
+
+    // ---- Camera control (connects to camera modules in FPGC.v) ----
+    output reg          cam_ctrl_enable    = 1'b0,
+    output reg  [20:0]  cam_ctrl_base_buf0 = 21'h07E000, // Default: near top of 64MiB SDRAM
+    output reg  [20:0]  cam_ctrl_base_buf1 = 21'h07E960, // buf0 + 2400 lines
+    input  wire         cam_frame_done,
+    input  wire         cam_current_buf,
+    output reg  [7:0]   cam_sccb_addr      = 8'd0,
+    output reg  [7:0]   cam_sccb_data      = 8'd0,
+    output reg          cam_sccb_start     = 1'b0,
+    input  wire         cam_sccb_ready
 
     // TODO: GPIO
 );
+
+// cam_frame_done_latch is managed entirely in the main FSM below
+reg cam_frame_done_latch = 1'b0;
 
 // ---- DMA peer-port plumbing (step 9: iop_* routes SPI0/SPI4 byte MMIO) ----
 // The DMA engine drives iop_start/iop_we/iop_addr/iop_data with a single-byte
@@ -518,7 +532,12 @@ localparam
     ADDR_DMA_CTRL        = 32'h1C00007C, // DMA control: [3:0] mode, [4] irq_en, [7:5] sub-target, [31] start
     ADDR_DMA_STATUS      = 32'h1C000080, // DMA status: [0] busy, [1] done, [2] error (sticky, read-clear)
     ADDR_DMA_QSPI_ADDR   = 32'h1C000084, // DMA QSPI Fast Read source address (24-bit byte offset into flash)
-    ADDR_OOB             = 32'h1C000084; // All addresses >= this are out of bounds
+    ADDR_CAM_CTRL        = 32'h1C000088, // Camera control: [0] enable
+    ADDR_CAM_STATUS      = 32'h1C00008C, // Camera status: [0] frame_done (read-clear), [1] current_buf
+    ADDR_CAM_SCCB        = 32'h1C000090, // Camera SCCB: write {[15:8] reg_addr, [7:0] data}
+    ADDR_CAM_BUF0        = 32'h1C000094, // Camera buffer 0 base address (21-bit line address)
+    ADDR_CAM_BUF1        = 32'h1C000098, // Camera buffer 1 base address (21-bit line address)
+    ADDR_OOB             = 32'h1C00009C; // All addresses >= this are out of bounds
 
 // ---- State encoding ----
 localparam
@@ -544,7 +563,8 @@ localparam
     STATE_WAIT_BOOT_MODE         = 5'd19,
     STATE_WAIT_MICROS            = 5'd20,
     STATE_RETURN_DMA_REG         = 5'd21, // generic 1-cycle latency read of a DMA register
-    STATE_IOP_SPI_WAIT           = 5'd22; // step 9: DMA peer-port SPI transaction in flight
+    STATE_IOP_SPI_WAIT           = 5'd22, // step 9: DMA peer-port SPI transaction in flight
+    STATE_RETURN_Q               = 5'd23; // Return pre-loaded q value
 
 
 reg [4:0] state = 5'd0;
@@ -619,12 +639,20 @@ always @(posedge clk) begin
         iop_spi_id <= 3'd0;
 
         cpu_req_pending <= 1'b0;
+
+        cam_frame_done_latch <= 1'b0;
+        cam_sccb_start       <= 1'b0;
     end else
     begin
         // Default assignments
         done <= 1'b0;
         q <= 32'd0;
         wait_done <= 1'b0;
+        cam_sccb_start <= 1'b0;  // Single-cycle pulse
+
+        // Latch cam_frame_done pulses from CameraCapture
+        if (cam_frame_done)
+            cam_frame_done_latch <= 1'b1;
 
         // Latch CPU start pulses that arrive while MemoryUnit is busy.
         // CPU's mu_addr/mu_data/mu_we hold across the request (see MemoryStage),
@@ -923,6 +951,42 @@ always @(posedge clk) begin
                         dma_reg_data <= data;
                         state        <= STATE_RETURN_DMA_REG;
                     end
+                    // ---- Camera MMIO ----
+                    else if (addr == ADDR_CAM_CTRL)
+                    begin
+                        if (we) cam_ctrl_enable <= data[0];
+                        q     <= {31'd0, cam_ctrl_enable};
+                        state <= STATE_RETURN_Q;
+                    end
+                    else if (addr == ADDR_CAM_STATUS)
+                    begin
+                        q     <= {30'd0, cam_current_buf, cam_frame_done_latch};
+                        // Read-clear the frame_done latch
+                        cam_frame_done_latch <= 1'b0;
+                        state <= STATE_RETURN_Q;
+                    end
+                    else if (addr == ADDR_CAM_SCCB)
+                    begin
+                        if (we) begin
+                            cam_sccb_addr  <= data[15:8];
+                            cam_sccb_data  <= data[7:0];
+                            cam_sccb_start <= 1'b1;
+                        end
+                        q     <= {31'd0, cam_sccb_ready};
+                        state <= STATE_RETURN_Q;
+                    end
+                    else if (addr == ADDR_CAM_BUF0)
+                    begin
+                        if (we) cam_ctrl_base_buf0 <= data[20:0];
+                        q     <= {11'd0, cam_ctrl_base_buf0};
+                        state <= STATE_RETURN_Q;
+                    end
+                    else if (addr == ADDR_CAM_BUF1)
+                    begin
+                        if (we) cam_ctrl_base_buf1 <= data[20:0];
+                        q     <= {11'd0, cam_ctrl_base_buf1};
+                        state <= STATE_RETURN_Q;
+                    end
                     else
                     begin
                         // Out of range or unhandled address
@@ -1138,6 +1202,13 @@ always @(posedge clk) begin
             begin
                 done <= 1'b1;
                 q <= dma_reg_q;
+                state <= STATE_IDLE;
+            end
+
+            STATE_RETURN_Q:
+            begin
+                // q was pre-loaded by the handler
+                done  <= 1'b1;
                 state <= STATE_IDLE;
             end
 

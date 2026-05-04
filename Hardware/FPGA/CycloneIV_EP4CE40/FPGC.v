@@ -104,24 +104,24 @@ module FPGC (
     // Buttons
     input wire          reset_n,
 
-    // Display header
-    output wire         disp_1,
-    output wire         disp_2,
-    output wire         disp_3,
-    output wire         disp_4,
-    output wire         disp_5,
-    output wire         disp_6,
+    // Display header (camera interface)
+    output wire         disp_1,     // XCLK (25 MHz to OV7670)
+    output wire         disp_2,     // PWDN (active high, directly drive low)
+    output wire         disp_3,     // SIOC (SCCB clock)
+    inout  wire         disp_4,     // SIOD (SCCB data, open-drain)
+    output wire         disp_5,     // RESET (active low)
+    input  wire         disp_6,     // HREF from OV7670
 
-    // GPIO Header (currently defined as inputs only until they are used)
-    input wire          gpio_1,
-    input wire          gpio_2,
-    input wire          gpio_3,
-    input wire          gpio_4,
-    input wire          gpio_5,
-    input wire          gpio_6,
-    input wire          gpio_7,
-    input wire          gpio_8,
-    input wire          gpio_9
+    // GPIO Header (camera data bus)
+    input wire          gpio_1,     // cam_data[0]
+    input wire          gpio_2,     // cam_data[1]
+    input wire          gpio_3,     // cam_data[2]
+    input wire          gpio_4,     // cam_data[3]
+    input wire          gpio_5,     // cam_data[4]
+    input wire          gpio_6,     // cam_data[5]
+    input wire          gpio_7,     // cam_data[6]
+    input wire          gpio_8,     // cam_data[7]
+    input wire          gpio_9      // VSYNC from OV7670
 );
 
 /******************************************************************************
@@ -151,13 +151,10 @@ assign sd_data2_nc = 1'b1;
 // Audio DAC is currently not used yet
 assign audio_dac_data = 8'd0;
 
-// Display header is currently not used yet
-assign disp_1 = 1'b0;
-assign disp_2 = 1'b0;
-assign disp_3 = 1'b0;
-assign disp_4 = 1'b0;
-assign disp_5 = 1'b0;
-assign disp_6 = 1'b0;
+// Camera pin assignments (display header + GPIO)
+assign disp_1 = clkGPU;          // XCLK: 25 MHz clock to OV7670
+assign disp_2 = 1'b0;            // PWDN: keep sensor powered on
+assign disp_5 = ~reset;          // RESET: active low, release after system reset
 
 /******************************************************************************
  * Dip switch
@@ -641,7 +638,22 @@ wire            cpu_sdc_start;
 wire            cpu_sdc_done;
 wire [255:0]    cpu_sdc_q;
 
-// DMA engine wires (step 8)
+// DMA engine wires (step 8) — connect to CameraSubArbiter, not directly to SDRAMarbiter
+wire [20:0]     dma_raw_sd_addr;
+wire [255:0]    dma_raw_sd_data;
+wire            dma_raw_sd_we;
+wire            dma_raw_sd_start;
+wire            dma_raw_sd_done;
+wire [255:0]    dma_raw_sd_q;
+
+// Camera capture wires → CameraSubArbiter
+wire [20:0]     cam_sd_addr;
+wire [255:0]    cam_sd_data;
+wire            cam_sd_we;
+wire            cam_sd_start;
+wire            cam_sd_done;
+
+// CameraSubArbiter output → SDRAMarbiter DMA port
 wire [20:0]     dma_sd_addr;
 wire [255:0]    dma_sd_data;
 wire            dma_sd_we;
@@ -885,7 +897,117 @@ MemoryUnit memory_unit (
     .dma_reg_addr(dma_reg_addr),
     .dma_reg_we(dma_reg_we),
     .dma_reg_data(dma_reg_data),
-    .dma_reg_q(dma_reg_q)
+    .dma_reg_q(dma_reg_q),
+
+    // Camera
+    .cam_ctrl_enable(cam_ctrl_enable),
+    .cam_ctrl_base_buf0(cam_ctrl_base_buf0),
+    .cam_ctrl_base_buf1(cam_ctrl_base_buf1),
+    .cam_frame_done(cam_frame_done),
+    .cam_current_buf(cam_current_buf),
+    .cam_sccb_addr(cam_sccb_addr),
+    .cam_sccb_data(cam_sccb_data),
+    .cam_sccb_start(cam_sccb_start),
+    .cam_sccb_ready(cam_sccb_ready)
+);
+
+/******************************************************************************
+ * Camera subsystem
+ ******************************************************************************/
+
+// Camera control signals (directly from MMIO registers via MemoryUnit passthrough)
+wire        cam_ctrl_enable;
+wire [20:0] cam_ctrl_base_buf0;
+wire [20:0] cam_ctrl_base_buf1;
+wire        cam_frame_done;
+wire        cam_current_buf;
+
+// SCCB signals — two masters share open-drain bus (never active simultaneously)
+wire        cam_sccb_start;
+wire [7:0]  cam_sccb_addr;
+wire [7:0]  cam_sccb_data;
+wire        cam_sccb_ready;
+wire        cam_configure_done;
+
+// SCCB bus signals from each master
+wire cam_cfg_sioc, cam_cfg_siod;
+wire cam_manual_sioc_oe, cam_manual_siod_oe;
+
+// Camera data bus from GPIO pins
+wire [7:0] cam_data = {gpio_8, gpio_7, gpio_6, gpio_5, gpio_4, gpio_3, gpio_2, gpio_1};
+
+CameraCapture camera_capture (
+    .clk            (clk100),
+    .reset          (reset),
+    .cam_pclk       (sys_clk_header),  // PCLK from sensor
+    .cam_vsync      (gpio_9),          // VSYNC
+    .cam_href       (disp_6),          // HREF
+    .cam_data       (cam_data),
+    .sd_addr        (cam_sd_addr),
+    .sd_data        (cam_sd_data),
+    .sd_we          (cam_sd_we),
+    .sd_start       (cam_sd_start),
+    .sd_done        (cam_sd_done),
+    .ctrl_enable    (cam_ctrl_enable),
+    .ctrl_base_buf0 (cam_ctrl_base_buf0),
+    .ctrl_base_buf1 (cam_ctrl_base_buf1),
+    .frame_done     (cam_frame_done),
+    .current_buf    (cam_current_buf)
+);
+
+// Auto-configuration: runs ROM sequence on first enable
+CameraConfigure #(.CLK_FREQ(100_000_000)) camera_configure (
+    .clk   (clk100),
+    .reset (reset),
+    .start (cam_configure_done ? 1'b0 : cam_ctrl_enable),
+    .done  (cam_configure_done),
+    .sioc  (cam_cfg_sioc),
+    .siod  (cam_cfg_siod)
+);
+
+// Manual SCCB writes from CPU (only used after auto-configuration is done)
+SCCB_master #(.CLK_FREQ(100_000_000)) cam_sccb_manual (
+    .clk     (clk100),
+    .reset   (reset),
+    .start   (cam_sccb_start & cam_configure_done),
+    .address (cam_sccb_addr),
+    .data    (cam_sccb_data),
+    .ready   (cam_sccb_ready),
+    .sioc_oe (cam_manual_sioc_oe),
+    .siod_oe (cam_manual_siod_oe)
+);
+
+// Combine open-drain bus: both masters drive the same lines
+// CameraConfigure uses tri-state (z when released), manual uses output-enable
+assign disp_3 = (!cam_configure_done) ? cam_cfg_sioc :
+                (cam_manual_sioc_oe   ? 1'b0 : 1'bz);
+assign disp_4 = (!cam_configure_done) ? cam_cfg_siod :
+                (cam_manual_siod_oe   ? 1'b0 : 1'bz);
+);
+
+CameraSubArbiter camera_sub_arbiter (
+    .clk        (clk100),
+    .reset      (reset),
+    // DMA engine side
+    .dma_addr   (dma_raw_sd_addr),
+    .dma_data   (dma_raw_sd_data),
+    .dma_we     (dma_raw_sd_we),
+    .dma_start  (dma_raw_sd_start),
+    .dma_done   (dma_raw_sd_done),
+    .dma_q      (dma_raw_sd_q),
+    // Camera side
+    .cam_addr   (cam_sd_addr),
+    .cam_data   (cam_sd_data),
+    .cam_we     (cam_sd_we),
+    .cam_start  (cam_sd_start),
+    .cam_done   (cam_sd_done),
+    // SDRAM arbiter DMA port
+    .sd_addr    (dma_sd_addr),
+    .sd_data    (dma_sd_data),
+    .sd_we      (dma_sd_we),
+    .sd_start   (dma_sd_start),
+    .sd_done    (dma_sd_done),
+    .sd_q       (dma_sd_q)
 );
 
 /******************************************************************************
@@ -900,12 +1022,12 @@ DMAengine dma_engine (
     .reg_data(dma_reg_data),
     .reg_q(dma_reg_q),
 
-    .sd_addr(dma_sd_addr),
-    .sd_data(dma_sd_data),
-    .sd_we(dma_sd_we),
-    .sd_start(dma_sd_start),
-    .sd_done(dma_sd_done),
-    .sd_q(dma_sd_q),
+    .sd_addr(dma_raw_sd_addr),
+    .sd_data(dma_raw_sd_data),
+    .sd_we(dma_raw_sd_we),
+    .sd_start(dma_raw_sd_start),
+    .sd_done(dma_raw_sd_done),
+    .sd_q(dma_raw_sd_q),
 
     .iop_start(dma_iop_start),
     .iop_we(dma_iop_we),
