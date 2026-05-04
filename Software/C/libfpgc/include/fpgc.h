@@ -59,6 +59,13 @@
 #define FPGC_DMA_STATUS     0x1C000080
 #define FPGC_DMA_QSPI_ADDR  0x1C000084
 
+/* Camera subsystem registers */
+#define FPGC_CAM_CTRL       0x1C000088
+#define FPGC_CAM_STATUS     0x1C00008C
+#define FPGC_CAM_SCCB       0x1C000090
+#define FPGC_CAM_BUF0       0x1C000094
+#define FPGC_CAM_BUF1       0x1C000098
+
 /* DMA_CTRL bit fields */
 #define FPGC_DMA_MODE_MEM2MEM   0
 #define FPGC_DMA_MODE_MEM2SPI   1

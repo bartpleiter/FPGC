@@ -136,8 +136,8 @@ module MemoryUnit (
 
     // ---- Camera control (connects to camera modules in FPGC.v) ----
     output reg          cam_ctrl_enable    = 1'b0,
-    output reg  [20:0]  cam_ctrl_base_buf0 = 21'h07E000, // Default: near top of 64MiB SDRAM
-    output reg  [20:0]  cam_ctrl_base_buf1 = 21'h07E960, // buf0 + 2400 lines
+    output reg  [20:0]  cam_ctrl_base_buf0 = 21'h1F8000, // Default: 0x03F00000 bytes, near top of 64MiB SDRAM
+    output reg  [20:0]  cam_ctrl_base_buf1 = 21'h1F8960, // buf0 + 2400 lines = 0x03F12C00 bytes
     input  wire         cam_frame_done,
     input  wire         cam_current_buf,
     output reg  [7:0]   cam_sccb_addr      = 8'd0,

@@ -38,6 +38,7 @@ CPROC_OUTPUT = $(CPROC_DIR)/output/cproc-qbe
 .PHONY: compile-userbdos compile-userbdos-all compile-doom
 .PHONY: run-uart uart-monitor run-asm-uart run-c-baremetal-uart run-bdos
 .PHONY: compile-spi1-dma-test run-spi1-dma-test
+.PHONY: compile-camera run-camera
 .PHONY: run-userbdos run-doom
 .PHONY: flash-c-baremetal-spi flash-bdos
 .PHONY: qbe clean-qbe
@@ -749,6 +750,35 @@ compile-spi1-dma-test: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 		-o Software/ASM/Output/code.bin
 
 run-spi1-dma-test: compile-spi1-dma-test run-uart
+
+# Camera application: live dithered viewfinder using OV7670 sensor
+compile-camera: $(QBE_OUTPUT) $(CPROC_OUTPUT)
+	@mkdir -p Software/ASM/Output
+	./Scripts/BCC/compile_modern_c.sh \
+		Software/ASM/crt0/crt0_baremetal.asm \
+		Software/C/libc/sys/_exit.asm \
+		Software/C/libc/sys/syscalls.c \
+		Software/C/libc/string/string.c \
+		Software/C/libc/stdlib/stdlib.c \
+		Software/C/libc/stdlib/malloc.c \
+		Software/C/libc/ctype/ctype.c \
+		Software/C/libc/stdio/stdio.c \
+		Software/C/libfpgc/sys/sys_asm.asm \
+		Software/C/libfpgc/sys/sys.c \
+		Software/C/libfpgc/io/uart.c \
+		Software/C/libfpgc/io/timer.c \
+		Software/C/libfpgc/io/dma_asm.asm \
+		Software/C/libfpgc/io/dma.c \
+		Software/C/camera/cam_driver.c \
+		Software/C/camera/image_proc.c \
+		Software/C/camera/main.c \
+		--libc \
+		-I Software/C/libfpgc/include \
+		-I Software/C/camera \
+		-h \
+		-o Software/ASM/Output/code.bin
+
+run-camera: compile-camera run-uart
 
 # Standalone target: build the SPI1 QSPI DMA bring-up baremetal test
 # (Software/C/bareMetal/qspi_dma_test.c). Exercises MODE_SPI2MEM_QSPI
