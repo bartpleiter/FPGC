@@ -206,8 +206,12 @@ always @(posedge clk or posedge reset) begin
 
         case (state)
         S_IDLE: begin
-            if (ctrl_enable) begin
-                state <= S_DRAIN;
+            if (ctrl_enable && vsync_rising) begin
+                // Wait for first VSYNC before capturing to avoid writing to addr 0
+                current_buf <= 1'b0;
+                sd_addr     <= ctrl_base_buf0;
+                byte_cnt    <= 5'd0;
+                state       <= S_DRAIN;
             end
         end
 

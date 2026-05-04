@@ -161,6 +161,13 @@ module camera_capture_tb;
         ctrl_enable <= 1;
         #100;
 
+        // Send initial VSYNC pulse so CameraCapture leaves S_IDLE
+        // (module waits for first vsync_rising before starting capture)
+        @(posedge cam_pclk); cam_vsync <= 0;
+        repeat(10) @(posedge cam_pclk);
+        cam_vsync <= 1;
+        repeat(1000) @(posedge cam_pclk);
+
         $display("=== CameraCapture Testbench ===");
         $display("Generating frame 0...");
 
