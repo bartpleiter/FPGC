@@ -16,6 +16,7 @@
 #include "i2c.h"
 #include "ov7670_init.h"
 #include "fpgc.h"
+#include "sys.h"
 
 /* Display dimensions */
 #define DISP_W  320
@@ -50,11 +51,9 @@ static void process_frame(unsigned int src_addr, int do_print)
     unsigned char *buf;
     int i;
 
-    /* Flush L1 data cache so CPU sees what camera DMA wrote to SDRAM */
-    cache_flush_data();
-
     /* Print first 32 bytes for debug (only on selected frames) */
     if (do_print) {
+        cache_flush_data();
         buf = (unsigned char *)src_addr;
         uart_puts("Px:");
         for (i = 0; i < 32; i++) {
@@ -115,8 +114,23 @@ int main(void)
 
     frame_count = 0;
 
+    /* FPS measurement and rate toggle state */
+    unsigned int fps_start;
+    int fps_frames;
+    int fast_mode;
+    unsigned int toggle_time;
+
+    fps_start = get_micros();
+    fps_frames = 0;
+    fast_mode = 1;  /* Start in 30fps mode (PLL x4) */
+    toggle_time = get_micros();
+
     /* Main viewfinder loop: DMA-based capture */
     while (1) {
+        unsigned int t_cap_start;
+        unsigned int t_cap_end;
+        unsigned int t_blit_end;
+
         /* Alternate between two SDRAM buffers */
         if (frame_count & 1)
             dma_dst = CAM_BUF1_BYTE_ADDR;
@@ -124,21 +138,48 @@ int main(void)
             dma_dst = CAM_BUF0_BYTE_ADDR;
 
         /* Start DMA in CAM2MEM mode — DMA engine waits for VSYNC internally */
+        t_cap_start = get_micros();
         dma_start_cam(dma_dst, CAM_FRAME_BYTES);
 
         /* Poll DMA until transfer is complete */
         while (dma_busy()) { }
+        t_cap_end = get_micros();
 
         /* Process and display the captured frame */
-        process_frame(dma_dst, (frame_count & 63) == 0);
+        process_frame(dma_dst, 0);
+        t_blit_end = get_micros();
 
         frame_count++;
+        fps_frames++;
 
-        /* Print frame count every 64 frames */
-        if ((frame_count & 63) == 0) {
-            uart_puts("Frame ");
-            uart_putint(frame_count);
-            uart_putchar('\n');
+        /* Print FPS and timing every second */
+        if ((get_micros() - fps_start) >= 1000000) {
+            uart_puts("FPS:");
+            uart_putint(fps_frames);
+            uart_puts(" cap=");
+            uart_putint((int)(t_cap_end - t_cap_start));
+            uart_puts("us blit=");
+            uart_putint((int)(t_blit_end - t_cap_end));
+            uart_puts("us\n");
+            fps_frames = 0;
+            fps_start = get_micros();
+        }
+
+        /* Toggle between 30fps and 16fps every 5 seconds */
+        if ((get_micros() - toggle_time) >= 5000000) {
+            toggle_time = get_micros();
+            fast_mode = !fast_mode;
+            if (fast_mode) {
+                /* 30fps: PLL x4, CLKRC div-2 → PCLK=50MHz */
+                i2c_write(OV7670_ADDR, 0x6B, 0x4A);
+                i2c_write(OV7670_ADDR, 0x11, 0x00);
+                uart_puts("-> 30fps\n");
+            } else {
+                /* 16fps: no PLL, CLKRC bypass → PCLK=25MHz */
+                i2c_write(OV7670_ADDR, 0x6B, 0x0A);
+                i2c_write(OV7670_ADDR, 0x11, 0x40);
+                uart_puts("-> 16fps\n");
+            }
         }
     }
 

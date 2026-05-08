@@ -255,6 +255,10 @@ wire cam2mem_args_aligned =
     (dma_count[4:0] == 5'd0) &&
     (dma_count != 32'd0);
 
+// Latch cam_frame_done pulses so the DMA never misses a VSYNC between
+// the start command and reaching ST_CAM_FRAME_WAIT.
+reg cam_frame_done_latch = 1'b0;
+
 // Reading STATUS clears the sticky bits, but the MemoryUnit holds reg_addr=4
 // across an entire poll loop, so status_read sits high for many cycles in a
 // row. We rising-edge-detect it so a multi-cycle hold counts as a single
@@ -313,6 +317,11 @@ begin
         dma_burst_start  <= 1'b0;
         dma_burst_we     <= 1'b0;
         dma_burst_re_rx  <= 1'b0;
+
+        // Globally latch cam_frame_done so pulses arriving before
+        // the FSM reaches ST_CAM_FRAME_WAIT are not lost.
+        if (cam_frame_done)
+            cam_frame_done_latch <= 1'b1;
 
         // ---- Register writes from MemoryUnit ----
         // Note: while busy, software is not supposed to scribble on
@@ -450,6 +459,7 @@ begin
                             dst_cur         <= dma_dst;
                             bytes_remaining <= dma_count;
                             line_buf        <= 256'd0;
+                            cam_frame_done_latch <= 1'b0;  // Clear latch on start
                             state           <= ST_CAM_FRAME_WAIT;
                         end
                         else
@@ -839,8 +849,9 @@ begin
             // ---- CAM2MEM: wait for VSYNC boundary before starting capture ----
             ST_CAM_FRAME_WAIT:
             begin
-                if (cam_frame_done)
+                if (cam_frame_done || cam_frame_done_latch)
                 begin
+                    cam_frame_done_latch <= 1'b0;
                     state <= ST_CAM_WAIT;
                 end
             end
