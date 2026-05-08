@@ -1,0 +1,318 @@
+/*
+ * CameraCapture
+ * -------------
+ * OV7670 pixel capture engine for the FPGC-Camera project.
+ *
+ * Captures YUV422 data from the OV7670 parallel interface, extracts the
+ * Y (luminance) channel, and writes complete 32-byte (256-bit) cache lines
+ * to SDRAM via the SDRAMarbiter protocol.
+ *
+ * Single-clock design:
+ *   The OV7670 pixel clock (cam_pclk, ~25 MHz) is sampled as a DATA input
+ *   in the 100 MHz system clock domain. Rising edges are detected via a
+ *   2-stage synchronizer + edge detect. This eliminates all CDC issues.
+ *
+ * M9K buffer design:
+ *   Instead of a 256-bit shift register (which caused data-dependent SDRAM
+ *   corruption due to FPGA routing issues), pixel bytes are stored in an
+ *   M9K block RAM. The M9K is double-buffered (2 pages × 32 bytes):
+ *   - Pixel capture writes to page A
+ *   - When 32 bytes captured: swap pages, read page A into a 256-bit
+ *     assembly register (32 sequential reads), then fire SDRAM write
+ *   - Pixel capture continues into page B during readout + SDRAM write
+ *
+ *   The M9K is hard silicon with dedicated routing, isolating pixel-rate
+ *   toggling from the SDRAM data path.
+ *
+ * Y channel extraction:
+ *   OV7670 in YUV422 mode outputs bytes in order: Y0, U0, Y1, V0, ...
+ *   Every even byte when HREF is high is a Y value.
+ *
+ * Double buffering (frame level):
+ *   Two frame buffers in SDRAM. On each VSYNC rising edge, toggle buffer
+ *   and reset write address.
+ */
+module CameraCapture (
+    // System
+    input  wire         clk,            // 100 MHz system clock
+    input  wire         reset,
+
+    // OV7670 sensor interface (directly from FPGA pins)
+    input  wire         cam_pclk,       // Pixel clock from sensor (~25 MHz) — sampled as data
+    input  wire         cam_vsync,      // Vertical sync (HIGH = blanking)
+    input  wire         cam_href,       // Horizontal reference (HIGH = valid pixel data)
+    input  wire [7:0]   cam_data,       // 8-bit parallel pixel data
+
+    // SDRAM write port (matches SDRAMarbiter dma_* protocol)
+    output reg  [20:0]  sd_addr    = 21'd0,
+    output reg  [255:0] sd_data    = 256'd0,
+    output reg          sd_we      = 1'b1,    // Always write
+    output reg          sd_start   = 1'b0,
+    input  wire         sd_done,
+
+    // Control (from MMIO registers, active in clk domain)
+    input  wire         ctrl_enable,     // Master enable
+    input  wire [20:0]  ctrl_base_buf0,  // SDRAM base addr for buffer 0
+    input  wire [20:0]  ctrl_base_buf1,  // SDRAM base addr for buffer 1
+
+    // Status (active in clk domain)
+    output reg          frame_done   = 1'b0,  // 1-cycle pulse
+    output reg          current_buf  = 1'b0,  // Which buffer is being written
+
+    // Debug outputs
+    output wire [2:0]   dbg_state,
+    output reg  [15:0]  dbg_write_count = 16'd0  // Number of SDRAM writes issued
+);
+
+// =========================================================================
+// Input synchronization (all sensor signals → clk domain)
+// =========================================================================
+// PCLK: detect rising edge (3-stage: 2 for sync + 1 for prev)
+reg pclk_s1 = 1'b0, pclk_s2 = 1'b0, pclk_s3 = 1'b0;
+wire pclk_rising = pclk_s2 && !pclk_s3;
+
+// VSYNC: 2-stage sync + edge detect
+reg vsync_s1 = 1'b0, vsync_s2 = 1'b0, vsync_prev = 1'b0;
+wire vsync_rising = vsync_s2 && !vsync_prev;
+
+// HREF: 2-stage sync (level)
+reg href_s1 = 1'b0, href_s2 = 1'b0;
+
+// DATA: 2-stage sync (stable well before PCLK rising)
+reg [7:0] data_s1 = 8'd0, data_s2 = 8'd0;
+
+always @(posedge clk or posedge reset) begin
+    if (reset) begin
+        pclk_s1    <= 1'b0; pclk_s2    <= 1'b0; pclk_s3   <= 1'b0;
+        vsync_s1   <= 1'b0; vsync_s2   <= 1'b0; vsync_prev <= 1'b0;
+        href_s1    <= 1'b0; href_s2    <= 1'b0;
+        data_s1    <= 8'd0; data_s2    <= 8'd0;
+    end else begin
+        pclk_s1  <= cam_pclk;
+        pclk_s2  <= pclk_s1;
+        pclk_s3  <= pclk_s2;
+
+        vsync_s1   <= cam_vsync;
+        vsync_s2   <= vsync_s1;
+        vsync_prev <= vsync_s2;
+
+        href_s1  <= cam_href;
+        href_s2  <= href_s1;
+
+        data_s1  <= cam_data;
+        data_s2  <= data_s1;
+    end
+end
+
+// =========================================================================
+// Pixel capture (on detected PCLK rising edge)
+// =========================================================================
+reg byte_toggle = 1'b0;  // 0 = Y byte, 1 = U/V byte
+reg pixel_valid = 1'b0;  // 1-cycle pulse: new Y byte available
+reg [7:0] pixel_byte = 8'd0;
+
+always @(posedge clk or posedge reset) begin
+    if (reset) begin
+        byte_toggle <= 1'b0;
+        pixel_valid <= 1'b0;
+        pixel_byte  <= 8'd0;
+    end else begin
+        pixel_valid <= 1'b0;
+
+        if (pclk_rising && ctrl_enable) begin
+            if (href_s2) begin
+                if (!byte_toggle) begin
+                    pixel_byte  <= data_s2;
+                    pixel_valid <= 1'b1;
+                end
+                byte_toggle <= ~byte_toggle;
+            end else begin
+                byte_toggle <= 1'b0;
+            end
+        end else if (!ctrl_enable) begin
+            byte_toggle <= 1'b0;
+        end
+    end
+end
+
+// =========================================================================
+// M9K dual-port line buffer (64 bytes = 2 pages × 32 bytes)
+// =========================================================================
+// Inferred as M9K block RAM by Quartus.
+// Port A: 8-bit write (pixel capture)
+// Port B: 8-bit read (SDRAM writer readout)
+// Double-buffered: wr_page selects active capture page, read uses other page.
+
+(* ramstyle = "M9K" *) reg [7:0] line_buf [0:63];
+
+// Port A: write (synchronous, one write per pixel_valid)
+reg        wr_page   = 1'b0;   // Current write page (0 or 1)
+reg [4:0]  wr_cnt    = 5'd0;   // Byte counter within page (0-31)
+wire [5:0] wr_addr = {wr_page, wr_cnt};
+
+always @(posedge clk) begin
+    if (pixel_valid && (state == S_CAPTURE || state == S_READOUT || state == S_WRITE))
+        line_buf[wr_addr] <= pixel_byte;
+end
+
+// Port B: read (synchronous, 1 clock latency)
+reg [5:0]  rd_addr   = 6'd0;
+reg [7:0]  rd_data   = 8'd0;
+
+always @(posedge clk) begin
+    rd_data <= line_buf[rd_addr];
+end
+
+// =========================================================================
+// Main state machine
+// =========================================================================
+localparam S_IDLE       = 3'd0;
+localparam S_CAPTURE    = 3'd1;  // Accepting pixels into M9K
+localparam S_READOUT    = 3'd2;  // Reading 32 bytes from M9K into sd_data
+localparam S_WRITE      = 3'd3;  // Firing SDRAM write, waiting for sd_done
+localparam S_FRAME_DONE = 3'd4;  // Signal frame completion
+
+reg [2:0]  state      = S_IDLE;
+reg [5:0]  read_phase = 6'd0;   // 0-32: read pipeline counter (33 cycles)
+reg        rd_page    = 1'b0;   // Page being read (opposite of wr_page)
+reg        write_pend = 1'b0;   // SDRAM write in flight (prevents re-fire)
+
+assign dbg_state = state;
+
+always @(posedge clk or posedge reset) begin
+    if (reset) begin
+        state           <= S_IDLE;
+        sd_start        <= 1'b0;
+        sd_data         <= 256'd0;
+        dbg_write_count <= 16'd0;
+        frame_done      <= 1'b0;
+        current_buf     <= 1'b0;
+        wr_page         <= 1'b0;
+        wr_cnt          <= 5'd0;
+        read_phase      <= 6'd0;
+        rd_addr         <= 6'd0;
+        rd_page         <= 1'b0;
+        sd_addr         <= 21'd0;
+        write_pend      <= 1'b0;
+    end else begin
+        sd_start   <= 1'b0;
+        frame_done <= 1'b0;
+
+        // Pixel write counter: advance when pixel_valid in active states
+        if (pixel_valid && (state == S_CAPTURE || state == S_READOUT || state == S_WRITE)) begin
+            wr_cnt <= wr_cnt + 1'b1;
+        end
+
+        case (state)
+        S_IDLE: begin
+            if (ctrl_enable && vsync_rising) begin
+                current_buf <= 1'b0;
+                sd_addr     <= ctrl_base_buf0;
+                wr_page     <= 1'b0;
+                wr_cnt      <= 5'd0;
+                state       <= S_CAPTURE;
+            end
+        end
+
+        S_CAPTURE: begin
+            if (!ctrl_enable) begin
+                state <= S_IDLE;
+            end else if (vsync_rising) begin
+                current_buf <= ~current_buf;
+                sd_addr     <= current_buf ? ctrl_base_buf0 : ctrl_base_buf1;
+                wr_cnt      <= 5'd0;
+                state       <= S_FRAME_DONE;
+            end else if (pixel_valid && wr_cnt == 5'd31) begin
+                // Page full: swap pages and begin readout
+                rd_page    <= wr_page;
+                wr_page    <= ~wr_page;
+                wr_cnt     <= 5'd0;
+                read_phase <= 6'd0;
+                // Pre-set first read address: M9K needs 2 cycles from addr set
+                // to data usable. Setting addr 0 here means data[0] arrives at
+                // read_phase 1 inside S_READOUT.
+                rd_addr    <= {wr_page, 5'd0};
+                state      <= S_READOUT;
+            end
+        end
+
+        S_READOUT: begin
+            // Pipeline: addr set at phase N → data usable at phase N+2.
+            // Transition set addr 0 → data[0] usable at phase 1.
+            // Phase 0: set addr 1 → data[1] usable at phase 2.
+            // ...
+            // Phase N: set addr N+1 → data[N+1] usable at phase N+2.
+            // Phase 30: set addr 31 → data[31] usable at phase 32.
+            //
+            // Capture: phases 1-32 (32 bytes captured into sd_data).
+            // Done: phase 32 (last byte captured, transition to S_WRITE).
+
+            read_phase <= read_phase + 1'b1;
+
+            // Set next read address (phases 0-30 set addrs 1-31)
+            if (read_phase < 6'd31) begin
+                rd_addr <= {rd_page, read_phase[4:0] + 5'd1};
+            end
+
+            // Capture rd_data into sd_data (phases 1-32, MSB-first shift)
+            if (read_phase >= 6'd1) begin
+                sd_data <= {sd_data[247:0], rd_data};
+            end
+
+            // Check for VSYNC during readout
+            if (vsync_rising) begin
+                current_buf <= ~current_buf;
+                sd_addr     <= current_buf ? ctrl_base_buf0 : ctrl_base_buf1;
+                wr_cnt      <= 5'd0;
+                state       <= S_FRAME_DONE;
+            end else if (read_phase == 6'd32) begin
+                // All 32 bytes assembled — fire SDRAM write
+                state <= S_WRITE;
+            end
+
+            // Continue accepting pixels during readout (into other page)
+            if (pixel_valid && wr_cnt == 5'd31) begin
+                wr_cnt <= 5'd0;
+            end
+        end
+
+        S_WRITE: begin
+            // Fire SDRAM write request (sd_data is stable, assembled from M9K)
+            if (!write_pend) begin
+                sd_start        <= 1'b1;
+                sd_we           <= 1'b1;
+                write_pend      <= 1'b1;
+                dbg_write_count <= dbg_write_count + 1'b1;
+            end
+
+            if (sd_done) begin
+                write_pend <= 1'b0;
+                sd_addr    <= sd_addr + 1'b1;
+                // Check for VSYNC during write
+                if (vsync_rising) begin
+                    current_buf <= ~current_buf;
+                    sd_addr     <= current_buf ? ctrl_base_buf0 : ctrl_base_buf1;
+                    wr_cnt      <= 5'd0;
+                    state       <= S_FRAME_DONE;
+                end else begin
+                    state <= S_CAPTURE;
+                end
+            end
+
+            // Continue accepting pixels during SDRAM write
+            if (pixel_valid && wr_cnt == 5'd31) begin
+                wr_cnt <= 5'd0;
+            end
+        end
+
+        S_FRAME_DONE: begin
+            frame_done <= 1'b1;
+            state      <= S_CAPTURE;
+        end
+
+        default: state <= S_IDLE;
+        endcase
+    end
+end
+
+endmodule

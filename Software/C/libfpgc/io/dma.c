@@ -116,3 +116,12 @@ dma_blit_to_vram(unsigned int dst, unsigned int src, unsigned int count)
     }
     return 0;
 }
+
+void
+dma_start_cam(unsigned int dst, unsigned int count)
+{
+    __builtin_store(FPGC_DMA_DST,   (int)dst);
+    __builtin_store(FPGC_DMA_COUNT, (int)count);
+    __builtin_store(FPGC_DMA_CTRL,
+        (int)(FPGC_DMA_CTRL_START | (unsigned int)FPGC_DMA_MODE_CAM2MEM));
+}

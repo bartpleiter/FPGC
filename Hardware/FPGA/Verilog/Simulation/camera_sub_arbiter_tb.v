@@ -72,9 +72,9 @@ module camera_sub_arbiter_tb;
             dma_data  <= data;
             dma_we    <= 1;
             dma_start <= 1;
-            @(posedge clk);
-            dma_start <= 0;
+            // Hold dma_start high until dma_done (like the real DMA engine)
             while (!dma_done) @(posedge clk);
+            dma_start <= 0;
             @(posedge clk);
         end
     endtask
@@ -86,9 +86,9 @@ module camera_sub_arbiter_tb;
             dma_addr  <= addr;
             dma_we    <= 0;
             dma_start <= 1;
-            @(posedge clk);
-            dma_start <= 0;
+            // Hold dma_start high until dma_done (like the real DMA engine)
             while (!dma_done) @(posedge clk);
+            dma_start <= 0;
             @(posedge clk);
         end
     endtask
@@ -225,6 +225,40 @@ module camera_sub_arbiter_tb;
                 $display("  PASS: all 20 writes completed");
             else begin
                 $display("  FAIL: sd_write_count=%0d (expected 20)", sd_write_count);
+                errors = errors + 1;
+            end
+        end
+
+        // Test 6: Level-held dma_start must not cause spurious re-trigger
+        // This tests the exact bug that caused system lockup: DMA engine
+        // holds sd_start HIGH until sd_done. After the sub-arbiter completes
+        // the transaction and returns to S_IDLE, dma_start is still HIGH
+        // for 1 cycle. The sub-arbiter must NOT start a second transaction.
+        $display("Test 6: Level-held DMA start (no spurious re-trigger)");
+        repeat(10) @(posedge clk);
+        begin
+            sd_write_count = 0;
+
+            @(posedge clk);
+            dma_addr  <= 21'hAAA;
+            dma_data  <= 256'hF00D;
+            dma_we    <= 1;
+            dma_start <= 1;  // Go HIGH
+
+            // Hold HIGH until dma_done (like real DMA engine)
+            while (!dma_done) @(posedge clk);
+
+            // DMA engine deasserts start on the cycle AFTER seeing done
+            @(posedge clk);
+            dma_start <= 0;
+
+            // Wait a few cycles and verify only ONE SDRAM write occurred
+            repeat(20) @(posedge clk);
+
+            if (sd_write_count == 1)
+                $display("  PASS: exactly 1 write (no spurious re-trigger)");
+            else begin
+                $display("  FAIL: sd_write_count=%0d (expected 1, spurious detected!)", sd_write_count);
                 errors = errors + 1;
             end
         end

@@ -66,6 +66,10 @@
 #define FPGC_CAM_BUF0       0x1C000094
 #define FPGC_CAM_BUF1       0x1C000098
 
+/* I2C master registers */
+#define FPGC_I2C_CMD        0x1C0000A0
+#define FPGC_I2C_DATA       0x1C0000A4
+
 /* DMA_CTRL bit fields */
 #define FPGC_DMA_MODE_MEM2MEM   0
 #define FPGC_DMA_MODE_MEM2SPI   1
@@ -74,6 +78,7 @@
 #define FPGC_DMA_MODE_MEM2IO    4
 #define FPGC_DMA_MODE_IO2MEM    5
 #define FPGC_DMA_MODE_SPI2MEM_QSPI 6
+#define FPGC_DMA_MODE_CAM2MEM   7
 #define FPGC_DMA_CTRL_IRQ_EN    (1u << 4)
 #define FPGC_DMA_CTRL_SPI_SHIFT 5
 #define FPGC_DMA_CTRL_START     (1u << 31)

@@ -407,6 +407,9 @@ set_global_assignment -name VERILOG_SHOW_LMF_MAPPING_MESSAGES OFF
 
 
 set_global_assignment -name OPTIMIZATION_MODE "HIGH PERFORMANCE EFFORT"
+set_global_assignment -name SEED 5
+
+
 set_global_assignment -name VERILOG_FILE FPGC.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/QSPIflash.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/MultiCycleAluOps/IDivider.v
@@ -423,9 +426,7 @@ set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/SimpleSPI.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/SimpleSPI2.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/DMAengine.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/CameraCapture.v
-set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/SCCB_master.v
-set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/OV7670_config_rom.v
-set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/CameraConfigure.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/I2C_master.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/Memory/CameraSubArbiter.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/OStimer.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/MicrosCounter.v

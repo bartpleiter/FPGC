@@ -56,3 +56,13 @@ void cam_sccb_write(int reg_addr, int data)
     val = ((reg_addr & 0xFF) << 8) | (data & 0xFF);
     __builtin_store(FPGC_CAM_SCCB, val);
 }
+
+int cam_read_ctrl(void)
+{
+    return __builtin_load(FPGC_CAM_CTRL);
+}
+
+int cam_sccb_ready_raw(void)
+{
+    return __builtin_load(FPGC_CAM_SCCB) & 1;
+}

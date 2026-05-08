@@ -50,10 +50,14 @@ module SDRAMarbiter (
     output wire         sdc_we,
     output wire         sdc_start,
     input  wire         sdc_done,
-    input  wire [255:0] sdc_q
+    input  wire [255:0] sdc_q,
+
+    // Debug
+    output wire         dbg_busy
 );
 
 reg busy        = 1'b0;
+assign dbg_busy = busy;
 reg owner       = 1'b0; // 0 = CPU, 1 = DMA
 reg last_cpu    = 1'b0; // Set after a CPU transaction; if DMA is also asking, it wins next.
 

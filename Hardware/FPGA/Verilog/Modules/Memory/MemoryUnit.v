@@ -136,20 +136,36 @@ module MemoryUnit (
 
     // ---- Camera control (connects to camera modules in FPGC.v) ----
     output reg          cam_ctrl_enable    = 1'b0,
-    output reg  [20:0]  cam_ctrl_base_buf0 = 21'h1F8000, // Default: 0x03F00000 bytes, near top of 64MiB SDRAM
-    output reg  [20:0]  cam_ctrl_base_buf1 = 21'h1F8960, // buf0 + 2400 lines = 0x03F12C00 bytes
+    output reg  [20:0]  cam_ctrl_base_buf0 = 21'h100000, // Default: 0x02000000 bytes (32MiB offset, avoids high-row SDRAM issue)
+    output reg  [20:0]  cam_ctrl_base_buf1 = 21'h100960, // buf0 + 2400 lines = 0x02012C00 bytes
     input  wire         cam_frame_done,
     input  wire         cam_current_buf,
-    output reg  [7:0]   cam_sccb_addr      = 8'd0,
-    output reg  [7:0]   cam_sccb_data      = 8'd0,
-    output reg          cam_sccb_start     = 1'b0,
-    input  wire         cam_sccb_ready
+
+    // ---- I2C master (generic) ----
+    output reg          i2c_start      = 1'b0,
+    output reg          i2c_rw         = 1'b0,
+    output reg  [6:0]   i2c_dev_addr   = 7'd0,
+    output reg  [7:0]   i2c_reg_addr   = 8'd0,
+    output reg  [7:0]   i2c_wr_data    = 8'd0,
+    input  wire         i2c_busy,
+    input  wire         i2c_ack_err,
+    input  wire [7:0]   i2c_rd_data,
+    input  wire [4:0]   i2c_dbg_state, // SCCB config sequence complete
+    input  wire         cam_vsync_raw,      // Raw VSYNC pin (synchronized)
+    input  wire         cam_href_raw,       // Raw HREF pin (synchronized)
+    input  wire [2:0]   cam_dbg_state,      // CameraCapture FSM state
+    input  wire [15:0]  cam_dbg_write_count,// Camera SDRAM write count
+    input  wire         sdram_arb_busy      // SDRAMarbiter busy flag
 
     // TODO: GPIO
 );
 
 // cam_frame_done_latch is managed entirely in the main FSM below
 reg cam_frame_done_latch = 1'b0;
+
+// I2C start-pending flag: set when CPU writes I2C_CMD, cleared when
+// i2c_busy rises.  Ensures post-write busy poll always sees busy=1.
+reg i2c_start_pending = 1'b0;
 
 // q_hold: latches the return value for STATE_RETURN_Q so it survives
 // the default q<=0 assignment that runs every cycle.
@@ -538,10 +554,13 @@ localparam
     ADDR_DMA_QSPI_ADDR   = 32'h1C000084, // DMA QSPI Fast Read source address (24-bit byte offset into flash)
     ADDR_CAM_CTRL        = 32'h1C000088, // Camera control: [0] enable
     ADDR_CAM_STATUS      = 32'h1C00008C, // Camera status: [0] frame_done (read-clear), [1] current_buf
-    ADDR_CAM_SCCB        = 32'h1C000090, // Camera SCCB: write {[15:8] reg_addr, [7:0] data}
+    ADDR_I2C_DBG         = 32'h1C000090, // I2C debug: {start_pending, i2c_start, i2c_dbg_state[4:0]}
     ADDR_CAM_BUF0        = 32'h1C000094, // Camera buffer 0 base address (21-bit line address)
     ADDR_CAM_BUF1        = 32'h1C000098, // Camera buffer 1 base address (21-bit line address)
-    ADDR_OOB             = 32'h1C00009C; // All addresses >= this are out of bounds
+    ADDR_CAM_DBG         = 32'h1C00009C, // Camera debug: [2:0] state, [3] arb_busy, [19:4] write_count
+    ADDR_I2C_CMD         = 32'h1C0000A0, // I2C command: write {[23:17] dev_addr, [16] rw, [15:8] reg, [7:0] data}
+    ADDR_I2C_DATA        = 32'h1C0000A4, // I2C read data: {24'd0, rd_data[7:0]}
+    ADDR_OOB             = 32'h1C0000A8; // All addresses >= this are out of bounds
 
 // ---- State encoding ----
 localparam
@@ -645,14 +664,23 @@ always @(posedge clk) begin
         cpu_req_pending <= 1'b0;
 
         cam_frame_done_latch <= 1'b0;
-        cam_sccb_start       <= 1'b0;
+        i2c_start_pending    <= 1'b0;
+        i2c_start            <= 1'b0;
     end else
     begin
         // Default assignments
         done <= 1'b0;
         q <= 32'd0;
         wait_done <= 1'b0;
-        cam_sccb_start <= 1'b0;  // Single-cycle pulse
+
+        // i2c_start: keep asserted until master acknowledges by setting busy.
+        // This prevents losing the start pulse if it arrives while the master
+        // is still in S_DONE transitioning back to S_IDLE.
+        if (i2c_busy)
+        begin
+            i2c_start         <= 1'b0;
+            i2c_start_pending <= 1'b0;
+        end
 
         // Latch cam_frame_done pulses from CameraCapture
         if (cam_frame_done)
@@ -964,19 +992,24 @@ always @(posedge clk) begin
                     end
                     else if (addr == ADDR_CAM_STATUS)
                     begin
-                        q_hold <= {30'd0, cam_current_buf, cam_frame_done_latch};
+                        // [0] frame_done_latch (read-clear)
+                        // [1] current_buf
+                        // [2] always 1 (was cam_configure_done, now software does config)
+                        // [3] raw VSYNC pin
+                        // [4] raw HREF pin
+                        q_hold <= {27'd0, cam_href_raw, cam_vsync_raw, 1'b1,
+                                   cam_current_buf, cam_frame_done_latch};
                         // Read-clear the frame_done latch
                         cam_frame_done_latch <= 1'b0;
                         state <= STATE_RETURN_Q;
                     end
-                    else if (addr == ADDR_CAM_SCCB)
+                    else if (addr == ADDR_I2C_DBG)
                     begin
-                        if (we) begin
-                            cam_sccb_addr  <= data[15:8];
-                            cam_sccb_data  <= data[7:0];
-                            cam_sccb_start <= 1'b1;
-                        end
-                        q_hold <= {31'd0, cam_sccb_ready};
+                        // [4:0] I2C master FSM state
+                        // [5]   i2c_start (held)
+                        // [6]   i2c_start_pending
+                        // [7]   i2c_busy
+                        q_hold <= {24'd0, i2c_busy, i2c_start_pending, i2c_start, i2c_dbg_state};
                         state  <= STATE_RETURN_Q;
                     end
                     else if (addr == ADDR_CAM_BUF0)
@@ -989,6 +1022,31 @@ always @(posedge clk) begin
                     begin
                         if (we) cam_ctrl_base_buf1 <= data[20:0];
                         q_hold <= {11'd0, cam_ctrl_base_buf1};
+                        state  <= STATE_RETURN_Q;
+                    end
+                    else if (addr == ADDR_CAM_DBG)
+                    begin
+                        // [2:0] CameraCapture state, [3] SDRAMarbiter busy, [19:4] write_count
+                        q_hold <= {12'd0, cam_dbg_write_count, sdram_arb_busy, cam_dbg_state};
+                        state  <= STATE_RETURN_Q;
+                    end
+                    else if (addr == ADDR_I2C_CMD)
+                    begin
+                        if (we) begin
+                            i2c_dev_addr <= data[23:17];
+                            i2c_rw       <= data[16];
+                            i2c_reg_addr <= data[15:8];
+                            i2c_wr_data  <= data[7:0];
+                            i2c_start    <= 1'b1;
+                            i2c_start_pending <= 1'b1;
+                        end
+                        // Report busy if master is busy OR if a start is pending
+                        q_hold <= {30'd0, i2c_ack_err, (i2c_busy | i2c_start_pending)};
+                        state  <= STATE_RETURN_Q;
+                    end
+                    else if (addr == ADDR_I2C_DATA)
+                    begin
+                        q_hold <= {24'd0, i2c_rd_data};
                         state  <= STATE_RETURN_Q;
                     end
                     else

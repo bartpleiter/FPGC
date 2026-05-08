@@ -26,7 +26,8 @@ typedef enum {
     DMA_MEM2VRAM = FPGC_DMA_MODE_MEM2VRAM,
     DMA_MEM2IO   = FPGC_DMA_MODE_MEM2IO,
     DMA_IO2MEM   = FPGC_DMA_MODE_IO2MEM,
-    DMA_SPI2MEM_QSPI = FPGC_DMA_MODE_SPI2MEM_QSPI
+    DMA_SPI2MEM_QSPI = FPGC_DMA_MODE_SPI2MEM_QSPI,
+    DMA_CAM2MEM  = FPGC_DMA_MODE_CAM2MEM
 } dma_mode_t;
 
 /*
@@ -98,6 +99,18 @@ void dma_start_spi(dma_mode_t mode, int spi_id, unsigned int dst,
  */
 void dma_start_spi_qspi_read(int spi_id, unsigned int dst,
                              unsigned int qspi_addr, unsigned int count);
+
+/*
+ * Asynchronous camera-to-memory DMA transfer.
+ *
+ * The DMA engine waits for CameraCapture to produce 256-bit cache lines
+ * and writes them to SDRAM at `dst`, advancing by 32 bytes each time.
+ * `count` is the total byte count (must be 32-byte aligned, >0).
+ * For a QVGA frame: dst = buffer address, count = 76800 (320×240 Y bytes).
+ *
+ * No cache flushing is performed; the camera writes bypass the CPU cache.
+ */
+void dma_start_cam(unsigned int dst, unsigned int count);
 
 /* Returns non-zero while the engine is busy. */
 int dma_busy(void);

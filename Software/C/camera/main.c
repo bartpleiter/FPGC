@@ -13,6 +13,8 @@
 #include "image_proc.h"
 #include "uart.h"
 #include "dma.h"
+#include "i2c.h"
+#include "ov7670_init.h"
 #include "fpgc.h"
 
 /* Display dimensions */
@@ -32,83 +34,107 @@
 static void setup_palette(void)
 {
     unsigned int *pal;
+    int i;
+    unsigned int grey;
     pal = (unsigned int *)FPGC_GPU_PIXEL_PALETTE;
-    pal[0] = 0x000000;  /* shade 0: black */
-    pal[1] = 0x555555;  /* shade 1: dark grey */
-    pal[2] = 0xAAAAAA;  /* shade 2: light grey */
-    pal[3] = 0xFFFFFF;  /* shade 3: white */
+    /* Full 256-shade greyscale ramp for raw debug display */
+    for (i = 0; i < 256; i++) {
+        grey = (unsigned int)i;
+        pal[i] = (grey << 16) | (grey << 8) | grey;
+    }
 }
 
-/* Process one frame and display it */
-static void process_frame(unsigned int src_addr)
+/* Process one frame and display it — RAW DEBUG MODE */
+static void process_frame(unsigned int src_addr, int do_print)
 {
-    unsigned char *src;
-    unsigned char *ds_buf;
-    unsigned char *dith_buf;
-    unsigned char *disp_buf;
-
-    src      = (unsigned char *)src_addr;
-    ds_buf   = (unsigned char *)BUF_DS_ADDR;
-    dith_buf = (unsigned char *)BUF_DITH_ADDR;
-    disp_buf = (unsigned char *)BUF_DISP_ADDR;
+    unsigned char *buf;
+    int i;
 
     /* Flush L1 data cache so CPU sees what camera DMA wrote to SDRAM */
     cache_flush_data();
 
-    /* 320×240 → 160×120 */
-    downsample_2x2(src, ds_buf, CAM_FRAME_W, CAM_FRAME_H);
+    /* Print first 32 bytes for debug (only on selected frames) */
+    if (do_print) {
+        buf = (unsigned char *)src_addr;
+        uart_puts("Px:");
+        for (i = 0; i < 32; i++) {
+            uart_putchar(' ');
+            uart_puthex((unsigned int)buf[i], 0);
+        }
+        uart_putchar('\n');
+    }
 
-    /* Auto-contrast stretch (in-place on downsample buffer) */
-    auto_contrast(ds_buf, PROC_W, PROC_H);
-
-    /* 4×4 ordered dither → 2-bit shades (0-3) */
-    dither_4x4(ds_buf, dith_buf, PROC_W, PROC_H);
-
-    /* 2× upscale → 320×240 display buffer */
-    scale_2x(dith_buf, disp_buf, PROC_W, PROC_H);
-
-    /* Flush cache before DMA reads the display buffer */
-    cache_flush_data();
-
-    /* DMA blit to VRAMPX (320×240 bytes, 32-byte aligned) */
-    dma_blit_to_vram(FPGC_GPU_PIXEL_DATA, BUF_DISP_ADDR, DISP_W * DISP_H);
+    /* Blit raw Y bytes directly to VRAMPX — no processing */
+    dma_blit_to_vram(FPGC_GPU_PIXEL_DATA, src_addr, CAM_FRAME_BYTES);
 }
 
 int main(void)
 {
     int frame_count;
     unsigned int frame_addr;
+    unsigned int dma_dst;
+    int timeout;
+    int status;
 
     uart_puts("\n=== FPGC-Camera ===\n");
     uart_puts("Initializing...\n");
 
-    /* Set up 4-shade greyscale palette */
+    /* Set up 256-shade greyscale palette */
     setup_palette();
 
-    /* Enable camera capture (CameraConfigure auto-inits OV7670 on first enable) */
+    /* Configure OV7670 via I2C */
+    uart_puts("Configuring OV7670...\n");
+    ov7670_init();
+
+    /* Enable camera capture */
     uart_puts("Enabling camera capture...\n");
     cam_enable();
 
-    uart_puts("Waiting for first frame...\n");
+    uart_puts("Waiting for first frame_done...\n");
+
+    /* Wait for first frame_done so we know VSYNC boundary */
+    timeout = 0;
+    while (1) {
+        status = __builtin_load(FPGC_CAM_STATUS);
+        if (status & 1) {
+            uart_puts("First frame_done received!\n");
+            break;
+        }
+        timeout = timeout + 1;
+        if ((timeout & 0x1FFFF) == 0) {
+            uart_putchar('.');
+        }
+        if (timeout >= 10000000) {
+            uart_puts("\nTIMEOUT: no frame. DBG=");
+            uart_putint(__builtin_load(0x1C00009C));
+            uart_putchar('\n');
+            cam_disable();
+            while (1) { /* halt */ }
+        }
+    }
 
     frame_count = 0;
 
-    /* Main viewfinder loop */
+    /* Main viewfinder loop: DMA-based capture */
     while (1) {
-        /* Wait for a new frame from the camera */
-        while (!cam_frame_ready()) {
-            /* spin */
-        }
+        /* Alternate between two SDRAM buffers */
+        if (frame_count & 1)
+            dma_dst = CAM_BUF1_BYTE_ADDR;
+        else
+            dma_dst = CAM_BUF0_BYTE_ADDR;
 
-        /* Get the address of the completed frame buffer */
-        frame_addr = cam_last_frame_addr();
+        /* Start DMA in CAM2MEM mode — DMA engine waits for VSYNC internally */
+        dma_start_cam(dma_dst, CAM_FRAME_BYTES);
 
-        /* Process and display */
-        process_frame(frame_addr);
+        /* Poll DMA until transfer is complete */
+        while (dma_busy()) { }
+
+        /* Process and display the captured frame */
+        process_frame(dma_dst, (frame_count & 63) == 0);
 
         frame_count++;
 
-        /* Print frame count every 60 frames (~1 second at 60 fps) */
+        /* Print frame count every 64 frames */
         if ((frame_count & 63) == 0) {
             uart_puts("Frame ");
             uart_putint(frame_count);

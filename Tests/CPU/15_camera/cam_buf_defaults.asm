@@ -2,13 +2,13 @@
 ;
 ; Verifies that CAM_BUF0 and CAM_BUF1 power-on defaults are correct.
 ; MemoryUnit initializes:
-;   CAM_BUF0 = 0x1F8000 (21-bit line address = byte addr 0x03F00000)
-;   CAM_BUF1 = 0x1F8960 (buf0 + 2400 lines = byte addr 0x03F12C00)
+;   CAM_BUF0 = 0x100000 (21-bit line address = byte addr 0x02000000)
+;   CAM_BUF1 = 0x100960 (buf0 + 2400 lines = byte addr 0x02012C00)
 ;
-; Result: r15 = CAM_BUF0 + CAM_BUF1 = 0x1F8000 + 0x1F8960 = 0x3F0960
-;       = 4131168
+; Result: r15 = CAM_BUF0 + CAM_BUF1 = 0x100000 + 0x100960 = 0x200960
+;       = 2099552
 ;
-; expected=4131168
+; expected=2099552
 
 Main:
     ; --- Read default CAM_BUF0 ---

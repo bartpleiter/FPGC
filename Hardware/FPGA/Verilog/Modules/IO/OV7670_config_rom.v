@@ -17,15 +17,15 @@ module OV7670_config_rom (
         1:  dout <= 16'hFF_F0;  // 10ms delay
 
         // --- Output format: YUV422, QVGA ---
-        2:  dout <= 16'h12_10;  // COM7: QVGA mode, YUV output
-        3:  dout <= 16'h11_00;  // CLKRC: no prescaler (PCLK = XCLK)
-        4:  dout <= 16'h0C_04;  // COM3: enable scaling
-        5:  dout <= 16'h3E_19;  // COM14: PCLK scaling = manual, divide by 2
-        6:  dout <= 16'h72_11;  // Downsampling: internal 2× downsample
-        7:  dout <= 16'h73_f1;  // DSP scaling: clock divider
-        8:  dout <= 16'h70_3a;  // Scaling XSC
-        9:  dout <= 16'h71_35;  // Scaling YSC
-        10: dout <= 16'ha2_02;  // Scaling PCLK delay
+        2:  dout <= 16'h12_14;  // COM7: QVGA mode, YUV output
+        3:  dout <= 16'h11_01;  // CLKRC: prescaler /2 (PCLK = XCLK/2)
+        4:  dout <= 16'h0C_00;  // COM3: no DCW/scaling (QVGA native)
+        5:  dout <= 16'h3E_00;  // COM14: no manual PCLK scaling
+        6:  dout <= 16'h72_11;  // Downsampling: (unused in native QVGA)
+        7:  dout <= 16'h73_f1;  // DSP scaling: (unused in native QVGA)
+        8:  dout <= 16'h70_3a;  // Scaling XSC (default)
+        9:  dout <= 16'h71_35;  // Scaling YSC (default)
+        10: dout <= 16'ha2_02;  // Scaling PCLK delay (default)
 
         // --- Timing / window ---
         11: dout <= 16'h17_14;  // HSTART

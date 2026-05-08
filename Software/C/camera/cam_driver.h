@@ -14,8 +14,8 @@
 #define FPGC_CAM_BUF1      0x1C000098
 
 /* Default frame buffer byte addresses (line_addr << 5) */
-#define CAM_BUF0_BYTE_ADDR  0x03F00000
-#define CAM_BUF1_BYTE_ADDR  0x03F12C00
+#define CAM_BUF0_BYTE_ADDR  0x02000000
+#define CAM_BUF1_BYTE_ADDR  0x02012C00
 
 /* Frame dimensions */
 #define CAM_FRAME_W  320
@@ -38,5 +38,11 @@ unsigned int cam_last_frame_addr(void);
 
 /* Write a single OV7670 register via SCCB */
 void cam_sccb_write(int reg_addr, int data);
+
+/* Read raw CAM_STATUS register (does NOT clear frame_done latch) */
+int cam_read_ctrl(void);
+
+/* Read raw CAM_SCCB register (ready bit) */
+int cam_sccb_ready_raw(void);
 
 #endif /* CAM_DRIVER_H */
