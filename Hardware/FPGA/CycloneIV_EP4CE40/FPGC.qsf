@@ -420,6 +420,7 @@ set_global_assignment -name VERILOG_FILE ../Verilog/Modules/Memory/SDRAMarbiter.
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/Memory/ROM.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/Memory/MemoryUnit.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/Memory/DPRAM.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/Memory/DPRAM_L1I.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/UARTtx.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/UARTrx.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/SimpleSPI.v

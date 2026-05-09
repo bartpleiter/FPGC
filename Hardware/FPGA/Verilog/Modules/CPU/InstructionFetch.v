@@ -160,7 +160,9 @@ assign rom_fe_hold = pipeline_stall;
 
 // ---- L1I CACHE HIT DETECTION ----
 // Byte-addressable: bits [11:5] = cache index, bits [25:12] = tag, bits [4:2] = word offset
-// Use pc_delayed when stalled to keep reading the same cache line
+// Use pc_delayed when stalled to keep reading the same cache line.
+// l1i_pipe_addr and pc_delayed must stay aligned: the DPRAM data output corresponds
+// to the previous cycle's l1i_pipe_addr, and the hit check compares against pc_delayed.
 assign l1i_pipe_addr = pipeline_stall ? pc_delayed[11:5] : pc[11:5];
 
 // Normal path: use pc_delayed because cache output corresponds to previous cycle's address

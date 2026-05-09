@@ -478,8 +478,8 @@ wire [270:0] l1i_ctrl_q;
 assign l1i_pipe_we = 1'b0;
 assign l1i_pipe_d  = 271'd0;
 
-// DPRAM instance
-DPRAM #(
+// DPRAM_L1I instance (split tag/data for reduced M9K usage: 9 blocks vs 16)
+DPRAM_L1I #(
     .WIDTH(271),
     .WORDS(128),
     .ADDR_BITS(7)
