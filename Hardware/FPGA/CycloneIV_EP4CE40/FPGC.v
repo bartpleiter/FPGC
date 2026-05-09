@@ -896,8 +896,6 @@ MemoryUnit memory_unit (
 
     // Camera
     .cam_ctrl_enable(cam_ctrl_enable),
-    .cam_ctrl_base_buf0(),  // No longer used (DMA_DST replaces buffer addressing)
-    .cam_ctrl_base_buf1(),  // No longer used
     .cam_frame_done(cam_frame_done),
     .cam_current_buf(cam_current_buf),
     .i2c_start(i2c_start),
@@ -912,7 +910,10 @@ MemoryUnit memory_unit (
     .cam_vsync_raw(cam_vsync_sync),
     .cam_href_raw(cam_href_sync),
     .cam_dbg_state(cam_dbg_state),
-    .cam_dbg_write_count(cam_dbg_write_count),
+    .cam_dbg_frame_pixels(cam_dbg_frame_pixels),
+    .cam_dbg_line_count(cam_dbg_line_count),
+    .cam_dbg_cache_lines(cam_dbg_cache_lines),
+    .cam_dbg_partial_drops(cam_dbg_partial_drops),
     .sdram_arb_busy(sdram_arb_busy),
 
     // GPU timing (synchronized to clk100)
@@ -958,7 +959,10 @@ end
 // Gate CameraCapture enable: software must configure OV7670 via I2C before
 // enabling capture.
 wire [2:0]  cam_dbg_state;
-wire [15:0] cam_dbg_write_count;
+wire [16:0] cam_dbg_frame_pixels;
+wire [8:0]  cam_dbg_line_count;
+wire [11:0] cam_dbg_cache_lines;
+wire [7:0]  cam_dbg_partial_drops;
 wire        sdram_arb_busy;
 
 CameraCapture camera_capture (
@@ -974,8 +978,11 @@ CameraCapture camera_capture (
     .ctrl_enable    (cam_ctrl_enable),
     .frame_done     (cam_frame_done),
     .current_buf    (cam_current_buf),
-    .dbg_state      (cam_dbg_state),
-    .dbg_write_count(cam_dbg_write_count)
+    .dbg_state          (cam_dbg_state),
+    .dbg_frame_pixels   (cam_dbg_frame_pixels),
+    .dbg_line_count     (cam_dbg_line_count),
+    .dbg_cache_lines    (cam_dbg_cache_lines),
+    .dbg_partial_drops  (cam_dbg_partial_drops)
 );
 
 // Generic I2C master — sole bus master for OV7670 SCCB and any future I2C devices

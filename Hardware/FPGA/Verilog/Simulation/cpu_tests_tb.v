@@ -689,8 +689,6 @@ MemoryUnit memory_unit (
 
     // Camera control/status (tied off — no real sensor in sim)
     .cam_ctrl_enable(cam_ctrl_enable),
-    .cam_ctrl_base_buf0(),
-    .cam_ctrl_base_buf1(),
     .cam_frame_done(cam_frame_done),
     .cam_current_buf(cam_current_buf),
     .i2c_start(),
@@ -705,7 +703,10 @@ MemoryUnit memory_unit (
     .cam_vsync_raw(1'b0),
     .cam_href_raw(1'b0),
     .cam_dbg_state(3'd0),
-    .cam_dbg_write_count(16'd0),
+    .cam_dbg_frame_pixels(17'd0),
+    .cam_dbg_line_count(9'd0),
+    .cam_dbg_cache_lines(12'd0),
+    .cam_dbg_partial_drops(8'd0),
     .sdram_arb_busy(1'b0),
     .gpu_vblank(1'b0),
     .gpu_v_count(12'd0)

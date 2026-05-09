@@ -122,8 +122,11 @@ int main(void)
 
     fps_start = get_micros();
     fps_frames = 0;
-    fast_mode = 1;  /* Start in 30fps mode (PLL x4) */
+    fast_mode = 0;
     toggle_time = get_micros();
+
+    i2c_write(OV7670_ADDR, 0x6B, 0x0A);
+    i2c_write(OV7670_ADDR, 0x11, 0x40);
 
     /* Main viewfinder loop: DMA-based capture */
     while (1) {
@@ -165,22 +168,22 @@ int main(void)
             fps_start = get_micros();
         }
 
-        /* Toggle between 30fps and 16fps every 5 seconds */
-        if ((get_micros() - toggle_time) >= 5000000) {
-            toggle_time = get_micros();
-            fast_mode = !fast_mode;
-            if (fast_mode) {
-                /* 30fps: PLL x4, CLKRC div-2 → PCLK=50MHz */
-                i2c_write(OV7670_ADDR, 0x6B, 0x4A);
-                i2c_write(OV7670_ADDR, 0x11, 0x00);
-                uart_puts("-> 30fps\n");
-            } else {
-                /* 16fps: no PLL, CLKRC bypass → PCLK=25MHz */
-                i2c_write(OV7670_ADDR, 0x6B, 0x0A);
-                i2c_write(OV7670_ADDR, 0x11, 0x40);
-                uart_puts("-> 16fps\n");
-            }
-        }
+        // /* Toggle between 30fps and 16fps every 5 seconds */
+        // if ((get_micros() - toggle_time) >= 5000000) {
+        //     toggle_time = get_micros();
+        //     fast_mode = !fast_mode;
+        //     if (fast_mode) {
+        //         /* 30fps: PLL x4, CLKRC div-2 → PCLK=50MHz */
+        //         i2c_write(OV7670_ADDR, 0x6B, 0x4A);
+        //         i2c_write(OV7670_ADDR, 0x11, 0x00);
+        //         uart_puts("-> 30fps\n");
+        //     } else {
+        //         /* 16fps: no PLL, CLKRC bypass → PCLK=25MHz */
+        //         i2c_write(OV7670_ADDR, 0x6B, 0x0A);
+        //         i2c_write(OV7670_ADDR, 0x11, 0x40);
+        //         uart_puts("-> 16fps\n");
+        //     }
+        // }
     }
 
     return 0;

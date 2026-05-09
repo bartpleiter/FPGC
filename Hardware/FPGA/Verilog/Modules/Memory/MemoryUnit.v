@@ -121,8 +121,6 @@ module MemoryUnit (
 
     // ---- Camera control (connects to camera modules in FPGC.v) ----
     output reg          cam_ctrl_enable    = 1'b0,
-    output reg  [20:0]  cam_ctrl_base_buf0 = 21'h100000, // Default: 0x02000000 bytes (32MiB offset, avoids high-row SDRAM issue)
-    output reg  [20:0]  cam_ctrl_base_buf1 = 21'h100960, // buf0 + 2400 lines = 0x02012C00 bytes
     input  wire         cam_frame_done,
     input  wire         cam_current_buf,
 
@@ -138,8 +136,11 @@ module MemoryUnit (
     input  wire [4:0]   i2c_dbg_state, // SCCB config sequence complete
     input  wire         cam_vsync_raw,      // Raw VSYNC pin (synchronized)
     input  wire         cam_href_raw,       // Raw HREF pin (synchronized)
-    input  wire [2:0]   cam_dbg_state,      // CameraCapture FSM state
-    input  wire [15:0]  cam_dbg_write_count,// Camera SDRAM write count
+    input  wire [2:0]   cam_dbg_state,          // CameraCapture FSM state
+    input  wire [16:0]  cam_dbg_frame_pixels,   // Y pixels in last frame
+    input  wire [8:0]   cam_dbg_line_count,     // Lines in last frame
+    input  wire [11:0]  cam_dbg_cache_lines,    // Cache lines in last frame
+    input  wire [7:0]   cam_dbg_partial_drops,  // Partial drops in last frame
     input  wire         sdram_arb_busy,     // SDRAMarbiter busy flag
 
     // ---- GPU timing (synchronized to clk100 in FPGC.v) ----
@@ -480,9 +481,9 @@ localparam
     ADDR_CAM_CTRL        = 32'h1C000088, // Camera control: [0] enable
     ADDR_CAM_STATUS      = 32'h1C00008C, // Camera status: [0] frame_done (read-clear), [1] current_buf
     ADDR_I2C_DBG         = 32'h1C000090, // I2C debug: {start_pending, i2c_start, i2c_dbg_state[4:0]}
-    ADDR_CAM_BUF0        = 32'h1C000094, // Camera buffer 0 base address (21-bit line address)
-    ADDR_CAM_BUF1        = 32'h1C000098, // Camera buffer 1 base address (21-bit line address)
-    ADDR_CAM_DBG         = 32'h1C00009C, // Camera debug: [2:0] state, [3] arb_busy, [19:4] write_count
+    ADDR_CAM_BUF0        = 32'h1C000094, // Camera debug 0: [16:0] frame_pixels, [25:17] line_count
+    ADDR_CAM_BUF1        = 32'h1C000098, // Camera debug 1: [11:0] cache_lines, [19:12] partial_drops
+    ADDR_CAM_DBG         = 32'h1C00009C, // Camera debug 2: [2:0] state, [3] arb_busy
     ADDR_I2C_CMD         = 32'h1C0000A0, // I2C command: write {[23:17] dev_addr, [16] rw, [15:8] reg, [7:0] data}
     ADDR_I2C_DATA        = 32'h1C0000A4, // I2C read data: {24'd0, rd_data[7:0]}
     ADDR_GPU_STATUS      = 32'h1C0000A8, // GPU status: [0] in_vblank, [12:1] v_count
@@ -873,20 +874,20 @@ always @(posedge clk) begin
                     end
                     else if (addr == ADDR_CAM_BUF0)
                     begin
-                        if (we) cam_ctrl_base_buf0 <= data[20:0];
-                        q_hold <= {11'd0, cam_ctrl_base_buf0};
+                        // Camera debug 0 (read-only): [16:0] frame_pixels, [25:17] line_count
+                        q_hold <= {6'd0, cam_dbg_line_count, cam_dbg_frame_pixels};
                         state  <= STATE_RETURN_Q;
                     end
                     else if (addr == ADDR_CAM_BUF1)
                     begin
-                        if (we) cam_ctrl_base_buf1 <= data[20:0];
-                        q_hold <= {11'd0, cam_ctrl_base_buf1};
+                        // Camera debug 1 (read-only): [11:0] cache_lines, [19:12] partial_drops
+                        q_hold <= {12'd0, cam_dbg_partial_drops, cam_dbg_cache_lines};
                         state  <= STATE_RETURN_Q;
                     end
                     else if (addr == ADDR_CAM_DBG)
                     begin
-                        // [2:0] CameraCapture state, [3] SDRAMarbiter busy, [19:4] write_count
-                        q_hold <= {12'd0, cam_dbg_write_count, sdram_arb_busy, cam_dbg_state};
+                        // Camera debug 2: [2:0] state, [3] SDRAMarbiter busy
+                        q_hold <= {28'd0, sdram_arb_busy, cam_dbg_state};
                         state  <= STATE_RETURN_Q;
                     end
                     else if (addr == ADDR_I2C_CMD)

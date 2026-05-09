@@ -1,12 +1,16 @@
 /*
- * CameraCapture testbench (handshake interface)
- * -----------------------------------------------
- * Simulates OV7670 timing and verifies:
- *   1. Correct number of cache lines produced per frame (2400)
- *   2. line_ready/line_ack handshake works
- *   3. First Y byte appears at line_data[255:248]
- *   4. frame_done fires once per VSYNC
- *   5. current_buf toggles each frame
+ * CameraCapture V2 testbench
+ * ---------------------------
+ * Simulates OV7670 QVGA YUV422 timing and verifies:
+ *   1. Exactly 2400 cache lines per frame (320 pixels × 240 lines / 32 bytes)
+ *   2. Exactly 76800 Y pixels per frame (reported by dbg_frame_pixels)
+ *   3. Exactly 240 lines per frame (reported by dbg_line_count)
+ *   4. Zero partial cache line drops (320 pixels = 10 × 32, always aligned)
+ *   5. line_ready/line_ack handshake works
+ *   6. frame_done fires once per VSYNC
+ *   7. current_buf toggles each frame
+ *   8. Line pixel counter caps at 320 (extra HREF bytes are ignored)
+ *   9. Partial cache lines at line boundaries are discarded
  */
 `timescale 1ns / 1ps
 
@@ -31,6 +35,11 @@ module camera_capture_tb;
 
     wire         frame_done;
     wire         current_buf;
+    wire [2:0]   dbg_state;
+    wire [16:0]  dbg_frame_pixels;
+    wire [8:0]   dbg_line_count;
+    wire [11:0]  dbg_cache_lines;
+    wire [7:0]   dbg_partial_drops;
 
     CameraCapture uut (
         .clk(clk),
@@ -44,20 +53,23 @@ module camera_capture_tb;
         .line_ack(line_ack),
         .ctrl_enable(ctrl_enable),
         .frame_done(frame_done),
-        .current_buf(current_buf)
+        .current_buf(current_buf),
+        .dbg_state(dbg_state),
+        .dbg_frame_pixels(dbg_frame_pixels),
+        .dbg_line_count(dbg_line_count),
+        .dbg_cache_lines(dbg_cache_lines),
+        .dbg_partial_drops(dbg_partial_drops)
     );
 
     // --- DMA-like consumer: ack 1 cycle after line_ready ---
     integer line_count = 0;
     integer frame_done_count = 0;
-    reg [7:0] first_byte = 0;
 
     always @(posedge clk) begin
         line_ack <= 0;
         if (line_ready && !line_ack) begin
             line_ack <= 1;
             line_count <= line_count + 1;
-            first_byte <= line_data[7:0];
         end
     end
 
@@ -66,11 +78,50 @@ module camera_capture_tb;
             frame_done_count <= frame_done_count + 1;
     end
 
-    // --- OV7670 stimulus ---
+    // --- OV7670 stimulus: standard QVGA YUV422 frame ---
+    // 240 lines, 640 bytes per line (320 pixel pairs × 2 bytes each)
+    // Byte order: U0, Y0, V0, Y1, U2, Y2, V2, Y3, ...
     task generate_frame;
         input integer frame_num;
-        integer line, byte_idx, pixel_idx;
-        reg [7:0] y_val;
+        input integer extra_href_bytes;  // Extra bytes per line beyond 640 (test pixel cap)
+        integer line, byte_idx;
+        begin
+            @(posedge cam_pclk);
+            cam_vsync <= 0;
+            repeat (10) @(posedge cam_pclk);  // Active frame starts
+
+            for (line = 0; line < 240; line = line + 1) begin
+                cam_href <= 1;
+                // Standard 640 bytes (produces 320 Y pixels)
+                for (byte_idx = 0; byte_idx < 640; byte_idx = byte_idx + 1) begin
+                    if (byte_idx[0] == 1)
+                        cam_data <= (line + byte_idx / 2 + frame_num) & 8'hFF;  // Y byte
+                    else
+                        cam_data <= 8'h80;  // U/V byte (discarded)
+                    @(posedge cam_pclk);
+                end
+                // Optional extra bytes (should be ignored by pixel cap at 320)
+                if (extra_href_bytes > 0) begin
+                    for (byte_idx = 0; byte_idx < extra_href_bytes; byte_idx = byte_idx + 1) begin
+                        cam_data <= 8'hEE;  // Garbage byte — should be ignored
+                        @(posedge cam_pclk);
+                    end
+                end
+                cam_href <= 0;
+                cam_data <= 8'd0;
+                repeat (40) @(posedge cam_pclk);  // Horizontal blanking
+            end
+
+            cam_vsync <= 1;
+            repeat (1000) @(posedge cam_pclk);  // Vertical blanking
+        end
+    endtask
+
+    // --- Generate a frame with non-aligned line width (test partial drop) ---
+    // Each line has only 640-2 = 638 bytes → 319 Y pixels → 9×32 + 31 = partial
+    task generate_frame_partial;
+        input integer frame_num;
+        integer line, byte_idx;
         begin
             @(posedge cam_pclk);
             cam_vsync <= 0;
@@ -78,10 +129,10 @@ module camera_capture_tb;
 
             for (line = 0; line < 240; line = line + 1) begin
                 cam_href <= 1;
-                for (byte_idx = 0; byte_idx < 640; byte_idx = byte_idx + 1) begin
-                    pixel_idx = byte_idx / 2;
-                    if (byte_idx[0] == 0)
-                        cam_data <= (line + pixel_idx + frame_num) & 8'hFF;
+                // 638 bytes → 319 Y pixels → 9 full cache lines (288 pixels) + 31 partial
+                for (byte_idx = 0; byte_idx < 638; byte_idx = byte_idx + 1) begin
+                    if (byte_idx[0] == 1)
+                        cam_data <= (line + byte_idx / 2 + frame_num) & 8'hFF;
                     else
                         cam_data <= 8'h80;
                     @(posedge cam_pclk);
@@ -107,59 +158,142 @@ module camera_capture_tb;
         ctrl_enable <= 1;
         #100;
 
-        // Initial VSYNC pulse
+        // Initial VSYNC pulse to enter S_CAPTURE
         @(posedge cam_pclk); cam_vsync <= 0;
         repeat(10) @(posedge cam_pclk);
         cam_vsync <= 1;
         repeat(1000) @(posedge cam_pclk);
 
-        $display("=== CameraCapture Testbench (Handshake) ===");
-        $display("Generating frame 0...");
+        $display("=== CameraCapture V2 Testbench ===");
 
-        generate_frame(0);
-        repeat (5000) @(posedge clk);
-
-        $display("Frame 0: %0d lines, %0d frame_done", line_count, frame_done_count);
-
-        if (line_count != 2400) begin
-            $display("FAIL: expected 2400 lines, got %0d", line_count);
-            errors = errors + 1;
-        end else
-            $display("PASS: line count correct (2400)");
-
-        if (frame_done_count != 1) begin
-            $display("FAIL: expected 1 frame_done, got %0d", frame_done_count);
-            errors = errors + 1;
-        end else
-            $display("PASS: frame_done count correct");
-
-        if (current_buf != 1) begin
-            $display("FAIL: expected current_buf=1, got %0d", current_buf);
-            errors = errors + 1;
-        end else
-            $display("PASS: current_buf toggled to 1");
-
-        // Second frame
+        // ---- Test 1: Standard QVGA frame ----
+        $display("");
+        $display("--- Test 1: Standard QVGA frame (320x240) ---");
         line_count = 0;
         frame_done_count = 0;
-        $display("Generating frame 1...");
-        generate_frame(1);
+        generate_frame(0, 0);
         repeat (5000) @(posedge clk);
 
-        $display("Frame 1: %0d lines, %0d frame_done", line_count, frame_done_count);
+        $display("  DMA line_count    = %0d (expect 2400)", line_count);
+        $display("  frame_done_count  = %0d (expect 1)", frame_done_count);
+        $display("  current_buf       = %0d (expect 1)", current_buf);
+        $display("  dbg_frame_pixels  = %0d (expect 76800)", dbg_frame_pixels);
+        $display("  dbg_line_count    = %0d (expect 240)", dbg_line_count);
+        $display("  dbg_cache_lines   = %0d (expect 2400)", dbg_cache_lines);
+        $display("  dbg_partial_drops = %0d (expect 0)", dbg_partial_drops);
 
         if (line_count != 2400) begin
-            $display("FAIL: expected 2400 lines, got %0d", line_count);
+            $display("  FAIL: DMA line count");
             errors = errors + 1;
-        end else
-            $display("PASS: line count correct (2400)");
+        end
+        if (frame_done_count != 1) begin
+            $display("  FAIL: frame_done count");
+            errors = errors + 1;
+        end
+        if (current_buf != 1) begin
+            $display("  FAIL: current_buf");
+            errors = errors + 1;
+        end
+        if (dbg_frame_pixels != 76800) begin
+            $display("  FAIL: dbg_frame_pixels");
+            errors = errors + 1;
+        end
+        if (dbg_line_count != 240) begin
+            $display("  FAIL: dbg_line_count");
+            errors = errors + 1;
+        end
+        if (dbg_cache_lines != 2400) begin
+            $display("  FAIL: dbg_cache_lines");
+            errors = errors + 1;
+        end
+        if (dbg_partial_drops != 0) begin
+            $display("  FAIL: dbg_partial_drops");
+            errors = errors + 1;
+        end
 
+        // ---- Test 2: Second frame (current_buf toggle) ----
+        $display("");
+        $display("--- Test 2: Second frame (current_buf toggle) ---");
+        line_count = 0;
+        frame_done_count = 0;
+        generate_frame(1, 0);
+        repeat (5000) @(posedge clk);
+
+        $display("  DMA line_count = %0d (expect 2400)", line_count);
+        $display("  current_buf    = %0d (expect 0)", current_buf);
+
+        if (line_count != 2400) begin
+            $display("  FAIL: DMA line count");
+            errors = errors + 1;
+        end
         if (current_buf != 0) begin
-            $display("FAIL: expected current_buf=0, got %0d", current_buf);
+            $display("  FAIL: current_buf");
             errors = errors + 1;
-        end else
-            $display("PASS: current_buf toggled back to 0");
+        end
 
+        // ---- Test 3: Extra HREF bytes (pixel cap at 320) ----
+        $display("");
+        $display("--- Test 3: Extra HREF bytes (pixel cap at 320) ---");
+        line_count = 0;
+        frame_done_count = 0;
+        generate_frame(2, 20);  // 20 extra bytes per line
+        repeat (5000) @(posedge clk);
+
+        $display("  DMA line_count    = %0d (expect 2400)", line_count);
+        $display("  dbg_frame_pixels  = %0d (expect 76800)", dbg_frame_pixels);
+        $display("  dbg_partial_drops = %0d (expect 0)", dbg_partial_drops);
+
+        if (line_count != 2400) begin
+            $display("  FAIL: DMA line count with extra bytes");
+            errors = errors + 1;
+        end
+        if (dbg_frame_pixels != 76800) begin
+            $display("  FAIL: pixel cap did not limit to 320 per line");
+            errors = errors + 1;
+        end
+        if (dbg_partial_drops != 0) begin
+            $display("  FAIL: dbg_partial_drops");
+            errors = errors + 1;
+        end
+
+        // ---- Test 4: Partial cache lines (319 pixels per line) ----
+        $display("");
+        $display("--- Test 4: Partial cache lines (319 Y pixels per line) ---");
+        line_count = 0;
+        frame_done_count = 0;
+        generate_frame_partial(3);
+        repeat (5000) @(posedge clk);
+
+        // 319 pixels / 32 = 9 full cache lines + 31-byte partial (dropped)
+        // 9 × 240 = 2160 cache lines, 240 partial drops
+        $display("  DMA line_count    = %0d (expect 2160)", line_count);
+        $display("  dbg_frame_pixels  = %0d (expect 76560)", dbg_frame_pixels);
+        $display("  dbg_line_count    = %0d (expect 240)", dbg_line_count);
+        $display("  dbg_cache_lines   = %0d (expect 2160)", dbg_cache_lines);
+        $display("  dbg_partial_drops = %0d (expect 240)", dbg_partial_drops);
+
+        if (line_count != 2160) begin
+            $display("  FAIL: DMA line count");
+            errors = errors + 1;
+        end
+        if (dbg_frame_pixels != 76560) begin
+            $display("  FAIL: dbg_frame_pixels (319*240=76560)");
+            errors = errors + 1;
+        end
+        if (dbg_line_count != 240) begin
+            $display("  FAIL: dbg_line_count");
+            errors = errors + 1;
+        end
+        if (dbg_cache_lines != 2160) begin
+            $display("  FAIL: dbg_cache_lines");
+            errors = errors + 1;
+        end
+        if (dbg_partial_drops != 240) begin
+            $display("  FAIL: dbg_partial_drops");
+            errors = errors + 1;
+        end
+
+        // ---- Summary ----
         $display("");
         if (errors == 0)
             $display("ALL TESTS PASSED");
@@ -170,7 +304,7 @@ module camera_capture_tb;
     end
 
     initial begin
-        #200_000_000;
+        #800_000_000;
         $display("TIMEOUT");
         $finish;
     end
