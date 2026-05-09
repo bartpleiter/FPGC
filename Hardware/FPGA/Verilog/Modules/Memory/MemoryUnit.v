@@ -31,7 +31,6 @@ module MemoryUnit (
     // Activity outputs for LEDs
     output reg          flash_spi_activity = 1'b0,
     output reg          usb_spi_activity = 1'b0,
-    output reg          eth_spi_activity = 1'b0,
 
     // User LED state
     output reg          user_led_state = 1'b0,
@@ -61,20 +60,6 @@ module MemoryUnit (
     output wire         SPI2_mosi,
     input wire          SPI2_miso,
     input wire          SPI2_nint,
-
-    // SPI3 (USB Host 2)
-    output wire         SPI3_clk,
-    output reg          SPI3_cs = 1'b1,
-    output wire         SPI3_mosi,
-    input wire          SPI3_miso,
-    input wire          SPI3_nint,
-
-    // SPI4 (Ethernet)
-    output wire         SPI4_clk,
-    output reg          SPI4_cs = 1'b1,
-    output wire         SPI4_mosi,
-    input wire          SPI4_miso,
-    input wire          SPI4_nint,
 
     // SPI5 (SD Card)
     output wire         SPI5_clk,
@@ -155,7 +140,11 @@ module MemoryUnit (
     input  wire         cam_href_raw,       // Raw HREF pin (synchronized)
     input  wire [2:0]   cam_dbg_state,      // CameraCapture FSM state
     input  wire [15:0]  cam_dbg_write_count,// Camera SDRAM write count
-    input  wire         sdram_arb_busy      // SDRAMarbiter busy flag
+    input  wire         sdram_arb_busy,     // SDRAMarbiter busy flag
+
+    // ---- GPU timing (synchronized to clk100 in FPGC.v) ----
+    input  wire         gpu_vblank,         // HIGH during vertical blanking
+    input  wire [11:0]  gpu_v_count          // Current vertical line counter
 
     // TODO: GPIO
 );
@@ -203,7 +192,6 @@ assign vramPX_dma_d    = vp_data;
 // the engine's outputs) -- they're only sampled when dma_select=1.
 wire dma_sel_spi0 = dma_burst_select && (dma_burst_spi_id == 3'd0);
 wire dma_sel_spi1 = dma_burst_select && (dma_burst_spi_id == 3'd1);
-wire dma_sel_spi4 = dma_burst_select && (dma_burst_spi_id == 3'd4);
 wire dma_sel_spi5 = dma_burst_select && (dma_burst_spi_id == 3'd5);
 
 // Per-SPI burst-side wires from SimpleSPI2 (declared here, hooked up at the
@@ -213,8 +201,6 @@ wire [7:0]  SPI0_rx_data_w;
 wire        SPI1_tx_full_w, SPI1_rx_empty_w, SPI1_busy_w;
 wire [7:0]  SPI1_rx_data_w;
 wire [7:0]  SPI1_rx_count_w;
-wire        SPI4_tx_full_w, SPI4_rx_empty_w, SPI4_busy_w;
-wire [7:0]  SPI4_rx_data_w;
 wire        SPI5_tx_full_w, SPI5_rx_empty_w, SPI5_busy_w;
 wire [7:0]  SPI5_rx_data_w;
 
@@ -408,64 +394,8 @@ SimpleSPI #(
     .spi_mosi   (SPI2_mosi)
 );
 
-// SPI3 (USB Host 2) 12.5 MHz
-reg SPI3_start = 1'b0;
-reg [7:0] SPI3_in = 8'd0;
-wire [7:0] SPI3_out;
-wire SPI3_done;
-
-SimpleSPI #(
-    .CLKS_PER_HALF_BIT(4)
-) SPI3 (
-    .clk        (clk),
-    .reset      (reset),
-    .data_in    (SPI3_in),
-    .start      (SPI3_start),
-    .done       (SPI3_done),
-    .data_out   (SPI3_out),
-    .spi_clk    (SPI3_clk),
-    .spi_miso   (SPI3_miso),
-    .spi_mosi   (SPI3_mosi)
-);
-
-// SPI4 (Ethernet) 12.5 MHz -- via SimpleSPI2 with cmd_skip_fifos=1 (see SPI0
-// note above and dma-implementation-plan.md §7 step 6).
-reg SPI4_start = 1'b0;
-reg [7:0] SPI4_in = 8'd0;
-wire [7:0] SPI4_out;
-wire SPI4_done;
-
-SimpleSPI2 #(
-    .CLKS_PER_HALF_BIT(4),
-    .FIFO_DEPTH(32)
-) SPI4 (
-    .clk             (clk),
-    .reset           (reset),
-    .cmd_we          (1'b0),
-    .cmd_data        (SPI4_in),
-    .cmd_start_burst (SPI4_start),
-    .cmd_burst_len   (16'd1),
-    .cmd_dummy       (1'b0),
-    .cmd_skip_fifos  (1'b1),
-    .tx_full         (SPI4_tx_full_w),
-    .rx_empty        (SPI4_rx_empty_w),
-    .rx_data         (SPI4_rx_data_w),
-    .cmd_re_rx       (1'b0),
-    .last_rx_byte    (SPI4_out),
-    .busy            (SPI4_busy_w),
-    .done            (SPI4_done),
-    // DMA burst master
-    .dma_select      (dma_sel_spi4),
-    .dma_we          (dma_burst_we),
-    .dma_data        (dma_burst_data),
-    .dma_start_burst (dma_burst_start),
-    .dma_burst_len   (dma_burst_len),
-    .dma_dummy       (dma_burst_dummy),
-    .dma_re_rx       (dma_burst_re_rx),
-    .spi_clk         (SPI4_clk),
-    .spi_miso        (SPI4_miso),
-    .spi_mosi        (SPI4_mosi)
-);
+// SPI3 (USB Host 2) and SPI4 (Ethernet) removed for camera build.
+// Only SPI0 (boot flash), SPI1 (BRFS flash), SPI2 (USB keyboard), SPI5 (SD card) remain.
 
 // SPI5 (SD Card) 25 MHz -- via SimpleSPI2 with cmd_skip_fifos=1 (see SPI0
 // note above and dma-followups.md §3.1 / §B.5.3). SPI5 is wired into the DMA
@@ -533,12 +463,7 @@ localparam
     ADDR_SPI2_DATA       = 32'h1C000030, // SPI2 data (USB H1)
     ADDR_SPI2_CS         = 32'h1C000034, // SPI2 CS
     ADDR_SPI2_NINT       = 32'h1C000038, // SPI2 NINT
-    ADDR_SPI3_DATA       = 32'h1C00003C, // SPI3 data (USB H2)
-    ADDR_SPI3_CS         = 32'h1C000040, // SPI3 CS
-    ADDR_SPI3_NINT       = 32'h1C000044, // SPI3 NINT
-    ADDR_SPI4_DATA       = 32'h1C000048, // SPI4 data (Ethernet)
-    ADDR_SPI4_CS         = 32'h1C00004C, // SPI4 CS
-    ADDR_SPI4_NINT       = 32'h1C000050, // SPI4 NINT
+    // SPI3 (0x3C-0x44) and SPI4 (0x48-0x50) removed — camera build
     ADDR_SPI5_DATA       = 32'h1C000054, // SPI5 data (SD)
     ADDR_SPI5_CS         = 32'h1C000058, // SPI5 CS
     ADDR_GPIO_MODE       = 32'h1C00005C, // GPIO mode
@@ -560,7 +485,8 @@ localparam
     ADDR_CAM_DBG         = 32'h1C00009C, // Camera debug: [2:0] state, [3] arb_busy, [19:4] write_count
     ADDR_I2C_CMD         = 32'h1C0000A0, // I2C command: write {[23:17] dev_addr, [16] rw, [15:8] reg, [7:0] data}
     ADDR_I2C_DATA        = 32'h1C0000A4, // I2C read data: {24'd0, rd_data[7:0]}
-    ADDR_OOB             = 32'h1C0000A8; // All addresses >= this are out of bounds
+    ADDR_GPU_STATUS      = 32'h1C0000A8, // GPU status: [0] in_vblank, [12:1] v_count
+    ADDR_OOB             = 32'h1C0000AC; // All addresses >= this are out of bounds
 
 // ---- State encoding ----
 localparam
@@ -575,12 +501,7 @@ localparam
     STATE_WAIT_SPI2_DATA         = 5'd8,
     STATE_WAIT_SPI2_CS           = 5'd9,
     STATE_WAIT_SPI2_NINT         = 5'd10,
-    STATE_WAIT_SPI3_DATA         = 5'd11,
-    STATE_WAIT_SPI3_CS           = 5'd12,
-    STATE_WAIT_SPI3_NINT         = 5'd13,
-    STATE_WAIT_SPI4_DATA         = 5'd14,
-    STATE_WAIT_SPI4_CS           = 5'd15,
-    STATE_WAIT_SPI4_NINT         = 5'd16,
+    // States 11-16 freed (SPI3/SPI4 removed)
     STATE_WAIT_SPI5_DATA         = 5'd17,
     STATE_WAIT_SPI5_CS           = 5'd18,
     STATE_WAIT_BOOT_MODE         = 5'd19,
@@ -613,7 +534,6 @@ always @(posedge clk) begin
 
         flash_spi_activity <= 1'b0;
         usb_spi_activity <= 1'b0;
-        eth_spi_activity <= 1'b0;
         user_led_state <= 1'b0;
 
         OST1_trigger <= 1'b0;
@@ -639,14 +559,6 @@ always @(posedge clk) begin
         SPI2_start <= 1'b0;
         SPI2_in <= 8'd0;
         SPI2_cs <= 1'b1;
-
-        SPI3_start <= 1'b0;
-        SPI3_in <= 8'd0;
-        SPI3_cs <= 1'b1;
-
-        SPI4_start <= 1'b0;
-        SPI4_in <= 8'd0;
-        SPI4_cs <= 1'b1;
 
         SPI5_start <= 1'b0;
         SPI5_in <= 8'd0;
@@ -694,7 +606,6 @@ always @(posedge clk) begin
 
         flash_spi_activity <= 1'b0;
         usb_spi_activity <= 1'b0;
-        eth_spi_activity <= 1'b0;
 
         OST1_set <= 1'b0;
         OST1_trigger <= 1'b0;
@@ -715,8 +626,6 @@ always @(posedge clk) begin
         SPI0_start <= 1'b0;
         SPI1_start <= 1'b0;
         SPI2_start <= 1'b0;
-        SPI3_start <= 1'b0;
-        SPI4_start <= 1'b0;
         SPI5_start <= 1'b0;
 
         case (state)
@@ -837,56 +746,6 @@ always @(posedge clk) begin
                     else if (addr == ADDR_SPI2_NINT)
                     begin
                         state <= STATE_WAIT_SPI2_NINT;
-                    end
-
-                    // ---- SPI3 (USB Host 2) ----
-                    else if (addr == ADDR_SPI3_DATA)
-                    begin
-                        if (we)
-                        begin
-                            SPI3_in <= data[7:0];
-                            SPI3_start <= 1'b1;
-                            usb_spi_activity <= 1'b1;
-                            wait_done <= 1'b1;
-                        end
-                        state <= STATE_WAIT_SPI3_DATA;
-                    end
-                    else if (addr == ADDR_SPI3_CS)
-                    begin
-                        if (we)
-                        begin
-                            SPI3_cs <= data[0];
-                        end
-                        state <= STATE_WAIT_SPI3_CS;
-                    end
-                    else if (addr == ADDR_SPI3_NINT)
-                    begin
-                        state <= STATE_WAIT_SPI3_NINT;
-                    end
-
-                    // ---- SPI4 (Ethernet) ----
-                    else if (addr == ADDR_SPI4_DATA)
-                    begin
-                        if (we)
-                        begin
-                            SPI4_in <= data[7:0];
-                            SPI4_start <= 1'b1;
-                            eth_spi_activity <= 1'b1;
-                            wait_done <= 1'b1;
-                        end
-                        state <= STATE_WAIT_SPI4_DATA;
-                    end
-                    else if (addr == ADDR_SPI4_CS)
-                    begin
-                        if (we)
-                        begin
-                            SPI4_cs <= data[0];
-                        end
-                        state <= STATE_WAIT_SPI4_CS;
-                    end
-                    else if (addr == ADDR_SPI4_NINT)
-                    begin
-                        state <= STATE_WAIT_SPI4_NINT;
                     end
 
                     // ---- SPI5 (SD Card) ----
@@ -1049,6 +908,12 @@ always @(posedge clk) begin
                         q_hold <= {24'd0, i2c_rd_data};
                         state  <= STATE_RETURN_Q;
                     end
+                    else if (addr == ADDR_GPU_STATUS)
+                    begin
+                        // [0] in_vblank, [12:1] v_count
+                        q_hold <= {19'd0, gpu_v_count, gpu_vblank};
+                        state  <= STATE_RETURN_Q;
+                    end
                     else
                     begin
                         // Out of range or unhandled address
@@ -1057,7 +922,7 @@ always @(posedge clk) begin
                 end
                 else if (iop_start && !iop_active && !cpu_req_pending)
                 begin
-                    // DMA peer-port transaction (SPI0/SPI1/SPI4 byte data).
+                    // DMA peer-port transaction (SPI0/SPI1 byte data).
                     iop_active <= 1'b1;
                     if (iop_addr == ADDR_SPI0_DATA)
                     begin
@@ -1075,19 +940,10 @@ always @(posedge clk) begin
                         iop_spi_id         <= 3'd1;
                         state              <= STATE_IOP_SPI_WAIT;
                     end
-                    else if (iop_addr == ADDR_SPI4_DATA)
-                    begin
-                        SPI4_in          <= iop_data[7:0];
-                        SPI4_start       <= 1'b1;
-                        eth_spi_activity <= 1'b1;
-                        iop_spi_id       <= 3'd4;
-                        state            <= STATE_IOP_SPI_WAIT;
-                    end
                     else
                     begin
                         // Unsupported iop address: complete with zero data so
-                        // the engine doesn't lock up. Should not happen in
-                        // practice -- DMAengine only issues SPI0/SPI4.
+                        // the engine doesn't lock up.
                         iop_done_r <= 1'b1;
                         iop_q_r    <= 32'd0;
                     end
@@ -1171,56 +1027,6 @@ always @(posedge clk) begin
                 state <= STATE_IDLE;
             end
 
-            STATE_WAIT_SPI3_DATA:
-            begin
-                wait_done <= 1'b1;
-                if (SPI3_done || !wait_done)
-                begin
-                    done <= 1'b1;
-                    q <= {24'd0, SPI3_out};
-                    state <= STATE_IDLE;
-                end
-            end
-
-            STATE_WAIT_SPI3_CS:
-            begin
-                done <= 1'b1;
-                q <= {31'd0, SPI3_cs};
-                state <= STATE_IDLE;
-            end
-
-            STATE_WAIT_SPI3_NINT:
-            begin
-                done <= 1'b1;
-                q <= {31'd0, SPI3_nint};
-                state <= STATE_IDLE;
-            end
-
-            STATE_WAIT_SPI4_DATA:
-            begin
-                wait_done <= 1'b1;
-                if (SPI4_done || !wait_done)
-                begin
-                    done <= 1'b1;
-                    q <= {24'd0, SPI4_out};
-                    state <= STATE_IDLE;
-                end
-            end
-
-            STATE_WAIT_SPI4_CS:
-            begin
-                done <= 1'b1;
-                q <= {31'd0, SPI4_cs};
-                state <= STATE_IDLE;
-            end
-
-            STATE_WAIT_SPI4_NINT:
-            begin
-                done <= 1'b1;
-                q <= {31'd0, SPI4_nint};
-                state <= STATE_IDLE;
-            end
-
             STATE_WAIT_SPI5_DATA:
             begin
                 wait_done <= 1'b1;
@@ -1300,16 +1106,6 @@ always @(posedge clk) begin
                         state      <= STATE_IDLE;
                     end
                 end
-                else if (iop_spi_id == 3'd4)
-                begin
-                    eth_spi_activity <= 1'b1;
-                    if (SPI4_done)
-                    begin
-                        iop_done_r <= 1'b1;
-                        iop_q_r    <= {24'd0, SPI4_out};
-                        state      <= STATE_IDLE;
-                    end
-                end
                 else
                 begin
                     // Should never happen
@@ -1334,31 +1130,26 @@ end
 assign dma_burst_tx_full =
     (dma_burst_spi_id == 3'd0) ? SPI0_tx_full_w :
     (dma_burst_spi_id == 3'd1) ? SPI1_tx_full_w :
-    (dma_burst_spi_id == 3'd4) ? SPI4_tx_full_w :
     (dma_burst_spi_id == 3'd5) ? SPI5_tx_full_w : 1'b1;
 assign dma_burst_rx_empty =
     (dma_burst_spi_id == 3'd0) ? SPI0_rx_empty_w :
     (dma_burst_spi_id == 3'd1) ? SPI1_rx_empty_w :
-    (dma_burst_spi_id == 3'd4) ? SPI4_rx_empty_w :
     (dma_burst_spi_id == 3'd5) ? SPI5_rx_empty_w : 1'b1;
 assign dma_burst_rx_data =
     (dma_burst_spi_id == 3'd0) ? SPI0_rx_data_w :
     (dma_burst_spi_id == 3'd1) ? SPI1_rx_data_w :
-    (dma_burst_spi_id == 3'd4) ? SPI4_rx_data_w :
     (dma_burst_spi_id == 3'd5) ? SPI5_rx_data_w : 8'd0;
-// Only QSPIflash (SPI1) exposes rx_count; SPI0/SPI4/SPI5 (SimpleSPI2) report 0.
+// Only QSPIflash (SPI1) exposes rx_count; SPI0/SPI5 (SimpleSPI2) report 0.
 // The DMA engine only consults this in MODE_SPI2MEM_QSPI which is SPI1-only.
 assign dma_burst_rx_count =
     (dma_burst_spi_id == 3'd1) ? SPI1_rx_count_w : 8'd0;
 assign dma_burst_busy =
     (dma_burst_spi_id == 3'd0) ? SPI0_busy_w :
     (dma_burst_spi_id == 3'd1) ? SPI1_busy_w :
-    (dma_burst_spi_id == 3'd4) ? SPI4_busy_w :
     (dma_burst_spi_id == 3'd5) ? SPI5_busy_w : 1'b0;
 assign dma_burst_done =
     (dma_burst_spi_id == 3'd0) ? SPI0_done :
     (dma_burst_spi_id == 3'd1) ? SPI1_done :
-    (dma_burst_spi_id == 3'd4) ? SPI4_done :
     (dma_burst_spi_id == 3'd5) ? SPI5_done : 1'b0;
 
 endmodule

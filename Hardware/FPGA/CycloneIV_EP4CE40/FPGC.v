@@ -151,6 +151,16 @@ assign sd_data2_nc = 1'b1;
 // Audio DAC is currently not used yet
 assign audio_dac_data = 8'd0;
 
+// Ethernet controller removed for camera build — tie off outputs
+assign eth_cs   = 1'b1;
+assign eth_clk  = 1'b0;
+assign eth_mosi = 1'b0;
+
+// USB Host 2 removed for camera build — tie off outputs
+assign usb2_cs   = 1'b1;
+assign usb2_clk  = 1'b0;
+assign usb2_mosi = 1'b0;
+
 // Camera pin assignments (display header + GPIO)
 assign disp_1 = clkGPU;          // XCLK: 25 MHz clock to OV7670
 assign disp_2 = 1'b0;            // PWDN: keep sensor powered on
@@ -206,7 +216,6 @@ assign reset = reset_sync[1];
  ******************************************************************************/
 wire led_flash_activity;
 wire led_usb_activity;
-wire led_eth_activity;
 wire led_gpu_activity;
 wire led_user_state;
 
@@ -230,14 +239,8 @@ ActivityLED #(
     .led(led_usb)
 );
 
-ActivityLED #(
-    .HOLD_CYCLES(LED_ACTIVITY_HOLD_CYCLES)
-) led_eth_activity_driver (
-    .clk(clk100),
-    .reset(reset),
-    .activity(led_eth_activity),
-    .led(led_eth)
-);
+// Ethernet LED: tied off (no Ethernet controller in camera build)
+assign led_eth = 1'b0;
 
 ActivityLED #(
     .HOLD_CYCLES(LED_ACTIVITY_HOLD_CYCLES)
@@ -460,6 +463,20 @@ VRAMPXSram vrampx_sram (
 
 // CPU read from vramPX returns 0 (write-only)
 assign vramPX_cpu_q = 8'd0;
+
+/******************************************************************************
+ * GPU VBLANK detection — synchronize 25 MHz GPU timing to 100 MHz CPU domain
+ ******************************************************************************/
+// VBLANK: vertical count >= 480 in the 640x480 timing generator
+wire gpu_vblank_raw = (fsx_v_count >= 12'd480);
+reg gpu_vblank_s1 = 1'b0, gpu_vblank_sync = 1'b0;
+reg [11:0] gpu_v_count_s1 = 12'd0, gpu_v_count_sync = 12'd0;
+always @(posedge clk100) begin
+    gpu_vblank_s1    <= gpu_vblank_raw;
+    gpu_vblank_sync  <= gpu_vblank_s1;
+    gpu_v_count_s1   <= fsx_v_count;
+    gpu_v_count_sync <= gpu_v_count_s1;
+end
 
 /******************************************************************************
  * L1i RAM
@@ -810,7 +827,6 @@ MemoryUnit memory_unit (
 
     .flash_spi_activity(led_flash_activity),
     .usb_spi_activity(led_usb_activity),
-    .eth_spi_activity(led_eth_activity),
     .user_led_state(led_user_state),
 
     .boot_mode(boot_mode),
@@ -834,20 +850,6 @@ MemoryUnit memory_unit (
     .SPI2_miso(usb1_miso),
     .SPI2_cs(usb1_cs),
     .SPI2_nint(usb1_nint),
-
-    // USB 2
-    .SPI3_clk(usb2_clk),
-    .SPI3_mosi(usb2_mosi),
-    .SPI3_miso(usb2_miso),
-    .SPI3_cs(usb2_cs),
-    .SPI3_nint(usb2_nint),
-
-    // Ethernet
-    .SPI4_clk(eth_clk),
-    .SPI4_mosi(eth_mosi),
-    .SPI4_miso(eth_miso),
-    .SPI4_cs(eth_cs),
-    .SPI4_nint(eth_nint),
 
     // SD Card
     .SPI5_clk(sd_clk),
@@ -911,7 +913,11 @@ MemoryUnit memory_unit (
     .cam_href_raw(cam_href_sync),
     .cam_dbg_state(cam_dbg_state),
     .cam_dbg_write_count(cam_dbg_write_count),
-    .sdram_arb_busy(sdram_arb_busy)
+    .sdram_arb_busy(sdram_arb_busy),
+
+    // GPU timing (synchronized to clk100)
+    .gpu_vblank(gpu_vblank_sync),
+    .gpu_v_count(gpu_v_count_sync)
 );
 
 /******************************************************************************
@@ -1144,9 +1150,8 @@ B32P3 cpu (
     .mu_done(mu_done),
 
     // Interrupts, right is highest priority
-    // bit0=UART, bit1=OST1, bit2=OST2, bit3=OST3, bit4=FrameDrawn, bit5=ENC28J60_RX
-    // ~eth_nint: ENC28J60 INT is active-low; invert for rising-edge detection
-    .interrupts({dma_irq, ~eth_nint, frameDrawn_CPU, OST3_int, OST2_int, OST1_int, uart_irq})
+    // bit0=UART, bit1=OST1, bit2=OST2, bit3=OST3, bit4=FrameDrawn, bit5=reserved, bit6=DMA
+    .interrupts({dma_irq, 1'b0, frameDrawn_CPU, OST3_int, OST2_int, OST1_int, uart_irq})
 );
 
 endmodule

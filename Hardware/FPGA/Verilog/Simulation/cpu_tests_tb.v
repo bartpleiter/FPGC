@@ -43,10 +43,6 @@
 `include "Hardware/FPGA/Verilog/Modules/IO/MicrosCounter.v"
 `include "Hardware/FPGA/Verilog/Modules/IO/OStimer.v"
 `include "Hardware/FPGA/Verilog/Modules/IO/CameraCapture.v"
-`include "Hardware/FPGA/Verilog/Modules/IO/SCCB_master.v"
-`include "Hardware/FPGA/Verilog/Modules/IO/OV7670_config_rom.v"
-`include "Hardware/FPGA/Verilog/Modules/IO/CameraConfigure.v"
-`include "Hardware/FPGA/Verilog/Modules/Memory/CameraSubArbiter.v"
 
 
 
@@ -606,16 +602,6 @@ wire        SPI2_mosi;
 reg         SPI2_miso = 1'b0; // In hardware this is read from a pin
 wire        SPI2_cs;
 
-wire        SPI3_clk;
-wire        SPI3_mosi;
-reg         SPI3_miso = 1'b0; // In hardware this is read from a pin
-wire        SPI3_cs;
-
-wire        SPI4_clk;
-wire        SPI4_mosi;
-reg         SPI4_miso = 1'b0; // In hardware this is read from a pin
-wire        SPI4_cs;
-
 wire        SPI5_clk;
 wire        SPI5_mosi;
 reg         SPI5_miso = 1'b0; // In hardware this is read from a pin
@@ -658,16 +644,6 @@ MemoryUnit memory_unit (
     .SPI2_mosi(SPI2_mosi),
     .SPI2_miso(SPI2_miso),
     .SPI2_cs(SPI2_cs),
-
-    .SPI3_clk(SPI3_clk),
-    .SPI3_mosi(SPI3_mosi),
-    .SPI3_miso(SPI3_miso),
-    .SPI3_cs(SPI3_cs),
-
-    .SPI4_clk(SPI4_clk),
-    .SPI4_mosi(SPI4_mosi),
-    .SPI4_miso(SPI4_miso),
-    .SPI4_cs(SPI4_cs),
 
     .SPI5_clk(SPI5_clk),
     .SPI5_mosi(SPI5_mosi),
@@ -727,7 +703,12 @@ MemoryUnit memory_unit (
     .i2c_rd_data(8'd0),
     .i2c_dbg_state(5'd0),
     .cam_vsync_raw(1'b0),
-    .cam_href_raw(1'b0)
+    .cam_href_raw(1'b0),
+    .cam_dbg_state(3'd0),
+    .cam_dbg_write_count(16'd0),
+    .sdram_arb_busy(1'b0),
+    .gpu_vblank(1'b0),
+    .gpu_v_count(12'd0)
 );
 
 DMAengine dma_engine (
