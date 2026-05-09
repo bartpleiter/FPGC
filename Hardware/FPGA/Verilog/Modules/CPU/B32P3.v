@@ -294,12 +294,11 @@ reg        ex_mem_clear_cache_data_only = 1'b0;
 reg        ex_mem_is_branch = 1'b0;
 reg        ex_mem_is_jump = 1'b0;
 reg        ex_mem_is_jumpr = 1'b0;
-reg [2:0]  ex_mem_branch_op = 3'd0;
-reg        ex_mem_sig = 1'b0;
 reg        ex_mem_oe = 1'b0;
 reg [31:0] ex_mem_const16 = 32'd0;
 reg [26:0] ex_mem_const27 = 27'd0;
-reg [31:0] ex_mem_areg_data = 32'd0;
+// Branch comparison result, pre-computed in EX stage and registered here
+reg        ex_mem_branch_passed = 1'b0;
 
 // Memory size control for byte-addressable operations
 reg [1:0]  ex_mem_mem_size = 2'b00;
@@ -697,26 +696,40 @@ begin
     end
 end
 
+// ---- BRANCH COMPARISON (EX Stage) ----
+// Pre-compute the branch comparison in EX stage to break the critical
+// timing path. The 32-bit magnitude comparison (carry chain) now has a
+// full EX cycle to settle, and the result is registered at the EX/MEM
+// boundary. In MEM, jump_valid becomes a trivial OR of registered inputs.
+wire ex_branch_passed;
+
+BranchCompare branch_compare (
+    .data_a    (ex_alu_a),
+    .data_b    (ex_breg_forwarded),
+    .branch_op (id_ex_branch_op),
+    .sig       (id_ex_sig),
+    .passed    (ex_branch_passed)
+);
+
 // ---- BRANCH/JUMP UNIT (MEM Stage) ----
-// Branch resolution is done in MEM stage to improve timings
+// Jump address calculation and jump_valid detection.
+// Branch comparison is now pre-computed in EX (above) and registered.
 wire        jump_valid;
 wire [31:0] jump_addr;
 
 BranchJumpUnit branch_jump_unit (
-    .branch_op  (ex_mem_branch_op),
-    .data_a     (ex_mem_areg_data),
-    .data_b     (ex_mem_breg_data),
-    .const16    (ex_mem_const16),
-    .const27    (ex_mem_const27),
-    .pc         (ex_mem_pc),
-    .halt       (ex_mem_halt),
-    .branch     (ex_mem_is_branch),
-    .jumpc      (ex_mem_is_jump),
-    .jumpr      (ex_mem_is_jumpr),
-    .oe         (ex_mem_oe),
-    .sig        (ex_mem_sig),
-    .jump_addr  (jump_addr),
-    .jump_valid (jump_valid)
+    .data_b         (ex_mem_breg_data),
+    .const16        (ex_mem_const16),
+    .const27        (ex_mem_const27),
+    .pc             (ex_mem_pc),
+    .halt           (ex_mem_halt),
+    .branch         (ex_mem_is_branch),
+    .jumpc          (ex_mem_is_jump),
+    .jumpr          (ex_mem_is_jumpr),
+    .oe             (ex_mem_oe),
+    .branch_passed  (ex_mem_branch_passed),
+    .jump_addr      (jump_addr),
+    .jump_valid     (jump_valid)
 );
 
 // PC redirect logic
@@ -1041,12 +1054,10 @@ begin
         ex_mem_is_branch <= 1'b0;
         ex_mem_is_jump <= 1'b0;
         ex_mem_is_jumpr <= 1'b0;
-        ex_mem_branch_op <= 3'd0;
-        ex_mem_sig <= 1'b0;
         ex_mem_oe <= 1'b0;
         ex_mem_const16 <= 32'd0;
         ex_mem_const27 <= 27'd0;
-        ex_mem_areg_data <= 32'd0;
+        ex_mem_branch_passed <= 1'b0;
         ex_mem_mem_size <= 2'b00;
         ex_mem_mem_sign_extend <= 1'b0;
     end else if (!ex_pipeline_stall)
@@ -1069,12 +1080,10 @@ begin
         ex_mem_is_branch <= id_ex_is_branch;
         ex_mem_is_jump <= id_ex_is_jump;
         ex_mem_is_jumpr <= id_ex_is_jumpr;
-        ex_mem_branch_op <= id_ex_branch_op;
-        ex_mem_sig <= id_ex_sig;
         ex_mem_oe <= id_ex_oe;
         ex_mem_const16 <= id_ex_const16;
         ex_mem_const27 <= id_ex_const27;
-        ex_mem_areg_data <= ex_alu_a;
+        ex_mem_branch_passed <= ex_branch_passed;
         // Memory size control
         ex_mem_mem_size <= id_ex_mem_size;
         ex_mem_mem_sign_extend <= id_ex_mem_sign_extend;

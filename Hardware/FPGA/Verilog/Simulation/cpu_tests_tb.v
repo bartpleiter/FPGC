@@ -20,6 +20,7 @@
 `include "Hardware/FPGA/Verilog/Modules/CPU/PipelineController.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/Stack.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/BranchJumpUnit.v"
+`include "Hardware/FPGA/Verilog/Modules/CPU/BranchCompare.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/InterruptController.v"
 `include "Hardware/FPGA/Verilog/Modules/CPU/CacheControllerSDRAM.v"
 `include "Hardware/FPGA/Verilog/Modules/Memory/ROM.v"
