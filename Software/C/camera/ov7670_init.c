@@ -87,7 +87,10 @@ int ov7670_init(void)
     err |= ov_write(0xA8, 0xF0);  /* HAECC5 */
     err |= ov_write(0xA9, 0x90);  /* HAECC6 */
     err |= ov_write(0xAA, 0x94);  /* HAECC7 */
-    err |= ov_write(0x13, 0xE5);  /* COM8: AGC + AEC enabled */
+    err |= ov_write(0x13, 0xE7);  /* COM8: AGC + AEC + AWB enabled */
+
+    /* ---- Night mode ---- */
+    err |= ov_write(0x3B, 0xE0);  /* COM11: night mode ON, 1/8 frame rate min */
 
     /* ---- Gamma curve ---- */
     err |= ov_write(0x7A, 0x20);

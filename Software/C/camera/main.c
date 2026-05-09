@@ -15,6 +15,7 @@
 #include "dma.h"
 #include "i2c.h"
 #include "ov7670_init.h"
+#include "gpu_hal.h"
 #include "fpgc.h"
 #include "sys.h"
 
@@ -83,6 +84,9 @@ int main(void)
 
     uart_puts("\n=== FPGC-Camera ===\n");
     uart_puts("Initializing...\n");
+
+    /* Clear all VRAM planes (remove bootloader logo) */
+    gpu_clear_vram();
 
     /* Set up 256-shade greyscale palette */
     setup_palette();
