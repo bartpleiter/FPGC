@@ -196,6 +196,7 @@ wire        ctrl_start_bit  = dma_ctrl[31];
 wire [3:0]  ctrl_mode       = dma_ctrl[3:0];
 wire        ctrl_irq_en     = dma_ctrl[4];
 wire [2:0]  ctrl_spi_id     = dma_ctrl[7:5];
+wire        ctrl_cam_imm    = dma_ctrl[8];   // CAM2MEM: skip frame_done wait (immediate capture)
 
 // Aligned-to-32-bytes test (low 5 bits zero); applies to both SDRAM endpoints
 // in MEM2MEM and to the SDRAM endpoint in MEM2SPI / SPI2MEM.
@@ -459,8 +460,8 @@ begin
                             dst_cur         <= dma_dst;
                             bytes_remaining <= dma_count;
                             line_buf        <= 256'd0;
-                            cam_frame_done_latch <= 1'b0;  // Clear latch on start
-                            state           <= ST_CAM_FRAME_WAIT;
+                            cam_frame_done_latch <= 1'b0;
+                            state           <= ctrl_cam_imm ? ST_CAM_WAIT : ST_CAM_FRAME_WAIT;
                         end
                         else
                         begin

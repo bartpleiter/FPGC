@@ -51,10 +51,13 @@ static void process_frame(unsigned int src_addr, int do_print)
     unsigned char *buf;
     int i;
 
+    /* Flush data cache so CPU reads fresh SDRAM data (DMA wrote it) */
+    cache_flush_data();
+
+    buf = (unsigned char *)src_addr;
+
     /* Print first 32 bytes for debug (only on selected frames) */
     if (do_print) {
-        cache_flush_data();
-        buf = (unsigned char *)src_addr;
         uart_puts("Px:");
         for (i = 0; i < 32; i++) {
             uart_putchar(' ');
@@ -63,8 +66,11 @@ static void process_frame(unsigned int src_addr, int do_print)
         uart_putchar('\n');
     }
 
-    /* Blit raw Y bytes directly to VRAMPX — no processing */
-    dma_blit_to_vram(FPGC_GPU_PIXEL_DATA, src_addr, CAM_FRAME_BYTES);
+    /* CPU-based blit to VRAM — doesn't use DMA, so DMA stays free
+     * for the concurrent camera capture. */
+    for (i = 0; i < CAM_FRAME_BYTES; i++) {
+        __builtin_store(FPGC_GPU_PIXEL_DATA + i, (int)buf[i]);
+    }
 }
 
 int main(void)
@@ -114,40 +120,55 @@ int main(void)
 
     frame_count = 0;
 
-    /* FPS measurement and rate toggle state */
+    /* FPS measurement */
     unsigned int fps_start;
     int fps_frames;
-    int fast_mode;
-    unsigned int toggle_time;
 
     fps_start = get_micros();
     fps_frames = 0;
-    fast_mode = 0;
-    toggle_time = get_micros();
 
-    /* Main viewfinder loop: DMA-based capture */
+    /* ---- Double-buffered pipelined capture ----
+     * 1. First DMA waits for VSYNC (normal mode) to synchronize
+     * 2. Subsequent DMAs use immediate mode: start capturing right away
+     *    while the CPU blits the previous frame to VRAM
+     * This gives ~1 frame period per iteration instead of ~2.
+     */
+
+    /* First frame: normal mode (waits for VSYNC sync) */
+    dma_start_cam(CAM_BUF0_BYTE_ADDR, CAM_FRAME_BYTES);
+    while (dma_busy()) { }
+
+    /* Pipeline: start next capture before displaying previous */
+    int cur_buf;
+    unsigned int buf_addr[2];
+    unsigned int done_addr;
+
+    buf_addr[0] = CAM_BUF0_BYTE_ADDR;
+    buf_addr[1] = CAM_BUF1_BYTE_ADDR;
+    cur_buf = 1;  /* Next capture goes to buf 1 */
+    done_addr = CAM_BUF0_BYTE_ADDR;  /* First frame is in buf 0 */
+
     while (1) {
-        unsigned int t_cap_start;
-        unsigned int t_cap_end;
+        unsigned int t_start;
         unsigned int t_blit_end;
+        unsigned int t_cap_end;
 
-        /* Alternate between two SDRAM buffers */
-        if (frame_count & 1)
-            dma_dst = CAM_BUF1_BYTE_ADDR;
-        else
-            dma_dst = CAM_BUF0_BYTE_ADDR;
+        t_start = get_micros();
 
-        /* Start DMA in CAM2MEM mode — DMA engine waits for VSYNC internally */
-        t_cap_start = get_micros();
-        dma_start_cam(dma_dst, CAM_FRAME_BYTES);
+        /* Start next DMA immediately (skip frame_done wait) */
+        dma_start_cam_immediate(buf_addr[cur_buf], CAM_FRAME_BYTES);
 
-        /* Poll DMA until transfer is complete */
+        /* Blit the previously completed frame while DMA captures */
+        process_frame(done_addr, (frame_count < 5));
+        t_blit_end = get_micros();
+
+        /* Wait for DMA if still running */
         while (dma_busy()) { }
         t_cap_end = get_micros();
 
-        /* Process and display the captured frame */
-        process_frame(dma_dst, (frame_count < 5));
-        t_blit_end = get_micros();
+        /* Swap: the just-completed capture is the next frame to display */
+        done_addr = buf_addr[cur_buf];
+        cur_buf = 1 - cur_buf;
 
         frame_count++;
         fps_frames++;
@@ -156,37 +177,20 @@ int main(void)
         if ((get_micros() - fps_start) >= 1000000) {
             uart_puts("FPS:");
             uart_putint(fps_frames);
-            uart_puts(" cap=");
-            uart_putint((int)(t_cap_end - t_cap_start));
-            uart_puts("us blit=");
-            uart_putint((int)(t_blit_end - t_cap_end));
+            uart_puts(" blit=");
+            uart_putint((int)(t_blit_end - t_start));
+            uart_puts("us total=");
+            uart_putint((int)(t_cap_end - t_start));
             uart_puts("us\n");
             fps_frames = 0;
             fps_start = get_micros();
         }
-
-        // /* Toggle between 30fps and 16fps every 5 seconds */
-        // if ((get_micros() - toggle_time) >= 5000000) {
-        //     toggle_time = get_micros();
-        //     fast_mode = !fast_mode;
-        //     if (fast_mode) {
-        //         /* 30fps: PLL x4, CLKRC div-2 → PCLK=50MHz */
-        //         i2c_write(OV7670_ADDR, 0x6B, 0x4A);
-        //         i2c_write(OV7670_ADDR, 0x11, 0x00);
-        //         uart_puts("-> 30fps\n");
-        //     } else {
-        //         /* 16fps: no PLL, CLKRC bypass → PCLK=25MHz */
-        //         i2c_write(OV7670_ADDR, 0x6B, 0x0A);
-        //         i2c_write(OV7670_ADDR, 0x11, 0x40);
-        //         uart_puts("-> 16fps\n");
-        //     }
-        // }
     }
 
     return 0;
 }
 
-/* Required by crt0_baremetal — empty interrupt handler */
+/* Required by crt0_baremetal -- empty interrupt handler */
 void interrupt(void)
 {
 }

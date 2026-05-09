@@ -111,6 +111,7 @@ void dma_start_spi_qspi_read(int spi_id, unsigned int dst,
  * No cache flushing is performed; the camera writes bypass the CPU cache.
  */
 void dma_start_cam(unsigned int dst, unsigned int count);
+void dma_start_cam_immediate(unsigned int dst, unsigned int count);
 
 /* Returns non-zero while the engine is busy. */
 int dma_busy(void);
