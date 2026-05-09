@@ -1075,13 +1075,30 @@ MemoryStage #(
 // For multi-cycle ALU: use malu_result directly when done (not the registered value,
 // which hasn't been updated yet on the same clock edge)
 // For FP store: extract 32-bit half from FP register
-wire [31:0] ex_result = id_ex_get_pc    ? id_ex_pc :
-                        id_ex_get_int_id ? {24'd0, int_id} :
-                        (is_fp_singlecycle && id_ex_alu_op == 4'b1100) ? fp_a_data[63:32] :  // FSTHI
-                        (is_fp_singlecycle && id_ex_alu_op == 4'b1101) ? fp_a_data[31:0]  :  // FSTLO
-                        (id_ex_arithm && malu_done) ? malu_result :
-                        id_ex_arithm   ? malu_result_reg :
-                        ex_alu_result;
+//
+// Pre-compute result selector from instruction decode signals (available early,
+// independent of ALU result). This converts the 7:1 priority ternary into a
+// parallel case mux, reducing the critical path through ex_alu_result from
+// ~7 LUT levels to ~3 LUT levels.
+wire [2:0] ex_result_sel = id_ex_get_pc                                    ? 3'd1 :
+                           id_ex_get_int_id                                ? 3'd2 :
+                           (is_fp_singlecycle && id_ex_alu_op == 4'b1100)  ? 3'd3 :
+                           (is_fp_singlecycle && id_ex_alu_op == 4'b1101)  ? 3'd4 :
+                           (id_ex_arithm && malu_done)                     ? 3'd5 :
+                           id_ex_arithm                                    ? 3'd6 :
+                                                                             3'd0;
+reg [31:0] ex_result;
+always @(*) begin
+    case (ex_result_sel)
+        3'd1:    ex_result = id_ex_pc;
+        3'd2:    ex_result = {24'd0, int_id};
+        3'd3:    ex_result = fp_a_data[63:32];   // FSTHI
+        3'd4:    ex_result = fp_a_data[31:0];    // FSTLO
+        3'd5:    ex_result = malu_result;
+        3'd6:    ex_result = malu_result_reg;
+        default: ex_result = ex_alu_result;
+    endcase
+end
 
 always @(posedge clk)
 begin
