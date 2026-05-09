@@ -798,8 +798,8 @@ assign stack_push = ex_mem_valid && ex_mem_push && !backend_pipeline_stall;
 assign stack_pop = ex_mem_valid && ex_mem_pop && !backend_pipeline_stall;
 
 // Stack pointer access
-wire [7:0]  stack_ptr_out;
-wire [7:0]  stack_ptr_in;
+wire [5:0]  stack_ptr_out;
+wire [5:0]  stack_ptr_in;
 wire        stack_ptr_we;
 
 Stack stack (
@@ -810,7 +810,6 @@ Stack stack (
     .push    (stack_push),
     .pop     (stack_pop),
     .clear   (1'b0),
-    .hold    (backend_pipeline_stall),
     .ptr_out (stack_ptr_out),
     .ptr_in  (stack_ptr_in),
     .ptr_we  (stack_ptr_we)
@@ -819,7 +818,7 @@ Stack stack (
 // CPU-internal I/O: stack pointer write via store instruction
 assign stack_ptr_we = ex_mem_valid && ex_mem_mem_write &&
                       (ex_mem_mem_addr == CPU_IO_HW_STACK_PTR) && !backend_pipeline_stall;
-assign stack_ptr_in = ex_mem_breg_data[7:0];
+assign stack_ptr_in = ex_mem_breg_data[5:0];
 
 // ---- PIPELINE CONTROLLER ----
 

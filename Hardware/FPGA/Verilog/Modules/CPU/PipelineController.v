@@ -106,11 +106,13 @@ assign cache_line_hazard = ex_needs_sdram && mem_has_sdram &&
 wire hazard_stall = load_use_hazard || pop_use_hazard || cache_line_hazard;
 
 // ---- Stall computation ----
-// Combined backend stall - stalls entire pipeline
-wire backend_stall = cache_stall_if || cache_stall_mem || multicycle_stall || mu_stall || cc_stall || vrampx_stall;
+// Backend stall: stalls entire pipeline (EX/MEM/WB cannot advance).
+// cache_stall_if is NOT included here — it only freezes the frontend.
+// During an L1I miss, the backend drains normally (no new instructions enter).
+wire backend_stall = cache_stall_mem || multicycle_stall || mu_stall || cc_stall || vrampx_stall;
 
-// Front-end stall (IF, ID) - includes hazard stalls
-assign pipeline_stall = hazard_stall || backend_stall;
+// Front-end stall (IF, ID) - includes hazard stalls AND cache_stall_if
+assign pipeline_stall = hazard_stall || backend_stall || cache_stall_if;
 
 // EX stage stall - includes cache_line_hazard and backend_stall
 // Load/pop hazards don't stall EX because EX instruction needs to wait in ID
