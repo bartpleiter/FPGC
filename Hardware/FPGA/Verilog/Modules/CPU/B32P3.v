@@ -431,7 +431,12 @@ Regbank regbank (
     // Read ports - addresses from IF stage, data available in EX stage
     .addr_a     (if_areg),
     .addr_b     (if_breg),
-    .clear      (flush_if_id),
+    // Use pc_redirect instead of flush_if_id for regbank clear.
+    // flush_if_id includes reti_executes which depends on !pipeline_stall,
+    // creating a critical timing path from L1D cache → stall → flush → regbank.
+    // The RETI clear is unnecessary: the flushed instruction is marked invalid
+    // (id_ex_valid = 0), so any stale regbank data is never consumed.
+    .clear      (pc_redirect),
     .hold       (pipeline_stall),
     .data_a     (ex_areg_data),  // Output arrives in EX stage
     .data_b     (ex_breg_data),  // Output arrives in EX stage
