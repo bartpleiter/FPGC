@@ -537,12 +537,17 @@ wire [63:0] fp_a_data = fp_regs[fp_areg];
 wire [63:0] fp_b_data = fp_regs[fp_breg];
 
 // Identify single-cycle FP operations that should NOT stall the pipeline
+// Note: FADD/FSUB are now 2-cycle pipelined (see fp_addsub below)
 wire is_fp_singlecycle = id_ex_arithm && (
-    id_ex_alu_op == 4'b1001 ||  // FADD
-    id_ex_alu_op == 4'b1010 ||  // FSUB
     id_ex_alu_op == 4'b1011 ||  // FLD
     id_ex_alu_op == 4'b1100 ||  // FSTHI
     id_ex_alu_op == 4'b1101     // FSTLO
+);
+
+// Identify FP add/sub — 2-cycle pipelined operations
+wire is_fp_addsub = id_ex_arithm && (
+    id_ex_alu_op == 4'b1001 ||  // FADD
+    id_ex_alu_op == 4'b1010     // FSUB
 );
 
 // Identify FP operations that write to FP register file (not CPU register file)
@@ -553,14 +558,55 @@ wire fp_writes_to_fpregs = id_ex_arithm && (
     id_ex_alu_op == 4'b1011     // FLD
 );
 
-// 64-bit adder/subtractor (combinational)
-wire [63:0] fp_add_result = fp_a_data + fp_b_data;
-wire [63:0] fp_sub_result = fp_a_data - fp_b_data;
+// ---- FP ADD/SUB 2-CYCLE PIPELINE ----
+// Breaks the critical timing path: fp_reg read → 64-bit adder → fp_reg write
+// was ~12 ns in one cycle. Now split into:
+//   Cycle 1 (capture): read FP regs combinationally, register operands, stall
+//   Cycle 2 (compute): 64-bit add/sub from registered operands, write result
+reg        fp_addsub_captured = 1'b0;   // Operands captured in holding regs
+reg        fp_addsub_written = 1'b0;    // Write-once flag (prevents re-write during stalls)
+reg [63:0] fp_addsub_op_a = 64'd0;      // Captured operand A
+reg [63:0] fp_addsub_op_b = 64'd0;      // Captured operand B
 
-// FP register write data selection
+// Stall for 1 cycle to capture operands
+wire fp_addsub_stall = id_ex_valid && is_fp_addsub && !fp_addsub_captured
+                       && !fp_addsub_written && !pc_redirect;
+
+// Compute from registered operands (breaks the timing path)
+wire [63:0] fp_addsub_result = (id_ex_alu_op == 4'b1001)
+                               ? (fp_addsub_op_a + fp_addsub_op_b)   // FADD
+                               : (fp_addsub_op_a - fp_addsub_op_b);  // FSUB
+
+// Write enable: operands captured, not yet written, not speculative
+wire fp_addsub_we = fp_addsub_captured && !fp_addsub_written
+                    && id_ex_valid && is_fp_addsub && !fp_speculative;
+
+always @(posedge clk) begin
+    if (reset) begin
+        fp_addsub_captured <= 1'b0;
+        fp_addsub_written <= 1'b0;
+        fp_addsub_op_a <= 64'd0;
+        fp_addsub_op_b <= 64'd0;
+    end else if (!ex_pipeline_stall) begin
+        // Instruction advancing out of EX: clear state
+        fp_addsub_captured <= 1'b0;
+        fp_addsub_written <= 1'b0;
+    end else begin
+        // Pipeline stalled
+        if (id_ex_valid && is_fp_addsub && !fp_addsub_captured && !fp_addsub_written) begin
+            // Capture operands from combinational FP reg reads
+            fp_addsub_op_a <= fp_a_data;
+            fp_addsub_op_b <= fp_b_data;
+            fp_addsub_captured <= 1'b1;
+        end
+        if (fp_addsub_we) begin
+            fp_addsub_written <= 1'b1;
+        end
+    end
+end
+
+// FP register write data selection (single-cycle ops only: FLD)
 wire [63:0] fp_write_data =
-    (id_ex_alu_op == 4'b1001)  ? fp_add_result :          // FADD
-    (id_ex_alu_op == 4'b1010)  ? fp_sub_result :          // FSUB
     (id_ex_alu_op == 4'b1011)  ? {ex_alu_a, ex_alu_b} :   // FLD: {rA, rB}
     64'd0;
 
@@ -599,6 +645,9 @@ always @(posedge clk) begin
         fp_regs[5] <= 64'd0;
         fp_regs[6] <= 64'd0;
         fp_regs[7] <= 64'd0;
+    end else if (fp_addsub_we) begin
+        // FADD/FSUB writeback from registered operands (2-cycle path)
+        fp_regs[fp_dreg] <= fp_addsub_result;
     end else if (fp_singlecycle_we) begin
         fp_regs[fp_dreg] <= fp_write_data;
     end else if (malu_done && id_ex_alu_op == 4'b1000) begin
@@ -608,12 +657,15 @@ always @(posedge clk) begin
 end
 
 // Stall pipeline while multi-cycle ALU is in progress
-// Single-cycle FP operations (fadd, fsub, fld, fsthi, fstlo) do NOT stall
+// Single-cycle FP operations (fld, fsthi, fstlo) do NOT stall
+// FP add/sub have their own stall mechanism (fp_addsub_stall)
 // Must also check !pc_redirect: if MEM stage resolved a branch/jump, the
 // instruction in EX is speculative and must NOT start the multi-cycle ALU.
 // (Using pc_redirect instead of flush_id_ex avoids a combinational loop through
 // pipeline_stall → interrupt_executes → flush_id_ex → multicycle_stall.)
-assign multicycle_stall = id_ex_valid && id_ex_arithm && !is_fp_singlecycle && !malu_request_finished && !pc_redirect;
+assign multicycle_stall = (id_ex_valid && id_ex_arithm && !is_fp_singlecycle
+                           && !is_fp_addsub && !malu_request_finished && !pc_redirect)
+                          || fp_addsub_stall;
 
 
 MultiCycleALU multi_cycle_alu (
@@ -661,8 +713,9 @@ begin
                 end
 
                 // Start when we have a valid multi-cycle arithm instruction
-                // Single-cycle FP ops (fadd, fsub, fld, fsthi, fstlo) must NOT start the MALU
-                if (id_ex_valid && id_ex_arithm && !malu_request_finished && !is_fp_singlecycle && !pc_redirect)
+                // Single-cycle FP ops (fld, fsthi, fstlo) must NOT start the MALU
+                // FP add/sub (fadd, fsub) have their own 2-cycle pipeline
+                if (id_ex_valid && id_ex_arithm && !malu_request_finished && !is_fp_singlecycle && !is_fp_addsub && !pc_redirect)
                 begin
                     malu_start_reg <= 1'b1;
                     malu_a_reg <= ex_alu_a;
