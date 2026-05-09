@@ -125,10 +125,18 @@ assign backend_pipeline_stall = backend_stall;
 // ---- Flush computation ----
 // Flushes should only happen when the triggering event actually executes (not stalled)
 wire reti_executes = reti_valid && !pipeline_stall;
+
+// NOTE: interrupt_executes is intentionally NOT included in the flush signals.
+// interrupt_valid requires (ex_mem_valid && jump_valid), which is exactly
+// pc_redirect.  Therefore interrupt_executes always implies pc_redirect,
+// making it redundant in all flush OR-terms.  Removing it shortens the
+// critical path from L1D cache → stall chain → flush → pipeline register enable.
+// interrupt_executes is still computed for the InstructionFetch module (it
+// needs to know whether to redirect PC to the interrupt handler address).
 wire interrupt_executes = interrupt_valid && !pipeline_stall;
 
-assign flush_if_id = pc_redirect || interrupt_executes || reti_executes;
-assign flush_id_ex = pc_redirect || interrupt_executes || reti_executes;
-assign flush_ex_mem = pc_redirect || interrupt_executes;
+assign flush_if_id = pc_redirect || reti_executes;
+assign flush_id_ex = pc_redirect || reti_executes;
+assign flush_ex_mem = pc_redirect;
 
 endmodule
