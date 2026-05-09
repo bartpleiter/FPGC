@@ -54,8 +54,8 @@ int ov7670_init(void)
     err |= ov_write(0xA2, 0x02);  /* Scaling PCLK delay */
 
     /* ---- Timing / window (from reference project) ---- */
-    err |= ov_write(0x17, 0x14);  /* HSTART */
-    err |= ov_write(0x18, 0x02);  /* HSTOP */
+    err |= ov_write(0x17, 0x15);  /* HSTART */
+    err |= ov_write(0x18, 0x03);  /* HSTOP */
     err |= ov_write(0x32, 0x80);  /* HREF: edge offset */
     err |= ov_write(0x19, 0x03);  /* VSTART */
     err |= ov_write(0x1A, 0x7B);  /* VSTOP */

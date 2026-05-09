@@ -241,6 +241,7 @@ always @(posedge clk or posedge reset) begin
                 dbg_cache_lines   <= cur_cache_lines;
                 dbg_partial_drops <= cur_partial_drops;
                 current_buf       <= ~current_buf;
+                line_ready        <= 1'b0;  // Discard stale cache line from previous frame
                 byte_cnt          <= 5'd0;
                 line_accum        <= 256'd0;
                 cur_frame_pixels  <= 17'd0;
