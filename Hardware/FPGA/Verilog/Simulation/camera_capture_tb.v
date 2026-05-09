@@ -52,6 +52,7 @@ module camera_capture_tb;
         .line_ready(line_ready),
         .line_ack(line_ack),
         .ctrl_enable(ctrl_enable),
+        .ctrl_byte_phase(1'b0),
         .frame_done(frame_done),
         .current_buf(current_buf),
         .dbg_state(dbg_state),

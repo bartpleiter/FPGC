@@ -689,6 +689,7 @@ MemoryUnit memory_unit (
 
     // Camera control/status (tied off — no real sensor in sim)
     .cam_ctrl_enable(cam_ctrl_enable),
+    .cam_ctrl_byte_phase(),
     .cam_frame_done(cam_frame_done),
     .cam_current_buf(cam_current_buf),
     .i2c_start(),

@@ -896,6 +896,7 @@ MemoryUnit memory_unit (
 
     // Camera
     .cam_ctrl_enable(cam_ctrl_enable),
+    .cam_ctrl_byte_phase(cam_ctrl_byte_phase),
     .cam_frame_done(cam_frame_done),
     .cam_current_buf(cam_current_buf),
     .i2c_start(i2c_start),
@@ -927,6 +928,7 @@ MemoryUnit memory_unit (
 
 // Camera control signals (directly from MMIO registers via MemoryUnit passthrough)
 wire        cam_ctrl_enable;
+wire        cam_ctrl_byte_phase;
 wire        cam_frame_done;
 wire        cam_current_buf;
 
@@ -976,6 +978,7 @@ CameraCapture camera_capture (
     .line_ready     (cam_line_ready),
     .line_ack       (cam_line_ack),
     .ctrl_enable    (cam_ctrl_enable),
+    .ctrl_byte_phase(cam_ctrl_byte_phase),
     .frame_done     (cam_frame_done),
     .current_buf    (cam_current_buf),
     .dbg_state          (cam_dbg_state),

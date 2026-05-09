@@ -54,6 +54,7 @@ module CameraCapture (
 
     // Control (from MMIO registers, active in clk domain)
     input  wire         ctrl_enable,     // Master enable
+    input  wire         ctrl_byte_phase, // 0: capture odd bytes (UYVY Y), 1: capture even bytes
 
     // Status (active in clk domain)
     output reg          frame_done   = 1'b0,  // 1-cycle pulse on VSYNC rising
@@ -137,7 +138,7 @@ always @(posedge clk or posedge reset) begin
 
         if (pclk_rising && ctrl_enable) begin
             if (href_s2) begin
-                if (byte_toggle) begin
+                if (byte_toggle ^ ctrl_byte_phase) begin
                     pixel_byte  <= data_s2;
                     pixel_valid <= 1'b1;
                 end

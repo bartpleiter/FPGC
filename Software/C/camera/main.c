@@ -85,9 +85,9 @@ int main(void)
     uart_puts("Configuring OV7670...\n");
     ov7670_init();
 
-    /* Enable camera capture */
-    uart_puts("Enabling camera capture...\n");
-    cam_enable();
+    /* Enable camera capture with even byte phase (Y in YUYV) */
+    uart_puts("Enabling camera capture (phase=1: even bytes)...\n");
+    cam_enable_phase(1);
 
     uart_puts("Waiting for first frame_done...\n");
 
@@ -125,9 +125,6 @@ int main(void)
     fast_mode = 0;
     toggle_time = get_micros();
 
-    i2c_write(OV7670_ADDR, 0x6B, 0x0A);
-    i2c_write(OV7670_ADDR, 0x11, 0x40);
-
     /* Main viewfinder loop: DMA-based capture */
     while (1) {
         unsigned int t_cap_start;
@@ -149,7 +146,7 @@ int main(void)
         t_cap_end = get_micros();
 
         /* Process and display the captured frame */
-        process_frame(dma_dst, 0);
+        process_frame(dma_dst, (frame_count < 5));
         t_blit_end = get_micros();
 
         frame_count++;

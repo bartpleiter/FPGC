@@ -121,6 +121,7 @@ module MemoryUnit (
 
     // ---- Camera control (connects to camera modules in FPGC.v) ----
     output reg          cam_ctrl_enable    = 1'b0,
+    output reg          cam_ctrl_byte_phase = 1'b0,  // 0: odd bytes, 1: even bytes
     input  wire         cam_frame_done,
     input  wire         cam_current_buf,
 
@@ -478,7 +479,7 @@ localparam
     ADDR_DMA_CTRL        = 32'h1C00007C, // DMA control: [3:0] mode, [4] irq_en, [7:5] sub-target, [31] start
     ADDR_DMA_STATUS      = 32'h1C000080, // DMA status: [0] busy, [1] done, [2] error (sticky, read-clear)
     ADDR_DMA_QSPI_ADDR   = 32'h1C000084, // DMA QSPI Fast Read source address (24-bit byte offset into flash)
-    ADDR_CAM_CTRL        = 32'h1C000088, // Camera control: [0] enable
+    ADDR_CAM_CTRL        = 32'h1C000088, // Camera control: [0] enable, [1] byte_phase
     ADDR_CAM_STATUS      = 32'h1C00008C, // Camera status: [0] frame_done (read-clear), [1] current_buf
     ADDR_I2C_DBG         = 32'h1C000090, // I2C debug: {start_pending, i2c_start, i2c_dbg_state[4:0]}
     ADDR_CAM_BUF0        = 32'h1C000094, // Camera debug 0: [16:0] frame_pixels, [25:17] line_count
@@ -846,8 +847,11 @@ always @(posedge clk) begin
                     // ---- Camera MMIO ----
                     else if (addr == ADDR_CAM_CTRL)
                     begin
-                        if (we) cam_ctrl_enable <= data[0];
-                        q_hold <= {31'd0, cam_ctrl_enable};
+                        if (we) begin
+                            cam_ctrl_enable     <= data[0];
+                            cam_ctrl_byte_phase <= data[1];
+                        end
+                        q_hold <= {30'd0, cam_ctrl_byte_phase, cam_ctrl_enable};
                         state  <= STATE_RETURN_Q;
                     end
                     else if (addr == ADDR_CAM_STATUS)
