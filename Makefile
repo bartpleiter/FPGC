@@ -770,6 +770,8 @@ compile-camera: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 		Software/C/libfpgc/io/dma_asm.asm \
 		Software/C/libfpgc/io/dma.c \
 		Software/C/libfpgc/io/i2c.c \
+		Software/C/libfpgc/io/spi.c \
+		Software/C/libfpgc/io/ch376.c \
 		Software/C/libfpgc/gfx/gpu_hal.c \
 		Software/C/camera/cam_driver.c \
 		Software/C/camera/ov7670_init.c \

@@ -130,3 +130,42 @@ int ov7670_init(void)
     uart_puts("\nOV7670: configured OK\n");
     return 0;
 }
+
+int ov7670_set_qqvga(void)
+{
+    int err;
+    err = 0;
+
+    /* Enable DCW downscaler: QVGA → QQVGA (2× down both axes) */
+    err |= ov_write(0x0C, 0x04);  /* COM3: DCW enable */
+    err |= ov_write(0x3E, 0x19);  /* COM14: manual PCLK div /2 + DCW */
+    err |= ov_write(0x72, 0x11);  /* DCWCTR: 2× down both axes */
+    err |= ov_write(0x73, 0xF1);  /* PCLK_DIV: /2 */
+    err |= ov_write(0xA2, 0x02);  /* PCLK delay */
+
+    if (err) {
+        uart_puts("\nOV7670: QQVGA error\n");
+        return -1;
+    }
+    uart_puts("\nOV7670: QQVGA\n");
+    return 0;
+}
+
+int ov7670_set_qvga(void)
+{
+    int err;
+    err = 0;
+
+    /* Disable DCW: back to QVGA */
+    err |= ov_write(0x0C, 0x00);  /* COM3: no DCW */
+    err |= ov_write(0x3E, 0x00);  /* COM14: no PCLK divide */
+    err |= ov_write(0x72, 0x11);  /* DCWCTR: default */
+    err |= ov_write(0x73, 0xF0);  /* PCLK_DIV: default */
+
+    if (err) {
+        uart_puts("\nOV7670: QVGA error\n");
+        return -1;
+    }
+    uart_puts("\nOV7670: QVGA\n");
+    return 0;
+}

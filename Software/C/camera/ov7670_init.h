@@ -14,4 +14,12 @@
  * Returns 0 on success, -1 on I2C error. */
 int ov7670_init(void);
 
+/* Switch to QQVGA (160×120) by enabling DCW downscaler.
+ * Call after ov7670_init(). Returns 0 on success. */
+int ov7670_set_qqvga(void);
+
+/* Switch back to QVGA (320×240) by disabling DCW.
+ * Returns 0 on success. */
+int ov7670_set_qvga(void);
+
 #endif /* OV7670_INIT_H */
