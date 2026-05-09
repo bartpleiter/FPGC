@@ -401,15 +401,6 @@ set_global_assignment -name POWER_BOARD_THERMAL_MODEL "NONE (CONSERVATIVE)"
 set_global_assignment -name VERILOG_SHOW_LMF_MAPPING_MESSAGES OFF
 
 
-
-
-
-
-
-set_global_assignment -name OPTIMIZATION_MODE "HIGH PERFORMANCE EFFORT"
-set_global_assignment -name SEED 6
-
-
 set_global_assignment -name VERILOG_FILE FPGC.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/QSPIflash.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/MultiCycleAluOps/IDivider.v
