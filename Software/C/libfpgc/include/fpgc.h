@@ -70,6 +70,9 @@
 #define FPGC_I2C_CMD        0x1C0000A0
 #define FPGC_I2C_DATA       0x1C0000A4
 
+/* GPU status register */
+#define FPGC_GPU_STATUS     0x1C0000A8  /* [0] vblank, [12:1] v_count */
+
 /* DMA_CTRL bit fields */
 #define FPGC_DMA_MODE_MEM2MEM   0
 #define FPGC_DMA_MODE_MEM2SPI   1
