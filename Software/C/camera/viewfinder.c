@@ -4,6 +4,10 @@
  * Handles palette setup, dither table loading, auto-contrast LUT
  * computation from hardware min/max stats, and the main viewfinder
  * loop that runs CAM2VRAM with inline LUT + dithering.
+ *
+ * QVGA (320×240): CAM2VRAM direct — zero CPU cost per frame.
+ * QQVGA (160×120): CAM2VRAM with 2× hardware upscale — each source
+ *   byte is written to 4 VRAMPX positions (2×2 pixel doubling).
  */
 #include "viewfinder.h"
 #include "image_proc.h"
@@ -12,6 +16,7 @@
 #include "fpgc.h"
 #include "sys.h"
 #include "cam_driver.h"
+#include "ov7670_init.h"
 
 /* Sensor dimensions */
 #define SENS_W  320
@@ -167,20 +172,20 @@ extern void set_mode(int mode);
 extern int keyboard_poll(void);
 extern void keyboard_check_connect(void);
 
+/* Current resolution mode */
+static int res_mode = RES_QVGA;
+
 #define AC_INTERVAL 8
 
-void viewfinder_run(int initial_mode)
+/* ---- QVGA viewfinder loop (CAM2VRAM direct) ---- */
+static void viewfinder_qvga(void)
 {
-    int frame_count;
     unsigned int fps_start;
     int fps_frames;
     unsigned int cam2vram_flags;
 
-    set_mode(initial_mode);
-
     fps_start = get_micros();
     fps_frames = 0;
-    frame_count = 0;
 
     /* First frame: VSYNC-synced CAM2VRAM (no LUT yet) */
     cam2vram_flags = 0;
@@ -193,7 +198,6 @@ void viewfinder_run(int initial_mode)
                        CAM_FRAME_BYTES, cam2vram_flags);
     while (dma_busy()) { }
 
-    /* Compute initial AC from first frame's hardware min/max */
     if (display_mode != MODE_RAW) {
         auto_contrast_from_hw();
     }
@@ -201,10 +205,10 @@ void viewfinder_run(int initial_mode)
     while (1) {
         unsigned int t_start;
         unsigned int t_end;
+        int key;
 
         t_start = get_micros();
 
-        /* Compute flags for this frame's display mode */
         cam2vram_flags = 0;
         if (display_mode == MODE_DITH)
             cam2vram_flags = FPGC_DMA_CTRL_DITHER_EN;
@@ -213,13 +217,10 @@ void viewfinder_run(int initial_mode)
         if (ac_lut_valid && display_mode != MODE_RAW)
             cam2vram_flags = cam2vram_flags | FPGC_DMA_CTRL_LUT_EN;
 
-        /* Main frame: CAM2VRAM direct (immediate mode) */
         dma_start_cam2vram_immediate((unsigned int)FPGC_GPU_PIXEL_DATA,
                                      CAM_FRAME_BYTES, cam2vram_flags);
 
-        /* CPU is free during entire capture+display period (~33ms) */
         while (dma_busy()) {
-            int key;
             key = keyboard_poll();
             if (key == 'r' || key == 'R') {
                 set_mode(MODE_RAW);
@@ -230,10 +231,14 @@ void viewfinder_run(int initial_mode)
             } else if (key == 'e' || key == 'E') {
                 set_mode(MODE_DITH8);
                 auto_contrast_reset();
+            } else if (key == 'q' || key == 'Q') {
+                /* Switch to QQVGA — need to reconfigure sensor */
+                while (dma_busy()) { }
+                res_mode = RES_QQVGA;
+                return;  /* exit to viewfinder_run for mode switch */
             }
         }
 
-        /* Update AC LUT from hardware min/max stats */
         if (display_mode != MODE_RAW) {
             ac_lut_counter = ac_lut_counter - 1;
             if (ac_lut_counter <= 0) {
@@ -243,10 +248,8 @@ void viewfinder_run(int initial_mode)
         }
 
         t_end = get_micros();
-        frame_count++;
         fps_frames++;
 
-        /* Print FPS every second */
         if ((get_micros() - fps_start) >= 1000000) {
             uart_puts("FPS:");
             uart_putint(fps_frames);
@@ -255,8 +258,123 @@ void viewfinder_run(int initial_mode)
             uart_puts("us\n");
             fps_frames = 0;
             fps_start = get_micros();
-
             keyboard_check_connect();
+        }
+    }
+}
+
+/* ---- QQVGA viewfinder loop (CAM2VRAM with HW 2× upscale) ---- */
+static void viewfinder_qqvga(void)
+{
+    unsigned int fps_start;
+    int fps_frames;
+    unsigned int cam2vram_flags;
+
+    fps_start = get_micros();
+    fps_frames = 0;
+
+    /* First frame: VSYNC-synced CAM2VRAM with upscale (no LUT yet) */
+    cam2vram_flags = FPGC_DMA_CTRL_UPSCALE2X;
+    if (display_mode == MODE_DITH)
+        cam2vram_flags = cam2vram_flags | FPGC_DMA_CTRL_DITHER_EN;
+    else if (display_mode == MODE_DITH8)
+        cam2vram_flags = cam2vram_flags | FPGC_DMA_CTRL_DITHER_EN | FPGC_DMA_CTRL_DITHER_8;
+
+    dma_start_cam2vram((unsigned int)FPGC_GPU_PIXEL_DATA,
+                       QQVGA_BYTES, cam2vram_flags);
+    while (dma_busy()) { }
+
+    if (display_mode != MODE_RAW) {
+        auto_contrast_from_hw();
+    }
+
+    while (1) {
+        unsigned int t_start;
+        unsigned int t_end;
+        int key;
+
+        t_start = get_micros();
+
+        cam2vram_flags = FPGC_DMA_CTRL_UPSCALE2X;
+        if (display_mode == MODE_DITH)
+            cam2vram_flags = cam2vram_flags | FPGC_DMA_CTRL_DITHER_EN;
+        else if (display_mode == MODE_DITH8)
+            cam2vram_flags = cam2vram_flags | FPGC_DMA_CTRL_DITHER_EN | FPGC_DMA_CTRL_DITHER_8;
+        if (ac_lut_valid && display_mode != MODE_RAW)
+            cam2vram_flags = cam2vram_flags | FPGC_DMA_CTRL_LUT_EN;
+
+        dma_start_cam2vram_immediate((unsigned int)FPGC_GPU_PIXEL_DATA,
+                                     QQVGA_BYTES, cam2vram_flags);
+
+        while (dma_busy()) {
+            key = keyboard_poll();
+            if (key == 'r' || key == 'R') {
+                set_mode(MODE_RAW);
+                auto_contrast_reset();
+            } else if (key == 'd' || key == 'D') {
+                set_mode(MODE_DITH);
+                auto_contrast_reset();
+            } else if (key == 'e' || key == 'E') {
+                set_mode(MODE_DITH8);
+                auto_contrast_reset();
+            } else if (key == 'q' || key == 'Q') {
+                while (dma_busy()) { }
+                res_mode = RES_QVGA;
+                return;
+            }
+        }
+
+        if (display_mode != MODE_RAW) {
+            ac_lut_counter = ac_lut_counter - 1;
+            if (ac_lut_counter <= 0) {
+                auto_contrast_from_hw();
+                ac_lut_counter = AC_INTERVAL;
+            }
+        }
+
+        t_end = get_micros();
+        fps_frames++;
+
+        if ((get_micros() - fps_start) >= 1000000) {
+            uart_puts("FPS:");
+            uart_putint(fps_frames);
+            uart_puts(" frame=");
+            uart_putint((int)(t_end - t_start));
+            uart_puts("us [QQVGA]\n");
+            fps_frames = 0;
+            fps_start = get_micros();
+            keyboard_check_connect();
+        }
+    }
+}
+
+void viewfinder_run(int initial_mode)
+{
+    int first;
+    first = 1;
+    res_mode = RES_QVGA;
+    set_mode(initial_mode);
+
+    while (1) {
+        if (res_mode == RES_QQVGA) {
+            uart_puts("Switching to QQVGA...\n");
+            cam_disable();
+            ov7670_set_qqvga();
+            cam_enable_phase(1);
+            while (!cam_frame_ready()) { }
+            auto_contrast_reset();
+            viewfinder_qqvga();
+        } else {
+            if (!first) {
+                uart_puts("Switching to QVGA...\n");
+                cam_disable();
+                ov7670_set_qvga();
+                cam_enable_phase(1);
+                while (!cam_frame_ready()) { }
+            }
+            first = 0;
+            auto_contrast_reset();
+            viewfinder_qvga();
         }
     }
 }

@@ -9,6 +9,15 @@
 #define MODE_DITH  1
 #define MODE_DITH8 2
 
+/* Resolution modes */
+#define RES_QVGA   0   /* 320×240 native */
+#define RES_QQVGA  1   /* 160×120, 2× upscaled */
+
+/* QQVGA dimensions */
+#define QQVGA_W     160
+#define QQVGA_H     120
+#define QQVGA_BYTES (QQVGA_W * QQVGA_H)  /* 19200 */
+
 /* Palette setup for each display mode */
 void setup_palette_4shade(void);
 void setup_palette_8shade(void);

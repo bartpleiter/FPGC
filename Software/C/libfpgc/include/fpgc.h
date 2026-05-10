@@ -88,6 +88,7 @@
 #define FPGC_DMA_CTRL_LUT_EN    (1u << 9)   /* MEM2VRAM: apply 256-entry LUT */
 #define FPGC_DMA_CTRL_DITHER_EN (1u << 10)  /* MEM2VRAM: apply dithering */
 #define FPGC_DMA_CTRL_DITHER_8  (1u << 11)  /* MEM2VRAM dither: 0=4-shade, 1=8-shade */
+#define FPGC_DMA_CTRL_UPSCALE2X (1u << 12)  /* MEM2VRAM/CAM2VRAM: 2x pixel doubling */
 #define FPGC_DMA_CTRL_SPI_SHIFT 5
 #define FPGC_DMA_CTRL_START     (1u << 31)
 

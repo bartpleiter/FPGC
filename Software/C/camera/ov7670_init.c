@@ -1,8 +1,14 @@
 /*
- * ov7670_init.c - OV7670 QVGA YUV422 configuration via I2C
+ * ov7670_init.c - OV7670 QVGA/QQVGA YUV422 configuration via I2C
  *
  * V2: Adapted from FPGA_OV7670_Camera_Interface reference project
- * (proven 30fps VGA), modified for YUV QVGA output.
+ * (proven 30fps VGA), modified for YUV output.
+ *
+ * QVGA (320×240): COM7 selects QVGA directly, no DCW needed.
+ * QQVGA (160×120): COM7 selects VGA, then DCW 4× downscales to 160×120.
+ *   (The OV7670's DCW operates on the internal VGA resolution, so QQVGA
+ *   must start from VGA mode — not from QVGA. Reference: ov7670-master
+ *   Arduino project by arndtjenssen.)
  */
 #include "ov7670_init.h"
 #include "i2c.h"
@@ -33,7 +39,12 @@ static int ov_write(int reg, int val)
     return 0;
 }
 
-int ov7670_init(void)
+/*
+ * Internal: full OV7670 init for either QVGA or QQVGA.
+ * qqvga=0: QVGA 320×240 (COM7 QVGA mode, no DCW)
+ * qqvga=1: QQVGA 160×120 (COM7 VGA mode + DCW 4× downsample)
+ */
+static int ov7670_init_mode(int qqvga)
 {
     int err;
     err = 0;
@@ -42,38 +53,52 @@ int ov7670_init(void)
     err |= ov_write(0x12, 0x80);
     delay_10ms();
 
-    /* ---- Output format ---- */
-    err |= ov_write(0x12, 0x10);  /* COM7: QVGA + YUV */
-    err |= ov_write(0x11, 0x80);  /* CLKRC: internal clock, no prescaler */
-    err |= ov_write(0x0C, 0x00);  /* COM3: no DCW/scaling */
-    err |= ov_write(0x3E, 0x00);  /* COM14: no manual PCLK scaling */
-    err |= ov_write(0x70, 0x3A);  /* Scaling XSC */
-    err |= ov_write(0x71, 0x35);  /* Scaling YSC */
-    err |= ov_write(0x72, 0x11);  /* DCW control */
-    err |= ov_write(0x73, 0xF0);  /* DCW control */
-    err |= ov_write(0xA2, 0x02);  /* Scaling PCLK delay */
+    /* ---- Output format + scaling ---- */
+    if (qqvga) {
+        /* VGA base mode + DCW 4× → 160×120 output */
+        err |= ov_write(0x12, 0x00);  /* COM7: VGA + YUV */
+        err |= ov_write(0x11, 0x80);  /* CLKRC: internal clock, no prescaler */
+        err |= ov_write(0x0C, 0x04);  /* COM3: DCW enable */
+        err |= ov_write(0x3E, 0x1A);  /* COM14: DCW + manual scaling + PCLK /4 */
+        err |= ov_write(0x70, 0x3A);  /* Scaling XSC */
+        err |= ov_write(0x71, 0x35);  /* Scaling YSC */
+        err |= ov_write(0x72, 0x22);  /* DCWCTR: 4× downsample both axes */
+        err |= ov_write(0x73, 0xF2);  /* PCLK_DIV: /4 */
+        err |= ov_write(0xA2, 0x02);  /* Scaling PCLK delay */
+    } else {
+        /* QVGA mode directly (no DCW needed) */
+        err |= ov_write(0x12, 0x10);  /* COM7: QVGA + YUV */
+        err |= ov_write(0x11, 0x80);  /* CLKRC: internal clock, no prescaler */
+        err |= ov_write(0x0C, 0x00);  /* COM3: no DCW/scaling */
+        err |= ov_write(0x3E, 0x00);  /* COM14: no manual PCLK scaling */
+        err |= ov_write(0x70, 0x3A);  /* Scaling XSC */
+        err |= ov_write(0x71, 0x35);  /* Scaling YSC */
+        err |= ov_write(0x72, 0x11);  /* DCW control */
+        err |= ov_write(0x73, 0xF0);  /* DCW control */
+        err |= ov_write(0xA2, 0x02);  /* Scaling PCLK delay */
+    }
 
-    /* ---- Timing / window (from reference project) ---- */
-    err |= ov_write(0x17, 0x15);  /* HSTART */
-    err |= ov_write(0x18, 0x03);  /* HSTOP */
-    err |= ov_write(0x32, 0x80);  /* HREF: edge offset */
-    err |= ov_write(0x19, 0x03);  /* VSTART */
-    err |= ov_write(0x1A, 0x7B);  /* VSTOP */
+    /* ---- Timing / window ---- */
+    err |= ov_write(0x17, 0x16);  /* HSTART (reference project value) */
+    err |= ov_write(0x18, 0x04);  /* HSTOP */
+    err |= ov_write(0x32, 0xA4);  /* HREF: edge offset (reference QQVGA value) */
+    err |= ov_write(0x19, 0x02);  /* VSTART */
+    err |= ov_write(0x1A, 0x7A);  /* VSTOP */
     err |= ov_write(0x03, 0x0A);  /* VREF */
 
     /* ---- YUV / data format ---- */
     err |= ov_write(0x04, 0x00);  /* COM1: disable CCIR656 */
     err |= ov_write(0x40, 0xC0);  /* COM15: full output range [00..FF] */
-    err |= ov_write(0x3A, 0x04);  /* TSLB: auto window */
+    err |= ov_write(0x3A, 0x04);  /* TSLB: UYVY byte order */
     err |= ov_write(0x3D, 0xC0);  /* COM13: gamma enable, UV sat auto */
     err |= ov_write(0x15, 0x00);  /* COM10: VSYNC/HREF positive */
 
-    /* ---- AGC / AEC (from reference project) ---- */
+    /* ---- AGC / AEC ---- */
     err |= ov_write(0x13, 0xE0);  /* COM8: fast AEC, step, banding ON */
     err |= ov_write(0x00, 0x00);  /* GAIN: 0 */
     err |= ov_write(0x10, 0x00);  /* AECH: exposure = 0 */
     err |= ov_write(0x0D, 0x40);  /* COM4 */
-    err |= ov_write(0x14, 0x18);  /* COM9: 4x gain ceiling (reference value) */
+    err |= ov_write(0x14, 0x18);  /* COM9: 4x gain ceiling */
     err |= ov_write(0xA5, 0x05);  /* BD50MAX */
     err |= ov_write(0xAB, 0x07);  /* BD60MAX */
     err |= ov_write(0x24, 0x95);  /* AEW: upper limit */
@@ -110,7 +135,7 @@ int ov7670_init(void)
     err |= ov_write(0x88, 0xD7);
     err |= ov_write(0x89, 0xE8);
 
-    /* ---- Misc (from reference project) ---- */
+    /* ---- Misc ---- */
     err |= ov_write(0x0F, 0x41);  /* COM6: reset timings */
     err |= ov_write(0x1E, 0x00);  /* MVFP: no mirror/flip */
     err |= ov_write(0x33, 0x0B);  /* CHLF */
@@ -127,45 +152,21 @@ int ov7670_init(void)
         return -1;
     }
 
-    uart_puts("\nOV7670: configured OK\n");
+    uart_puts(qqvga ? "\nOV7670: QQVGA OK\n" : "\nOV7670: QVGA OK\n");
     return 0;
+}
+
+int ov7670_init(void)
+{
+    return ov7670_init_mode(0);
 }
 
 int ov7670_set_qqvga(void)
 {
-    int err;
-    err = 0;
-
-    /* Enable DCW downscaler: QVGA → QQVGA (2× down both axes) */
-    err |= ov_write(0x0C, 0x04);  /* COM3: DCW enable */
-    err |= ov_write(0x3E, 0x19);  /* COM14: manual PCLK div /2 + DCW */
-    err |= ov_write(0x72, 0x11);  /* DCWCTR: 2× down both axes */
-    err |= ov_write(0x73, 0xF1);  /* PCLK_DIV: /2 */
-    err |= ov_write(0xA2, 0x02);  /* PCLK delay */
-
-    if (err) {
-        uart_puts("\nOV7670: QQVGA error\n");
-        return -1;
-    }
-    uart_puts("\nOV7670: QQVGA\n");
-    return 0;
+    return ov7670_init_mode(1);
 }
 
 int ov7670_set_qvga(void)
 {
-    int err;
-    err = 0;
-
-    /* Disable DCW: back to QVGA */
-    err |= ov_write(0x0C, 0x00);  /* COM3: no DCW */
-    err |= ov_write(0x3E, 0x00);  /* COM14: no PCLK divide */
-    err |= ov_write(0x72, 0x11);  /* DCWCTR: default */
-    err |= ov_write(0x73, 0xF0);  /* PCLK_DIV: default */
-
-    if (err) {
-        uart_puts("\nOV7670: QVGA error\n");
-        return -1;
-    }
-    uart_puts("\nOV7670: QVGA\n");
-    return 0;
+    return ov7670_init_mode(0);
 }
