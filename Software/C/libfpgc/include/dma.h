@@ -123,6 +123,34 @@ int dma_busy(void);
 unsigned int dma_status(void);
 
 /*
+ * Load one entry into the DMA's 256×8 auto-contrast LUT.
+ * addr = input pixel value (0-255), data = output pixel value.
+ * Call 256 times to fill the entire table.
+ */
+void dma_lut_write(int addr, int data);
+
+/*
+ * Load a 4-shade dither threshold table entry.
+ * table = 0 (thresh_0), 1 (thresh_1), 2 (thresh_2).
+ * mi = matrix index (0-15), value = threshold byte.
+ */
+void dma_dither_thresh_write(int table, int mi, int value);
+
+/*
+ * Load an 8-shade Bayer offset table entry.
+ * mi = matrix index (0-15), value = offset byte.
+ */
+void dma_dither_bayer_write(int mi, int value);
+
+/*
+ * Asynchronous MEM2VRAM with optional LUT and/or dithering.
+ * flags: OR of FPGC_DMA_CTRL_LUT_EN, FPGC_DMA_CTRL_DITHER_EN,
+ *        FPGC_DMA_CTRL_DITHER_8.
+ */
+void dma_start_mem2vram_ex(unsigned int dst, unsigned int src,
+                           unsigned int count, unsigned int flags);
+
+/*
  * Flush + invalidate the L1 data cache (ccached instruction). Used by
  * dma_copy() but exposed for callers that drive the engine directly.
  */

@@ -156,6 +156,49 @@ reg [23:0] qspi_addr_cur = 24'd0;
 // transfer and stays high until ST_DONE / ST_ERROR.
 reg        qspi_burst_open = 1'b0;
 
+// ---- MEM2VRAM LUT + dither hardware acceleration ----
+
+// 256×8 auto-contrast LUT (inferred as M9K block RAM).
+// Written by software via reg_addr 6: {addr[7:0], data[7:0]}.
+// Read during MEM2VRAM drain with 1-cycle latency.
+(* ramstyle = "no_rw_check, M9K" *)
+reg [7:0] lut_mem [0:255];
+reg [7:0] lut_rd_data = 8'd0;
+
+// LUT write signals (directly from register bus)
+wire       lut_wr_en   = reg_we && (reg_addr == 3'd6);
+wire [7:0] lut_wr_addr = reg_data[15:8];
+wire [7:0] lut_wr_data = reg_data[7:0];
+
+// LUT phase: 0 = issue read address, 1 = LUT output ready
+reg        lut_phase = 1'b0;
+
+// 4-shade dither threshold tables: 3 thresholds × 16 matrix positions.
+// thresh_0[mi]: pixel < thresh_0 → shade 0 (black)
+// thresh_1[mi]: pixel < thresh_1 → shade 1 (dark grey)
+// thresh_2[mi]: pixel < thresh_2 → shade 2 (light grey)
+// else shade 3 (white)
+reg [7:0] thresh_0 [0:15];
+reg [7:0] thresh_1 [0:15];
+reg [7:0] thresh_2 [0:15];
+
+// 8-shade Bayer offset table: 16 matrix positions.
+// output = clamp((pixel + offset*2 + 1) >> 5, 0, 7)
+reg [7:0] bayer_off [0:15];
+
+// Dither table write signals (from register bus via reg_addr 7)
+// Bits [13:12] = table select (0=thresh_0, 1=thresh_1, 2=thresh_2, 3=bayer_off)
+// Bits [11:8]  = matrix index (0..15)
+// Bits [7:0]   = data
+wire       dith_wr_en    = reg_we && (reg_addr == 3'd7);
+wire [1:0] dith_wr_table = reg_data[13:12];
+wire [3:0] dith_wr_mi    = reg_data[11:8];
+wire [7:0] dith_wr_data  = reg_data[7:0];
+
+// Drain pixel position tracking (for dither matrix indexing)
+reg [8:0] drain_x = 9'd0;   // 0..319
+reg [7:0] drain_y = 8'd0;   // 0..239
+
 localparam
     ST_IDLE          = 5'd0,
     ST_RD_REQ        = 5'd1,   // MEM2MEM / MEM2SPI: SDRAM read request
@@ -197,6 +240,9 @@ wire [3:0]  ctrl_mode       = dma_ctrl[3:0];
 wire        ctrl_irq_en     = dma_ctrl[4];
 wire [2:0]  ctrl_spi_id     = dma_ctrl[7:5];
 wire        ctrl_cam_imm    = dma_ctrl[8];   // CAM2MEM: skip frame_done wait (immediate capture)
+wire        ctrl_lut_en     = dma_ctrl[9];   // MEM2VRAM: apply 256-entry LUT during drain
+wire        ctrl_dither_en  = dma_ctrl[10];  // MEM2VRAM: apply dithering during drain
+wire        ctrl_dither_mode = dma_ctrl[11]; // MEM2VRAM dither: 0=4-shade, 1=8-shade Bayer
 
 // Aligned-to-32-bytes test (low 5 bits zero); applies to both SDRAM endpoints
 // in MEM2MEM and to the SDRAM endpoint in MEM2SPI / SPI2MEM.
@@ -307,6 +353,9 @@ begin
         qspi_burst_open  <= 1'b0;
         cam_line_ack     <= 1'b0;
         state           <= ST_IDLE;
+        lut_phase        <= 1'b0;
+        drain_x          <= 9'd0;
+        drain_y          <= 8'd0;
     end
     else
     begin
@@ -336,6 +385,16 @@ begin
                 3'd2: dma_count     <= reg_data;
                 3'd3: dma_ctrl      <= reg_data;
                 3'd5: dma_qspi_addr <= reg_data;
+                // reg_addr 6: LUT write handled separately (M9K write port)
+                3'd7: begin
+                    // Dither table write: {table[13:12], mi[11:8], data[7:0]}
+                    case (dith_wr_table)
+                        2'd0: thresh_0[dith_wr_mi] <= dith_wr_data;
+                        2'd1: thresh_1[dith_wr_mi] <= dith_wr_data;
+                        2'd2: thresh_2[dith_wr_mi] <= dith_wr_data;
+                        2'd3: bayer_off[dith_wr_mi] <= dith_wr_data;
+                    endcase
+                end
                 default: ; // STATUS is read-only
             endcase
         end
@@ -444,6 +503,9 @@ begin
                             src_cur         <= dma_src;
                             dst_cur         <= dma_dst;
                             bytes_remaining <= dma_count;
+                            drain_x         <= 9'd0;
+                            drain_y         <= 8'd0;
+                            lut_phase       <= 1'b0;
                             // First step: read the SDRAM line, then drain
                             // it into VRAMPX byte-by-byte.
                             state           <= ST_RD_REQ;
@@ -499,7 +561,9 @@ begin
                     else if (ctrl_mode == MODE_MEM2VRAM)
                     begin
                         // Drain line_buf into VRAMPX one byte per cycle.
+                        // When LUT is enabled, takes 2 cycles/byte (pipeline).
                         spi_byte_idx <= 6'd0;
+                        lut_phase    <= 1'b0;
                         state        <= ST_M2V_DRAIN;
                     end
                     else
@@ -809,14 +873,37 @@ begin
             end
 
             // ---- MEM2VRAM drain: emit 32 line_buf bytes to VRAMPX ----
+            // With optional LUT (auto-contrast) and/or dithering (4-shade
+            // or 8-shade). When LUT is enabled, drain takes 2 cycles per
+            // byte: phase 0 issues the BRAM read, phase 1 writes to VRAMPX.
+            // Without LUT, drain takes 1 cycle per byte (direct write).
             // vp_we / vp_addr / vp_data are combinational (see assigns at
             // the bottom of the module). This block only advances the
             // engine's bookkeeping when the FIFO actually accepts the
             // byte, i.e. when !vp_full this same cycle.
             ST_M2V_DRAIN:
             begin
-                if (!vp_full)
+                if (ctrl_lut_en && !lut_phase)
                 begin
+                    // Phase 0: LUT read address driven combinationally
+                    // by drain_raw_byte (see wire below). Wait 1 cycle
+                    // for M9K to produce the output.
+                    lut_phase <= 1'b1;
+                end
+                else if (!vp_full)
+                begin
+                    // Phase 1 (LUT) or single-phase (no LUT): write pixel.
+                    // vp_data is driven combinationally from drain_out_byte.
+                    lut_phase <= 1'b0;
+
+                    // Advance pixel position for dither matrix indexing
+                    if (drain_x == 9'd319) begin
+                        drain_x <= 9'd0;
+                        drain_y <= drain_y + 8'd1;
+                    end else begin
+                        drain_x <= drain_x + 9'd1;
+                    end
+
                     dst_cur <= dst_cur + 32'd1;
                     if (spi_byte_idx == 6'd31)
                     begin
@@ -884,13 +971,17 @@ begin
     end
 end
 
-// ---- VRAMPX peer-port combinational drives ----
-// Drive vp_we / vp_addr / vp_data combinationally from the engine state so
-// the FIFO write_enable lines up with the FIFO's own !full check the same
-// cycle. (See the long comment on the vp_we port declaration.)
-assign vp_we   = (state == ST_M2V_DRAIN) && !vp_full;
-assign vp_addr = dst_cur[16:0];
-assign vp_data =
+// ---- LUT BRAM: 256×8 auto-contrast lookup table (M9K) ----
+// Write port: software writes via reg_addr 6 ({addr[15:8], data[7:0]}).
+// Read port: drain logic reads during MEM2VRAM (1-cycle latency).
+always @(posedge clk) begin
+    if (lut_wr_en)
+        lut_mem[lut_wr_addr] <= lut_wr_data;
+    lut_rd_data <= lut_mem[drain_raw_byte];
+end
+
+// ---- Raw byte extraction from line_buf (shared by drain + LUT read) ----
+wire [7:0] drain_raw_byte =
     (spi_byte_idx == 6'd0)  ? line_buf[  7:  0] :
     (spi_byte_idx == 6'd1)  ? line_buf[ 15:  8] :
     (spi_byte_idx == 6'd2)  ? line_buf[ 23: 16] :
@@ -923,5 +1014,41 @@ assign vp_data =
     (spi_byte_idx == 6'd29) ? line_buf[239:232] :
     (spi_byte_idx == 6'd30) ? line_buf[247:240] :
                               line_buf[255:248];
+
+// ---- Dithering combinational logic ----
+// Input: either LUT output (when LUT enabled) or raw byte
+wire [7:0] dith_input = ctrl_lut_en ? lut_rd_data : drain_raw_byte;
+
+// 4×4 dither matrix index from pixel position
+wire [3:0] dither_mi = {drain_y[1:0], drain_x[1:0]};
+
+// 4-shade ordered dither: compare against 3 thresholds
+wire [7:0] dth0 = thresh_0[dither_mi];
+wire [7:0] dth1 = thresh_1[dither_mi];
+wire [7:0] dth2 = thresh_2[dither_mi];
+wire [7:0] dith_4shade = (dith_input < dth0) ? 8'd0 :
+                          (dith_input < dth1) ? 8'd1 :
+                          (dith_input < dth2) ? 8'd2 : 8'd3;
+
+// 8-shade Bayer dither: (pixel + offset*2 + 1) >> 5, clamped to 7
+wire [7:0] boff = bayer_off[dither_mi];
+wire [8:0] bsum = {1'b0, dith_input} + {4'b0000, boff[3:0], 1'b0} + 9'd1;
+wire [3:0] bval = bsum[8:5];
+wire [7:0] dith_8shade = bval[3] ? 8'd7 : {5'd0, bval[2:0]};
+
+// Final output byte: dithered (if enabled) or LUT/raw pass-through
+wire [7:0] drain_out_byte = ctrl_dither_en ?
+    (ctrl_dither_mode ? dith_8shade : dith_4shade) :
+    dith_input;
+
+// ---- VRAMPX peer-port combinational drives ----
+// Drive vp_we / vp_addr / vp_data combinationally from the engine state so
+// the FIFO write_enable lines up with the FIFO's own !full check the same
+// cycle. (See the long comment on the vp_we port declaration.)
+// When LUT is enabled, only write during phase 1 (LUT output ready).
+assign vp_we   = (state == ST_M2V_DRAIN) && !vp_full
+                 && (!ctrl_lut_en || lut_phase);
+assign vp_addr = dst_cur[16:0];
+assign vp_data = drain_out_byte;
 
 endmodule

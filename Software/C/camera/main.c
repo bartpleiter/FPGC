@@ -77,16 +77,51 @@ static void setup_palette_greyscale(void)
     }
 }
 
-/* Blit raw 320×240 Y channel directly to VRAM */
-static void blit_raw(unsigned int src_addr)
+/* Blit raw 320×240 Y channel to VRAM via DMA */
+static void blit_raw_dma(unsigned int src_addr)
 {
-    unsigned char *buf;
-    int i;
+    cache_flush_data();
+    dma_start_mem2vram_ex(
+        (unsigned int)FPGC_GPU_PIXEL_DATA, src_addr,
+        (unsigned int)SENS_BYTES, 0);
+    while (dma_busy()) { }
+}
 
-    buf = (unsigned char *)src_addr;
-    for (i = 0; i < SENS_BYTES; i++) {
-        __builtin_store(FPGC_GPU_PIXEL_DATA + i, (int)buf[i]);
-    }
+/* Blit with auto-contrast LUT via DMA (LUT must be pre-loaded) */
+static void blit_lut_dma(unsigned int src_addr)
+{
+    cache_flush_data();
+    dma_start_mem2vram_ex(
+        (unsigned int)FPGC_GPU_PIXEL_DATA, src_addr,
+        (unsigned int)SENS_BYTES,
+        FPGC_DMA_CTRL_LUT_EN);
+    while (dma_busy()) { }
+}
+
+/* Blit with 4-shade dithering via DMA (thresholds must be pre-loaded) */
+static void blit_dithered_dma(unsigned int src_addr, int use_lut)
+{
+    unsigned int flags;
+    flags = FPGC_DMA_CTRL_DITHER_EN;
+    if (use_lut) flags = flags | FPGC_DMA_CTRL_LUT_EN;
+    cache_flush_data();
+    dma_start_mem2vram_ex(
+        (unsigned int)FPGC_GPU_PIXEL_DATA, src_addr,
+        (unsigned int)SENS_BYTES, flags);
+    while (dma_busy()) { }
+}
+
+/* Blit with 8-shade Bayer dithering via DMA */
+static void blit_dithered8_dma(unsigned int src_addr, int use_lut)
+{
+    unsigned int flags;
+    flags = FPGC_DMA_CTRL_DITHER_EN | FPGC_DMA_CTRL_DITHER_8;
+    if (use_lut) flags = flags | FPGC_DMA_CTRL_LUT_EN;
+    cache_flush_data();
+    dma_start_mem2vram_ex(
+        (unsigned int)FPGC_GPU_PIXEL_DATA, src_addr,
+        (unsigned int)SENS_BYTES, flags);
+    while (dma_busy()) { }
 }
 
 /* Auto-contrast LUT cached across frames */
@@ -94,7 +129,9 @@ static unsigned char ac_lut[256];
 static int ac_lut_valid = 0;
 static int ac_lut_counter = 0;
 
-static void auto_contrast_cached(unsigned char *buf, int n)
+/* Compute auto-contrast LUT from an SDRAM buffer and upload to DMA engine.
+ * Only recomputes every 8 frames.  Returns 1 if LUT is valid (loaded). */
+static int auto_contrast_update(unsigned char *buf, int n)
 {
     int i;
     int lo;
@@ -119,107 +156,35 @@ static void auto_contrast_cached(unsigned char *buf, int n)
         } else {
             for (i = 0; i < 256; i++) ac_lut[i] = (unsigned char)i;
         }
+        /* Upload LUT to DMA engine */
+        for (i = 0; i < 256; i++) {
+            dma_lut_write(i, (int)ac_lut[i]);
+        }
         ac_lut_valid = 1;
         ac_lut_counter = 8;
     }
     ac_lut_counter = ac_lut_counter - 1;
-
-    /* Apply cached LUT */
-    for (i = 0; i < n; i++) {
-        buf[i] = ac_lut[buf[i]];
-    }
+    return ac_lut_valid;
 }
 
-/* Dither 320×240 directly to VRAM (full resolution, no downsample) */
-static void blit_dithered(unsigned int src_addr)
+/* Load dither threshold and Bayer offset tables into DMA engine hardware.
+ * Call once at startup. */
+static void load_dither_tables(void)
 {
-    unsigned char *buf;
-    int i;
-    int x;
-    int y;
     int mi;
-    unsigned char p;
 
-    buf = (unsigned char *)src_addr;
-
+    /* Initialize software dither tables so we can read them */
     init_dither_tables_ext();
-    i = 0;
-    for (y = 0; y < DISP_H; y++) {
-        int y4;
-        y4 = (y & 3) << 2;
-        for (x = 0; x < DISP_W; x++) {
-            int v;
-            p = buf[i];
-            mi = y4 + (x & 3);
 
-            if (p < mat_dg_b_ext[mi]) {
-                v = 0;
-            } else if (p < mat_lg_dg_ext[mi]) {
-                v = 1;
-            } else if (p < mat_w_lg_ext[mi]) {
-                v = 2;
-            } else {
-                v = 3;
-            }
-
-            __builtin_store(FPGC_GPU_PIXEL_DATA + i, v);
-            i = i + 1;
-        }
+    /* Upload 4-shade thresholds: 3 tables × 16 matrix positions */
+    for (mi = 0; mi < 16; mi++) {
+        dma_dither_thresh_write(0, mi, (int)mat_dg_b_ext[mi]);
+        dma_dither_thresh_write(1, mi, (int)mat_lg_dg_ext[mi]);
+        dma_dither_thresh_write(2, mi, (int)mat_w_lg_ext[mi]);
     }
-}
-
-/* Dither 320×240 to 8 shades directly to VRAM */
-static void blit_dithered8(unsigned int src_addr)
-{
-    unsigned char *buf;
-    int i;
-    int x;
-    int y;
-
-    buf = (unsigned char *)src_addr;
-
-    i = 0;
-    for (y = 0; y < DISP_H; y++) {
-        int y4;
-        y4 = (y & 3) << 2;
-        for (x = 0; x < DISP_W; x++) {
-            int mi;
-            int v;
-            mi = y4 + (x & 3);
-            v = ((int)buf[i] + bayer4_ext[mi] * 2 + 1) >> 5;
-            if (v > 7) v = 7;
-            __builtin_store(FPGC_GPU_PIXEL_DATA + i, v);
-            i = i + 1;
-        }
-    }
-}
-
-/* Process one frame and display it */
-static void process_frame(unsigned int src_addr, int do_print)
-{
-    unsigned char *buf;
-    int i;
-
-    /* Flush data cache so CPU reads fresh SDRAM data (DMA wrote it) */
-    cache_flush_data();
-
-    /* Print first 32 bytes for debug (only on selected frames) */
-    if (do_print) {
-        buf = (unsigned char *)src_addr;
-        uart_puts("Px:");
-        for (i = 0; i < 32; i++) {
-            uart_putchar(' ');
-            uart_puthex((unsigned int)buf[i], 0);
-        }
-        uart_putchar('\n');
-    }
-
-    if (display_mode == MODE_DITH) {
-        blit_dithered(src_addr);
-    } else if (display_mode == MODE_DITH8) {
-        blit_dithered8(src_addr);
-    } else {
-        blit_raw(src_addr);
+    /* Upload 8-shade Bayer offsets */
+    for (mi = 0; mi < 16; mi++) {
+        dma_dither_bayer_write(mi, (int)bayer4_ext[mi]);
     }
 }
 
@@ -325,6 +290,9 @@ int main(void)
     /* Default to raw greyscale mode */
     set_mode(MODE_RAW);
 
+    /* Load dither threshold/offset tables into DMA engine hardware */
+    load_dither_tables();
+
     /* Init timer subsystem (required for delay() used by CH376) */
     timer_init();
 
@@ -372,48 +340,83 @@ int main(void)
     fps_start = get_micros();
     fps_frames = 0;
 
-    /* ---- Double-buffered pipelined capture ----
-     * 1. First DMA waits for VSYNC (normal mode) to synchronize
-     * 2. Subsequent DMAs use immediate mode: start capturing right away
-     *    while the CPU blits the previous frame to VRAM
-     * This gives ~1 frame period per iteration instead of ~2.
+    /* ---- Sequential DMA: blit → capture ----
+     * DMA is single-channel, so VRAM blit and camera capture are sequential.
+     * The DMA blit is ~2ms (vs ~5ms CPU blit for RAW, ~60ms for dither),
+     * so sequential gives ~28fps for all modes.
+     *
+     * Auto-contrast LUT computation (CPU reads from SDRAM) runs during the
+     * DMA capture wait period — it reads from the PREVIOUS frame buffer
+     * (not being overwritten by DMA), so there's no conflict. The LUT
+     * computed from frame N is used to display frame N+1 (imperceptible lag).
      */
 
     /* First frame: normal mode (waits for VSYNC sync) */
     dma_start_cam(CAM_BUF0_BYTE_ADDR, CAM_FRAME_BYTES);
     while (dma_busy()) { }
 
-    /* Pipeline: start next capture before displaying previous */
     int cur_buf;
+    int prev_buf;
     unsigned int buf_addr[2];
-    unsigned int done_addr;
 
     buf_addr[0] = CAM_BUF0_BYTE_ADDR;
     buf_addr[1] = CAM_BUF1_BYTE_ADDR;
-    cur_buf = 1;  /* Next capture goes to buf 1 */
-    done_addr = CAM_BUF0_BYTE_ADDR;  /* First frame is in buf 0 */
+    cur_buf = 0;  /* First captured frame is in buf 0 */
 
     while (1) {
         unsigned int t_start;
         unsigned int t_blit_end;
-        unsigned int t_cap_end;
+        unsigned int t_total_end;
 
         t_start = get_micros();
 
-        /* Start next DMA immediately (skip frame_done wait) */
-        dma_start_cam_immediate(buf_addr[cur_buf], CAM_FRAME_BYTES);
-
-        /* Blit the previously completed frame while DMA captures */
-        process_frame(done_addr, (frame_count < 5));
+        /* 1. DMA blit the just-captured frame to VRAM (~2ms) */
+        cache_flush_data();
+        if (frame_count < 5) {
+            unsigned char *buf;
+            int i;
+            buf = (unsigned char *)buf_addr[cur_buf];
+            uart_puts("Px:");
+            for (i = 0; i < 32; i++) {
+                uart_putchar(' ');
+                uart_puthex((unsigned int)buf[i], 0);
+            }
+            uart_putchar('\n');
+        }
+        if (display_mode == MODE_DITH) {
+            blit_dithered_dma(buf_addr[cur_buf], ac_lut_valid);
+        } else if (display_mode == MODE_DITH8) {
+            blit_dithered8_dma(buf_addr[cur_buf], ac_lut_valid);
+        } else {
+            blit_raw_dma(buf_addr[cur_buf]);
+        }
         t_blit_end = get_micros();
 
-        /* Wait for DMA if still running */
-        while (dma_busy()) { }
-        t_cap_end = get_micros();
-
-        /* Swap: the just-completed capture is the next frame to display */
-        done_addr = buf_addr[cur_buf];
+        /* 2. Start capture into other buffer */
+        prev_buf = cur_buf;
         cur_buf = 1 - cur_buf;
+        dma_start_cam_immediate(buf_addr[cur_buf], CAM_FRAME_BYTES);
+
+        /* 3. During capture: compute AC LUT from the just-displayed frame.
+         *    Reads buf[prev_buf] which DMA is NOT writing to. */
+        if (display_mode != MODE_RAW) {
+            auto_contrast_update((unsigned char *)buf_addr[prev_buf],
+                                 SENS_BYTES);
+        }
+
+        /* 4. Wait for capture and poll keyboard */
+        while (dma_busy()) {
+            int key;
+            key = keyboard_poll();
+            if (key == 'r' || key == 'R') {
+                set_mode(MODE_RAW);
+            } else if (key == 'd' || key == 'D') {
+                set_mode(MODE_DITH);
+            } else if (key == 'e' || key == 'E') {
+                set_mode(MODE_DITH8);
+            }
+        }
+        t_total_end = get_micros();
 
         frame_count++;
         fps_frames++;
@@ -425,26 +428,13 @@ int main(void)
             uart_puts(" blit=");
             uart_putint((int)(t_blit_end - t_start));
             uart_puts("us total=");
-            uart_putint((int)(t_cap_end - t_start));
+            uart_putint((int)(t_total_end - t_start));
             uart_puts("us\n");
             fps_frames = 0;
             fps_start = get_micros();
 
             /* Periodically check for keyboard connect/disconnect */
             keyboard_check_connect();
-        }
-
-        /* Poll keyboard for mode switch */
-        {
-            int key;
-            key = keyboard_poll();
-            if (key == 'r' || key == 'R') {
-                set_mode(MODE_RAW);
-            } else if (key == 'd' || key == 'D') {
-                set_mode(MODE_DITH);
-            } else if (key == 'e' || key == 'E') {
-                set_mode(MODE_DITH8);
-            }
         }
     }
 

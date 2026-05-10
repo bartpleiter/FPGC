@@ -488,7 +488,9 @@ localparam
     ADDR_I2C_CMD         = 32'h1C0000A0, // I2C command: write {[23:17] dev_addr, [16] rw, [15:8] reg, [7:0] data}
     ADDR_I2C_DATA        = 32'h1C0000A4, // I2C read data: {24'd0, rd_data[7:0]}
     ADDR_GPU_STATUS      = 32'h1C0000A8, // GPU status: [0] in_vblank, [12:1] v_count
-    ADDR_OOB             = 32'h1C0000AC; // All addresses >= this are out of bounds
+    ADDR_DMA_LUT         = 32'h1C0000AC, // DMA LUT entry: write {addr[15:8], data[7:0]}
+    ADDR_DMA_DITHER      = 32'h1C0000B0, // DMA dither table: write {table[13:12], mi[11:8], data[7:0]}
+    ADDR_OOB             = 32'h1C0000B4; // All addresses >= this are out of bounds
 
 // ---- State encoding ----
 localparam
@@ -840,6 +842,20 @@ always @(posedge clk) begin
                     else if (addr == ADDR_DMA_QSPI_ADDR)
                     begin
                         dma_reg_addr <= 3'd5;
+                        dma_reg_we   <= we;
+                        dma_reg_data <= data;
+                        state        <= STATE_RETURN_DMA_REG;
+                    end
+                    else if (addr == ADDR_DMA_LUT)
+                    begin
+                        dma_reg_addr <= 3'd6;
+                        dma_reg_we   <= we;
+                        dma_reg_data <= data;
+                        state        <= STATE_RETURN_DMA_REG;
+                    end
+                    else if (addr == ADDR_DMA_DITHER)
+                    begin
+                        dma_reg_addr <= 3'd7;
                         dma_reg_we   <= we;
                         dma_reg_data <= data;
                         state        <= STATE_RETURN_DMA_REG;

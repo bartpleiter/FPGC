@@ -84,8 +84,15 @@
 #define FPGC_DMA_MODE_CAM2MEM   7
 #define FPGC_DMA_CTRL_IRQ_EN    (1u << 4)
 #define FPGC_DMA_CTRL_CAM_IMM   (1u << 8)   /* CAM2MEM: skip frame_done wait */
+#define FPGC_DMA_CTRL_LUT_EN    (1u << 9)   /* MEM2VRAM: apply 256-entry LUT */
+#define FPGC_DMA_CTRL_DITHER_EN (1u << 10)  /* MEM2VRAM: apply dithering */
+#define FPGC_DMA_CTRL_DITHER_8  (1u << 11)  /* MEM2VRAM dither: 0=4-shade, 1=8-shade */
 #define FPGC_DMA_CTRL_SPI_SHIFT 5
 #define FPGC_DMA_CTRL_START     (1u << 31)
+
+/* DMA LUT and dither table registers */
+#define FPGC_DMA_LUT            0x1C0000AC  /* Write: {addr[15:8], data[7:0]} */
+#define FPGC_DMA_DITHER         0x1C0000B0  /* Write: {table[13:12], mi[11:8], data[7:0]} */
 
 /* DMA_STATUS bits (sticky bits cleared on read) */
 #define FPGC_DMA_STATUS_BUSY    (1u << 0)
