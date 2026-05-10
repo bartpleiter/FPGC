@@ -138,6 +138,11 @@ void hud_update(int fps)
         hud_puts(13, HUD_TOP_ROW, settings_exposure_str(), HUD_PAL);
     }
 
+    /* Auto-contrast indicator (right side of top row) */
+    if (cam_settings.auto_contrast) {
+        hud_puts(37, HUD_TOP_ROW, "AC", HUD_PAL_HIGHLIGHT);
+    }
+
     /* ---- Bottom row: ISO + brightness + contrast + FPS ---- */
     hud_clear_row(HUD_BOTTOM_ROW);
 

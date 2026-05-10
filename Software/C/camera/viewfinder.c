@@ -11,7 +11,6 @@
  */
 #include "viewfinder.h"
 #include "image_proc.h"
-#include "uart.h"
 #include "dma.h"
 #include "fpgc.h"
 #include "sys.h"
@@ -345,7 +344,6 @@ static void apply_pending(void)
         break;
     case 4:  /* Full reset */
         settings_init();
-        uart_puts("Settings reset\n");
         break;
     case 5:  /* brightness/contrast/orientation */
         settings_apply_brightness();
@@ -438,11 +436,6 @@ static void viewfinder_qvga(void)
 
         if ((get_micros() - fps_start) >= 1000000) {
             last_fps = fps_frames;
-            uart_puts("FPS:");
-            uart_putint(fps_frames);
-            uart_puts(" frame=");
-            uart_putint((int)(t_end - t_start));
-            uart_puts("us\n");
             fps_frames = 0;
             fps_start = get_micros();
             keyboard_check_connect();
@@ -527,11 +520,6 @@ static void viewfinder_qqvga(void)
 
         if ((get_micros() - fps_start) >= 1000000) {
             last_fps = fps_frames;
-            uart_puts("FPS:");
-            uart_putint(fps_frames);
-            uart_puts(" frame=");
-            uart_putint((int)(t_end - t_start));
-            uart_puts("us [QQVGA]\n");
             fps_frames = 0;
             fps_start = get_micros();
             keyboard_check_connect();
@@ -548,7 +536,6 @@ void viewfinder_run(int initial_mode)
 
     while (1) {
         if (res_mode == RES_QQVGA) {
-            uart_puts("Switching to QQVGA...\n");
             cam_disable();
             ov7670_set_qqvga();
             /* Re-apply mode overlays (init_mode wiped them) */
@@ -559,7 +546,6 @@ void viewfinder_run(int initial_mode)
             viewfinder_qqvga();
         } else {
             if (!first) {
-                uart_puts("Switching to QVGA...\n");
                 cam_disable();
                 ov7670_set_qvga();
                 /* Re-apply mode overlays (init_mode wiped them) */

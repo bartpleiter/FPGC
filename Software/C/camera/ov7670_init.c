@@ -12,7 +12,6 @@
  */
 #include "ov7670_init.h"
 #include "i2c.h"
-#include "uart.h"
 #include "fpgc.h"
 
 /* Simple delay (~10ms at 100MHz) */
@@ -31,11 +30,9 @@ static int ov_write(int reg, int val)
 
     rc = i2c_write(OV7670_ADDR, reg, val);
     if (rc) {
-        uart_puts("W!");
         return -1;
     }
 
-    uart_putchar('.');
     return 0;
 }
 
@@ -151,11 +148,9 @@ static int ov7670_init_mode(int qqvga)
     err |= ov_write(0xB3, 0x80);  /* THL_ST */
 
     if (err) {
-        uart_puts("\nOV7670: errors during init\n");
         return -1;
     }
 
-    uart_puts(qqvga ? "\nOV7670: QQVGA OK\n" : "\nOV7670: QVGA OK\n");
     return 0;
 }
 
@@ -208,6 +203,4 @@ void ov7670_set_manual(void)
 
     /* Set moderate gain (ISO 400 equiv) */
     ov_write(0x00, 0x30);  /* GAIN */
-
-    uart_puts("Manual mode ready\n");
 }

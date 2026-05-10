@@ -40,7 +40,7 @@ CPROC_OUTPUT = $(CPROC_DIR)/output/cproc-qbe
 .PHONY: compile-spi1-dma-test run-spi1-dma-test
 .PHONY: compile-camera run-camera
 .PHONY: run-userbdos run-doom
-.PHONY: flash-c-baremetal-spi flash-bdos
+.PHONY: flash-c-baremetal-spi flash-bdos flash-camera
 .PHONY: qbe clean-qbe
 .PHONY: cproc clean-cproc
 .PHONY: selfhost-qbe selfhost-cproc selfhost-all stage-cc-toolchain
@@ -954,6 +954,9 @@ flash-c-baremetal-spi: compile-c-baremetal $(QBE_OUTPUT) $(CPROC_OUTPUT)
 flash-bdos: compile-bdos
 	./Scripts/Programmer/flash_bdos.sh
 
+flash-camera: compile-camera
+	./Scripts/Programmer/flash_spi.sh
+
 # =============================================================================
 # Asset Conversion
 # =============================================================================
@@ -1184,6 +1187,7 @@ help:
 	@echo "  flash-c-baremetal-spi - Flash C binary to SPI flash"
 	@echo "                          Usage: make flash-c-baremetal-spi file=<filename>"
 	@echo "  flash-bdos            - Flash BDOS to SPI flash"
+	@echo "  flash-camera          - Flash camera app to SPI flash"
 	@echo ""
 	@echo "--- Asset Conversion ---"
 	@echo "  convert-w3d-textures  - Convert W3D textures to binary"

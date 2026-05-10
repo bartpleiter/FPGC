@@ -7,7 +7,6 @@
 #include "settings.h"
 #include "ov7670_init.h"
 #include "i2c.h"
-#include "uart.h"
 #include "fpgc.h"
 #include "cam_driver.h"
 
@@ -89,7 +88,6 @@ void settings_apply_mode(void)
     case SHOOT_AUTO:
         /* Full sensor re-init for auto mode */
         ov7670_reset_auto();
-        uart_puts("[Auto]\n");
         break;
 
     case SHOOT_M:
@@ -98,7 +96,6 @@ void settings_apply_mode(void)
         settings_apply_shutter();
         settings_apply_exposure();
         settings_apply_iso();
-        uart_puts("[Manual]\n");
         break;
     }
 }
@@ -224,7 +221,6 @@ void settings_cycle_mode(void)
 void settings_reset(void)
 {
     settings_init();
-    uart_puts("Settings reset\n");
 }
 
 void settings_adjust_shutter(int direction)

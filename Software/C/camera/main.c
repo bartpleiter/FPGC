@@ -13,7 +13,6 @@
  */
 #include "viewfinder.h"
 #include "cam_driver.h"
-#include "uart.h"
 #include "ov7670_init.h"
 #include "gpu_hal.h"
 #include "gpu_data_ascii.h"
@@ -53,12 +52,10 @@ void keyboard_check_connect(void)
         if (ch376_enumerate_device(kb_spi, &kb_dev) == 1) {
             if (ch376_is_keyboard(&kb_dev)) {
                 kb_connected = 1;
-                uart_puts("KB connected\n");
             }
         }
     } else if (st == CH376_CONN_DISCONNECTED && kb_connected) {
         kb_connected = 0;
-        uart_puts("KB disconnected\n");
         ch376_reset(kb_spi);
         ch376_host_init(kb_spi);
     }
@@ -103,13 +100,10 @@ void set_mode(int mode)
     display_mode = mode;
     if (mode == MODE_DITH) {
         setup_palette_4shade();
-        uart_puts("Mode: DITH4\n");
     } else if (mode == MODE_DITH8) {
         setup_palette_8shade();
-        uart_puts("Mode: DITH8\n");
     } else {
         setup_palette_greyscale();
-        uart_puts("Mode: RAW\n");
     }
 }
 
@@ -117,9 +111,6 @@ int main(void)
 {
     int timeout;
     int status;
-
-    uart_puts("\n=== FPGC-Camera ===\n");
-    uart_puts("Initializing...\n");
 
     /* Clear all VRAM planes (remove bootloader logo) */
     gpu_clear_vram();
@@ -135,7 +126,6 @@ int main(void)
     keyboard_check_connect();
 
     /* Configure OV7670 via I2C */
-    uart_puts("Configuring OV7670...\n");
     ov7670_init();
 
     /* Initialize camera settings (Auto mode, defaults) */
@@ -145,27 +135,17 @@ int main(void)
     hud_init();
 
     /* Enable camera capture with even byte phase (Y in YUYV) */
-    uart_puts("Enabling camera capture (phase=1: even bytes)...\n");
     cam_enable_phase(1);
-
-    uart_puts("Waiting for first frame_done...\n");
 
     /* Wait for first frame_done so we know VSYNC boundary */
     timeout = 0;
     while (1) {
         status = __builtin_load(FPGC_CAM_STATUS);
         if (status & 1) {
-            uart_puts("First frame_done received!\n");
             break;
         }
         timeout = timeout + 1;
-        if ((timeout & 0x1FFFF) == 0) {
-            uart_putchar('.');
-        }
         if (timeout >= 10000000) {
-            uart_puts("\nTIMEOUT: no frame. DBG=");
-            uart_putint(__builtin_load(0x1C00009C));
-            uart_putchar('\n');
             cam_disable();
             while (1) { /* halt */ }
         }
