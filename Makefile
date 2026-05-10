@@ -772,13 +772,20 @@ compile-camera: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 		Software/C/libfpgc/io/i2c.c \
 		Software/C/libfpgc/io/spi.c \
 		Software/C/libfpgc/io/ch376.c \
+		Software/C/libfpgc/io/sd.c \
 		Software/C/libfpgc/gfx/gpu_hal.c \
 		Software/C/libfpgc/gfx/gpu_data_ascii.c \
+		Software/C/libfpgc/fs/brfs.c \
+		Software/C/libfpgc/fs/brfs_cache.c \
+		Software/C/libfpgc/fs/brfs_storage_sdcard.c \
 		Software/C/camera/cam_driver.c \
 		Software/C/camera/ov7670_init.c \
 		Software/C/camera/image_proc.c \
 		Software/C/camera/settings.c \
 		Software/C/camera/hud.c \
+		Software/C/camera/storage.c \
+		Software/C/camera/bmp.c \
+		Software/C/camera/gallery.c \
 		Software/C/camera/viewfinder.c \
 		Software/C/camera/main.c \
 		--libc \

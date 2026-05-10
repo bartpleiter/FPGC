@@ -11,7 +11,7 @@
 void hud_init(void);
 
 /* Update the full HUD display (call after settings change or periodically) */
-void hud_update(int fps);
+void hud_update(int fps, int remaining);
 
 /* Clear the HUD (hide all text) */
 void hud_clear(void);

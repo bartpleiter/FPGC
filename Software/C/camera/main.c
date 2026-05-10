@@ -23,6 +23,7 @@
 #include "timer.h"
 #include "settings.h"
 #include "hud.h"
+#include "storage.h"
 
 /* Current display mode (shared with viewfinder.c) */
 int display_mode = MODE_RAW;
@@ -115,6 +116,9 @@ int main(void)
     /* Clear all VRAM planes (remove bootloader logo) */
     gpu_clear_vram();
 
+    /* Load font patterns and palettes early (needed for format prompt) */
+    hud_init();
+
     /* Load dither threshold/offset tables into DMA engine hardware */
     load_dither_tables();
 
@@ -125,14 +129,64 @@ int main(void)
     keyboard_init();
     keyboard_check_connect();
 
+    /* Initialize SD card and BRFS filesystem */
+    {
+        int sd_rc;
+        sd_rc = storage_init();
+        if (sd_rc == 1) {
+            /* SD card found but no BRFS — ask user to format */
+            gpu_write_window_tile(5, 10, 'F', PALETTE_WHITE_ON_BLACK);
+            gpu_write_window_tile(6, 10, 'o', PALETTE_WHITE_ON_BLACK);
+            gpu_write_window_tile(7, 10, 'r', PALETTE_WHITE_ON_BLACK);
+            gpu_write_window_tile(8, 10, 'm', PALETTE_WHITE_ON_BLACK);
+            gpu_write_window_tile(9, 10, 'a', PALETTE_WHITE_ON_BLACK);
+            gpu_write_window_tile(10, 10, 't', PALETTE_WHITE_ON_BLACK);
+            gpu_write_window_tile(12, 10, 'S', PALETTE_WHITE_ON_BLACK);
+            gpu_write_window_tile(13, 10, 'D', PALETTE_WHITE_ON_BLACK);
+            gpu_write_window_tile(14, 10, '?', PALETTE_WHITE_ON_BLACK);
+            gpu_write_window_tile(16, 10, '(', PALETTE_GREEN_ON_BLACK);
+            gpu_write_window_tile(17, 10, 'Y', PALETTE_GREEN_ON_BLACK);
+            gpu_write_window_tile(18, 10, '/', PALETTE_GREEN_ON_BLACK);
+            gpu_write_window_tile(19, 10, 'N', PALETTE_RED_ON_BLACK);
+            gpu_write_window_tile(20, 10, ')', PALETTE_GREEN_ON_BLACK);
+
+            /* Wait for Y or N keypress */
+            while (1) {
+                int fmt_key;
+                fmt_key = keyboard_poll();
+                if (fmt_key == 'y' || fmt_key == 'Y') {
+                    /* Show formatting message */
+                    gpu_clear_window();
+                    gpu_write_window_tile(5, 12, 'F', PALETTE_YELLOW_ON_BLACK);
+                    gpu_write_window_tile(6, 12, 'o', PALETTE_YELLOW_ON_BLACK);
+                    gpu_write_window_tile(7, 12, 'r', PALETTE_YELLOW_ON_BLACK);
+                    gpu_write_window_tile(8, 12, 'm', PALETTE_YELLOW_ON_BLACK);
+                    gpu_write_window_tile(9, 12, 'a', PALETTE_YELLOW_ON_BLACK);
+                    gpu_write_window_tile(10, 12, 't', PALETTE_YELLOW_ON_BLACK);
+                    gpu_write_window_tile(11, 12, 't', PALETTE_YELLOW_ON_BLACK);
+                    gpu_write_window_tile(12, 12, 'i', PALETTE_YELLOW_ON_BLACK);
+                    gpu_write_window_tile(13, 12, 'n', PALETTE_YELLOW_ON_BLACK);
+                    gpu_write_window_tile(14, 12, 'g', PALETTE_YELLOW_ON_BLACK);
+                    gpu_write_window_tile(15, 12, '.', PALETTE_YELLOW_ON_BLACK);
+                    gpu_write_window_tile(16, 12, '.', PALETTE_YELLOW_ON_BLACK);
+                    gpu_write_window_tile(17, 12, '.', PALETTE_YELLOW_ON_BLACK);
+                    storage_format();
+                    break;
+                }
+                if (fmt_key == 'n' || fmt_key == 'N') {
+                    break;
+                }
+            }
+            gpu_clear_window();
+        }
+        /* sd_rc == -1 means no SD card — storage_ready will be 0 */
+    }
+
     /* Configure OV7670 via I2C */
     ov7670_init();
 
     /* Initialize camera settings (Auto mode, defaults) */
     settings_init();
-
-    /* Initialize HUD overlay */
-    hud_init();
 
     /* Enable camera capture with even byte phase (Y in YUYV) */
     cam_enable_phase(1);

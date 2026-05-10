@@ -21,6 +21,7 @@
 #include "settings.h"
 #include "gpu_hal.h"
 #include "gpu_data_ascii.h"
+#include "storage.h"
 
 /* HUD row positions */
 #define HUD_TOP_ROW     0
@@ -113,7 +114,7 @@ void hud_init(void)
     gpu_clear_window();
 }
 
-void hud_update(int fps)
+void hud_update(int fps, int remaining)
 {
     int brt;
 
@@ -143,6 +144,15 @@ void hud_update(int fps)
         hud_puts(37, HUD_TOP_ROW, "AC", HUD_PAL_HIGHLIGHT);
     }
 
+    /* SD card indicator */
+    if (storage_ready) {
+        hud_puts(34, HUD_TOP_ROW, "SD", HUD_PAL);
+    } else if (storage_sd_found) {
+        hud_puts(33, HUD_TOP_ROW, "SD!", HUD_PAL);
+    } else {
+        hud_puts(34, HUD_TOP_ROW, "--", HUD_PAL);
+    }
+
     /* ---- Bottom row: ISO + brightness + contrast + FPS ---- */
     hud_clear_row(HUD_BOTTOM_ROW);
 
@@ -165,6 +175,12 @@ void hud_update(int fps)
     /* Contrast (center-right) */
     hud_puts(17, HUD_BOTTOM_ROW, "C:", HUD_PAL);
     hud_putint(19, HUD_BOTTOM_ROW, cam_settings.contrast, 3, HUD_PAL);
+
+    /* Remaining images (center) */
+    if (storage_ready) {
+        hud_putint(23, HUD_BOTTOM_ROW, remaining, 4, HUD_PAL);
+        hud_puts(27, HUD_BOTTOM_ROW, "img", HUD_PAL);
+    }
 
     /* FPS (right) */
     hud_putint(35, HUD_BOTTOM_ROW, fps, 3, HUD_PAL);
