@@ -11,9 +11,9 @@
 #define SHOOT_AUTO   0   /* Full auto: AEC + AGC + night mode */
 #define SHOOT_M      1   /* Manual: user controls shutter + gain, no night mode */
 
-/* Shutter speed presets (frame rate presets) */
+/* Shutter speed presets (frame rate presets, Manual mode only) */
 #define SHUTTER_FAST    0   /* ~30 fps */
-#define SHUTTER_NORMAL  1   /* ~15 fps */
+#define SHUTTER_NORMAL  1   /* ~16 fps */
 #define SHUTTER_SLOW    2   /* ~8 fps */
 #define SHUTTER_COUNT   3
 

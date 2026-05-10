@@ -132,15 +132,19 @@ void hud_update(int fps)
     hud_puts(1, HUD_TOP_ROW, settings_mode_str(), HUD_PAL_HIGHLIGHT);
     hud_puts(2, HUD_TOP_ROW, "]", HUD_PAL);
 
-    /* Shutter speed (right side) */
-    hud_puts(34, HUD_TOP_ROW, settings_shutter_str(), HUD_PAL);
+    /* Shutter speed (right side, Manual mode only) */
+    if (cam_settings.shoot_mode == SHOOT_M) {
+        hud_puts(34, HUD_TOP_ROW, settings_shutter_str(), HUD_PAL);
+    }
 
     /* ---- Bottom row: ISO, EV, FPS ---- */
     hud_clear_row(HUD_BOTTOM_ROW);
 
-    /* ISO (left) */
-    hud_puts(0, HUD_BOTTOM_ROW, "ISO:", HUD_PAL);
-    hud_puts(4, HUD_BOTTOM_ROW, settings_iso_str(), HUD_PAL);
+    /* ISO (left, Manual mode only) */
+    if (cam_settings.shoot_mode == SHOOT_M) {
+        hud_puts(0, HUD_BOTTOM_ROW, "ISO:", HUD_PAL);
+        hud_puts(4, HUD_BOTTOM_ROW, settings_iso_str(), HUD_PAL);
+    }
 
     /* EV compensation (center, only in Auto/S) */
     if (cam_settings.shoot_mode != SHOOT_M) {

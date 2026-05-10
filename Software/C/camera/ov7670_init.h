@@ -22,4 +22,12 @@ int ov7670_set_qqvga(void);
  * Returns 0 on success. */
 int ov7670_set_qvga(void);
 
+/* Reset AEC/AGC/night mode to auto defaults (for switching back to Auto).
+ * Restores COM8=0xE7, COM11=0xE0, AEW/AEB defaults. */
+void ov7670_reset_auto(void);
+
+/* Set manual exposure mode: disable AEC/AGC, disable night mode,
+ * reset exposure and frame timing to defaults. */
+void ov7670_set_manual(void);
+
 #endif /* OV7670_INIT_H */

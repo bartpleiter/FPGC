@@ -170,3 +170,41 @@ int ov7670_set_qvga(void)
 {
     return ov7670_init_mode(0);
 }
+
+void ov7670_reset_auto(void)
+{
+    /* Full re-init restores all registers to auto defaults */
+    ov7670_init_mode(0);
+}
+
+void ov7670_set_manual(void)
+{
+    /* Full re-init to reset ALL registers (including timing/exposure).
+     * This does a COM7 software reset + full register configuration
+     * which guarantees clean frame timing regardless of prior state. */
+    ov7670_init_mode(0);
+
+    /* Disable night mode (the init enables it) */
+    ov_write(0x3B, 0x0A);  /* COM11: night mode OFF */
+
+    /* Disable AEC + AGC.  The init set AECH=0x00 (zero exposure)
+     * then enabled AEC which would auto-adjust.  Since we disable
+     * AEC immediately, exposure is still ~0 → black image.
+     * So we must explicitly set exposure after disabling AEC. */
+    ov_write(0x13, 0xE0);  /* COM8: AEC+AGC off, AWB on */
+
+    /* Set exposure to near-maximum for the frame.
+     * QVGA has ~510 total lines; 480 lines ≈ full frame exposure.
+     * AEC = 480 = 0x1E0:
+     *   AECHH[5:0] = AEC[15:10] = 0
+     *   AECH[7:0]  = AEC[9:2]   = 120 (0x78)
+     *   COM1[1:0]  = AEC[1:0]   = 0                     */
+    ov_write(0x07, 0x00);  /* AECHH */
+    ov_write(0x10, 0x78);  /* AECH: 480 lines exposure */
+    ov_write(0x04, 0x00);  /* COM1: AEC low bits = 0 */
+
+    /* Set moderate gain (ISO 400 equiv) */
+    ov_write(0x00, 0x30);  /* GAIN */
+
+    uart_puts("Manual mode ready\n");
+}

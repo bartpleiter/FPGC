@@ -189,12 +189,21 @@ static int last_fps = 0;
  * Handle a single keypress. Returns:
  *   0 = normal (continue)
  *   1 = resolution switch requested (caller should exit loop)
+ *   2 = mode switch (need to stop cam, reconfigure, restart)
+ *   3 = shutter/ISO changed (need to stop cam, apply, restart)
+ *   4 = settings reset (stop cam, full reinit)
+ *
+ * Keys that require I2C writes set a pending flag — the viewfinder
+ * loop applies them after the current DMA completes with the camera
+ * stopped. This avoids bus contention between DMA and I2C.
  */
+static int pending_action = 0;
+
 static int handle_key(int key)
 {
     if (key == 0) return 0;
 
-    /* Display mode keys */
+    /* Display mode keys (palette only, no I2C) */
     if (key == 'r' || key == 'R') {
         set_mode(MODE_RAW);
         auto_contrast_reset();
@@ -212,58 +221,118 @@ static int handle_key(int key)
         else res_mode = RES_QVGA;
         return 1;
     }
-    /* Shooting mode cycle */
+    /* Shooting mode cycle — deferred to after DMA */
     else if (key == 'm' || key == 'M') {
-        settings_cycle_mode();
+        pending_action = 2;
     }
-    /* Shutter speed (S/M modes) */
+    /* Shutter speed (Manual only, deferred) */
     else if (key == '[') {
-        settings_adjust_shutter(-1);
+        if (cam_settings.shoot_mode == SHOOT_M) {
+            cam_settings.shutter = cam_settings.shutter - 1;
+            if (cam_settings.shutter < 0) cam_settings.shutter = 0;
+            pending_action = 3;
+        }
     } else if (key == ']') {
-        settings_adjust_shutter(1);
+        if (cam_settings.shoot_mode == SHOOT_M) {
+            cam_settings.shutter = cam_settings.shutter + 1;
+            if (cam_settings.shutter >= SHUTTER_COUNT)
+                cam_settings.shutter = SHUTTER_COUNT - 1;
+            pending_action = 3;
+        }
     }
-    /* ISO / gain */
+    /* ISO / gain (Manual only, deferred) */
     else if (key == '-') {
-        settings_adjust_iso(-1);
+        if (cam_settings.shoot_mode == SHOOT_M) {
+            cam_settings.iso = cam_settings.iso - 1;
+            if (cam_settings.iso < 0) cam_settings.iso = 0;
+            pending_action = 3;
+        }
     } else if (key == '=') {
-        settings_adjust_iso(1);
+        if (cam_settings.shoot_mode == SHOOT_M) {
+            cam_settings.iso = cam_settings.iso + 1;
+            if (cam_settings.iso >= ISO_COUNT)
+                cam_settings.iso = ISO_COUNT - 1;
+            pending_action = 3;
+        }
     }
-    /* EV compensation */
+    /* EV compensation (Auto only, deferred) */
     else if (key == ',') {
-        settings_adjust_ev(-1);
+        if (cam_settings.shoot_mode == SHOOT_AUTO) {
+            settings_adjust_ev(-1);
+        }
     } else if (key == '.') {
-        settings_adjust_ev(1);
+        if (cam_settings.shoot_mode == SHOOT_AUTO) {
+            settings_adjust_ev(1);
+        }
     }
-    /* Brightness */
+    /* Brightness (deferred) */
     else if (key == '9') {
         settings_adjust_brightness(-1);
     } else if (key == '0') {
         settings_adjust_brightness(1);
     }
-    /* Contrast */
+    /* Contrast (deferred) */
     else if (key == '7') {
         settings_adjust_contrast(-1);
     } else if (key == '8') {
         settings_adjust_contrast(1);
     }
-    /* Mirror / Flip */
+    /* Mirror / Flip (deferred) */
     else if (key == 'x' || key == 'X') {
         settings_toggle_mirror();
     } else if (key == 'y' || key == 'Y') {
         settings_toggle_flip();
     }
-    /* HUD toggle */
+    /* HUD toggle (no I2C needed) */
     else if (key == 'h' || key == 'H') {
         settings_toggle_hud();
         hud_update(last_fps);
     }
-    /* Reset all settings to defaults */
+    /* Reset all settings to defaults (deferred) */
     else if (key == '`' || key == '~') {
-        settings_reset();
-        hud_update(last_fps);
+        pending_action = 4;
     }
 
     return 0;
+}
+
+/*
+ * Apply pending I2C actions after DMA is idle.
+ * Stops camera, applies settings, restarts camera.
+ */
+static void apply_pending(void)
+{
+    int action;
+    action = pending_action;
+    pending_action = 0;
+    if (action == 0) return;
+
+    /* Stop camera capture for clean I2C access */
+    cam_disable();
+
+    switch (action) {
+    case 2:  /* Mode switch */
+        if (cam_settings.shoot_mode == SHOOT_AUTO)
+            cam_settings.shoot_mode = SHOOT_M;
+        else
+            cam_settings.shoot_mode = SHOOT_AUTO;
+        settings_apply_mode();
+        break;
+    case 3:  /* Shutter/ISO change */
+        settings_apply_shutter();
+        settings_apply_iso();
+        break;
+    case 4:  /* Full reset */
+        settings_init();
+        uart_puts("Settings reset\n");
+        break;
+    }
+
+    /* Restart camera capture and wait for a clean frame */
+    cam_enable_phase(1);
+    while (!cam_frame_ready()) { }
+    hud_update(last_fps);
+    auto_contrast_reset();
 }
 
 /* ---- QVGA viewfinder loop (CAM2VRAM direct) ---- */
@@ -317,6 +386,9 @@ static void viewfinder_qvga(void)
             key = keyboard_poll();
             if (handle_key(key)) return;
         }
+
+        /* Apply any deferred I2C settings (cam stop/start) */
+        apply_pending();
 
         if (display_mode != MODE_RAW) {
             ac_lut_counter = ac_lut_counter - 1;
@@ -401,6 +473,9 @@ static void viewfinder_qqvga(void)
             key = keyboard_poll();
             if (handle_key(key)) return;
         }
+
+        /* Apply any deferred I2C settings (cam stop/start) */
+        apply_pending();
 
         if (display_mode != MODE_RAW) {
             ac_lut_counter = ac_lut_counter - 1;

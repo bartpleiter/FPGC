@@ -27,12 +27,19 @@
 #define REG_BRIGHT  0x55
 #define REG_CONTRAS 0x56
 #define REG_DBLV    0x6B
+#define REG_ADVFL   0x9D
+#define REG_ADVFH   0x9E
 
 /* Global settings */
 camera_settings_t cam_settings;
 
-/* Shutter speed tables: CLKRC values only (don't touch DBLV/PLL) */
-static const int shutter_clkrc[SHUTTER_COUNT] = { 0x80, 0x01, 0x03 };
+/* Shutter speed tables: CLKRC values only (don't touch DBLV/PLL)
+ * Empirical: CLKRC prescaler divides by 2*(N+1) on this OV7670.
+ *   0x80 = bypass → ~30fps
+ *   0x00 = ÷2     → ~16fps
+ *   0x01 = ÷4     → ~8fps
+ */
+static const int shutter_clkrc[SHUTTER_COUNT] = { 0x80, 0x00, 0x01 };
 
 /* ISO gain register values */
 static const int iso_gain[ISO_COUNT] = { 0x00, 0x10, 0x30, 0x70, 0xF0, 0xFF };
@@ -77,20 +84,17 @@ void settings_apply_mode(void)
 {
     switch (cam_settings.shoot_mode) {
     case SHOOT_AUTO:
-        /* Enable AEC + AGC + AWB, enable night mode */
-        ov_wr(REG_COM8, 0xE7);
-        settings_apply_night();
-        settings_apply_iso();  /* sets AGC ceiling */
+        /* Full sensor re-init for auto mode */
+        ov7670_reset_auto();
         settings_apply_ev();
         uart_puts("[Auto]\n");
         break;
 
     case SHOOT_M:
-        /* Disable AEC + AGC, manual control, no night mode */
-        ov_wr(REG_COM8, 0xE0);   /* AWB on, AEC+AGC off */
-        ov_wr(REG_COM11, 0x0A);  /* Night mode off */
+        /* Proper manual mode transition via sensor driver */
+        ov7670_set_manual();
         settings_apply_shutter();
-        settings_apply_iso();    /* sets direct gain */
+        settings_apply_iso();
         uart_puts("[Manual]\n");
         break;
     }
@@ -103,9 +107,18 @@ void settings_apply_shutter(void)
     if (idx < 0) idx = 0;
     if (idx >= SHUTTER_COUNT) idx = SHUTTER_COUNT - 1;
 
-    /* Just write CLKRC — OV7670 applies at next frame boundary.
-     * Don't touch DBLV (PLL), don't restart camera capture. */
+    /* Set CLKRC to control frame rate */
     ov_wr(REG_CLKRC, shutter_clkrc[idx]);
+
+    /* In manual mode, also set exposure to near-maximum (480 lines)
+     * so the full frame time is used for light gathering.
+     * Slower CLKRC → slower pixel clock → same 480 lines take longer
+     * → more total exposure time. */
+    if (cam_settings.shoot_mode == SHOOT_M) {
+        ov_wr(REG_AECHH, 0x00);    /* AEC[15:10] = 0 */
+        ov_wr(REG_AECH,  0x78);    /* AEC[9:2] = 120 → 480 lines */
+        ov_wr(REG_COM1,  0x00);    /* AEC[1:0] = 0 */
+    }
 }
 
 void settings_apply_iso(void)
@@ -195,18 +208,24 @@ void settings_reset(void)
 
 void settings_adjust_shutter(int direction)
 {
+    /* Only adjustable in Manual mode */
+    if (cam_settings.shoot_mode != SHOOT_M) return;
+
     cam_settings.shutter = cam_settings.shutter + direction;
     if (cam_settings.shutter < 0) cam_settings.shutter = 0;
     if (cam_settings.shutter >= SHUTTER_COUNT) cam_settings.shutter = SHUTTER_COUNT - 1;
-    settings_apply_shutter();
+    /* Caller must call settings_apply_shutter() with camera stopped */
 }
 
 void settings_adjust_iso(int direction)
 {
+    /* Only adjustable in Manual mode */
+    if (cam_settings.shoot_mode != SHOOT_M) return;
+
     cam_settings.iso = cam_settings.iso + direction;
     if (cam_settings.iso < 0) cam_settings.iso = 0;
     if (cam_settings.iso >= ISO_COUNT) cam_settings.iso = ISO_COUNT - 1;
-    settings_apply_iso();
+    /* Caller must call settings_apply_iso() with camera stopped */
 }
 
 void settings_adjust_ev(int direction)
@@ -263,7 +282,7 @@ const char *settings_shutter_str(void)
 {
     switch (cam_settings.shutter) {
     case SHUTTER_FAST:   return "1/30";
-    case SHUTTER_NORMAL: return "1/15";
+    case SHUTTER_NORMAL: return "1/16";
     case SHUTTER_SLOW:   return "1/8";
     default:             return "?";
     }
