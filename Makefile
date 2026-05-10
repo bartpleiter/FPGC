@@ -776,6 +776,7 @@ compile-camera: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 		Software/C/camera/cam_driver.c \
 		Software/C/camera/ov7670_init.c \
 		Software/C/camera/image_proc.c \
+		Software/C/camera/viewfinder.c \
 		Software/C/camera/main.c \
 		--libc \
 		-I Software/C/libfpgc/include \
