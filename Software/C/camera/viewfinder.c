@@ -255,6 +255,21 @@ static int handle_key(int key)
             pending_action = 3;
         }
     }
+    /* Exposure (Manual only, deferred) */
+    else if (key == '{') {
+        if (cam_settings.shoot_mode == SHOOT_M) {
+            cam_settings.exposure = cam_settings.exposure - 1;
+            if (cam_settings.exposure < 0) cam_settings.exposure = 0;
+            pending_action = 3;
+        }
+    } else if (key == '}') {
+        if (cam_settings.shoot_mode == SHOOT_M) {
+            cam_settings.exposure = cam_settings.exposure + 1;
+            if (cam_settings.exposure >= EXPOSURE_COUNT)
+                cam_settings.exposure = EXPOSURE_COUNT - 1;
+            pending_action = 3;
+        }
+    }
     /* EV compensation (Auto only, deferred) */
     else if (key == ',') {
         if (cam_settings.shoot_mode == SHOOT_AUTO) {
@@ -318,8 +333,9 @@ static void apply_pending(void)
             cam_settings.shoot_mode = SHOOT_AUTO;
         settings_apply_mode();
         break;
-    case 3:  /* Shutter/ISO change */
+    case 3:  /* Shutter/ISO/Exposure change */
         settings_apply_shutter();
+        settings_apply_exposure();
         settings_apply_iso();
         break;
     case 4:  /* Full reset */

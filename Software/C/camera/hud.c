@@ -118,13 +118,14 @@ void hud_update(int fps)
     int ev;
     char ev_buf[8];
     int ev_idx;
+    int brt;
 
     if (!cam_settings.show_hud) {
         hud_clear();
         return;
     }
 
-    /* ---- Top row: mode + shutter speed ---- */
+    /* ---- Top row: mode + mode-specific info ---- */
     hud_clear_row(HUD_TOP_ROW);
 
     /* Mode indicator (left side) */
@@ -132,23 +133,24 @@ void hud_update(int fps)
     hud_puts(1, HUD_TOP_ROW, settings_mode_str(), HUD_PAL_HIGHLIGHT);
     hud_puts(2, HUD_TOP_ROW, "]", HUD_PAL);
 
-    /* Shutter speed (right side, Manual mode only) */
+    /* Manual mode: show shutter + exposure on top row */
     if (cam_settings.shoot_mode == SHOOT_M) {
-        hud_puts(34, HUD_TOP_ROW, settings_shutter_str(), HUD_PAL);
+        hud_puts(4, HUD_TOP_ROW, "S:", HUD_PAL);
+        hud_puts(6, HUD_TOP_ROW, settings_shutter_str(), HUD_PAL);
+        hud_puts(11, HUD_TOP_ROW, "E:", HUD_PAL);
+        hud_puts(13, HUD_TOP_ROW, settings_exposure_str(), HUD_PAL);
     }
 
-    /* ---- Bottom row: ISO, EV, FPS ---- */
+    /* ---- Bottom row: ISO/EV + brightness + contrast + FPS ---- */
     hud_clear_row(HUD_BOTTOM_ROW);
 
-    /* ISO (left, Manual mode only) */
     if (cam_settings.shoot_mode == SHOOT_M) {
+        /* Manual: ISO on left */
         hud_puts(0, HUD_BOTTOM_ROW, "ISO:", HUD_PAL);
         hud_puts(4, HUD_BOTTOM_ROW, settings_iso_str(), HUD_PAL);
-    }
-
-    /* EV compensation (center, only in Auto/S) */
-    if (cam_settings.shoot_mode != SHOOT_M) {
-        ev = cam_settings.ev_comp;  /* in half-stops */
+    } else {
+        /* Auto: EV compensation on left */
+        ev = cam_settings.ev_comp;
         ev_idx = 0;
 
         if (ev >= 0) {
@@ -158,13 +160,10 @@ void hud_update(int fps)
             ev = -ev;
         }
         ev_idx = ev_idx + 1;
-
-        /* Integer part */
         ev_buf[ev_idx] = (char)('0' + (ev / 2));
         ev_idx = ev_idx + 1;
         ev_buf[ev_idx] = '.';
         ev_idx = ev_idx + 1;
-        /* Fractional part (0 or 5) */
         ev_buf[ev_idx] = (ev & 1) ? '5' : '0';
         ev_idx = ev_idx + 1;
         ev_buf[ev_idx] = 'E';
@@ -172,9 +171,22 @@ void hud_update(int fps)
         ev_buf[ev_idx] = 'V';
         ev_idx = ev_idx + 1;
         ev_buf[ev_idx] = '\0';
-
-        hud_puts(14, HUD_BOTTOM_ROW, ev_buf, HUD_PAL);
+        hud_puts(0, HUD_BOTTOM_ROW, ev_buf, HUD_PAL);
     }
+
+    /* Brightness (center-left) */
+    brt = cam_settings.brightness;
+    hud_puts(10, HUD_BOTTOM_ROW, "B:", HUD_PAL);
+    if (brt >= 0) {
+        hud_puts(12, HUD_BOTTOM_ROW, "+", HUD_PAL);
+        hud_putint(13, HUD_BOTTOM_ROW, brt, 3, HUD_PAL);
+    } else {
+        hud_putint(12, HUD_BOTTOM_ROW, brt, 4, HUD_PAL);
+    }
+
+    /* Contrast (center-right) */
+    hud_puts(17, HUD_BOTTOM_ROW, "C:", HUD_PAL);
+    hud_putint(19, HUD_BOTTOM_ROW, cam_settings.contrast, 3, HUD_PAL);
 
     /* FPS (right) */
     hud_putint(35, HUD_BOTTOM_ROW, fps, 3, HUD_PAL);

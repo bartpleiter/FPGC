@@ -39,7 +39,13 @@ camera_settings_t cam_settings;
  *   0x00 = ÷2     → ~16fps
  *   0x01 = ÷4     → ~8fps
  */
-static const int shutter_clkrc[SHUTTER_COUNT] = { 0x80, 0x00, 0x01 };
+static const int shutter_clkrc[SHUTTER_COUNT] = { 0x80, 0x00, 0x01, 0x03 };
+
+/* Exposure AEC line counts (Manual mode only)
+ * AECH register = lines >> 2, so we store the AECH value directly.
+ *   480 lines = 0x78, 240 = 0x3C, 120 = 0x1E, 60 = 0x0F
+ */
+static const int exposure_aech[EXPOSURE_COUNT] = { 0x78, 0x3C, 0x1E, 0x0F };
 
 /* ISO gain register values */
 static const int iso_gain[ISO_COUNT] = { 0x00, 0x10, 0x30, 0x70, 0xF0, 0xFF };
@@ -64,6 +70,7 @@ void settings_init(void)
 {
     cam_settings.shoot_mode = SHOOT_AUTO;
     cam_settings.shutter = SHUTTER_FAST;
+    cam_settings.exposure = EXPOSURE_FULL;
     cam_settings.iso = ISO_800;
     cam_settings.ev_comp = 0;
     cam_settings.brightness = 0;
@@ -94,6 +101,7 @@ void settings_apply_mode(void)
         /* Proper manual mode transition via sensor driver */
         ov7670_set_manual();
         settings_apply_shutter();
+        settings_apply_exposure();
         settings_apply_iso();
         uart_puts("[Manual]\n");
         break;
@@ -110,15 +118,22 @@ void settings_apply_shutter(void)
     /* Set CLKRC to control frame rate */
     ov_wr(REG_CLKRC, shutter_clkrc[idx]);
 
-    /* In manual mode, also set exposure to near-maximum (480 lines)
-     * so the full frame time is used for light gathering.
-     * Slower CLKRC → slower pixel clock → same 480 lines take longer
-     * → more total exposure time. */
+    /* In manual mode, also apply the current exposure preset */
     if (cam_settings.shoot_mode == SHOOT_M) {
-        ov_wr(REG_AECHH, 0x00);    /* AEC[15:10] = 0 */
-        ov_wr(REG_AECH,  0x78);    /* AEC[9:2] = 120 → 480 lines */
-        ov_wr(REG_COM1,  0x00);    /* AEC[1:0] = 0 */
+        settings_apply_exposure();
     }
+}
+
+void settings_apply_exposure(void)
+{
+    int idx;
+    idx = cam_settings.exposure;
+    if (idx < 0) idx = 0;
+    if (idx >= EXPOSURE_COUNT) idx = EXPOSURE_COUNT - 1;
+
+    ov_wr(REG_AECHH, 0x00);               /* AEC[15:10] = 0 */
+    ov_wr(REG_AECH,  exposure_aech[idx]);  /* AEC[9:2] */
+    ov_wr(REG_COM1,  0x00);               /* AEC[1:0] = 0 */
 }
 
 void settings_apply_iso(void)
@@ -228,6 +243,17 @@ void settings_adjust_iso(int direction)
     /* Caller must call settings_apply_iso() with camera stopped */
 }
 
+void settings_adjust_exposure(int direction)
+{
+    /* Only adjustable in Manual mode */
+    if (cam_settings.shoot_mode != SHOOT_M) return;
+
+    cam_settings.exposure = cam_settings.exposure + direction;
+    if (cam_settings.exposure < 0) cam_settings.exposure = 0;
+    if (cam_settings.exposure >= EXPOSURE_COUNT) cam_settings.exposure = EXPOSURE_COUNT - 1;
+    /* Caller must call settings_apply_exposure() with camera stopped */
+}
+
 void settings_adjust_ev(int direction)
 {
     cam_settings.ev_comp = cam_settings.ev_comp + direction;
@@ -284,7 +310,19 @@ const char *settings_shutter_str(void)
     case SHUTTER_FAST:   return "1/30";
     case SHUTTER_NORMAL: return "1/16";
     case SHUTTER_SLOW:   return "1/8";
+    case SHUTTER_SLOWER: return "1/4";
     default:             return "?";
+    }
+}
+
+const char *settings_exposure_str(void)
+{
+    switch (cam_settings.exposure) {
+    case EXPOSURE_FULL:    return "Full";
+    case EXPOSURE_HALF:    return "1/2";
+    case EXPOSURE_QUARTER: return "1/4";
+    case EXPOSURE_EIGHTH:  return "1/8";
+    default:               return "?";
     }
 }
 

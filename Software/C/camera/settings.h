@@ -15,7 +15,15 @@
 #define SHUTTER_FAST    0   /* ~30 fps */
 #define SHUTTER_NORMAL  1   /* ~16 fps */
 #define SHUTTER_SLOW    2   /* ~8 fps */
-#define SHUTTER_COUNT   3
+#define SHUTTER_SLOWER  3   /* ~4 fps */
+#define SHUTTER_COUNT   4
+
+/* Exposure presets (AEC lines, Manual mode only) */
+#define EXPOSURE_FULL    0   /* 480 lines — max light */
+#define EXPOSURE_HALF    1   /* 240 lines */
+#define EXPOSURE_QUARTER 2   /* 120 lines */
+#define EXPOSURE_EIGHTH  3   /* 60 lines — freeze motion */
+#define EXPOSURE_COUNT   4
 
 /* ISO presets (gain ceiling for auto, direct gain for manual) */
 #define ISO_100   0
@@ -38,8 +46,9 @@
 
 /* Camera settings state */
 typedef struct {
-    int shoot_mode;       /* SHOOT_AUTO / SHOOT_S / SHOOT_M */
-    int shutter;          /* SHUTTER_FAST / NORMAL / SLOW */
+    int shoot_mode;       /* SHOOT_AUTO / SHOOT_M */
+    int shutter;          /* SHUTTER_FAST / NORMAL / SLOW / SLOWER */
+    int exposure;         /* EXPOSURE_FULL .. EXPOSURE_EIGHTH */
     int iso;              /* ISO_100 .. ISO_3200 */
     int ev_comp;          /* EV_MIN .. EV_MAX (half-stops) */
     int brightness;       /* -128 to +127 */
@@ -61,6 +70,9 @@ void settings_apply_mode(void);
 
 /* Apply shutter speed preset (changes CLKRC/DBLV) */
 void settings_apply_shutter(void);
+
+/* Apply exposure preset (AEC lines, manual mode only) */
+void settings_apply_exposure(void);
 
 /* Apply ISO/gain settings */
 void settings_apply_iso(void);
@@ -89,6 +101,9 @@ void settings_reset(void);
 /* Adjust shutter speed: direction = +1 (faster) or -1 (slower) */
 void settings_adjust_shutter(int direction);
 
+/* Adjust exposure: direction = +1 (longer) or -1 (shorter) */
+void settings_adjust_exposure(int direction);
+
 /* Adjust ISO: direction = +1 (higher) or -1 (lower) */
 void settings_adjust_iso(int direction);
 
@@ -113,6 +128,7 @@ void settings_toggle_hud(void);
 /* Get human-readable strings for HUD display */
 const char *settings_mode_str(void);
 const char *settings_shutter_str(void);
+const char *settings_exposure_str(void);
 const char *settings_iso_str(void);
 
 #endif /* SETTINGS_H */
