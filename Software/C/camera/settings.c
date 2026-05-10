@@ -53,10 +53,6 @@ static const int iso_gain[ISO_COUNT] = { 0x00, 0x10, 0x30, 0x70, 0xF0, 0xFF };
 /* ISO AGC ceiling (COM9 values) for auto modes */
 static const int iso_ceiling[ISO_COUNT] = { 0x08, 0x18, 0x18, 0x38, 0x38, 0x48 };
 
-/* EV compensation: AEW/AEB pairs indexed by (ev_comp - EV_MIN) */
-static const int ev_aew[] = { 0x35, 0x45, 0x55, 0x65, 0x75, 0x85, 0x95, 0xA5, 0xC0 };
-static const int ev_aeb[] = { 0x15, 0x1D, 0x25, 0x2C, 0x33, 0x44, 0x55, 0x65, 0x75 };
-
 /* Night mode COM11 values */
 static const int night_com11[] = { 0x0A, 0x2A, 0x4A, 0xEA };
 
@@ -72,13 +68,13 @@ void settings_init(void)
     cam_settings.shutter = SHUTTER_FAST;
     cam_settings.exposure = EXPOSURE_FULL;
     cam_settings.iso = ISO_800;
-    cam_settings.ev_comp = 0;
     cam_settings.brightness = 0;
     cam_settings.contrast = 0x40;
     cam_settings.night_mode = NIGHT_EIGHTH;
     cam_settings.mirror = 0;
     cam_settings.flip = 0;
     cam_settings.show_hud = 1;
+    cam_settings.auto_contrast = 0;  /* Off by default */
 
     /* Apply all settings to sensor */
     settings_apply_mode();
@@ -93,7 +89,6 @@ void settings_apply_mode(void)
     case SHOOT_AUTO:
         /* Full sensor re-init for auto mode */
         ov7670_reset_auto();
-        settings_apply_ev();
         uart_puts("[Auto]\n");
         break;
 
@@ -124,8 +119,7 @@ void settings_reapply(void)
         settings_apply_iso();
     } else {
         /* Auto mode: sensor is already in auto after init_mode.
-         * Just re-apply EV targets. */
-        settings_apply_ev();
+         * No additional overlays needed. */
     }
 
     /* Common settings */
@@ -176,20 +170,6 @@ void settings_apply_iso(void)
         /* Auto/S: set AGC ceiling */
         ov_wr(REG_COM9, iso_ceiling[idx]);
     }
-}
-
-void settings_apply_ev(void)
-{
-    int idx;
-    /* Only meaningful in Auto/S modes */
-    if (cam_settings.shoot_mode == SHOOT_M) return;
-
-    idx = cam_settings.ev_comp - EV_MIN;
-    if (idx < 0) idx = 0;
-    if (idx > (EV_MAX - EV_MIN)) idx = EV_MAX - EV_MIN;
-
-    ov_wr(REG_AEW, ev_aew[idx]);
-    ov_wr(REG_AEB, ev_aeb[idx]);
 }
 
 void settings_apply_brightness(void)
@@ -280,14 +260,6 @@ void settings_adjust_exposure(int direction)
     /* Caller must call settings_apply_exposure() with camera stopped */
 }
 
-void settings_adjust_ev(int direction)
-{
-    cam_settings.ev_comp = cam_settings.ev_comp + direction;
-    if (cam_settings.ev_comp < EV_MIN) cam_settings.ev_comp = EV_MIN;
-    if (cam_settings.ev_comp > EV_MAX) cam_settings.ev_comp = EV_MAX;
-    settings_apply_ev();
-}
-
 void settings_adjust_brightness(int direction)
 {
     cam_settings.brightness = cam_settings.brightness + (direction * 16);
@@ -319,6 +291,11 @@ void settings_toggle_flip(void)
 void settings_toggle_hud(void)
 {
     cam_settings.show_hud = !cam_settings.show_hud;
+}
+
+void settings_toggle_auto_contrast(void)
+{
+    cam_settings.auto_contrast = !cam_settings.auto_contrast;
 }
 
 const char *settings_mode_str(void)

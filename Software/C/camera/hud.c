@@ -115,9 +115,6 @@ void hud_init(void)
 
 void hud_update(int fps)
 {
-    int ev;
-    char ev_buf[8];
-    int ev_idx;
     int brt;
 
     if (!cam_settings.show_hud) {
@@ -141,37 +138,13 @@ void hud_update(int fps)
         hud_puts(13, HUD_TOP_ROW, settings_exposure_str(), HUD_PAL);
     }
 
-    /* ---- Bottom row: ISO/EV + brightness + contrast + FPS ---- */
+    /* ---- Bottom row: ISO + brightness + contrast + FPS ---- */
     hud_clear_row(HUD_BOTTOM_ROW);
 
     if (cam_settings.shoot_mode == SHOOT_M) {
         /* Manual: ISO on left */
         hud_puts(0, HUD_BOTTOM_ROW, "ISO:", HUD_PAL);
         hud_puts(4, HUD_BOTTOM_ROW, settings_iso_str(), HUD_PAL);
-    } else {
-        /* Auto: EV compensation on left */
-        ev = cam_settings.ev_comp;
-        ev_idx = 0;
-
-        if (ev >= 0) {
-            ev_buf[ev_idx] = '+';
-        } else {
-            ev_buf[ev_idx] = '-';
-            ev = -ev;
-        }
-        ev_idx = ev_idx + 1;
-        ev_buf[ev_idx] = (char)('0' + (ev / 2));
-        ev_idx = ev_idx + 1;
-        ev_buf[ev_idx] = '.';
-        ev_idx = ev_idx + 1;
-        ev_buf[ev_idx] = (ev & 1) ? '5' : '0';
-        ev_idx = ev_idx + 1;
-        ev_buf[ev_idx] = 'E';
-        ev_idx = ev_idx + 1;
-        ev_buf[ev_idx] = 'V';
-        ev_idx = ev_idx + 1;
-        ev_buf[ev_idx] = '\0';
-        hud_puts(0, HUD_BOTTOM_ROW, ev_buf, HUD_PAL);
     }
 
     /* Brightness (center-left) */

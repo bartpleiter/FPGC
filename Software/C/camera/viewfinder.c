@@ -270,38 +270,43 @@ static int handle_key(int key)
             pending_action = 3;
         }
     }
-    /* EV compensation (Auto only, deferred) */
-    else if (key == ',') {
-        if (cam_settings.shoot_mode == SHOOT_AUTO) {
-            settings_adjust_ev(-1);
-        }
-    } else if (key == '.') {
-        if (cam_settings.shoot_mode == SHOOT_AUTO) {
-            settings_adjust_ev(1);
-        }
-    }
     /* Brightness (deferred) */
     else if (key == '9') {
-        settings_adjust_brightness(-1);
+        cam_settings.brightness = cam_settings.brightness - 16;
+        if (cam_settings.brightness < -128) cam_settings.brightness = -128;
+        pending_action = 5;
     } else if (key == '0') {
-        settings_adjust_brightness(1);
+        cam_settings.brightness = cam_settings.brightness + 16;
+        if (cam_settings.brightness > 127) cam_settings.brightness = 127;
+        pending_action = 5;
     }
     /* Contrast (deferred) */
     else if (key == '7') {
-        settings_adjust_contrast(-1);
+        cam_settings.contrast = cam_settings.contrast - 8;
+        if (cam_settings.contrast < 0) cam_settings.contrast = 0;
+        pending_action = 5;
     } else if (key == '8') {
-        settings_adjust_contrast(1);
+        cam_settings.contrast = cam_settings.contrast + 8;
+        if (cam_settings.contrast > 127) cam_settings.contrast = 127;
+        pending_action = 5;
     }
     /* Mirror / Flip (deferred) */
     else if (key == 'x' || key == 'X') {
-        settings_toggle_mirror();
+        cam_settings.mirror = !cam_settings.mirror;
+        pending_action = 5;
     } else if (key == 'y' || key == 'Y') {
-        settings_toggle_flip();
+        cam_settings.flip = !cam_settings.flip;
+        pending_action = 5;
     }
     /* HUD toggle (no I2C needed) */
     else if (key == 'h' || key == 'H') {
         settings_toggle_hud();
         hud_update(last_fps);
+    }
+    /* Auto-contrast LUT toggle */
+    else if (key == 'l' || key == 'L') {
+        settings_toggle_auto_contrast();
+        auto_contrast_reset();
     }
     /* Reset all settings to defaults (deferred) */
     else if (key == '`' || key == '~') {
@@ -342,6 +347,11 @@ static void apply_pending(void)
         settings_init();
         uart_puts("Settings reset\n");
         break;
+    case 5:  /* brightness/contrast/orientation */
+        settings_apply_brightness();
+        settings_apply_contrast();
+        settings_apply_orientation();
+        break;
     }
 
     /* Restart camera capture and wait for a clean frame */
@@ -374,7 +384,7 @@ static void viewfinder_qvga(void)
                        CAM_FRAME_BYTES, cam2vram_flags);
     while (dma_busy()) { }
 
-    if (display_mode != MODE_RAW) {
+    if (display_mode != MODE_RAW && cam_settings.auto_contrast) {
         auto_contrast_from_hw();
     }
 
@@ -392,7 +402,8 @@ static void viewfinder_qvga(void)
             cam2vram_flags = FPGC_DMA_CTRL_DITHER_EN;
         else if (display_mode == MODE_DITH8)
             cam2vram_flags = FPGC_DMA_CTRL_DITHER_EN | FPGC_DMA_CTRL_DITHER_8;
-        if (ac_lut_valid && display_mode != MODE_RAW)
+        if (ac_lut_valid && display_mode != MODE_RAW
+            && cam_settings.auto_contrast)
             cam2vram_flags = cam2vram_flags | FPGC_DMA_CTRL_LUT_EN;
 
         dma_start_cam2vram_immediate((unsigned int)FPGC_GPU_PIXEL_DATA,
@@ -406,7 +417,8 @@ static void viewfinder_qvga(void)
         /* Apply any deferred I2C settings (cam stop/start) */
         apply_pending();
 
-        if (display_mode != MODE_RAW) {
+        if (display_mode != MODE_RAW
+            && cam_settings.auto_contrast) {
             ac_lut_counter = ac_lut_counter - 1;
             if (ac_lut_counter <= 0) {
                 auto_contrast_from_hw();
@@ -461,7 +473,7 @@ static void viewfinder_qqvga(void)
                        QQVGA_BYTES, cam2vram_flags);
     while (dma_busy()) { }
 
-    if (display_mode != MODE_RAW) {
+    if (display_mode != MODE_RAW && cam_settings.auto_contrast) {
         auto_contrast_from_hw();
     }
 
@@ -479,7 +491,8 @@ static void viewfinder_qqvga(void)
             cam2vram_flags = cam2vram_flags | FPGC_DMA_CTRL_DITHER_EN;
         else if (display_mode == MODE_DITH8)
             cam2vram_flags = cam2vram_flags | FPGC_DMA_CTRL_DITHER_EN | FPGC_DMA_CTRL_DITHER_8;
-        if (ac_lut_valid && display_mode != MODE_RAW)
+        if (ac_lut_valid && display_mode != MODE_RAW
+            && cam_settings.auto_contrast)
             cam2vram_flags = cam2vram_flags | FPGC_DMA_CTRL_LUT_EN;
 
         dma_start_cam2vram_immediate((unsigned int)FPGC_GPU_PIXEL_DATA,
@@ -493,7 +506,8 @@ static void viewfinder_qqvga(void)
         /* Apply any deferred I2C settings (cam stop/start) */
         apply_pending();
 
-        if (display_mode != MODE_RAW) {
+        if (display_mode != MODE_RAW
+            && cam_settings.auto_contrast) {
             ac_lut_counter = ac_lut_counter - 1;
             if (ac_lut_counter <= 0) {
                 auto_contrast_from_hw();

@@ -35,9 +35,7 @@
 #define ISO_3200  5
 #define ISO_COUNT 6
 
-/* EV compensation steps (in 1/2 EV increments) */
-#define EV_MIN  (-4)   /* -2.0 EV */
-#define EV_MAX   4     /* +2.0 EV */
+/* EV compensation steps (in 1/2 EV increments) — RESERVED for future use */
 
 /* Night mode options */
 #define NIGHT_OFF    0
@@ -51,13 +49,13 @@ typedef struct {
     int shutter;          /* SHUTTER_FAST / NORMAL / SLOW / SLOWER */
     int exposure;         /* EXPOSURE_FULL .. EXPOSURE_EIGHTH */
     int iso;              /* ISO_100 .. ISO_3200 */
-    int ev_comp;          /* EV_MIN .. EV_MAX (half-stops) */
     int brightness;       /* -128 to +127 */
     int contrast;         /* 0 to 127 */
     int night_mode;       /* NIGHT_OFF .. NIGHT_EIGHTH */
     int mirror;           /* 0 or 1 */
     int flip;             /* 0 or 1 */
     int show_hud;         /* 0 or 1 */
+    int auto_contrast;    /* 0 or 1: LUT auto-contrast stretch */
 } camera_settings_t;
 
 /* Global settings instance */
@@ -82,9 +80,6 @@ void settings_apply_exposure(void);
 
 /* Apply ISO/gain settings */
 void settings_apply_iso(void);
-
-/* Apply EV compensation (AEW/AEB targets) */
-void settings_apply_ev(void);
 
 /* Apply brightness register */
 void settings_apply_brightness(void);
@@ -113,9 +108,6 @@ void settings_adjust_exposure(int direction);
 /* Adjust ISO: direction = +1 (higher) or -1 (lower) */
 void settings_adjust_iso(int direction);
 
-/* Adjust EV compensation: direction = +1 (brighter) or -1 (darker) */
-void settings_adjust_ev(int direction);
-
 /* Adjust brightness: direction = +1 or -1 (steps of 16) */
 void settings_adjust_brightness(int direction);
 
@@ -130,6 +122,9 @@ void settings_toggle_flip(void);
 
 /* Toggle HUD display */
 void settings_toggle_hud(void);
+
+/* Toggle auto-contrast LUT */
+void settings_toggle_auto_contrast(void);
 
 /* Get human-readable strings for HUD display */
 const char *settings_mode_str(void);
