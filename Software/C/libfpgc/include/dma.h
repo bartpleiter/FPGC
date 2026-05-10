@@ -27,7 +27,8 @@ typedef enum {
     DMA_MEM2IO   = FPGC_DMA_MODE_MEM2IO,
     DMA_IO2MEM   = FPGC_DMA_MODE_IO2MEM,
     DMA_SPI2MEM_QSPI = FPGC_DMA_MODE_SPI2MEM_QSPI,
-    DMA_CAM2MEM  = FPGC_DMA_MODE_CAM2MEM
+    DMA_CAM2MEM  = FPGC_DMA_MODE_CAM2MEM,
+    DMA_CAM2VRAM = FPGC_DMA_MODE_CAM2VRAM
 } dma_mode_t;
 
 /*
@@ -113,6 +114,20 @@ void dma_start_spi_qspi_read(int spi_id, unsigned int dst,
 void dma_start_cam(unsigned int dst, unsigned int count);
 void dma_start_cam_immediate(unsigned int dst, unsigned int count);
 
+/*
+ * Asynchronous camera-to-VRAMPX DMA transfer.
+ *
+ * Captures Y bytes from CameraCapture and writes them directly to VRAMPX,
+ * bypassing SDRAM entirely. Optional LUT and dithering are applied inline.
+ * `dst` must lie in VRAMPX range (0x1EC00000..0x1EC20000).
+ * `flags`: OR of FPGC_DMA_CTRL_LUT_EN, FPGC_DMA_CTRL_DITHER_EN,
+ *          FPGC_DMA_CTRL_DITHER_8.
+ */
+void dma_start_cam2vram(unsigned int dst, unsigned int count,
+                        unsigned int flags);
+void dma_start_cam2vram_immediate(unsigned int dst, unsigned int count,
+                                  unsigned int flags);
+
 /* Returns non-zero while the engine is busy. */
 int dma_busy(void);
 
@@ -141,6 +156,15 @@ void dma_dither_thresh_write(int table, int mi, int value);
  * mi = matrix index (0-15), value = offset byte.
  */
 void dma_dither_bayer_write(int mi, int value);
+
+/*
+ * Read the hardware min/max pixel values from the last MEM2VRAM or CAM2VRAM
+ * drain. Returns packed {drain_max[15:8], drain_min[7:0]}.
+ * Use DMA_DRAIN_MIN(v) and DMA_DRAIN_MAX(v) to extract.
+ */
+unsigned int dma_drain_stats(void);
+#define DMA_DRAIN_MIN(v) ((v) & 0xFF)
+#define DMA_DRAIN_MAX(v) (((v) >> 8) & 0xFF)
 
 /*
  * Asynchronous MEM2VRAM with optional LUT and/or dithering.

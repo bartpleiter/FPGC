@@ -156,6 +156,34 @@ dma_dither_bayer_write(int mi, int value)
         (3 << 12) | (mi << 8) | (value & 0xFF));
 }
 
+unsigned int
+dma_drain_stats(void)
+{
+    return (unsigned int)__builtin_load(FPGC_DMA_LUT);
+}
+
+void
+dma_start_cam2vram(unsigned int dst, unsigned int count,
+                   unsigned int flags)
+{
+    __builtin_store(FPGC_DMA_DST,   (int)dst);
+    __builtin_store(FPGC_DMA_COUNT, (int)count);
+    __builtin_store(FPGC_DMA_CTRL,
+        (int)(FPGC_DMA_CTRL_START | (unsigned int)FPGC_DMA_MODE_CAM2VRAM
+              | flags));
+}
+
+void
+dma_start_cam2vram_immediate(unsigned int dst, unsigned int count,
+                             unsigned int flags)
+{
+    __builtin_store(FPGC_DMA_DST,   (int)dst);
+    __builtin_store(FPGC_DMA_COUNT, (int)count);
+    __builtin_store(FPGC_DMA_CTRL,
+        (int)(FPGC_DMA_CTRL_START | FPGC_DMA_CTRL_CAM_IMM
+              | (unsigned int)FPGC_DMA_MODE_CAM2VRAM | flags));
+}
+
 void
 dma_start_mem2vram_ex(unsigned int dst, unsigned int src,
                       unsigned int count, unsigned int flags)

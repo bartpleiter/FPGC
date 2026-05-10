@@ -82,6 +82,7 @@
 #define FPGC_DMA_MODE_IO2MEM    5
 #define FPGC_DMA_MODE_SPI2MEM_QSPI 6
 #define FPGC_DMA_MODE_CAM2MEM   7
+#define FPGC_DMA_MODE_CAM2VRAM  8
 #define FPGC_DMA_CTRL_IRQ_EN    (1u << 4)
 #define FPGC_DMA_CTRL_CAM_IMM   (1u << 8)   /* CAM2MEM: skip frame_done wait */
 #define FPGC_DMA_CTRL_LUT_EN    (1u << 9)   /* MEM2VRAM: apply 256-entry LUT */

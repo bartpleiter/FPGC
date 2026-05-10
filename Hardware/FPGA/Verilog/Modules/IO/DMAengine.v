@@ -121,6 +121,7 @@ localparam MODE_MEM2IO        = 4'd4;
 localparam MODE_IO2MEM        = 4'd5;
 localparam MODE_SPI2MEM_QSPI  = 4'd6;   // SPI1 only (QSPIflash)
 localparam MODE_CAM2MEM       = 4'd7;   // Camera → SDRAM via handshake
+localparam MODE_CAM2VRAM      = 4'd8;   // Camera → VRAMPX (with optional LUT + dither)
 
 // ---- Register backing storage ----
 reg [31:0] dma_src       = 32'd0;
@@ -199,6 +200,12 @@ wire [7:0] dith_wr_data  = reg_data[7:0];
 reg [8:0] drain_x = 9'd0;   // 0..319
 reg [7:0] drain_y = 8'd0;   // 0..239
 
+// Hardware min/max tracking: captures the min and max raw byte values
+// seen during ST_M2V_DRAIN. Reset at transfer start. Software reads
+// them via reg_addr 6 to compute auto-contrast LUT without SDRAM scan.
+reg [7:0] drain_min = 8'hFF;
+reg [7:0] drain_max = 8'h00;
+
 localparam
     ST_IDLE          = 5'd0,
     ST_RD_REQ        = 5'd1,   // MEM2MEM / MEM2SPI: SDRAM read request
@@ -230,6 +237,7 @@ begin
         3'd3:    reg_q = dma_ctrl;
         3'd4:    reg_q = {29'd0, sticky_error, sticky_done, busy};
         3'd5:    reg_q = dma_qspi_addr;
+        3'd6:    reg_q = {16'd0, drain_max, drain_min};  // HW min/max from last drain
         default: reg_q = 32'd0;
     endcase
 end
@@ -301,6 +309,14 @@ wire cam2mem_args_aligned =
     (dma_dst[4:0] == 5'd0) &&
     (dma_count[4:0] == 5'd0) &&
     (dma_count != 32'd0);
+
+// CAM2VRAM: dst must be 32-byte aligned, in VRAMPX range, count > 0 and aligned.
+wire cam2vram_args_aligned =
+    (dma_dst[4:0]   == 5'd0)         &&
+    (dma_count[4:0] == 5'd0)         &&
+    (dma_count      != 32'd0)        &&
+    (dma_dst        >= 32'h1EC00000) &&
+    ((dma_dst + dma_count) <= 32'h1EC20000);
 
 // Latch cam_frame_done pulses so the DMA never misses a VSYNC between
 // the start command and reaching ST_CAM_FRAME_WAIT.
@@ -506,6 +522,8 @@ begin
                             drain_x         <= 9'd0;
                             drain_y         <= 8'd0;
                             lut_phase       <= 1'b0;
+                            drain_min       <= 8'hFF;
+                            drain_max       <= 8'h00;
                             // First step: read the SDRAM line, then drain
                             // it into VRAMPX byte-by-byte.
                             state           <= ST_RD_REQ;
@@ -522,6 +540,26 @@ begin
                             dst_cur         <= dma_dst;
                             bytes_remaining <= dma_count;
                             line_buf        <= 256'd0;
+                            cam_frame_done_latch <= 1'b0;
+                            state           <= ctrl_cam_imm ? ST_CAM_WAIT : ST_CAM_FRAME_WAIT;
+                        end
+                        else
+                        begin
+                            state <= ST_ERROR;
+                        end
+                    end
+                    else if (ctrl_mode == MODE_CAM2VRAM)
+                    begin
+                        if (cam2vram_args_aligned)
+                        begin
+                            dst_cur         <= dma_dst;
+                            bytes_remaining <= dma_count;
+                            line_buf        <= 256'd0;
+                            drain_x         <= 9'd0;
+                            drain_y         <= 8'd0;
+                            lut_phase       <= 1'b0;
+                            drain_min       <= 8'hFF;
+                            drain_max       <= 8'h00;
                             cam_frame_done_latch <= 1'b0;
                             state           <= ctrl_cam_imm ? ST_CAM_WAIT : ST_CAM_FRAME_WAIT;
                         end
@@ -896,6 +934,10 @@ begin
                     // vp_data is driven combinationally from drain_out_byte.
                     lut_phase <= 1'b0;
 
+                    // Track min/max of raw byte values (for auto-contrast)
+                    if (drain_raw_byte < drain_min) drain_min <= drain_raw_byte;
+                    if (drain_raw_byte > drain_max) drain_max <= drain_raw_byte;
+
                     // Advance pixel position for dither matrix indexing
                     if (drain_x == 9'd319) begin
                         drain_x <= 9'd0;
@@ -913,8 +955,10 @@ begin
                         bytes_remaining <= bytes_remaining - 32'd32;
                         if (bytes_remaining == 32'd32)
                             state <= ST_DONE;
+                        else if (ctrl_mode == MODE_CAM2VRAM)
+                            state <= ST_CAM_WAIT;  // Wait for next camera cache line
                         else
-                            state <= ST_RD_REQ;
+                            state <= ST_RD_REQ;    // Read next SDRAM cache line
                     end
                     else
                     begin
@@ -923,14 +967,25 @@ begin
                 end
             end
 
-            // ---- CAM2MEM: wait for camera cache line, then write to SDRAM ----
+            // ---- CAM2MEM/CAM2VRAM: wait for camera cache line ----
             ST_CAM_WAIT:
             begin
                 if (cam_line_ready)
                 begin
                     line_buf     <= cam_line_data;
                     cam_line_ack <= 1'b1;
-                    state        <= ST_WR_REQ;
+                    if (ctrl_mode == MODE_CAM2VRAM)
+                    begin
+                        // Drain directly to VRAMPX (with optional LUT + dither)
+                        spi_byte_idx <= 6'd0;
+                        lut_phase    <= 1'b0;
+                        state        <= ST_M2V_DRAIN;
+                    end
+                    else
+                    begin
+                        // CAM2MEM: write to SDRAM
+                        state <= ST_WR_REQ;
+                    end
                 end
             end
 

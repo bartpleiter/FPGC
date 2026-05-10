@@ -124,47 +124,41 @@ static void blit_dithered8_dma(unsigned int src_addr, int use_lut)
     while (dma_busy()) { }
 }
 
-/* Auto-contrast LUT cached across frames */
+/* Auto-contrast LUT computed from hardware min/max stats.
+ * After each CAM2VRAM frame, the DMA engine provides the min and max raw
+ * byte values it saw. Software builds a 256-entry contrast-stretch LUT
+ * and uploads it to the DMA engine for the next frame. Zero SDRAM access. */
 static unsigned char ac_lut[256];
 static int ac_lut_valid = 0;
 static int ac_lut_counter = 0;
 
-/* Compute auto-contrast LUT from an SDRAM buffer and upload to DMA engine.
- * Only recomputes every 8 frames.  Returns 1 if LUT is valid (loaded). */
-static int auto_contrast_update(unsigned char *buf, int n)
+static void auto_contrast_from_hw(void)
 {
-    int i;
+    unsigned int stats;
     int lo;
     int hi;
     int range;
+    int i;
 
-    /* Recompute LUT every 8 frames (or first frame) */
-    if (ac_lut_counter == 0 || !ac_lut_valid) {
-        lo = 255;
-        hi = 0;
-        for (i = 0; i < n; i++) {
-            if (buf[i] < lo) lo = buf[i];
-            if (buf[i] > hi) hi = buf[i];
-        }
-        if (hi > lo) {
-            range = hi - lo;
-            for (i = 0; i < 256; i++) {
-                if (i <= lo) ac_lut[i] = 0;
-                else if (i >= hi) ac_lut[i] = 255;
-                else ac_lut[i] = (unsigned char)(((i - lo) * 255) / range);
-            }
-        } else {
-            for (i = 0; i < 256; i++) ac_lut[i] = (unsigned char)i;
-        }
-        /* Upload LUT to DMA engine */
-        for (i = 0; i < 256; i++) {
-            dma_lut_write(i, (int)ac_lut[i]);
-        }
-        ac_lut_valid = 1;
-        ac_lut_counter = 8;
+    stats = dma_drain_stats();
+    lo = (int)DMA_DRAIN_MIN(stats);
+    hi = (int)DMA_DRAIN_MAX(stats);
+
+    if (hi <= lo) return;
+
+    range = hi - lo;
+
+    for (i = 0; i < 256; i++) {
+        if (i <= lo) ac_lut[i] = 0;
+        else if (i >= hi) ac_lut[i] = 255;
+        else ac_lut[i] = (unsigned char)(((i - lo) * 255) / range);
     }
-    ac_lut_counter = ac_lut_counter - 1;
-    return ac_lut_valid;
+
+    /* Upload LUT to DMA engine */
+    for (i = 0; i < 256; i++) {
+        dma_lut_write(i, (int)ac_lut[i]);
+    }
+    ac_lut_valid = 1;
 }
 
 /* Load dither threshold and Bayer offset tables into DMA engine hardware.
@@ -340,95 +334,96 @@ int main(void)
     fps_start = get_micros();
     fps_frames = 0;
 
-    /* ---- Sequential DMA: blit → capture ----
-     * DMA is single-channel, so VRAM blit and camera capture are sequential.
-     * The DMA blit is ~2ms (vs ~5ms CPU blit for RAW, ~60ms for dither),
-     * so sequential gives ~28fps for all modes.
+    /* ---- CAM2VRAM: camera → VRAMPX direct (no SDRAM roundtrip) ----
+     * The DMA engine captures camera data and writes it directly to VRAMPX
+     * with optional LUT + dithering applied inline. Each frame takes exactly
+     * one camera frame period (~33ms at 30fps), with the CPU completely free
+     * during capture for keyboard polling, auto-contrast, etc.
      *
-     * Auto-contrast LUT computation (CPU reads from SDRAM) runs during the
-     * DMA capture wait period — it reads from the PREVIOUS frame buffer
-     * (not being overwritten by DMA), so there's no conflict. The LUT
-     * computed from frame N is used to display frame N+1 (imperceptible lag).
+     * Auto-contrast uses hardware min/max tracking: the DMA engine records
+     * the min and max raw byte values during each drain. After each frame,
+     * software reads these stats, computes the 256-entry contrast LUT, and
+     * uploads it — all without any SDRAM access.
      */
 
-    /* First frame: normal mode (waits for VSYNC sync) */
-    dma_start_cam(CAM_BUF0_BYTE_ADDR, CAM_FRAME_BYTES);
+    #define AC_INTERVAL 8  /* Recompute AC LUT every 8 frames */
+
+    /* Helper: compute DMA flags for current display mode */
+    unsigned int cam2vram_flags;
+
+    /* First frame: VSYNC-synced CAM2VRAM (no LUT yet) */
+    cam2vram_flags = 0;
+    if (display_mode == MODE_DITH)
+        cam2vram_flags = FPGC_DMA_CTRL_DITHER_EN;
+    else if (display_mode == MODE_DITH8)
+        cam2vram_flags = FPGC_DMA_CTRL_DITHER_EN | FPGC_DMA_CTRL_DITHER_8;
+
+    dma_start_cam2vram((unsigned int)FPGC_GPU_PIXEL_DATA,
+                       CAM_FRAME_BYTES, cam2vram_flags);
     while (dma_busy()) { }
 
-    int cur_buf;
-    int prev_buf;
-    unsigned int buf_addr[2];
-
-    buf_addr[0] = CAM_BUF0_BYTE_ADDR;
-    buf_addr[1] = CAM_BUF1_BYTE_ADDR;
-    cur_buf = 0;  /* First captured frame is in buf 0 */
+    /* Compute initial AC from first frame's hardware min/max */
+    if (display_mode != MODE_RAW) {
+        auto_contrast_from_hw();
+    }
 
     while (1) {
         unsigned int t_start;
-        unsigned int t_blit_end;
-        unsigned int t_total_end;
+        unsigned int t_end;
 
         t_start = get_micros();
 
-        /* 1. DMA blit the just-captured frame to VRAM (~2ms) */
-        cache_flush_data();
-        if (frame_count < 5) {
-            unsigned char *buf;
-            int i;
-            buf = (unsigned char *)buf_addr[cur_buf];
-            uart_puts("Px:");
-            for (i = 0; i < 32; i++) {
-                uart_putchar(' ');
-                uart_puthex((unsigned int)buf[i], 0);
-            }
-            uart_putchar('\n');
-        }
-        if (display_mode == MODE_DITH) {
-            blit_dithered_dma(buf_addr[cur_buf], ac_lut_valid);
-        } else if (display_mode == MODE_DITH8) {
-            blit_dithered8_dma(buf_addr[cur_buf], ac_lut_valid);
-        } else {
-            blit_raw_dma(buf_addr[cur_buf]);
-        }
-        t_blit_end = get_micros();
+        /* Compute flags for this frame's display mode */
+        cam2vram_flags = 0;
+        if (display_mode == MODE_DITH)
+            cam2vram_flags = FPGC_DMA_CTRL_DITHER_EN;
+        else if (display_mode == MODE_DITH8)
+            cam2vram_flags = FPGC_DMA_CTRL_DITHER_EN | FPGC_DMA_CTRL_DITHER_8;
+        if (ac_lut_valid && display_mode != MODE_RAW)
+            cam2vram_flags = cam2vram_flags | FPGC_DMA_CTRL_LUT_EN;
 
-        /* 2. Start capture into other buffer */
-        prev_buf = cur_buf;
-        cur_buf = 1 - cur_buf;
-        dma_start_cam_immediate(buf_addr[cur_buf], CAM_FRAME_BYTES);
+        /* Main frame: CAM2VRAM direct (immediate mode) */
+        dma_start_cam2vram_immediate((unsigned int)FPGC_GPU_PIXEL_DATA,
+                                     CAM_FRAME_BYTES, cam2vram_flags);
 
-        /* 3. During capture: compute AC LUT from the just-displayed frame.
-         *    Reads buf[prev_buf] which DMA is NOT writing to. */
-        if (display_mode != MODE_RAW) {
-            auto_contrast_update((unsigned char *)buf_addr[prev_buf],
-                                 SENS_BYTES);
-        }
-
-        /* 4. Wait for capture and poll keyboard */
+        /* CPU is free during entire capture+display period (~33ms) */
         while (dma_busy()) {
             int key;
             key = keyboard_poll();
             if (key == 'r' || key == 'R') {
                 set_mode(MODE_RAW);
+                ac_lut_valid = 0;
             } else if (key == 'd' || key == 'D') {
                 set_mode(MODE_DITH);
+                ac_lut_valid = 0;
+                ac_lut_counter = 0;
             } else if (key == 'e' || key == 'E') {
                 set_mode(MODE_DITH8);
+                ac_lut_valid = 0;
+                ac_lut_counter = 0;
             }
         }
-        t_total_end = get_micros();
 
+        /* After frame completes: update AC LUT from hardware min/max stats.
+         * Takes ~0.5ms (256 LUT entries × 1 MMIO write each). */
+        if (display_mode != MODE_RAW) {
+            ac_lut_counter = ac_lut_counter - 1;
+            if (ac_lut_counter <= 0) {
+                auto_contrast_from_hw();
+                ac_lut_counter = AC_INTERVAL;
+            }
+        }
+
+        t_end = get_micros();
         frame_count++;
         fps_frames++;
 
-        /* Print FPS and timing every second */
+        /* Print FPS every second */
         if ((get_micros() - fps_start) >= 1000000) {
             uart_puts("FPS:");
             uart_putint(fps_frames);
-            uart_puts(" blit=");
-            uart_putint((int)(t_blit_end - t_start));
-            uart_puts("us total=");
-            uart_putint((int)(t_total_end - t_start));
+            uart_puts(" frame=");
+            uart_putint((int)(t_end - t_start));
             uart_puts("us\n");
             fps_frames = 0;
             fps_start = get_micros();
