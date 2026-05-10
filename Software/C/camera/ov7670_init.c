@@ -44,10 +44,13 @@ static int ov_write(int reg, int val)
  * qqvga=0: QVGA 320×240 (COM7 QVGA mode, no DCW)
  * qqvga=1: QQVGA 160×120 (COM7 VGA mode + DCW 4× downsample)
  */
+static int current_qqvga = 0;  /* Track current resolution */
+
 static int ov7670_init_mode(int qqvga)
 {
     int err;
     err = 0;
+    current_qqvga = qqvga;
 
     /* Software reset */
     err |= ov_write(0x12, 0x80);
@@ -173,16 +176,16 @@ int ov7670_set_qvga(void)
 
 void ov7670_reset_auto(void)
 {
-    /* Full re-init restores all registers to auto defaults */
-    ov7670_init_mode(0);
+    /* Full re-init restores all registers to auto defaults,
+     * preserving current resolution (QVGA vs QQVGA) */
+    ov7670_init_mode(current_qqvga);
 }
 
 void ov7670_set_manual(void)
 {
-    /* Full re-init to reset ALL registers (including timing/exposure).
-     * This does a COM7 software reset + full register configuration
-     * which guarantees clean frame timing regardless of prior state. */
-    ov7670_init_mode(0);
+    /* Full re-init to reset ALL registers (including timing/exposure),
+     * preserving current resolution. */
+    ov7670_init_mode(current_qqvga);
 
     /* Disable night mode (the init enables it) */
     ov_write(0x3B, 0x0A);  /* COM11: night mode OFF */

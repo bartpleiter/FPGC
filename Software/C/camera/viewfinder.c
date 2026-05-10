@@ -537,6 +537,8 @@ void viewfinder_run(int initial_mode)
             uart_puts("Switching to QQVGA...\n");
             cam_disable();
             ov7670_set_qqvga();
+            /* Re-apply mode overlays (init_mode wiped them) */
+            settings_reapply();
             cam_enable_phase(1);
             while (!cam_frame_ready()) { }
             auto_contrast_reset();
@@ -546,6 +548,8 @@ void viewfinder_run(int initial_mode)
                 uart_puts("Switching to QVGA...\n");
                 cam_disable();
                 ov7670_set_qvga();
+                /* Re-apply mode overlays (init_mode wiped them) */
+                settings_reapply();
                 cam_enable_phase(1);
                 while (!cam_frame_ready()) { }
             }

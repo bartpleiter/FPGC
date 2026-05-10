@@ -22,8 +22,9 @@
 #define EXPOSURE_FULL    0   /* 480 lines — max light */
 #define EXPOSURE_HALF    1   /* 240 lines */
 #define EXPOSURE_QUARTER 2   /* 120 lines */
-#define EXPOSURE_EIGHTH  3   /* 60 lines — freeze motion */
-#define EXPOSURE_COUNT   4
+#define EXPOSURE_EIGHTH    3   /* 60 lines — freeze motion */
+#define EXPOSURE_SIXTEENTH 4   /* 30 lines — extreme freeze */
+#define EXPOSURE_COUNT     5
 
 /* ISO presets (gain ceiling for auto, direct gain for manual) */
 #define ISO_100   0
@@ -67,6 +68,11 @@ void settings_init(void);
 
 /* Apply the current shooting mode to the sensor (AEC/AGC enable/disable) */
 void settings_apply_mode(void);
+
+/* Re-apply current mode overlays after a resolution switch.
+ * Unlike settings_apply_mode(), does NOT call ov7670_init_mode()
+ * since the resolution switch already did that. */
+void settings_reapply(void);
 
 /* Apply shutter speed preset (changes CLKRC/DBLV) */
 void settings_apply_shutter(void);

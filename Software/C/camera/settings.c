@@ -45,7 +45,7 @@ static const int shutter_clkrc[SHUTTER_COUNT] = { 0x80, 0x00, 0x01, 0x03 };
  * AECH register = lines >> 2, so we store the AECH value directly.
  *   480 lines = 0x78, 240 = 0x3C, 120 = 0x1E, 60 = 0x0F
  */
-static const int exposure_aech[EXPOSURE_COUNT] = { 0x78, 0x3C, 0x1E, 0x0F };
+static const int exposure_aech[EXPOSURE_COUNT] = { 0x78, 0x3C, 0x1E, 0x0F, 0x07 };
 
 /* ISO gain register values */
 static const int iso_gain[ISO_COUNT] = { 0x00, 0x10, 0x30, 0x70, 0xF0, 0xFF };
@@ -106,6 +106,32 @@ void settings_apply_mode(void)
         uart_puts("[Manual]\n");
         break;
     }
+}
+
+void settings_reapply(void)
+{
+    /* Re-apply current mode overlays after a resolution switch.
+     * The sensor was just fully re-init'd by ov7670_set_q(q)vga(),
+     * which leaves it in auto mode with night mode ON.
+     * We only write the mode-specific overlay registers here. */
+
+    if (cam_settings.shoot_mode == SHOOT_M) {
+        /* Apply manual mode overrides (without full re-init) */
+        ov_wr(REG_COM11, 0x0A);    /* Night mode OFF */
+        ov_wr(REG_COM8,  0xE0);    /* AEC+AGC off, AWB on */
+        settings_apply_shutter();
+        settings_apply_exposure();
+        settings_apply_iso();
+    } else {
+        /* Auto mode: sensor is already in auto after init_mode.
+         * Just re-apply EV targets. */
+        settings_apply_ev();
+    }
+
+    /* Common settings */
+    settings_apply_brightness();
+    settings_apply_contrast();
+    settings_apply_orientation();
 }
 
 void settings_apply_shutter(void)
@@ -321,8 +347,9 @@ const char *settings_exposure_str(void)
     case EXPOSURE_FULL:    return "Full";
     case EXPOSURE_HALF:    return "1/2";
     case EXPOSURE_QUARTER: return "1/4";
-    case EXPOSURE_EIGHTH:  return "1/8";
-    default:               return "?";
+    case EXPOSURE_EIGHTH:    return "1/8";
+    case EXPOSURE_SIXTEENTH: return "1/16";
+    default:                 return "?";
     }
 }
 
