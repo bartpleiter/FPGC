@@ -16,11 +16,14 @@
 #include "uart.h"
 #include "ov7670_init.h"
 #include "gpu_hal.h"
+#include "gpu_data_ascii.h"
 #include "fpgc.h"
 #include "sys.h"
 #include "spi.h"
 #include "ch376.h"
 #include "timer.h"
+#include "settings.h"
+#include "hud.h"
 
 /* Current display mode (shared with viewfinder.c) */
 int display_mode = MODE_RAW;
@@ -134,6 +137,12 @@ int main(void)
     /* Configure OV7670 via I2C */
     uart_puts("Configuring OV7670...\n");
     ov7670_init();
+
+    /* Initialize camera settings (Auto mode, defaults) */
+    settings_init();
+
+    /* Initialize HUD overlay */
+    hud_init();
 
     /* Enable camera capture with even byte phase (Y in YUYV) */
     uart_puts("Enabling camera capture (phase=1: even bytes)...\n");

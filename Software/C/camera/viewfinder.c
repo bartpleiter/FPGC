@@ -17,6 +17,8 @@
 #include "sys.h"
 #include "cam_driver.h"
 #include "ov7670_init.h"
+#include "settings.h"
+#include "hud.h"
 
 /* Sensor dimensions */
 #define SENS_W  320
@@ -175,17 +177,106 @@ extern void keyboard_check_connect(void);
 /* Current resolution mode */
 static int res_mode = RES_QVGA;
 
+/* Last measured FPS (for HUD) */
+static int last_fps = 0;
+
+/* HUD update interval (frames) */
+#define HUD_INTERVAL 5
+
 #define AC_INTERVAL 8
+
+/*
+ * Handle a single keypress. Returns:
+ *   0 = normal (continue)
+ *   1 = resolution switch requested (caller should exit loop)
+ */
+static int handle_key(int key)
+{
+    if (key == 0) return 0;
+
+    /* Display mode keys */
+    if (key == 'r' || key == 'R') {
+        set_mode(MODE_RAW);
+        auto_contrast_reset();
+    } else if (key == 'd' || key == 'D') {
+        set_mode(MODE_DITH);
+        auto_contrast_reset();
+    } else if (key == 'e' || key == 'E') {
+        set_mode(MODE_DITH8);
+        auto_contrast_reset();
+    }
+    /* Resolution toggle */
+    else if (key == 'q' || key == 'Q') {
+        while (dma_busy()) { }
+        if (res_mode == RES_QVGA) res_mode = RES_QQVGA;
+        else res_mode = RES_QVGA;
+        return 1;
+    }
+    /* Shooting mode cycle */
+    else if (key == 'm' || key == 'M') {
+        settings_cycle_mode();
+    }
+    /* Shutter speed (S/M modes) */
+    else if (key == '[') {
+        settings_adjust_shutter(-1);
+    } else if (key == ']') {
+        settings_adjust_shutter(1);
+    }
+    /* ISO / gain */
+    else if (key == '-') {
+        settings_adjust_iso(-1);
+    } else if (key == '=') {
+        settings_adjust_iso(1);
+    }
+    /* EV compensation */
+    else if (key == ',') {
+        settings_adjust_ev(-1);
+    } else if (key == '.') {
+        settings_adjust_ev(1);
+    }
+    /* Brightness */
+    else if (key == '9') {
+        settings_adjust_brightness(-1);
+    } else if (key == '0') {
+        settings_adjust_brightness(1);
+    }
+    /* Contrast */
+    else if (key == '7') {
+        settings_adjust_contrast(-1);
+    } else if (key == '8') {
+        settings_adjust_contrast(1);
+    }
+    /* Mirror / Flip */
+    else if (key == 'x' || key == 'X') {
+        settings_toggle_mirror();
+    } else if (key == 'y' || key == 'Y') {
+        settings_toggle_flip();
+    }
+    /* HUD toggle */
+    else if (key == 'h' || key == 'H') {
+        settings_toggle_hud();
+        hud_update(last_fps);
+    }
+    /* Reset all settings to defaults */
+    else if (key == '`' || key == '~') {
+        settings_reset();
+        hud_update(last_fps);
+    }
+
+    return 0;
+}
 
 /* ---- QVGA viewfinder loop (CAM2VRAM direct) ---- */
 static void viewfinder_qvga(void)
 {
     unsigned int fps_start;
     int fps_frames;
+    int hud_counter;
     unsigned int cam2vram_flags;
 
     fps_start = get_micros();
     fps_frames = 0;
+    hud_counter = 0;
 
     /* First frame: VSYNC-synced CAM2VRAM (no LUT yet) */
     cam2vram_flags = 0;
@@ -201,6 +292,8 @@ static void viewfinder_qvga(void)
     if (display_mode != MODE_RAW) {
         auto_contrast_from_hw();
     }
+
+    hud_update(last_fps);
 
     while (1) {
         unsigned int t_start;
@@ -222,21 +315,7 @@ static void viewfinder_qvga(void)
 
         while (dma_busy()) {
             key = keyboard_poll();
-            if (key == 'r' || key == 'R') {
-                set_mode(MODE_RAW);
-                auto_contrast_reset();
-            } else if (key == 'd' || key == 'D') {
-                set_mode(MODE_DITH);
-                auto_contrast_reset();
-            } else if (key == 'e' || key == 'E') {
-                set_mode(MODE_DITH8);
-                auto_contrast_reset();
-            } else if (key == 'q' || key == 'Q') {
-                /* Switch to QQVGA — need to reconfigure sensor */
-                while (dma_busy()) { }
-                res_mode = RES_QQVGA;
-                return;  /* exit to viewfinder_run for mode switch */
-            }
+            if (handle_key(key)) return;
         }
 
         if (display_mode != MODE_RAW) {
@@ -250,7 +329,15 @@ static void viewfinder_qvga(void)
         t_end = get_micros();
         fps_frames++;
 
+        /* Periodic HUD update */
+        hud_counter = hud_counter + 1;
+        if (hud_counter >= HUD_INTERVAL) {
+            hud_update(last_fps);
+            hud_counter = 0;
+        }
+
         if ((get_micros() - fps_start) >= 1000000) {
+            last_fps = fps_frames;
             uart_puts("FPS:");
             uart_putint(fps_frames);
             uart_puts(" frame=");
@@ -268,10 +355,12 @@ static void viewfinder_qqvga(void)
 {
     unsigned int fps_start;
     int fps_frames;
+    int hud_counter;
     unsigned int cam2vram_flags;
 
     fps_start = get_micros();
     fps_frames = 0;
+    hud_counter = 0;
 
     /* First frame: VSYNC-synced CAM2VRAM with upscale (no LUT yet) */
     cam2vram_flags = FPGC_DMA_CTRL_UPSCALE2X;
@@ -287,6 +376,8 @@ static void viewfinder_qqvga(void)
     if (display_mode != MODE_RAW) {
         auto_contrast_from_hw();
     }
+
+    hud_update(last_fps);
 
     while (1) {
         unsigned int t_start;
@@ -308,20 +399,7 @@ static void viewfinder_qqvga(void)
 
         while (dma_busy()) {
             key = keyboard_poll();
-            if (key == 'r' || key == 'R') {
-                set_mode(MODE_RAW);
-                auto_contrast_reset();
-            } else if (key == 'd' || key == 'D') {
-                set_mode(MODE_DITH);
-                auto_contrast_reset();
-            } else if (key == 'e' || key == 'E') {
-                set_mode(MODE_DITH8);
-                auto_contrast_reset();
-            } else if (key == 'q' || key == 'Q') {
-                while (dma_busy()) { }
-                res_mode = RES_QVGA;
-                return;
-            }
+            if (handle_key(key)) return;
         }
 
         if (display_mode != MODE_RAW) {
@@ -335,7 +413,15 @@ static void viewfinder_qqvga(void)
         t_end = get_micros();
         fps_frames++;
 
+        /* Periodic HUD update */
+        hud_counter = hud_counter + 1;
+        if (hud_counter >= HUD_INTERVAL) {
+            hud_update(last_fps);
+            hud_counter = 0;
+        }
+
         if ((get_micros() - fps_start) >= 1000000) {
+            last_fps = fps_frames;
             uart_puts("FPS:");
             uart_putint(fps_frames);
             uart_puts(" frame=");
