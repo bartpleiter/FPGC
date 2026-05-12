@@ -1,198 +1,384 @@
 # FPGC Project Context
 
-This document is a high-level orientation file for AI coding tools
-(GitHub Copilot, automated agents) working on the FPGC repo. Keep
-edits short, factual, and link out to the canonical docs in
-`Docs/docs/` rather than duplicating them here.
+Orientation file for AI coding agents (GitHub Copilot, etc.) working
+on the FPGC repo. Optimised for token efficiency — tables over prose,
+exact paths and make targets throughout.
 
 ## What FPGC is
 
-FPGC ("FPGA Computer") is a from-scratch computer system built around
-a custom 32-bit RISC CPU implemented on FPGA. The repo contains
-hardware, toolchain, and software:
+FPGC ("FPGA Computer") is a from-scratch computer built around a
+custom 32-bit RISC CPU on an FPGA. The repo contains everything from
+Verilog RTL through the C toolchain to the operating system and user
+programs. Doom runs on it.
 
-- **CPU**: B32P3 — 5-stage pipelined, byte-addressable, 32-bit
-  general-purpose registers, hardware fixed-point multiply/divide,
-  optional FP64 coprocessor.
-- **GPU**: tile + pixel framebuffer (320×240), VRAM-mapped.
-- **Storage**: SDRAM with L1 I/D caches, SPI flash, BRFS filesystem
-  (v2 — byte-native, RAM-cached, pluggable storage backend).
-- **OS**: BDOS — a single-user, single-foreground OS with shell,
-  filesystem, job control, USB-keyboard input, and ENC28J60 Ethernet.
-- **Toolchain**: cproc (C11 frontend) → QBE (optimising backend) →
-  ASMPY (Python assembler with linker). Self-hosting on BDOS via
-  `cc` shell scripts is operational.
-- **Goal**: run Doom on real hardware — done. Future work: SD-card
-  storage, more userBDOS programs, robust OS features, general extensions and improvements to the project -> going from custom POC to more established implementations like a proper terminal, C toolchain, FS layers, etc. to make porting existing code easier.
+- **CPU**: B32P3 — 5-stage pipeline, byte-addressable, 16 GP
+  registers, hardware multiply/divide, optional FP64 coprocessor.
+- **GPU**: tile engine (BG + window planes) + 320×240 8-bit pixel
+  framebuffer, all VRAM-mapped.
+- **Storage**: 64 MiB SDRAM (cached), SPI flash, microSD card. BRFS
+  v2 filesystem on both flash (`/`) and SD card (`/sdcard`).
+- **I/O**: 6 SPI buses, 3 timers, UART, DMA engine (7 modes),
+  CH376 USB host (keyboard), ENC28J60 Ethernet.
+- **OS**: BDOS — single-user, single-foreground, with Bourne-style
+  shell, VFS, job control (up to 6 slots), USB keyboard, Ethernet.
+- **Toolchain**: cproc (C11) → QBE (SSA optimiser) → ASMPY (Python
+  assembler/linker). Self-hosting on BDOS is operational.
 
 ## Repo layout
 
 ```
-Hardware/          FPGA Verilog + PCB
-BuildTools/        cproc/, QBE/, ASMPY/
+Hardware/
+  FPGA/                  Verilog RTL (CPU, GPU, IO, Memory modules)
+  PCB/                   KiCad PCB design
+BuildTools/
+  cproc/                 C11 frontend (emits QBE IR)
+  QBE/                   SSA optimiser + B32P3 backend
+  ASMPY/                 Python assembler with linker
 Software/
-  ASM/             crt0 startup files + raw assembly programs
+  ASM/                   crt0 startup files, bootloaders, raw asm programs
   C/
-    libc/          picolibc-derived freestanding libc
-    libfpgc/       hardware abstraction (drivers + libterm + BRFS)
-    bdos/          BDOS kernel sources
-    userlib/       userland syscall wrappers + helpers
-    userBDOS/      user programs (modern toolchain)
-    bareMetal/     bare-metal test programs
-Tests/             CPU sims, C tests, host tests
-Scripts/           Build / programming / asset helpers
-Docs/              MkDocs site (docs/) + plans (plans/) + this file
-Files/             Default BRFS image staged into SPI flash
+    libc/                picolibc-derived freestanding C library
+    libfpgc/             hardware drivers, libterm, BRFS, DMA, SD, CH376
+    bdos/                BDOS kernel sources
+    userlib/             userland syscall wrappers + DMA + fixedmath
+    userBDOS/            user programs (Doom, editor, snake, etc.)
+    bareMetal/           bare-metal hardware test programs
+Tests/
+  CPU/                   Verilog testbenches (14 categories incl. DMA)
+  C/                     Compiler end-to-end tests (~20 categories)
+  host/                  Host-side C unit tests (term, VFS, shell)
+  asm-link/              Assembler/linker regression tests
+Scripts/
+  BCC/                   compile_modern_c.sh (main build tool), cc.sh
+  ASM/                   Bootloader compilation
+  Programmer/            UART upload, SPI flash, FNP network tools
+  BDOS/                  SD card host tools (sd_read_brfs.py, sd_write_brfs.py)
+  Tests/                 Test runners, host test scripts
+  Simulation/            CPU/SDRAM simulation helpers
+  Graphics/              Texture conversion
+Docs/
+  docs/                  MkDocs site (canonical user-facing docs)
+  plans/                 Design plans for in-flight and completed work
+  context/               This file + BDOS-context.md
+Files/
+  BRFS-init/             Staged filesystem image (bin/, lib/, etc.)
 ```
 
 ## CPU (B32P3)
 
-5-stage pipeline (IF/ID/EX/MEM/WB). Byte-addressable
-(`char`=1, `short`=2, `int`=4, pointer=4). 32-bit address space; 27-bit
-jump constant gives 512 MiB of easily-jumpable instruction space.
+5-stage pipeline (IF/ID/EX/MEM/WB). Byte-addressable (`char`=1,
+`short`=2, `int`=4, pointer=4). 32-bit address space.
 
-| Region | Address range | Notes |
-|--------|---------------|-------|
-| SDRAM   | `0x00000000`–`0x03FFFFFF` | 64 MiB, cached |
-| I/O     | `0x1C000000`–`0x1C0000FF` | MMIO peripherals |
-| ROM     | `0x1E000000`–`0x1E000FFF` | 4 KiB; CPU resets here |
-| VRAM32  | `0x1E400000`–`0x1E40107F` | pattern + palette tables |
-| VRAM8   | `0x1E800000`–`0x1E808007` | tile + colour tables |
-| VRAMPX  | `0x1EC00000`–`0x1EC4AFFF` | 320×240 pixel framebuffer |
-| PC/HW   | `0x1F000000`–`0x1F000007` | PC backup + HW stack ptr |
+16 GP registers: `r0`=zero, `r1`=return, `r4`–`r7`=args,
+`r13`=SP, `r14`=FP, `r15`=RA.
 
-16 GP registers (`r0`–`r15`); `r0` is hard-wired zero, `r13` = SP,
-`r14` = FP, `r15` = RA. ABI: `r1` = return value, `r4`–`r7` = first
-four args.
+### Physical address map
 
-ISA reference: [Docs/docs/Hardware/ISA.md](../docs/Hardware/ISA.md).
+| Region | Address range | Size | Notes |
+|--------|---------------|------|-------|
+| SDRAM | `0x00000000`–`0x03FFFFFF` | 64 MiB | L1 I/D cached |
+| MMIO | `0x1C000000`–`0x1C000084` | 132 B | Peripheral registers |
+| ROM | `0x1E000000`–`0x1E000FFF` | 4 KiB | CPU reset vector |
+| VRAM pattern+palette | `0x1E400000`–`0x1E401FFF` | | Tile char/palette data |
+| VRAM tiles | `0x1E800000`–`0x1E808007` | | BG + window tile/color tables |
+| VRAM pixels | `0x1EC00000`–`0x1EC7FFFF` | | 320×240 pixel FB + palette |
+| PC/HW stack | `0x1F000000`–`0x1F000007` | | PC backup, HW stack ptr |
+
+ISA reference: [Docs/docs/Hardware/CPU/CPU.md](../docs/Hardware/CPU/CPU.md).
+
+### SDRAM memory layout (used by BDOS)
+
+| Region | Range | Size |
+|--------|-------|------|
+| Kernel code + stacks | `0x000000`–`0x3FFFFF` | 4 MiB |
+| Kernel heap | `0x400000`–`0x1FFFFFF` | 28 MiB |
+| User program slots | `0x2000000`–`0x2BFFFFF` | 12 MiB (6 × 2 MiB) |
+| SD card BRFS cache | `0x2C00000`–`0x2FFFFFF` | 4 MiB (LRU) |
+| SPI flash BRFS cache | `0x3000000`–`0x3FFFFFF` | 16 MiB |
+
+Stacks: kernel `0x3DFFFC`, syscall `0x3EFFFC`, interrupt `0x3FFFFC`.
+
+## MMIO peripheral map
+
+All at base `0x1C000000`. cproc has no `volatile` — use
+`__builtin_load(addr)` / `__builtin_store(addr, val)` (also `loadb`,
+`storeb`, `loadh`, `storeh` variants).
+
+| Offset | Register | Notes |
+|--------|----------|-------|
+| `0x00` | UART TX | |
+| `0x04` | UART RX | |
+| `0x08`–`0x0C` | Timer 0 val/ctrl | Free (deferred ENC28J60 retry) |
+| `0x10`–`0x14` | Timer 1 val/ctrl | USB keyboard HID polling (10 ms) |
+| `0x18`–`0x1C` | Timer 2 val/ctrl | `delay()` function |
+| `0x20`–`0x24` | SPI0 data/CS | SPI Flash 0 (BRFS boot) |
+| `0x28`–`0x2C` | SPI1 data/CS | SPI Flash 1 |
+| `0x30`–`0x34` | SPI2 data/CS | CH376 USB host (top) |
+| `0x38` | CH376 top INT# | Active-low interrupt pin (read-only) |
+| `0x3C`–`0x40` | SPI3 data/CS | CH376 USB host (bottom) |
+| `0x44` | CH376 bottom INT# | Active-low interrupt pin (read-only) |
+| `0x48`–`0x4C` | SPI4 data/CS | ENC28J60 Ethernet |
+| `0x54`–`0x58` | SPI5 data/CS | SD card |
+| `0x64` | Boot mode | 0=UART, 1=SPI flash |
+| `0x68` | Microsecond counter | Free-running µs timer |
+| `0x6C` | User LED | |
+| `0x70` | DMA SRC | Source address |
+| `0x74` | DMA DST | Destination address |
+| `0x78` | DMA COUNT | Transfer size (bytes, 32-aligned) |
+| `0x7C` | DMA CTRL | Mode[3:0], IRQ_EN[4], SPI_ID[7:5], START[31] |
+| `0x80` | DMA STATUS | BUSY[0], DONE[1], ERROR[2] (sticky, clear-on-read) |
+| `0x84` | DMA QSPI ADDR | Flash address for QSPI reads |
+
+### SPI bus assignments
+
+| Bus | ID | Device | Constant |
+|-----|-----|--------|----------|
+| SPI0 | 0 | SPI Flash 0 (BRFS boot) | `FPGC_SPI_FLASH_0` |
+| SPI1 | 1 | SPI Flash 1 | `FPGC_SPI_FLASH_1` |
+| SPI2 | 2 | CH376 USB (top) | `FPGC_SPI_USB_0` |
+| SPI3 | 3 | CH376 USB (bottom) | `FPGC_SPI_USB_1` |
+| SPI4 | 4 | ENC28J60 Ethernet | `FPGC_SPI_ETH` |
+| SPI5 | 5 | SD card | `FPGC_SPI_SD_CARD` |
+
+### Interrupt IDs
+
+| ID | Source | BDOS handler |
+|----|--------|-------------|
+| 1 | UART RX | Ring buffer fill |
+| 2 | Timer 0 | Deferred ENC28J60 ISR retry |
+| 3 | Timer 1 | USB keyboard HID report polling |
+| 4 | Timer 2 | `delay()` completion |
+| 5 | Frame drawn | (unused) |
+| 6 | ENC28J60 RX | Drain HW RX into kernel ring |
+| 7 | DMA complete | Transfer done notification |
+
+## DMA engine
+
+6 registers at `0x1C000070`–`0x1C000084`. 7 transfer modes:
+
+| Mode | Name | Direction |
+|------|------|-----------|
+| 0 | `MEM2MEM` | SDRAM → SDRAM |
+| 1 | `MEM2SPI` | SDRAM → SPI device |
+| 2 | `SPI2MEM` | SPI device → SDRAM |
+| 3 | `MEM2VRAM` | SDRAM → VRAM (GPU bulk write) |
+| 4 | `MEM2IO` | SDRAM → I/O |
+| 5 | `IO2MEM` | I/O → SDRAM |
+| 6 | `SPI2MEM_QSPI` | QSPI flash → SDRAM (quad-SPI fast read) |
+
+All transfers must be **32-byte aligned** (cache-line size). Call
+`cache_flush_data()` (ccached instruction) before MEM→device and
+after device→MEM transfers for coherency.
+
+Kernel driver: `libfpgc/io/dma.c` + `dma_asm.asm`.
+Userlib driver: `userlib/src/dma.c` + `dma_asm.asm` (used by Doom).
+Hardware docs: [Docs/docs/Hardware/DMA.md](../docs/Hardware/DMA.md).
 
 ## C toolchain
-
-The toolchain pipeline:
 
 ```
 src.c → cpp → cproc → QBE → b32p3 .asm → ASMPY linker → .list/.bin
 ```
 
-- **cproc** ([BuildTools/cproc/](../../BuildTools/cproc/)) — C11
-  frontend, emits QBE IR. Limitations: no inline asm, no `volatile`
-  (use `__builtin_store{,b,h}` / `__builtin_load{,b,h}` for MMIO).
-- **QBE** ([BuildTools/QBE/](../../BuildTools/QBE/)) — SSA optimiser
-  + b32p3 backend.
-- **ASMPY** ([BuildTools/ASMPY/](../../BuildTools/ASMPY/)) — Python
-  assembler with an assembly-level linker, ELF-style data directives,
-  pseudo-instructions (`load32`, `addr2reg`), and reloc-table support
-  for PIC user programs.
+- **cproc** (`BuildTools/cproc/`) — C11 frontend. No inline asm, no
+  `volatile`. Use `__builtin_store{,b,h}` / `__builtin_load{,b,h}`
+  for MMIO.
+- **QBE** (`BuildTools/QBE/`) — SSA optimiser + B32P3 code generator.
+- **ASMPY** (`BuildTools/ASMPY/`) — Python assembler with linker,
+  data directives, pseudo-instructions (`load32`, `addr2reg`),
+  reloc-table for PIC user programs.
 
-Build orchestration is `Scripts/BCC/compile_modern_c.sh`, invoked by
-the top-level `Makefile` (`make compile-bdos`,
-`make compile-userbdos file=<n>`, `make compile-userbdos-all`,
-`make compile-bootloader`, etc.).
+Build orchestration: `Scripts/BCC/compile_modern_c.sh`, invoked by
+the top-level Makefile.
 
-Self-hosting on BDOS is operational: `cc` and `libc-build` shell scripts
-drive cproc + QBE + ASMPY directly on the FPGC, with assembly outputs
-cached under `/lib/asm-cache/`. See
-[Docs/plans/asm-selfhost.md](../plans/asm-selfhost.md) and
-[Docs/plans/selfhost-modern-c.md](../plans/selfhost-modern-c.md).
+### Build targets
+
+| Target | What it builds |
+|--------|---------------|
+| `make compile-bdos` | BDOS kernel (~302 KB binary) |
+| `make compile-userbdos file=<name>` | Single userBDOS program |
+| `make compile-userbdos-all` | All userBDOS programs (~18) |
+| `make compile-doom` | Doom port |
+| `make compile-bootloader` | Two-phase bootloader (RAM → ROM) |
+| `make compile-asm file=<name>` | Raw assembly program |
+| `make compile-c-baremetal file=<name>` | Bare-metal C test program |
+
+### Self-hosting targets
+
+| Target | Purpose |
+|--------|---------|
+| `make selfhost-qbe` | Cross-compile QBE for on-device use |
+| `make selfhost-cproc` | Cross-compile cproc for on-device use |
+| `make selfhost-all` | Both of the above |
+| `make stage-cc-toolchain` | Stage complete on-device C toolchain in `Files/BRFS-init/` |
 
 ## BRFS v2 (filesystem)
 
-- Byte-native API (`brfs_read`/`brfs_write` take byte counts;
-  on-disk `filesize` is bytes).
-- FAT-based with per-file linked chains.
-- RAM cache over a `brfs_storage_t` vtable; today only the SPI-flash
-  backend ships. SD-card backend is a v2.1 follow-up.
+Byte-native API, FAT-based with per-file linked chains.
+Two storage backends via `brfs_storage_t` vtable:
+
+| Backend | Mount point | Cache | Driver |
+|---------|------------|-------|--------|
+| SPI flash | `/` (root) | 16 MiB direct-mapped | `brfs_storage_spi_flash.c` |
+| SD card | `/sdcard` | 4 MiB LRU | `brfs_storage_sdcard.c` |
+
 - LE on disk; magic `BRF2`; superblock version `2`.
-- Persistence is explicit (`brfs_sync()`); a power loss between syncs
-  rolls back to the last synced state.
-- See [BRFS docs](../docs/Software/BRFS.md) and
-  [BRFS-v2 plan](../plans/BRFS-v2.md).
+- Persistence is explicit (`brfs_sync()`).
+- `bdos_fs_for_path()` routes paths starting with `/sdcard/` to the
+  SD BRFS instance; everything else goes to SPI flash.
+- See [BRFS docs](../docs/Software/BRFS.md).
+
+## SD card
+
+SPI-mode driver on bus 5 (`FPGC_SPI_SD_CARD`). SDHC/SDXC only
+(block-addressed, 512-byte blocks). No card-detect switch — software
+probes by attempting init.
+
+- Driver: `libfpgc/io/sd.c` + `include/sd.h`
+- BRFS wrapper: `libfpgc/fs/brfs_storage_sdcard.c`
+- LRU cache: `libfpgc/fs/brfs_cache.c` (4 MiB at `0x2C00000`)
+- Host tools: `make sd-read-brfs`, `make sd-write-brfs`
+- Hardware docs: [Docs/docs/Hardware/IO/SD-Card.md](../docs/Hardware/IO/SD-Card.md)
 
 ## BDOS
 
-Single-foreground OS with the v2 shell + libterm terminal that
-landed in 2025 ([shell-terminal-v2 plan](../plans/shell-terminal-v2.md)).
-See [BDOS-context.md](BDOS-context.md) for the full source-file map,
-syscall table, and subsystem detail.
+Single-foreground OS. See
+[BDOS-context.md](BDOS-context.md) for the full source map, syscall
+table, and subsystem detail.
 
-Key facts useful for any change:
+Key facts for any change:
 
-- All terminal I/O is ANSI-escape-driven on `fd 1`. There is no
-  per-cell tile syscall any more — programs `sys_write(1, "\x1b[..."`.
-- Raw keyboard events come from `/dev/tty` opened with
-  `O_RDONLY|O_RAW[|O_NONBLOCK]`; each `read` returns 4 bytes
-  (little-endian event code: ASCII or `KEY_*`). See `snake.c` and
-  `edit.c` for reference ports.
-- `format` is a userland program (`/bin/format`) — not a built-in.
-- VFS exposes file / `/dev/tty` / `/dev/null` / pipe under one
-  `open`/`read`/`write`/`close`/`lseek`/`dup2` API.
+- Terminal I/O is ANSI-escape-driven on `fd 1`. Programs write
+  `"\x1b[..."` via `sys_write(1, ...)`.
+- Raw keyboard: open `/dev/tty` with `O_RAW[|O_NONBLOCK]`, `read`
+  returns 4-byte LE event codes (ASCII or `KEY_*`).
+- VFS exposes file / `/dev/tty` / `/dev/null` / `/dev/pixpal` / pipe
+  under `open`/`read`/`write`/`close`/`lseek`/`dup2`.
+- USB keyboard: connect/disconnect via INT# pin polling (main loop);
+  HID report reading via timer ISR (10 ms).
+- SD card mounted at `/sdcard` during boot if a card is present.
 
 ## User programs
 
-Located in [Software/C/userBDOS/](../../Software/C/userBDOS/). All
-new programs use:
+Located in `Software/C/userBDOS/`. Build:
+`make compile-userbdos file=<name>` (or `make compile-userbdos-all`).
+Output: `Files/BRFS-init/bin/<name>`.
 
-```c
-#include <syscall.h>
+| Program | Description |
+|---------|-------------|
+| `doom/` | Full Doom port (DMA-accelerated blitting) |
+| `w3d.c` | Wolfenstein 3D-style raycaster |
+| `edit.c` | Text editor (alt-screen, raw TTY) |
+| `snake.c` | Snake game (non-blocking raw TTY) |
+| `tetrisc.c` / `tetrish.c` | Tetris (client / host) |
+| `mbrot.c` / `mbrotc.c` / `mbroth.c` | Mandelbrot (solo / cluster client / host) |
+| `cmatrix.c` | CMatrix-style display |
+| `tree.c` | Recursive directory listing |
+| `bench.c` | Benchmark suite |
+| `format.c` | Filesystem format utility (was a shell built-in) |
+| `sdformat.c` | SD card BRFS format utility |
+| `asm-link.c` | On-device assembler/linker |
+| `cpp.c` | On-device C preprocessor |
 
-int main(void)
-{
-    sys_putstr("Hello from userBDOS!\n");   /* fd 1 */
-    return 0;
-}
-```
+Reference ports: `snake.c` (non-blocking raw TTY), `edit.c`
+(blocking raw TTY, alt-screen, DECAWM).
 
-`sys_putstr` / `sys_putc` are convenience wrappers over
-`sys_write(1, ...)`; redirection (`>`, `>>`, `|`) just works because
-the shell rewrites `fd 1`/`fd 0` before calling the program.
+## Development workflow (FNP)
 
-Build: `make compile-userbdos file=<name>`. Output binary lands in
-`Files/BRFS-init/bin/<name>` and can be staged into the BRFS image.
+Iterate on BDOS and user programs over Ethernet without reflashing:
 
-Some shell-terminal-v2 ports may still be incomplete; see the FIXME
-header comment at the top of each broken `userBDOS/*.c` for the
-migration checklist.
+| Target | What it does |
+|--------|-------------|
+| `make run-bdos` | Compile + upload BDOS via UART |
+| `make flash-bdos` | Flash BDOS to SPI (persistent) |
+| `make fnp-upload-userbdos file=<n>` | Compile + upload program to `/bin` over Ethernet |
+| `make fnp-sync-files` | Sync `Files/BRFS-init/` to device filesystem |
+| `make fnp-keyboard` | Interactive keyboard streaming to device |
+| `make fnp-run cmd="<cmd>"` | Run shell command on device remotely |
+| `make fnp-debug-userbdos file=<n>` | Compile, upload, run + capture UART debug output |
+| `make run-userbdos file=<n>` | Compile, upload, and run (all-in-one) |
+| `make run-doom` | Compile, upload, and run Doom |
+
+FNP is a custom L2 protocol over ENC28J60 (EtherType `0xB4B4`).
+Tool: `Scripts/Programmer/Network/fnp_tool.py`.
 
 ## Testing
 
-| Make target | What it runs |
-|-------------|--------------|
-| `make test-cpu`        | All CPU Verilog testbenches |
-| `make test-c`          | All cproc+QBE+ASMPY end-to-end tests |
-| `make test-asmpy`      | Python unit tests for ASMPY |
-| `make test-host`       | Host-side BDOS / shell unit tests under `Tests/host/` |
+| Target | What it runs |
+|--------|-------------|
+| `make check` | **Everything** (format-check + lint + all tests below) |
+| `make test-cpu` | All CPU Verilog testbenches (parallel) |
+| `make test-c` | All cproc+QBE+ASMPY compiler tests (parallel) |
+| `make test-asmpy` | ASMPY Python unit tests |
+| `make test-host` | All host-side C tests (term + vfs-pixpal + shell) |
+| `make test-term` | libterm host unit tests |
+| `make test-vfs-pixpal` | `/dev/pixpal` VFS host tests |
+| `make test-shell-host` | Shell lex/parse/expand host tests |
+| `make test-asm-link` | Assembler/linker regression tests |
+| `make test-cpp` | C preprocessor regression tests |
 
-Single-test variants exist (`make test-cpu-single file=…`,
-`make test-c-single file=…`)
-and there are debug variants that pipe Verilog `$display` output
-(`make debug-cpu file=…`).
+Single-test: `make test-cpu-single file=…`, `make test-c-single file=…`.
+Debug: `make debug-cpu file=…` (GTKWave waveform viewer).
 
 When working on:
 
-- Verilog → `make test-cpu` then `make test-c`.
-- Modern toolchain (cproc/QBE/ASMPY) → `make test-c`.
-- BDOS or a userBDOS program → just compile (`make compile-bdos` or
-  `make compile-userbdos file=<n>`); there is no per-feature test
-  harness yet beyond the host tests.
+- **Verilog** → `make test-cpu` then `make test-c`
+- **Toolchain** (cproc/QBE/ASMPY) → `make test-c`
+- **BDOS / userBDOS** → `make compile-bdos` or `make compile-userbdos file=<n>` (no per-feature tests beyond host tests)
+
+## Simulation
+
+| Target | Purpose |
+|--------|---------|
+| `make sim-cpu` | CPU simulation (Verilog) |
+| `make sim-sdram` | SDRAM controller simulation |
+| `make sim-bootloader` | Compile + simulate bootloader |
+| `make quartus-timing` | Quartus FPGA timing analysis |
+
+## Bare-metal test programs
+
+`Software/C/bareMetal/` — hardware bring-up tests compiled with
+`make compile-c-baremetal file=<name>`:
+
+| Program | Tests |
+|---------|-------|
+| `spi1_dma_test.c` | SPI1 DMA transfers |
+| `qspi_dma_test.c` | QSPI DMA reads |
+| `sdcard_init_test.c` | SD card SPI init sequence |
+| `sdcard_rw_test.c` | SD card read/write |
+| `sdcard_multi_test.c` | SD card multi-block (CMD18/CMD25) |
+| `sdcard_brfs_storage_test.c` | BRFS storage vtable over SD card |
+
+Each has a dedicated `make compile-*` and `make run-*` target.
+
+## Hardware (Verilog)
+
+Source: `Hardware/FPGA/Verilog/Modules/`. Key modules:
+
+- **CPU**: `B32P3.v`, `ALU.v`, `MultiCycleALU.v`, `Regbank.v`,
+  `Stack.v`, `CacheControllerSDRAM.v`, `InterruptController.v`,
+  `PipelineController.v`
+- **GPU**: `BGWrenderer.v`, `PixelEngineSRAM.v`, `PixelPalette.v`,
+  `TimingGenerator.v`, `HDMI/`
+- **I/O**: `DMAengine.v`, `SimpleSPI.v`, `SimpleSPI2.v`,
+  `QSPIflash.v`, `UARTrx.v`, `UARTtx.v`, `OStimer.v`,
+  `MicrosCounter.v`
+- **Memory**: `SDRAMcontroller.v`, `SDRAMarbiter.v`, `MemoryUnit.v`,
+  `ROM.v`, `VRAM.v`
 
 ## House style
 
 - C11 with cproc/QBE limits (no inline asm, no `volatile`). Use
   `__builtin_load*` / `__builtin_store*` for MMIO.
-- Each `.c` file is compiled independently; standard
-  `#include <header.h>` with `-I` paths set by the build script.
-- New assembly goes in dedicated `.asm` files alongside the C — never
-  inline.
-- Keep header changes in lock-step: the BDOS `bdos_syscall.h` and the
-  userland `syscall.h` must match. Removed syscalls stay reserved
-  (commented in the header, returning `-1` from the dispatcher).
+- Each `.c` is compiled independently. Standard `#include <header.h>`
+  with `-I` paths from the build script.
+- Assembly in dedicated `.asm` files — never inline.
+- Keep `bdos_syscall.h` and userlib `syscall.h` in sync. Removed
+  syscalls stay reserved (return `-1`).
 
 ## Where to look next
 
-- [Docs/docs/](../docs/) — mkdocs site, the canonical user-facing docs.
-- [Docs/plans/](../plans/) — design plans for in-flight work
-  (`shell-terminal-v2.md`, `BRFS-v2.md`, `asm-selfhost.md`,
-  `selfhost-modern-c.md`, …).
-- [Docs/context/BDOS-context.md](BDOS-context.md) — deep dive into
-  BDOS sources, syscalls, slots, hotkeys.
+- [Docs/docs/](../docs/) — MkDocs site, canonical user-facing docs.
+- [Docs/plans/](../plans/) — design plans for past and in-flight work.
+- [BDOS-context.md](BDOS-context.md) — deep dive into BDOS sources,
+  syscalls, VFS, slots, HID, filesystem.
