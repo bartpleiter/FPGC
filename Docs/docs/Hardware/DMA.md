@@ -25,22 +25,23 @@ The DMA engine offloads all three to dedicated hardware.
 
 ## Register Block
 
-The engine exposes a 5-register MMIO block in the I/O region. See
+The engine exposes a 6-register MMIO block in the I/O region. See
 [Memory Map](Memory-Map.md) for the absolute addresses.
 
-| Offset | Name        | R/W | Purpose                                                     |
-|--------|-------------|-----|-------------------------------------------------------------|
-| `0x70` | `DMA_SRC`   | R/W | Source byte address (SDRAM for MEM2*, SPI for SPI2MEM)      |
-| `0x74` | `DMA_DST`   | R/W | Destination byte address                                    |
-| `0x78` | `DMA_COUNT` | R/W | Byte count (must be > 0 and a multiple of 32)               |
-| `0x7C` | `DMA_CTRL`  | R/W | Mode + flags + start (bit `[31]` is W1S start, self-clears) |
-| `0x80` | `DMA_STATUS`| R   | `{29'd0, sticky_error, sticky_done, busy}`                  |
+| Offset | Name           | R/W | Purpose                                                     |
+|--------|----------------|-----|-------------------------------------------------------------|
+| `0x70` | `DMA_SRC`      | R/W | Source byte address (SDRAM for MEM2*, SPI for SPI2MEM)      |
+| `0x74` | `DMA_DST`      | R/W | Destination byte address                                    |
+| `0x78` | `DMA_COUNT`    | R/W | Byte count (must be > 0 and a multiple of 32)               |
+| `0x7C` | `DMA_CTRL`     | R/W | Mode + flags + start (bit `[31]` is W1S start, self-clears) |
+| `0x80` | `DMA_STATUS`   | R   | `{29'd0, sticky_error, sticky_done, busy}`                  |
+| `0x84` | `DMA_QSPI_ADDR`| R/W | 24-bit flash address for `SPI2MEM_QSPI` mode               |
 
 `DMA_CTRL` layout:
 
 | Bits   | Field              | Meaning                                               |
 |--------|--------------------|-------------------------------------------------------|
-| `3:0`  | `MODE`             | 0 = MEM2MEM, 1 = MEM2SPI, 2 = SPI2MEM, 3 = MEM2VRAM   |
+| `3:0`  | `MODE`             | 0 = MEM2MEM, 1 = MEM2SPI, 2 = SPI2MEM, 3 = MEM2VRAM, 6 = SPI2MEM_QSPI |
 | `4`    | `IRQ_EN`           | Raise interrupt 7 when the transfer completes         |
 | `7:5`  | `SPI_ID`           | SPI peripheral ID for SPI modes                       |
 | `31`   | `START` (W1S)      | Writing 1 latches the registers and starts the engine |
@@ -100,12 +101,19 @@ fast `memcpy` primitive for large buffers.
 
 Streams between SDRAM and a SPI peripheral via the SPI burst port,
 which feeds an internal TX/RX FIFO and drives `SimpleSPI2`. Used by
-the BRFS sector layer (SPI flash) and the Ethernet driver
-(ENC28J60 packet RX/TX).
+the BRFS sector layer (SPI flash), the SD card driver, and the
+Ethernet driver (ENC28J60 packet RX/TX).
 
 The selected SPI peripheral is chosen by `SPI_ID` in `DMA_CTRL` and
 must already be selected (`CS` low) by the driver before starting
-the transfer.
+the transfer. Supported SPI IDs:
+
+| SPI_ID | Peripheral       | Notes                                  |
+|--------|------------------|----------------------------------------|
+| 0      | SPI Flash 0      | SimpleSPI2 instance, reads and writes  |
+| 1      | SPI Flash 1      | QSPIflash — reads via SPI2MEM_QSPI only|
+| 4      | ENC28J60         | SimpleSPI2 instance, reads and writes  |
+| 5      | SD card          | SimpleSPI2 instance, reads and writes  |
 
 **SPI flash writes (page-program) are not DMA-accelerated on
 SPI1 (QSPIflash).** The QSPIflash controller's 1-bit SPI burst
@@ -118,10 +126,6 @@ bus bandwidth. SPI flash **reads** on SPI1 use the dedicated QSPI
 Fast Read DMA path (`SPI2MEM_QSPI` mode), which issues a single
 continuous burst without per-chunk select cycling.
 
-DMA MEM2SPI is used for SPI0 (Flash 0) and SPI4 (ENC28J60), which
-are `SimpleSPI2` instances that handle the per-chunk cycling
-correctly.
-
 ### MEM2VRAM
 
 Streams a 32-byte-aligned region of SDRAM into the VRAMPX
@@ -129,6 +133,19 @@ write-port FIFO. The engine paces itself against the FIFO's `full`
 flag, so it cannot overrun the framebuffer SRAM. This is the
 primitive used for tear-free full-frame presents: software composes
 a frame in an SDRAM back buffer and blits it in one shot.
+
+### SPI2MEM_QSPI (mode 6)
+
+Dedicated QSPI Fast Read mode for SPI1 (QSPIflash controller).
+Instead of using the regular SPI burst path, this mode tells the
+QSPIflash hardware to issue opcode `0xEB` (Quad I/O Fast Read) and
+stream data at 4× bandwidth directly into the DMA engine's RX FIFO.
+
+The flash address is set in `DMA_QSPI_ADDR` (24-bit), not `DMA_SRC`.
+The engine issues one continuous burst for the entire transfer,
+then drains 32 bytes per SDRAM line into the destination.
+
+This is the primary fast path for BRFS sector reads on SPI Flash 1.
 
 ## Interrupt
 
@@ -167,6 +184,29 @@ int          dma_busy(void);    /* non-zero while STATUS.busy == 1 */
 unsigned int dma_status(void);  /* one read; clears sticky bits     */
 
 void cache_flush_data(void);    /* `ccached` wrapper                */
+```
+
+For SPI peripheral transfers (kernel-level, `libfpgc` only — not
+exposed to userBDOS programs):
+
+```c
+/* Start a MEM2SPI or SPI2MEM transfer on the given SPI peripheral.
+ * mode is DMA_MEM2SPI (1) or DMA_SPI2MEM (2).
+ * The SPI peripheral must be selected (CS low) before calling.
+ * Returns immediately — poll dma_busy() for completion. */
+void dma_start_spi(int mode, int spi_id,
+                   unsigned int dst, unsigned int src,
+                   unsigned int count);
+
+/* Start a QSPI Fast Read (mode 6) from SPI Flash 1.
+ * Uses the QSPIflash controller's quad-output path for 4× bandwidth.
+ * qspi_addr is the 24-bit flash address (written to DMA_QSPI_ADDR).
+ * dst is the SDRAM destination (32-byte aligned).
+ * Returns immediately — poll dma_busy() for completion. */
+void dma_start_spi_qspi_read(int spi_id,
+                              unsigned int dst,
+                              unsigned int qspi_addr,
+                              unsigned int count);
 ```
 
 The async path leaves cache management to the caller — call

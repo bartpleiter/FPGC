@@ -4,16 +4,15 @@
 /*
  * DMA driver for the FPGC DMAengine.
  *
- * Currently supports memory-to-memory copies and SPI<->memory bursts on
- * SPI0 (Flash 1) and SPI4 (Ethernet). The other modes (MEM2VRAM, MEM2IO,
- * IO2MEM) will be added later.
+ * Supports memory-to-memory copies, SPI<->memory bursts (SPI0, SPI1,
+ * SPI4, SPI5), QSPI Fast Read from SPI1, and memory-to-VRAMPX blits.
  *
  * All transfers must be 32-byte (cache-line) aligned in both the
  * memory addresses they touch and the byte count.
  *
- * Coherency: dma_copy() flushes/invalidates the L1 data cache around the
- * transfer with the `ccached` instruction, so callers do not need to do
- * that themselves.
+ * Coherency: dma_copy() and dma_blit_to_vram() flush/invalidate the
+ * L1 data cache around the transfer with the `ccached` instruction,
+ * so callers do not need to do that themselves.
  */
 
 #include "fpgc.h"

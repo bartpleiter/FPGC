@@ -67,18 +67,27 @@ state.
 
 The full sequence is:
 
-1. Hold `CS` high, send 80 dummy clocks (10 bytes of `0xFF`).
-2. Pull `CS` low, send `CMD0` (`GO_IDLE_STATE`) with the canonical
+1. Wait at least 1 ms for the card's internal regulator to
+   stabilise after power-up (the driver waits 10 ms).
+2. Hold `CS` high, send 80 dummy clocks (10 bytes of `0xFF`).
+3. Pull `CS` low, send `CMD0` (`GO_IDLE_STATE`) with the canonical
    precomputed CRC. The card responds with `R1 = 0x01` to confirm
-   it has entered SPI mode.
-3. Send `CMD8` (`SEND_IF_COND`) with the voltage and check-pattern
+   it has entered SPI mode. If the card does not respond, retry up
+   to 3 times with a 10 ms delay between attempts — on a cold boot
+   the card may need extra time to reach a stable state.
+4. Send `CMD8` (`SEND_IF_COND`) with the voltage and check-pattern
    arguments specified by the SD spec. Cards that don't respond, or
    that flag CMD8 as illegal, are pre-spec-2.0 (SDSC) and are
    rejected at this point.
-4. Loop on `ACMD41` (`SEND_OP_COND`) with the High Capacity Support
+5. Loop on `ACMD41` (`SEND_OP_COND`) with the High Capacity Support
    bit set, until the card returns `R1 = 0x00` (ready) or the
-   retry budget runs out.
-5. Issue `CMD58` (`READ_OCR`) and inspect the **CCS** bit in the
+   retry budget runs out. The SD spec allows up to 1 second for the
+   card to complete its internal initialisation after a cold
+   power-up. The driver waits 1 ms between each attempt and budgets
+   up to 2 seconds (2 000 retries). Without this delay the host can
+   burn through all retries in a few milliseconds, long before the
+   card is ready.
+6. Issue `CMD58` (`READ_OCR`) and inspect the **CCS** bit in the
    returned 32-bit OCR. CCS = 0 means SDSC byte-addressing — also
    rejected. CCS = 1 means SDHC/SDXC block-addressing, which is
    what we want.
@@ -178,11 +187,16 @@ state — the SD spec has no software-only "go back to idle" command
 that is guaranteed to work after a multi-block stream has gone
 sideways.
 
-## Future use
+## BDOS integration
 
-The SD card driver and its block-oriented vtable wrapper are in
-place but the BRFS filesystem currently only mounts the on-board
-SPI flash. Wiring the card up as a second BRFS volume — with the
-much larger capacity available on a microSD — is a future
-filesystem-layer change; nothing in the hardware or driver layers
-needs to move first.
+When BDOS boots, `bdos_fs_sd_init()` runs `sd_init()` and, on
+success, creates a BRFS volume backed by the SD card's block
+interface. The volume is mounted at `/sdcard`. If no card is
+present or init fails, BDOS continues without it — the SPI flash
+volume at `/` remains available.
+
+The SD card uses a 4 MiB LRU cache in SDRAM
+(`MEM_SD_CACHE_START`–`MEM_SD_CACHE_END`). The `brfs_storage_sdcard`
+vtable translates BRFS word-addressed I/O into 512-byte block reads
+and writes, using DMA for the bulk transfer when the destination
+buffer is 32-byte aligned.

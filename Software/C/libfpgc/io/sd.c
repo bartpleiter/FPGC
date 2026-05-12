@@ -39,6 +39,7 @@
 #include "spi.h"
 #include "fpgc.h"
 #include "dma.h"
+#include "timer.h"
 
 #define SPI_SD       FPGC_SPI_SD_CARD     /* spi id 5 */
 #define SD_DUMMY     0xFF
@@ -142,18 +143,34 @@ sd_init(sd_card_info_t *info_out)
 {
     int r1;
     int retries;
+    int attempt;
     unsigned char ocr[4];
     int i;
     sd_card_info_t info_local;
 
-    /* 1. >= 74 SCK with CS high. */
-    sd_initial_clocks();
+    /* Power-up delay: SD spec requires >= 1 ms after VDD reaches
+     * minimum supply voltage. Use 10 ms to be safe on cold boot. */
+    delay(10);
 
-    /* 2. CMD0 -- GO_IDLE_STATE. CRC = 0x95 (precomputed per spec). */
-    spi_select(SPI_SD);
-    r1 = send_command(CMD0, 0, 0x95);
-    spi_deselect(SPI_SD);
-    (void)xfer(SD_DUMMY);                     /* 8-clock gap */
+    /* Try CMD0 up to 3 times — on a cold power-on the card's internal
+     * regulator may not have stabilized for the first attempt. */
+    r1 = 0xFF;
+    for (attempt = 0; attempt < 3; attempt++)
+    {
+        /* 1. >= 74 SCK with CS high. */
+        sd_initial_clocks();
+
+        /* 2. CMD0 -- GO_IDLE_STATE. CRC = 0x95 (precomputed per spec). */
+        spi_select(SPI_SD);
+        r1 = send_command(CMD0, 0, 0x95);
+        spi_deselect(SPI_SD);
+        (void)xfer(SD_DUMMY);                     /* 8-clock gap */
+
+        if (r1 == R1_IDLE_STATE)
+            break;
+
+        delay(10);
+    }
     if (r1 != R1_IDLE_STATE) {
         return SD_ERR_NO_CARD;
     }
@@ -177,8 +194,10 @@ sd_init(sd_card_info_t *info_out)
     spi_deselect(SPI_SD);
     (void)xfer(SD_DUMMY);
 
-    /* 4. ACMD41 loop (HCS=1) until R1=0x00 or timeout. */
-    retries = 1000;
+    /* 4. ACMD41 loop (HCS=1) until R1=0x00 or timeout.
+     *    SD spec allows up to 1 s for card init; we budget 2 s
+     *    (2000 iterations × 1 ms) to cover slow cold-boot cases. */
+    retries = 2000;
     while (retries--) {
         spi_select(SPI_SD);
         r1 = send_command(CMD55, 0, 0xFF);
@@ -196,6 +215,7 @@ sd_init(sd_card_info_t *info_out)
         }
         if (r1 == 0)
             break;
+        delay(1);
     }
     if (r1 != 0) {
         return SD_ERR_TIMEOUT;
