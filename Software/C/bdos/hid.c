@@ -7,7 +7,6 @@
 int bdos_usb_keyboard_spi_id = CH376_SPI_BOTTOM;
 usb_device_info_t bdos_usb_keyboard_device;
 unsigned int bdos_key_state_bitmap = 0;
-static int bdos_usb_main_loop_active = 0;
 
 static hid_keyboard_report_t bdos_prev_kb_report;
 static int bdos_keyboard_event_fifo[BDOS_KEY_EVENT_FIFO_SIZE];
@@ -225,16 +224,10 @@ void bdos_poll_usb_keyboard(int timer_id)
 
   (void)timer_id;
 
-  /* Skip if main loop is doing USB operations to avoid SPI bus collision */
-  if (bdos_usb_main_loop_active)
-    return;
-
   if (bdos_usb_keyboard_device.connected)
   {
-    if (ch376_test_connect(bdos_usb_keyboard_spi_id) == CH376_CONN_READY)
+    if (ch376_is_keyboard(&bdos_usb_keyboard_device))
     {
-      if (ch376_is_keyboard(&bdos_usb_keyboard_device))
-      {
         now = get_micros();
         read_status = ch376_read_keyboard(bdos_usb_keyboard_spi_id, &bdos_usb_keyboard_device, &kb_report);
 
@@ -343,43 +336,31 @@ void bdos_poll_usb_keyboard(int timer_id)
       }
     }
   }
-}
 
-/* Only check USB connect/disconnect every 2 seconds to avoid blocking
- * the timer-driven keyboard poll.  ch376_test_connect() holds SPI
- * (bdos_usb_main_loop_active = 1) and the timer ISR skips keyboard
- * polling whenever that flag is set.  Running test_connect on every
- * main-loop iteration caused ~75% of polls to be skipped. */
-#define BDOS_USB_MAINLOOP_INTERVAL_US 2000000U
-static unsigned int bdos_usb_mainloop_last_us = 0;
-
+/* Check CH376 INT# pin for connect/disconnect events.
+ * No SPI traffic when idle — eliminates periodic activity LED blinks. */
 void bdos_usb_keyboard_main_loop(void)
 {
   int status;
-  unsigned int now;
 
-  now = get_micros();
-  if ((unsigned int)(now - bdos_usb_mainloop_last_us) < BDOS_USB_MAINLOOP_INTERVAL_US)
-  {
+  /* Only act when CH376 has asserted INT# (active low) */
+  if (!ch376_read_int(bdos_usb_keyboard_spi_id))
     return;
-  }
-  bdos_usb_mainloop_last_us = now;
 
-  bdos_usb_main_loop_active = 1;
-  status = ch376_test_connect(bdos_usb_keyboard_spi_id);
-  if (status == CH376_CONN_DISCONNECTED)
+  /* Read and clear the interrupt status */
+  status = ch376_get_status(bdos_usb_keyboard_spi_id);
+
+  if (status == CH376_INT_DISCONNECT)
   {
     if (bdos_usb_keyboard_device.connected)
     {
       bdos_reset_keyboard_state();
-      ch376_reset(bdos_usb_keyboard_spi_id);
-      ch376_host_init(bdos_usb_keyboard_spi_id);
       uart_puts("[BDOS] USB keyboard disconnected\n");
     }
   }
-  if (status == CH376_CONN_CONNECTED)
+  else if (status == CH376_INT_CONNECT)
   {
-    delay(1000);
+    delay(50);
 
     if (ch376_enumerate_device(bdos_usb_keyboard_spi_id, &bdos_usb_keyboard_device))
     {
@@ -390,5 +371,4 @@ void bdos_usb_keyboard_main_loop(void)
       uart_puts("[BDOS] Failed to enumerate USB keyboard\n");
     }
   }
-  bdos_usb_main_loop_active = 0;
 }

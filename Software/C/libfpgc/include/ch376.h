@@ -93,66 +93,66 @@
 /* USB Device Descriptor structure (18 bytes) */
 typedef struct
 {
-  int bLength;
-  int bDescriptorType;
-  int bcdUSB;
-  int bDeviceClass;
-  int bDeviceSubClass;
-  int bDeviceProtocol;
-  int bMaxPacketSize0;
-  int idVendor;
-  int idProduct;
-  int bcdDevice;
-  int iManufacturer;
-  int iProduct;
-  int iSerialNumber;
-  int bNumConfigurations;
+  unsigned char bLength;
+  unsigned char bDescriptorType;
+  unsigned short bcdUSB;
+  unsigned char bDeviceClass;
+  unsigned char bDeviceSubClass;
+  unsigned char bDeviceProtocol;
+  unsigned char bMaxPacketSize0;
+  unsigned short idVendor;
+  unsigned short idProduct;
+  unsigned short bcdDevice;
+  unsigned char iManufacturer;
+  unsigned char iProduct;
+  unsigned char iSerialNumber;
+  unsigned char bNumConfigurations;
 } usb_device_descriptor_t;
 
 /* USB Configuration Descriptor structure (9 bytes) */
 typedef struct
 {
-  int bLength;
-  int bDescriptorType;
-  int wTotalLength;
-  int bNumInterfaces;
-  int bConfigurationValue;
-  int iConfiguration;
-  int bmAttributes;
-  int bMaxPower;
+  unsigned char bLength;
+  unsigned char bDescriptorType;
+  unsigned short wTotalLength;
+  unsigned char bNumInterfaces;
+  unsigned char bConfigurationValue;
+  unsigned char iConfiguration;
+  unsigned char bmAttributes;
+  unsigned char bMaxPower;
 } usb_config_descriptor_t;
 
 /* USB Interface Descriptor structure (9 bytes) */
 typedef struct
 {
-  int bLength;
-  int bDescriptorType;
-  int bInterfaceNumber;
-  int bAlternateSetting;
-  int bNumEndpoints;
-  int bInterfaceClass;
-  int bInterfaceSubClass;
-  int bInterfaceProtocol;
-  int iInterface;
+  unsigned char bLength;
+  unsigned char bDescriptorType;
+  unsigned char bInterfaceNumber;
+  unsigned char bAlternateSetting;
+  unsigned char bNumEndpoints;
+  unsigned char bInterfaceClass;
+  unsigned char bInterfaceSubClass;
+  unsigned char bInterfaceProtocol;
+  unsigned char iInterface;
 } usb_interface_descriptor_t;
 
 /* USB Endpoint Descriptor structure (7 bytes) */
 typedef struct
 {
-  int bLength;
-  int bDescriptorType;
-  int bEndpointAddress;
-  int bmAttributes;
-  int wMaxPacketSize;
-  int bInterval;
+  unsigned char bLength;
+  unsigned char bDescriptorType;
+  unsigned char bEndpointAddress;
+  unsigned char bmAttributes;
+  unsigned short wMaxPacketSize;
+  unsigned char bInterval;
 } usb_endpoint_descriptor_t;
 
 /* HID Keyboard report structure (8 bytes) */
 typedef struct
 {
-  int modifier;
-  int reserved;
-  int keycode[6];
+  unsigned char modifier;
+  unsigned char reserved;
+  unsigned char keycode[6];
 } hid_keyboard_report_t;
 
 /* USB Device info structure */
@@ -162,11 +162,11 @@ typedef struct
   int low_speed;
   int address;
   usb_device_descriptor_t device_desc;
-  int interface_class;
-  int interface_subclass;
-  int interface_protocol;
-  int interrupt_endpoint;
-  int interrupt_max_packet;
+  unsigned char interface_class;
+  unsigned char interface_subclass;
+  unsigned char interface_protocol;
+  unsigned char interrupt_endpoint;
+  unsigned short interrupt_max_packet;
   int toggle_in;
 } usb_device_info_t;
 
@@ -189,11 +189,10 @@ int ch376_host_init(int spi_id);
 int ch376_detect_device(int spi_id, int *is_low_speed);
 int ch376_get_device_descriptor(int spi_id, usb_device_descriptor_t *desc);
 int ch376_get_config_descriptor(int spi_id, char *buffer, int max_len);
-int ch376_get_config_descriptor_manual(int spi_id, char *buffer, int max_len);
 int ch376_set_device_address(int spi_id, int address);
 int ch376_set_device_config(int spi_id, int config);
-int ch376_issue_token(int spi_id, int endpoint, int pid);
-int ch376_issue_token_x(int spi_id, int sync_flags, int endpoint, int pid);
+int ch376_issue_token(int spi_id, int endpoint, int pid, int timeout_ms);
+int ch376_issue_token_x(int spi_id, int sync_flags, int endpoint, int pid, int timeout_ms);
 void ch376_set_rx_toggle(int spi_id, int toggle);
 void ch376_set_tx_toggle(int spi_id, int toggle);
 

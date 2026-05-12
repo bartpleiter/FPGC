@@ -22,6 +22,8 @@ static void bdos_init_gpu(void)
 
 static void bdos_init_usb_keyboard(void)
 {
+  int conn;
+
   term_puts("Initializing CH376 (ID ");
   term_putint(bdos_usb_keyboard_spi_id);
   term_puts(") for input\n");
@@ -32,6 +34,18 @@ static void bdos_init_usb_keyboard(void)
   }
 
   memset(&bdos_usb_keyboard_device, 0, sizeof(usb_device_info_t));
+
+  /* Try to enumerate a keyboard that's already plugged in at boot */
+  conn = ch376_test_connect(bdos_usb_keyboard_spi_id);
+  if (conn == CH376_CONN_CONNECTED || conn == CH376_CONN_READY)
+  {
+    delay(50);
+    if (ch376_enumerate_device(bdos_usb_keyboard_spi_id,
+                               &bdos_usb_keyboard_device))
+    {
+      term_puts("USB keyboard found\n");
+    }
+  }
 
   timer_set_callback(TIMER_1, bdos_poll_usb_keyboard);
   timer_start_periodic(TIMER_1, 10);

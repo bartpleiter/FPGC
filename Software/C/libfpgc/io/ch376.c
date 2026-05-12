@@ -100,8 +100,8 @@ int ch376_set_usb_mode(int spi_id, int mode)
   ch376_send_cmd(spi_id, CH376_CMD_SET_USB_MODE);
   spi_transfer(spi_id, mode);
 
-  /* Wait a long time for the mode to take effect */
-  delay(10);
+  /* Wait for the mode change to take effect */
+  delay(1);
 
   status = spi_transfer(spi_id, 0x00);
   ch376_end_cmd(spi_id);
@@ -303,7 +303,7 @@ void ch376_set_tx_toggle(int spi_id, int toggle)
 }
 
 /* Issue a USB token and return interrupt status. */
-int ch376_issue_token(int spi_id, int endpoint, int pid)
+int ch376_issue_token(int spi_id, int endpoint, int pid, int timeout_ms)
 {
   int transaction_attr;
   int status;
@@ -315,14 +315,14 @@ int ch376_issue_token(int spi_id, int endpoint, int pid)
   ch376_end_cmd(spi_id);
 
   /* Wait for transaction to complete */
-  status = ch376_wait_interrupt(spi_id, 500);
+  status = ch376_wait_interrupt(spi_id, timeout_ms);
 
   return status;
 }
 
 /* Issue token with explicit sync flags (CMD_ISSUE_TKN_X).
  * sync_flags: bit 7 = RX sync toggle, bit 6 = TX sync toggle */
-int ch376_issue_token_x(int spi_id, int sync_flags, int endpoint, int pid)
+int ch376_issue_token_x(int spi_id, int sync_flags, int endpoint, int pid, int timeout_ms)
 {
   int transaction_attr;
   int status;
@@ -335,7 +335,7 @@ int ch376_issue_token_x(int spi_id, int sync_flags, int endpoint, int pid)
   ch376_end_cmd(spi_id);
 
   /* Wait for transaction to complete */
-  status = ch376_wait_interrupt(spi_id, 500);
+  status = ch376_wait_interrupt(spi_id, timeout_ms);
 
   return status;
 }
@@ -513,7 +513,7 @@ static int ch376_control_transfer_in(int spi_id, char *setup, int setup_len,
   /* Setup stage: send SETUP packet with DATA0 */
   ch376_set_tx_toggle(spi_id, 0);
   ch376_write_data(spi_id, setup, setup_len);
-  status = ch376_issue_token(spi_id, 0x00, CH376_PID_SETUP);
+  status = ch376_issue_token(spi_id, 0x00, CH376_PID_SETUP, 500);
   if (status != CH376_INT_SUCCESS)
   {
     return -1;
@@ -523,7 +523,7 @@ static int ch376_control_transfer_in(int spi_id, char *setup, int setup_len,
   while (total_len < max_data_len && total_len < requested_len)
   {
     ch376_set_rx_toggle(spi_id, toggle);
-    status = ch376_issue_token(spi_id, toggle ? 0x80 : 0x00, CH376_PID_IN);
+    status = ch376_issue_token(spi_id, 0x00, CH376_PID_IN, 500);
 
     if (status != CH376_INT_SUCCESS)
     {
@@ -551,7 +551,7 @@ static int ch376_control_transfer_in(int spi_id, char *setup, int setup_len,
   /* Status stage: send zero-length OUT with DATA1 */
   ch376_set_tx_toggle(spi_id, 1);
   ch376_write_data(spi_id, setup, 0);
-  status = ch376_issue_token(spi_id, 0x40, CH376_PID_OUT);
+  status = ch376_issue_token(spi_id, 0x00, CH376_PID_OUT, 500);
 
   return total_len;
 }
@@ -577,10 +577,24 @@ int ch376_get_config_descriptor(int spi_id, char *buffer, int max_len)
   return (len > 0) ? len : 0;
 }
 
-/* Get configuration descriptor using the AUTO_SETUP method (unused). */
-int ch376_get_config_descriptor_manual(int spi_id, char *buffer, int max_len)
+/* Send a control transfer with no data stage (SETUP + status-IN). */
+static int ch376_control_transfer_nodata(int spi_id, char *setup, int setup_len)
 {
-  return ch376_get_config_descriptor(spi_id, buffer, max_len);
+  int status;
+
+  /* Setup stage: send SETUP packet with DATA0 */
+  ch376_set_tx_toggle(spi_id, 0);
+  ch376_write_data(spi_id, setup, setup_len);
+  status = ch376_issue_token(spi_id, 0x00, CH376_PID_SETUP, 500);
+  if (status != CH376_INT_SUCCESS)
+  {
+    return -1;
+  }
+
+  /* Status stage: receive zero-length IN with DATA1 */
+  ch376_set_rx_toggle(spi_id, 1);
+  status = ch376_issue_token(spi_id, 0x00, CH376_PID_IN, 500);
+  return (status == CH376_INT_SUCCESS) ? 0 : -1;
 }
 
 /* Enumerate an attached USB device into info. */
@@ -622,6 +636,7 @@ int ch376_enumerate_device(int spi_id, usb_device_info_t *info)
 
   /* Reset USB bus for the device */
   ch376_set_usb_mode(spi_id, CH376_MODE_HOST_RESET);
+  delay(50);  /* USB bus reset: hold for >= 10 ms */
   ch376_set_usb_mode(spi_id, CH376_MODE_HOST_SOF);
 
   /* Wait for device to connect again */
@@ -668,6 +683,38 @@ int ch376_enumerate_device(int spi_id, usb_device_info_t *info)
     parse_config_descriptor(config_buffer, config_len, info);
   }
 
+  /* If this is a HID keyboard, send SET_PROTOCOL(boot) and SET_IDLE(0) */
+  if (info->interface_class == USB_CLASS_HID)
+  {
+    char setup[8];
+
+    /* SET_PROTOCOL: bmRequestType=0x21 (class,interface), bRequest=0x0B,
+       wValue=0x0000 (boot protocol), wIndex=0x0000, wLength=0x0000 */
+    setup[0] = 0x21;
+    setup[1] = 0x0B;
+    setup[2] = 0x00;
+    setup[3] = 0x00;
+    setup[4] = 0x00;
+    setup[5] = 0x00;
+    setup[6] = 0x00;
+    setup[7] = 0x00;
+    ch376_control_transfer_nodata(spi_id, setup, 8);
+
+    /* SET_IDLE(duration=0): only report on key change */
+    setup[0] = 0x21;
+    setup[1] = 0x0A;
+    setup[2] = 0x00;
+    setup[3] = 0x00;
+    setup[4] = 0x00;
+    setup[5] = 0x00;
+    setup[6] = 0x00;
+    setup[7] = 0x00;
+    ch376_control_transfer_nodata(spi_id, setup, 8);
+  }
+
+  /* Set retry behavior for interrupt polling: no infinite NAK retry */
+  ch376_set_retry(spi_id, 0x0F);
+
   info->connected = 1;
   return 1;
 }
@@ -706,14 +753,11 @@ int ch376_read_keyboard(int spi_id, usb_device_info_t *info, hid_keyboard_report
   /* Get endpoint number (remove direction bit) */
   endpoint = info->interrupt_endpoint & 0x0F;
 
-  /* Set retry behavior: no infinite NAK retry, limited timeout retries */
-  ch376_set_retry(spi_id, 0x0F);
-
   /* Build sync flags: bit 7 = RX toggle */
   sync_flags = info->toggle_in ? 0x80 : 0x00;
 
-  /* Issue IN transaction to interrupt endpoint */
-  status = ch376_issue_token_x(spi_id, sync_flags, endpoint, CH376_PID_IN);
+  /* Issue IN transaction to interrupt endpoint (short timeout for ISR) */
+  status = ch376_issue_token_x(spi_id, sync_flags, endpoint, CH376_PID_IN, 10);
 
   if (status == CH376_INT_SUCCESS)
   {
