@@ -1,10 +1,11 @@
 /*
  * BranchJumpUnit
- * Handles branch and jump address calculations
+ * Handles branch and jump address calculations.
+ * Branch comparison is pre-computed in the EX stage (BranchCompare module)
+ * and registered into ex_mem_branch_passed before reaching this module,
+ * breaking the critical timing path through the MEM-stage comparator.
  */
 module BranchJumpUnit (
-    input wire  [2:0]   branch_op,
-    input wire  [31:0]  data_a,
     input wire  [31:0]  data_b,
     input wire  [31:0]  const16,
     input wire  [26:0]  const27,
@@ -14,58 +15,11 @@ module BranchJumpUnit (
     input wire          jumpc,
     input wire          jumpr,
     input wire          oe,
-    input wire          sig,
+    input wire          branch_passed,  // Pre-computed in EX, registered at EX/MEM boundary
 
     output reg  [31:0]  jump_addr,
     output wire         jump_valid
 );
-
-// Branch opcodes
-localparam
-    BRANCH_OP_BEQ   = 3'b000, // A == B
-    BRANCH_OP_BGT   = 3'b001, // A >  B
-    BRANCH_OP_BGE   = 3'b010, // A >= B
-    // BRANCH_OP_XXX   = 3'b011, // Reserved
-    BRANCH_OP_BNE   = 3'b100, // A != B
-    BRANCH_OP_BLT   = 3'b101, // A <  B
-    BRANCH_OP_BLE   = 3'b110; // A <= B
-    // BRANCH_OP_XXX   = 3'b111; // Reserved
-
-// Branch pass detection
-reg branch_passed;
-always @(*)
-begin
-    case (branch_op)
-        BRANCH_OP_BEQ:
-        begin
-            branch_passed = (data_a == data_b);
-        end
-        BRANCH_OP_BGT:
-        begin
-            branch_passed = (sig) ? ($signed(data_a) > $signed(data_b)) : (data_a > data_b);
-        end
-        BRANCH_OP_BGE:
-        begin
-            branch_passed = (sig) ? ($signed(data_a) >= $signed(data_b)) : (data_a >= data_b);
-        end
-        BRANCH_OP_BNE:
-        begin
-            branch_passed = (data_a != data_b);
-        end
-        BRANCH_OP_BLT:
-        begin
-            branch_passed = (sig) ? ($signed(data_a) < $signed(data_b)) : (data_a < data_b);
-        end
-        BRANCH_OP_BLE:
-        begin
-            branch_passed = (sig) ? ($signed(data_a) <= $signed(data_b)) : (data_a <= data_b);
-        end
-        default:
-        begin
-            branch_passed = 1'b0;
-        end
-    endcase
-end
 
 // Jump address calculation
 always @(*)

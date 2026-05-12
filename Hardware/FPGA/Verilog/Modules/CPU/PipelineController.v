@@ -106,11 +106,13 @@ assign cache_line_hazard = ex_needs_sdram && mem_has_sdram &&
 wire hazard_stall = load_use_hazard || pop_use_hazard || cache_line_hazard;
 
 // ---- Stall computation ----
-// Combined backend stall - stalls entire pipeline
-wire backend_stall = cache_stall_if || cache_stall_mem || multicycle_stall || mu_stall || cc_stall || vrampx_stall;
+// Backend stall: stalls entire pipeline (EX/MEM/WB cannot advance).
+// cache_stall_if is NOT included here — it only freezes the frontend.
+// During an L1I miss, the backend drains normally (no new instructions enter).
+wire backend_stall = cache_stall_mem || multicycle_stall || mu_stall || cc_stall || vrampx_stall;
 
-// Front-end stall (IF, ID) - includes hazard stalls
-assign pipeline_stall = hazard_stall || backend_stall;
+// Front-end stall (IF, ID) - includes hazard stalls AND cache_stall_if
+assign pipeline_stall = hazard_stall || backend_stall || cache_stall_if;
 
 // EX stage stall - includes cache_line_hazard and backend_stall
 // Load/pop hazards don't stall EX because EX instruction needs to wait in ID
@@ -123,10 +125,18 @@ assign backend_pipeline_stall = backend_stall;
 // ---- Flush computation ----
 // Flushes should only happen when the triggering event actually executes (not stalled)
 wire reti_executes = reti_valid && !pipeline_stall;
+
+// NOTE: interrupt_executes is intentionally NOT included in the flush signals.
+// interrupt_valid requires (ex_mem_valid && jump_valid), which is exactly
+// pc_redirect.  Therefore interrupt_executes always implies pc_redirect,
+// making it redundant in all flush OR-terms.  Removing it shortens the
+// critical path from L1D cache → stall chain → flush → pipeline register enable.
+// interrupt_executes is still computed for the InstructionFetch module (it
+// needs to know whether to redirect PC to the interrupt handler address).
 wire interrupt_executes = interrupt_valid && !pipeline_stall;
 
-assign flush_if_id = pc_redirect || interrupt_executes || reti_executes;
-assign flush_id_ex = pc_redirect || interrupt_executes || reti_executes;
-assign flush_ex_mem = pc_redirect || interrupt_executes;
+assign flush_if_id = pc_redirect || reti_executes;
+assign flush_id_ex = pc_redirect || reti_executes;
+assign flush_ex_mem = pc_redirect;
 
 endmodule

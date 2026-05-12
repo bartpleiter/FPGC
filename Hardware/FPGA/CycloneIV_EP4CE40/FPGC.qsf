@@ -406,7 +406,7 @@ set_global_assignment -name VERILOG_SHOW_LMF_MAPPING_MESSAGES OFF
 
 
 
-set_global_assignment -name OPTIMIZATION_MODE "HIGH PERFORMANCE EFFORT"
+set_global_assignment -name OPTIMIZATION_MODE BALANCED
 set_global_assignment -name VERILOG_FILE FPGC.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/QSPIflash.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/MultiCycleAluOps/IDivider.v
@@ -440,6 +440,7 @@ set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/BGWrenderer.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/MultiCycleAluOps/Multu.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/MultiCycleAluOps/Mults.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/MultiCycleAluOps/Mults64.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/BranchCompare.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/Stack.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/Regbank.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/MultiCycleALU.v

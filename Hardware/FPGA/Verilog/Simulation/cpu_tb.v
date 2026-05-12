@@ -29,6 +29,7 @@
 `include "Hardware/FPGA/Verilog/Modules/Memory/SDRAMarbiter.v"
 `include "Hardware/FPGA/Verilog/Modules/Memory/mt48lc16m16a2.v"
 `include "Hardware/FPGA/Verilog/Modules/Memory/W25Q128JV.v"
+`include "Hardware/FPGA/Verilog/Modules/CPU/BranchCompare.v"
 
 `include "Hardware/FPGA/Verilog/Modules/Memory/MemoryUnit.v"
 `include "Hardware/FPGA/Verilog/Modules/IO/DMAengine.v"

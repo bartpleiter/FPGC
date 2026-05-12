@@ -50,7 +50,7 @@ module MemoryStage #(
 
     // ---- CPU-internal I/O read sources ----
     input  wire [31:0]  pc_backup,
-    input  wire [7:0]   stack_ptr_out,
+    input  wire [5:0]   stack_ptr_out,
 
     // ---- ROM data port ----
     input  wire [31:0]  rom_mem_q,
@@ -185,7 +185,7 @@ wire   mem_sel_vrampx       = mem_sel_vrampx_pixel || mem_sel_palette;
 wire mem_sel_cpu_io = (ex_mem_mem_addr == CPU_IO_PC_BACKUP) ||
                       (ex_mem_mem_addr == CPU_IO_HW_STACK_PTR);
 wire [31:0] cpu_io_read_data = (ex_mem_mem_addr == CPU_IO_PC_BACKUP) ? pc_backup :
-                               {24'd0, stack_ptr_out};
+                               {26'd0, stack_ptr_out};
 
 // ---- LOCAL ADDRESS (MEM stage) ----
 // For word-addressed BRAM ports, convert byte address to word address.

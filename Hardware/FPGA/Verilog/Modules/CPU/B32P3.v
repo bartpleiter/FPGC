@@ -294,12 +294,11 @@ reg        ex_mem_clear_cache_data_only = 1'b0;
 reg        ex_mem_is_branch = 1'b0;
 reg        ex_mem_is_jump = 1'b0;
 reg        ex_mem_is_jumpr = 1'b0;
-reg [2:0]  ex_mem_branch_op = 3'd0;
-reg        ex_mem_sig = 1'b0;
 reg        ex_mem_oe = 1'b0;
 reg [31:0] ex_mem_const16 = 32'd0;
 reg [26:0] ex_mem_const27 = 27'd0;
-reg [31:0] ex_mem_areg_data = 32'd0;
+// Branch comparison result, pre-computed in EX stage and registered here
+reg        ex_mem_branch_passed = 1'b0;
 
 // Memory size control for byte-addressable operations
 reg [1:0]  ex_mem_mem_size = 2'b00;
@@ -432,7 +431,12 @@ Regbank regbank (
     // Read ports - addresses from IF stage, data available in EX stage
     .addr_a     (if_areg),
     .addr_b     (if_breg),
-    .clear      (flush_if_id),
+    // Use pc_redirect instead of flush_if_id for regbank clear.
+    // flush_if_id includes reti_executes which depends on !pipeline_stall,
+    // creating a critical timing path from L1D cache → stall → flush → regbank.
+    // The RETI clear is unnecessary: the flushed instruction is marked invalid
+    // (id_ex_valid = 0), so any stale regbank data is never consumed.
+    .clear      (pc_redirect),
     .hold       (pipeline_stall),
     .data_a     (ex_areg_data),  // Output arrives in EX stage
     .data_b     (ex_breg_data),  // Output arrives in EX stage
@@ -538,12 +542,17 @@ wire [63:0] fp_a_data = fp_regs[fp_areg];
 wire [63:0] fp_b_data = fp_regs[fp_breg];
 
 // Identify single-cycle FP operations that should NOT stall the pipeline
+// Note: FADD/FSUB are now 2-cycle pipelined (see fp_addsub below)
 wire is_fp_singlecycle = id_ex_arithm && (
-    id_ex_alu_op == 4'b1001 ||  // FADD
-    id_ex_alu_op == 4'b1010 ||  // FSUB
     id_ex_alu_op == 4'b1011 ||  // FLD
     id_ex_alu_op == 4'b1100 ||  // FSTHI
     id_ex_alu_op == 4'b1101     // FSTLO
+);
+
+// Identify FP add/sub — 2-cycle pipelined operations
+wire is_fp_addsub = id_ex_arithm && (
+    id_ex_alu_op == 4'b1001 ||  // FADD
+    id_ex_alu_op == 4'b1010     // FSUB
 );
 
 // Identify FP operations that write to FP register file (not CPU register file)
@@ -554,14 +563,55 @@ wire fp_writes_to_fpregs = id_ex_arithm && (
     id_ex_alu_op == 4'b1011     // FLD
 );
 
-// 64-bit adder/subtractor (combinational)
-wire [63:0] fp_add_result = fp_a_data + fp_b_data;
-wire [63:0] fp_sub_result = fp_a_data - fp_b_data;
+// ---- FP ADD/SUB 2-CYCLE PIPELINE ----
+// Breaks the critical timing path: fp_reg read → 64-bit adder → fp_reg write
+// was ~12 ns in one cycle. Now split into:
+//   Cycle 1 (capture): read FP regs combinationally, register operands, stall
+//   Cycle 2 (compute): 64-bit add/sub from registered operands, write result
+reg        fp_addsub_captured = 1'b0;   // Operands captured in holding regs
+reg        fp_addsub_written = 1'b0;    // Write-once flag (prevents re-write during stalls)
+reg [63:0] fp_addsub_op_a = 64'd0;      // Captured operand A
+reg [63:0] fp_addsub_op_b = 64'd0;      // Captured operand B
 
-// FP register write data selection
+// Stall for 1 cycle to capture operands
+wire fp_addsub_stall = id_ex_valid && is_fp_addsub && !fp_addsub_captured
+                       && !fp_addsub_written && !pc_redirect;
+
+// Compute from registered operands (breaks the timing path)
+wire [63:0] fp_addsub_result = (id_ex_alu_op == 4'b1001)
+                               ? (fp_addsub_op_a + fp_addsub_op_b)   // FADD
+                               : (fp_addsub_op_a - fp_addsub_op_b);  // FSUB
+
+// Write enable: operands captured, not yet written, not speculative
+wire fp_addsub_we = fp_addsub_captured && !fp_addsub_written
+                    && id_ex_valid && is_fp_addsub && !fp_speculative;
+
+always @(posedge clk) begin
+    if (reset) begin
+        fp_addsub_captured <= 1'b0;
+        fp_addsub_written <= 1'b0;
+        fp_addsub_op_a <= 64'd0;
+        fp_addsub_op_b <= 64'd0;
+    end else if (!ex_pipeline_stall) begin
+        // Instruction advancing out of EX: clear state
+        fp_addsub_captured <= 1'b0;
+        fp_addsub_written <= 1'b0;
+    end else begin
+        // Pipeline stalled
+        if (id_ex_valid && is_fp_addsub && !fp_addsub_captured && !fp_addsub_written) begin
+            // Capture operands from combinational FP reg reads
+            fp_addsub_op_a <= fp_a_data;
+            fp_addsub_op_b <= fp_b_data;
+            fp_addsub_captured <= 1'b1;
+        end
+        if (fp_addsub_we) begin
+            fp_addsub_written <= 1'b1;
+        end
+    end
+end
+
+// FP register write data selection (single-cycle ops only: FLD)
 wire [63:0] fp_write_data =
-    (id_ex_alu_op == 4'b1001)  ? fp_add_result :          // FADD
-    (id_ex_alu_op == 4'b1010)  ? fp_sub_result :          // FSUB
     (id_ex_alu_op == 4'b1011)  ? {ex_alu_a, ex_alu_b} :   // FLD: {rA, rB}
     64'd0;
 
@@ -600,6 +650,9 @@ always @(posedge clk) begin
         fp_regs[5] <= 64'd0;
         fp_regs[6] <= 64'd0;
         fp_regs[7] <= 64'd0;
+    end else if (fp_addsub_we) begin
+        // FADD/FSUB writeback from registered operands (2-cycle path)
+        fp_regs[fp_dreg] <= fp_addsub_result;
     end else if (fp_singlecycle_we) begin
         fp_regs[fp_dreg] <= fp_write_data;
     end else if (malu_done && id_ex_alu_op == 4'b1000) begin
@@ -609,12 +662,15 @@ always @(posedge clk) begin
 end
 
 // Stall pipeline while multi-cycle ALU is in progress
-// Single-cycle FP operations (fadd, fsub, fld, fsthi, fstlo) do NOT stall
+// Single-cycle FP operations (fld, fsthi, fstlo) do NOT stall
+// FP add/sub have their own stall mechanism (fp_addsub_stall)
 // Must also check !pc_redirect: if MEM stage resolved a branch/jump, the
 // instruction in EX is speculative and must NOT start the multi-cycle ALU.
 // (Using pc_redirect instead of flush_id_ex avoids a combinational loop through
 // pipeline_stall → interrupt_executes → flush_id_ex → multicycle_stall.)
-assign multicycle_stall = id_ex_valid && id_ex_arithm && !is_fp_singlecycle && !malu_request_finished && !pc_redirect;
+assign multicycle_stall = (id_ex_valid && id_ex_arithm && !is_fp_singlecycle
+                           && !is_fp_addsub && !malu_request_finished && !pc_redirect)
+                          || fp_addsub_stall;
 
 
 MultiCycleALU multi_cycle_alu (
@@ -662,8 +718,9 @@ begin
                 end
 
                 // Start when we have a valid multi-cycle arithm instruction
-                // Single-cycle FP ops (fadd, fsub, fld, fsthi, fstlo) must NOT start the MALU
-                if (id_ex_valid && id_ex_arithm && !malu_request_finished && !is_fp_singlecycle && !pc_redirect)
+                // Single-cycle FP ops (fld, fsthi, fstlo) must NOT start the MALU
+                // FP add/sub (fadd, fsub) have their own 2-cycle pipeline
+                if (id_ex_valid && id_ex_arithm && !malu_request_finished && !is_fp_singlecycle && !is_fp_addsub && !pc_redirect)
                 begin
                     malu_start_reg <= 1'b1;
                     malu_a_reg <= ex_alu_a;
@@ -697,26 +754,40 @@ begin
     end
 end
 
+// ---- BRANCH COMPARISON (EX Stage) ----
+// Pre-compute the branch comparison in EX stage to break the critical
+// timing path. The 32-bit magnitude comparison (carry chain) now has a
+// full EX cycle to settle, and the result is registered at the EX/MEM
+// boundary. In MEM, jump_valid becomes a trivial OR of registered inputs.
+wire ex_branch_passed;
+
+BranchCompare branch_compare (
+    .data_a    (ex_alu_a),
+    .data_b    (ex_breg_forwarded),
+    .branch_op (id_ex_branch_op),
+    .sig       (id_ex_sig),
+    .passed    (ex_branch_passed)
+);
+
 // ---- BRANCH/JUMP UNIT (MEM Stage) ----
-// Branch resolution is done in MEM stage to improve timings
+// Jump address calculation and jump_valid detection.
+// Branch comparison is now pre-computed in EX (above) and registered.
 wire        jump_valid;
 wire [31:0] jump_addr;
 
 BranchJumpUnit branch_jump_unit (
-    .branch_op  (ex_mem_branch_op),
-    .data_a     (ex_mem_areg_data),
-    .data_b     (ex_mem_breg_data),
-    .const16    (ex_mem_const16),
-    .const27    (ex_mem_const27),
-    .pc         (ex_mem_pc),
-    .halt       (ex_mem_halt),
-    .branch     (ex_mem_is_branch),
-    .jumpc      (ex_mem_is_jump),
-    .jumpr      (ex_mem_is_jumpr),
-    .oe         (ex_mem_oe),
-    .sig        (ex_mem_sig),
-    .jump_addr  (jump_addr),
-    .jump_valid (jump_valid)
+    .data_b         (ex_mem_breg_data),
+    .const16        (ex_mem_const16),
+    .const27        (ex_mem_const27),
+    .pc             (ex_mem_pc),
+    .halt           (ex_mem_halt),
+    .branch         (ex_mem_is_branch),
+    .jumpc          (ex_mem_is_jump),
+    .jumpr          (ex_mem_is_jumpr),
+    .oe             (ex_mem_oe),
+    .branch_passed  (ex_mem_branch_passed),
+    .jump_addr      (jump_addr),
+    .jump_valid     (jump_valid)
 );
 
 // PC redirect logic
@@ -732,8 +803,8 @@ assign stack_push = ex_mem_valid && ex_mem_push && !backend_pipeline_stall;
 assign stack_pop = ex_mem_valid && ex_mem_pop && !backend_pipeline_stall;
 
 // Stack pointer access
-wire [7:0]  stack_ptr_out;
-wire [7:0]  stack_ptr_in;
+wire [5:0]  stack_ptr_out;
+wire [5:0]  stack_ptr_in;
 wire        stack_ptr_we;
 
 Stack stack (
@@ -744,7 +815,6 @@ Stack stack (
     .push    (stack_push),
     .pop     (stack_pop),
     .clear   (1'b0),
-    .hold    (backend_pipeline_stall),
     .ptr_out (stack_ptr_out),
     .ptr_in  (stack_ptr_in),
     .ptr_we  (stack_ptr_we)
@@ -753,7 +823,7 @@ Stack stack (
 // CPU-internal I/O: stack pointer write via store instruction
 assign stack_ptr_we = ex_mem_valid && ex_mem_mem_write &&
                       (ex_mem_mem_addr == CPU_IO_HW_STACK_PTR) && !backend_pipeline_stall;
-assign stack_ptr_in = ex_mem_breg_data[7:0];
+assign stack_ptr_in = ex_mem_breg_data[5:0];
 
 // ---- PIPELINE CONTROLLER ----
 
@@ -1010,13 +1080,30 @@ MemoryStage #(
 // For multi-cycle ALU: use malu_result directly when done (not the registered value,
 // which hasn't been updated yet on the same clock edge)
 // For FP store: extract 32-bit half from FP register
-wire [31:0] ex_result = id_ex_get_pc    ? id_ex_pc :
-                        id_ex_get_int_id ? {24'd0, int_id} :
-                        (is_fp_singlecycle && id_ex_alu_op == 4'b1100) ? fp_a_data[63:32] :  // FSTHI
-                        (is_fp_singlecycle && id_ex_alu_op == 4'b1101) ? fp_a_data[31:0]  :  // FSTLO
-                        (id_ex_arithm && malu_done) ? malu_result :
-                        id_ex_arithm   ? malu_result_reg :
-                        ex_alu_result;
+//
+// Pre-compute result selector from instruction decode signals (available early,
+// independent of ALU result). This converts the 7:1 priority ternary into a
+// parallel case mux, reducing the critical path through ex_alu_result from
+// ~7 LUT levels to ~3 LUT levels.
+wire [2:0] ex_result_sel = id_ex_get_pc                                    ? 3'd1 :
+                           id_ex_get_int_id                                ? 3'd2 :
+                           (is_fp_singlecycle && id_ex_alu_op == 4'b1100)  ? 3'd3 :
+                           (is_fp_singlecycle && id_ex_alu_op == 4'b1101)  ? 3'd4 :
+                           (id_ex_arithm && malu_done)                     ? 3'd5 :
+                           id_ex_arithm                                    ? 3'd6 :
+                                                                             3'd0;
+reg [31:0] ex_result;
+always @(*) begin
+    case (ex_result_sel)
+        3'd1:    ex_result = id_ex_pc;
+        3'd2:    ex_result = {24'd0, int_id};
+        3'd3:    ex_result = fp_a_data[63:32];   // FSTHI
+        3'd4:    ex_result = fp_a_data[31:0];    // FSTLO
+        3'd5:    ex_result = malu_result;
+        3'd6:    ex_result = malu_result_reg;
+        default: ex_result = ex_alu_result;
+    endcase
+end
 
 always @(posedge clk)
 begin
@@ -1041,12 +1128,10 @@ begin
         ex_mem_is_branch <= 1'b0;
         ex_mem_is_jump <= 1'b0;
         ex_mem_is_jumpr <= 1'b0;
-        ex_mem_branch_op <= 3'd0;
-        ex_mem_sig <= 1'b0;
         ex_mem_oe <= 1'b0;
         ex_mem_const16 <= 32'd0;
         ex_mem_const27 <= 27'd0;
-        ex_mem_areg_data <= 32'd0;
+        ex_mem_branch_passed <= 1'b0;
         ex_mem_mem_size <= 2'b00;
         ex_mem_mem_sign_extend <= 1'b0;
     end else if (!ex_pipeline_stall)
@@ -1069,12 +1154,10 @@ begin
         ex_mem_is_branch <= id_ex_is_branch;
         ex_mem_is_jump <= id_ex_is_jump;
         ex_mem_is_jumpr <= id_ex_is_jumpr;
-        ex_mem_branch_op <= id_ex_branch_op;
-        ex_mem_sig <= id_ex_sig;
         ex_mem_oe <= id_ex_oe;
         ex_mem_const16 <= id_ex_const16;
         ex_mem_const27 <= id_ex_const27;
-        ex_mem_areg_data <= ex_alu_a;
+        ex_mem_branch_passed <= ex_branch_passed;
         // Memory size control
         ex_mem_mem_size <= id_ex_mem_size;
         ex_mem_mem_sign_extend <= id_ex_mem_sign_extend;
