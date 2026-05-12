@@ -1,3 +1,18 @@
+/*
+ * SPI bus abstraction layer
+ *
+ * Provides uniform access to all 6 SPI buses (SPI0–SPI5).
+ * Each bus has a DATA register and a CS register in MMIO space.
+ *
+ * Public API:
+ *   spi_transfer(spi_id, data)   -> int (received byte)
+ *   spi_select(spi_id)           -> void (assert CS low)
+ *   spi_deselect(spi_id)         -> void (release CS high)
+ *
+ * Bus assignments: see fpgc.h (FPGC_SPI_FLASH_0..FPGC_SPI_SD_CARD)
+ * Dependencies: fpgc.h
+ * Build: part of libfpgc (make compile-bdos)
+ */
 #include "fpgc.h"
 #include "spi.h"
 

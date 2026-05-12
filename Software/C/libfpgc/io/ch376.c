@@ -1,3 +1,19 @@
+/*
+ * CH376 USB host controller driver
+ *
+ * Bus: SPI2 (top port, FPGC_SPI_USB_0) and SPI3 (bottom port, FPGC_SPI_USB_1)
+ * Interrupt: INT# pin polled via MMIO (FPGC_CH376_0_NINT / FPGC_CH376_1_NINT)
+ * Timer: Timer 1 ISR polls HID reports every 10 ms
+ *
+ * Public API:
+ *   ch376_init(spi_id)                      -> int (0=ok)
+ *   ch376_check_connection(spi_id)          -> int (connected/disconnected)
+ *   ch376_set_usb_host_mode(spi_id)         -> int
+ *   ch376_hid_get_report(spi_id, buf, len)  -> int (bytes read)
+ *
+ * Dependencies: fpgc.h, spi.h, timer.h, sys.h
+ * Build: part of libfpgc (make compile-bdos)
+ */
 #include "fpgc.h"
 #include "ch376.h"
 #include "spi.h"

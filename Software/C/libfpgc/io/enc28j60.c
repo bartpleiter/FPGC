@@ -1,3 +1,21 @@
+/*
+ * ENC28J60 Ethernet controller driver
+ *
+ * Bus: SPI4 (FPGC_SPI_ETH)
+ * Interrupt: INTID_ETH (6) — active-low INT# pin
+ *
+ * Public API:
+ *   enc28j60_init(mac[6])                   -> void
+ *   enc28j60_packet_send(buf, len)          -> void
+ *   enc28j60_packet_recv(buf, max_len)      -> int (bytes received, 0 if none)
+ *   enc28j60_get_revision()                 -> int
+ *
+ * Global state:
+ *   enc28j60_spi_in_use — set while SPI4 is active (prevents ISR re-entry)
+ *
+ * Dependencies: spi.h, timer.h, dma.h
+ * Build: part of libfpgc (make compile-bdos)
+ */
 #include "enc28j60.h"
 #include "spi.h"
 #include "timer.h"

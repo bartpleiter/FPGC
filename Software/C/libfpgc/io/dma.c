@@ -1,3 +1,28 @@
+/*
+ * DMA engine driver
+ *
+ * Registers: FPGC_DMA_SRC (0x70), DST (0x74), COUNT (0x78),
+ *            CTRL (0x7C), STATUS (0x80), QSPI_ADDR (0x84)
+ * Interrupt: INTID_DMA (7) when IRQ_EN bit is set
+ *
+ * 7 transfer modes:
+ *   MEM2MEM(0)  MEM2SPI(1)  SPI2MEM(2)  MEM2VRAM(3)
+ *   MEM2IO(4)   IO2MEM(5)   SPI2MEM_QSPI(6)
+ *
+ * Public API:
+ *   dma_busy()                              -> int (0/1)
+ *   dma_status()                            -> uint status bits
+ *   dma_start_mem2mem(dst, src, count)       -> void
+ *   dma_start_mem2vram(dst, src, count)      -> void
+ *   dma_start_spi2mem(dst, spi, count)       -> void
+ *   dma_start_mem2spi(spi, src, count)       -> void
+ *   dma_start_spi2mem_qspi(dst, spi, count, flash_addr) -> void
+ *   dma_transfer_blocking(...)               -> void
+ *
+ * Count is in WORDS (4 bytes each). Addresses must be word-aligned.
+ * Dependencies: fpgc.h
+ * Build: part of libfpgc (make compile-bdos)
+ */
 #include "dma.h"
 #include "fpgc.h"
 

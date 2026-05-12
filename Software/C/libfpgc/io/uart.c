@@ -1,3 +1,21 @@
+/*
+ * UART serial driver
+ *
+ * Registers: FPGC_UART_TX (0x00), FPGC_UART_RX (0x04) — direct MMIO, not SPI
+ * Interrupt: INTID_UART (1) — currently unused (polling-based)
+ *
+ * Public API:
+ *   uart_init()                  -> void
+ *   uart_putc(ch)                -> void
+ *   uart_getc()                  -> int (-1 if empty)
+ *   uart_print_str(str)          -> void
+ *   uart_print_hex(val)          -> void
+ *   uart_rx_available()          -> int (count)
+ *
+ * Uses a ring buffer for received characters (UART_RX_BUFFER_SIZE).
+ * Dependencies: fpgc.h
+ * Build: part of libfpgc (make compile-bdos)
+ */
 #include "fpgc.h"
 #include "uart.h"
 #include <stddef.h>

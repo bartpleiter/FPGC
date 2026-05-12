@@ -1,3 +1,26 @@
+/*
+ * Hardware timer driver (3 timers: Timer 0, 1, 2)
+ *
+ * Registers: FPGC_TIMERn_VAL (period in ms), FPGC_TIMERn_CTRL (start/stop)
+ * Interrupts: INTID_TIMER0 (2), INTID_TIMER1 (3), INTID_TIMER2 (4)
+ *
+ * Timer assignments in BDOS:
+ *   Timer 0 — deferred network ISR retry
+ *   Timer 1 — USB keyboard HID polling (10 ms)
+ *   Timer 2 — general-purpose delay()
+ *
+ * Public API:
+ *   timer_set(id, period_ms)                 -> void
+ *   timer_start(id)                          -> void
+ *   timer_stop(id)                           -> void
+ *   timer_register_callback(id, fn, ms)      -> void
+ *   timer_isr_handler(id)                    -> void (called from interrupt())
+ *   delay(ms)                                -> void (blocking, uses Timer 2)
+ *   get_micros()                             -> unsigned int (FPGC_MICROS counter)
+ *
+ * Dependencies: fpgc.h
+ * Build: part of libfpgc (make compile-bdos)
+ */
 #include "fpgc.h"
 #include "timer.h"
 #include <stddef.h>

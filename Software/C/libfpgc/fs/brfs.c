@@ -1,3 +1,29 @@
+/*
+ * BRFS filesystem core
+ *
+ * Block-based filesystem with FAT allocation table.
+ * Two instances in BDOS: brfs_spi (root /) and brfs_sd (/sdcard).
+ *
+ * On-disk layout: [Superblock] [FAT] [Data blocks]
+ * FAT entries: 32-bit (0=free, 0xFFFFFFFF=end-of-chain)
+ * Directory entries: fixed-size records (name, size, flags, first block)
+ *
+ * Public API:
+ *   brfs_format(fs, blocks, words_per_block, label, full) -> int
+ *   brfs_open(fs, path, flags)                            -> int (fd or error)
+ *   brfs_read(fs, fd, buf, len)                           -> int (bytes read)
+ *   brfs_write(fs, fd, buf, len)                          -> int (bytes written)
+ *   brfs_close(fs, fd)                                    -> int
+ *   brfs_lseek(fs, fd, offset, whence)                    -> int
+ *   brfs_mkdir(fs, path)                                  -> int
+ *   brfs_readdir(fs, path, buf, max)                      -> int
+ *   brfs_unlink(fs, path)                                 -> int
+ *   brfs_sync(fs)                                         -> int
+ *
+ * Dependencies: brfs.h, string.h
+ * Build: part of libfpgc (make compile-bdos)
+ * Tests: make test-host
+ */
 #include "brfs.h"
 #include <string.h>
 

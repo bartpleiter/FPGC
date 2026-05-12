@@ -1,3 +1,21 @@
+/*
+ * SPI NOR flash driver
+ *
+ * Bus: SPI0 (FPGC_SPI_FLASH_0) or SPI1 (FPGC_SPI_FLASH_1)
+ * Used for: BRFS root filesystem storage, bootloader code
+ *
+ * Public API:
+ *   spi_flash_read_jedec_id(spi_id, &mfr, &type, &cap)  -> void
+ *   spi_flash_read_words(spi_id, addr, dst, n_words)     -> void
+ *   spi_flash_write_words(spi_id, addr, src, n_words)    -> void
+ *   spi_flash_erase_sector(spi_id, addr)                 -> void
+ *   spi_flash_erase_block_32k(spi_id, addr)              -> void
+ *   spi_flash_erase_block_64k(spi_id, addr)              -> void
+ *
+ * Page size: 256 bytes. Sector erase: 4 KB. Block erase: 32/64 KB.
+ * Dependencies: spi.h, dma.h, fpgc.h
+ * Build: part of libfpgc (make compile-bdos)
+ */
 #include "spi.h"
 #include "spi_flash.h"
 #include "dma.h"

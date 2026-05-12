@@ -5,7 +5,7 @@
 
 /* (bdos_shell_prog_argc / argv now live in shell_exec.c.) */
 
-/* ---- Built-in commands ---- */
+/* --- Section: General commands (help, clear, echo, uptime) --- */
 
 static int bdos_shell_cmd_help(int argc, char **argv)
 {
@@ -88,6 +88,8 @@ static int bdos_shell_cmd_uptime(int argc, char **argv)
   term_puts("s\n");
   return 0;
 }
+
+/* --- Section: Filesystem commands (pwd, cd, ls, mkdir, mkfile, rm, cat, write, cp, mv, sync, df) --- */
 
 static int bdos_shell_cmd_pwd(int argc, char **argv)
 {
@@ -1057,6 +1059,8 @@ static int bdos_shell_cmd_df(int argc, char **argv)
   return 0;
 }
 
+/* --- Section: Process/job commands (jobs, kill, fg) --- */
+
 int bdos_shell_resolve_program(char *name, char *out_path)
 {
   char         search[BDOS_SHELL_PATH_MAX];
@@ -1243,9 +1247,7 @@ static int bdos_shell_cmd_fg(int argc, char **argv)
    mount-failure path via shell_format.c so the system can be brought
    up on an erased flash before any user binary exists. */
 
-/* ---- Command dispatcher ---- */
-
-/* ---- New built-ins (variables / control) ---- */
+/* --- Section: Environment commands (export, set, unset, env, exit, true, false) --- */
 
 static int bi_export_impl(int argc, char **argv)
 {
