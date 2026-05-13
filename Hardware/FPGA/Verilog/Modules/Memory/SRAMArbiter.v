@@ -1,47 +1,28 @@
 /*
  * SRAMArbiter
- * Arbiter for external SRAM access between CPU writes and GPU reads
+ * Arbiter for external SRAM access between CPU writes and display reads
  * 
- * Key design principles:
- * - Runs at 100MHz (4× GPU clock, same as CPU clock)
- * - GPU reads directly from SRAM (even lines only - odd lines use line buffer)
- * - CPU writes during blanking OR during odd lines (when GPU uses line buffer)
- * - This doubles the effective CPU write bandwidth
+ * Simplified for SPI display: no VGA timing dependency.
+ * The display controller reads pixels at ~1.5 Mpixel/s (much slower
+ * than the 100 MHz arbiter clock), so CPU writes get ~98% of bandwidth.
  * 
- * Operation:
- * - During GPU blanking: drain write FIFO to SRAM
- * - During active video, even lines: continuously read for GPU
- * - During active video, odd lines: drain write FIFO (GPU uses line buffer)
- * 
- * IMPORTANT: Once a write is started (FIFO entry popped), the write MUST
- * complete even if can_write drops. Otherwise the FIFO data is consumed
- * but never written to SRAM, causing lost pixels.
- * 
- * Clock relationships (all from same PLL, phase-aligned):
- * - clk100: 100MHz arbiter clock (this module)
- * - GPU: 25MHz (1:4 ratio)
- * - CPU: 100MHz (1:1 ratio)
+ * Priority:
+ *   1. Display read (when display_read asserted) — 1 cycle
+ *   2. CPU write from FIFO — 3-cycle state machine
+ *   3. Idle — keep reading display address for low latency
  * 
  * SRAM timing:
  * - IS61LV5128AL has 10ns access time
  * - At 100MHz (10ns period), we have exactly 1 cycle for read/write
- * 
- * GPU read approach:
- * - During active video (even lines), continuously output current GPU address
- * - SRAM data is registered, providing stable output with 1-2 cycle latency
  */
 module SRAMArbiter (
     input  wire         clk100,        // 100MHz arbiter clock
     input  wire         reset,
     
-    // GPU interface (directly from PixelEngine, synced to 100MHz)
+    // Display read interface
     input  wire [16:0]  gpu_addr,      // Current pixel address request
-    output wire [7:0]   gpu_data,      // Pixel data output to GPU
-    
-    // GPU timing (directly from TimingGenerator)
-    input  wire         blank,         // High during blanking period
-    input  wire         vsync,         // For debug/monitoring
-    input  wire         using_line_buffer, // High when GPU uses line buffer (SRAM free)
+    output wire [7:0]   gpu_data,      // Pixel data output
+    input  wire         display_read,  // Asserted when display needs a read
     
     // CPU Write FIFO interface (read side, 100MHz)
     input  wire [16:0]  cpu_wr_addr,
@@ -61,14 +42,9 @@ module SRAMArbiter (
 // SRAM is always enabled
 assign sram_cs_n = 1'b0;
 
-// Register SRAM data for stable output to GPU
+// Register SRAM data for stable output
 reg [7:0] sram_data_reg = 8'd0;
 assign gpu_data = sram_data_reg;
-
-// Determine when we can process CPU writes:
-// - During blanking (no GPU reads needed)
-// - During odd lines when GPU uses line buffer (SRAM is free)
-wire can_write = blank || using_line_buffer;
 
 // ---- CPU write state machine ----
 localparam
@@ -78,8 +54,7 @@ localparam
 
 reg [1:0] write_state = STATE_IDLE;
 
-// Write in progress: must complete current write even if can_write drops,
-// because the FIFO entry has already been consumed (rd_en was pulsed in IDLE).
+// Write in progress: must complete current write even if display_read arrives
 wire write_in_progress = (write_state != STATE_IDLE);
 
 always @(posedge clk100) begin
@@ -95,32 +70,11 @@ always @(posedge clk100) begin
         // Default: no FIFO read
         cpu_fifo_rd_en <= 1'b0;
         
-        if (can_write || write_in_progress) begin
-            // ---- Write period (or completing in-progress write) ----
-            // Process CPU writes from FIFO
+        if (write_in_progress) begin
+            // ---- Complete in-progress write ----
             case (write_state)
-                STATE_IDLE: begin
-                    sram_we_n <= 1'b1;
-                    
-                    if (!cpu_fifo_empty && can_write) begin
-                        // Only start NEW writes when can_write is active
-                        // Request next FIFO entry
-                        cpu_fifo_rd_en <= 1'b1;
-                        sram_oe_n <= 1'b1;
-                        write_state <= STATE_WRITE_WAIT;
-                    end else begin
-                        // No writes pending (or can't start new ones) -
-                        // keep reading GPU address to prime data
-                        sram_addr <= {2'b00, gpu_addr};
-                        sram_oe_n <= 1'b0;
-                        sram_data_reg <= sram_dq_in;
-                    end
-                end
-                
                 STATE_WRITE_WAIT: begin
-                    // FIFO data now valid (registered output)
-                    // Must complete: data was already popped from FIFO
-                    // Set up SRAM write
+                    // FIFO data now valid
                     sram_addr <= {2'b00, cpu_wr_addr};
                     sram_dq_out <= cpu_wr_data;
                     sram_we_n <= 1'b0;
@@ -129,7 +83,6 @@ always @(posedge clk100) begin
                 end
                 
                 STATE_WRITE_EXEC: begin
-                    // Write complete, return to idle
                     sram_we_n <= 1'b1;
                     write_state <= STATE_IDLE;
                 end
@@ -139,16 +92,16 @@ always @(posedge clk100) begin
                     sram_we_n <= 1'b1;
                 end
             endcase
+        end else if (!cpu_fifo_empty && !display_read) begin
+            // ---- Start CPU write (only when display not reading) ----
+            cpu_fifo_rd_en <= 1'b1;
+            sram_oe_n <= 1'b1;
+            write_state <= STATE_WRITE_WAIT;
         end else begin
-            // ---- Active video (even lines): Read for GPU ----
-            // Safe to enter: no write in progress (checked above)
-            
-            // Continuously read current GPU address
+            // ---- Read for display (default) ----
             sram_addr <= {2'b00, gpu_addr};
             sram_oe_n <= 1'b0;
             sram_we_n <= 1'b1;
-            
-            // Capture SRAM data (1 cycle delay is inherent)
             sram_data_reg <= sram_dq_in;
         end
     end

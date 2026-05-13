@@ -2,30 +2,28 @@
  * VRAMPXSram
  * Top-level module for pixel framebuffer using external SRAM
  * 
+ * Simplified for SPI display: single clock domain (100 MHz),
+ * no line buffer, no VGA timing dependency.
+ * 
  * Interfaces:
- * - CPU: Write-only access to pixel framebuffer (100MHz)
- * - GPU: Direct read access through arbiter (25MHz, synced internally)
+ * - CPU: Write-only access to pixel framebuffer (100MHz via FIFO)
+ * - Display: Read access through arbiter (100MHz, on demand)
  * - SRAM: External IS61LV5128AL interface
  */
 module VRAMPXSram (
-    // Clocks and reset
-    input  wire         clk100,        // 100MHz CPU/arbiter clock
-    input  wire         clk_pixel,      // 25MHz GPU clock
+    // Clock and reset
+    input  wire         clk100,        // 100MHz system clock
     input  wire         reset,
     
-    // CPU interface (50MHz domain)
+    // CPU write interface (100MHz)
     input  wire [16:0]  cpu_addr,      // 17-bit pixel address (0-76799)
-    input  wire [7:0]   cpu_data,      // 8-bit pixel data (R3G3B2)
+    input  wire [7:0]   cpu_data,      // 8-bit pixel data
     input  wire         cpu_we,        // Write enable
     
-    // GPU interface (25MHz domain)
+    // Display read interface (100MHz, from SPIDisplayController)
     input  wire [16:0]  gpu_addr,      // Requested pixel address
     output wire [7:0]   gpu_data,      // Pixel data output
-    input  wire         using_line_buffer, // High when GPU uses line buffer (SRAM free)
-    
-    // GPU timing signals (25MHz domain)
-    input  wire         blank,         // Active during blanking
-    input  wire         vsync,         // For debug/monitoring
+    input  wire         display_read,  // Asserted when display needs a read
     
     // CPU backpressure
     output wire         cpu_fifo_full, // High when write FIFO is full (stall CPU)
@@ -38,36 +36,7 @@ module VRAMPXSram (
     output wire         SRAM_WEn
 );
 
-// ---- GPU signals to 100MHz domain ----
-// Since clocks are phase-aligned from same PLL, we can use direct connection
-// for blank (which is stable for many cycles) and only register the address
-reg [16:0] gpu_addr_sync = 17'd0;
-
-always @(posedge clk100) begin
-    gpu_addr_sync <= gpu_addr;
-end
-
-// Blank and vsync are stable for many cycles, direct connection is safe
-wire blank_sync = blank;
-wire vsync_sync = vsync;
-
-// Sync using_line_buffer to 100MHz domain
-reg using_line_buffer_sync = 1'b0;
-always @(posedge clk100) begin
-    using_line_buffer_sync <= using_line_buffer;
-end
-
-// ---- GPU data from arbiter to PixelEngine ----
-// The arbiter already registers the SRAM data, so we can pass it directly
-// The 25MHz GPU clock will sample stable data
-wire [7:0] gpu_data_from_arbiter;
-
-// Direct passthrough - arbiter output is already registered at 100MHz
-// GPU will sample on its 25MHz clock edge (phase-aligned with 100MHz)
-assign gpu_data = gpu_data_from_arbiter;
-
 // ---- CPU Write FIFO ----
-// Buffers CPU writes for processing during blanking or line buffer periods
 wire [24:0] cpu_fifo_data_out;
 wire [16:0] cpu_fifo_addr = cpu_fifo_data_out[24:8];
 wire [7:0]  cpu_fifo_data = cpu_fifo_data_out[7:0];
@@ -108,14 +77,10 @@ SRAMArbiter arbiter (
     .clk100(clk100),
     .reset(reset),
     
-    // GPU interface
-    .gpu_addr(gpu_addr_sync),
-    .gpu_data(gpu_data_from_arbiter),
-    
-    // GPU timing
-    .blank(blank_sync),
-    .vsync(vsync_sync),
-    .using_line_buffer(using_line_buffer_sync),
+    // Display read interface
+    .gpu_addr(gpu_addr),
+    .gpu_data(gpu_data),
+    .display_read(display_read),
     
     // CPU Write FIFO interface
     .cpu_wr_addr(cpu_fifo_addr),

@@ -151,36 +151,40 @@ assign sd_data2_nc = 1'b1;
 // Audio DAC is currently not used yet
 assign audio_dac_data = 8'd0;
 
-// Display header is currently not used yet
-assign disp_1 = 1'b0;
-assign disp_2 = 1'b0;
-assign disp_3 = 1'b0;
-assign disp_4 = 1'b0;
-assign disp_5 = 1'b0;
-assign disp_6 = 1'b0;
+// HDMI outputs — no longer used (replaced by SPI display), drive low
+assign HDMI_CLK_P = 1'b0;
+assign HDMI_CLK_N = 1'b0;
+assign HDMI_D0_P  = 1'b0;
+assign HDMI_D0_N  = 1'b0;
+assign HDMI_D1_P  = 1'b0;
+assign HDMI_D1_N  = 1'b0;
+assign HDMI_D2_P  = 1'b0;
+assign HDMI_D2_N  = 1'b0;
+
+// Display header — ILI9341 SPI display
+// disp_1 = LCD_SPI_CLK, disp_2 = LCD_SPI_MOSI, disp_3 = LCD_SPI_CS_N
+// disp_4 = LCD_DC, disp_5 = LCD_RST_N, disp_6 = LCD_BL
+// Directly driven by SPIDisplayController (see instantiation below)
 
 /******************************************************************************
  * Dip switch
  ******************************************************************************/
 // Rightmost switch is dipsw[0]
 wire boot_mode = dipsw[3];
-wire half_res  = dipsw[2];
 
 /******************************************************************************
  * Clocks
  ******************************************************************************/
 wire clk100;        // CPU and main logic (100MHz)
 wire clkSDRAM;      // 100MHz Phase-shifted for SDRAM
-wire clkGPU;        // GPU clock
-wire clkTMDShalf;   // Half of TMDS clock for HDMI
 
 main_pll main_pll_inst (
     .inclk0(sys_clk_50),
     .c0(), // 50MHz (unused)
     .c1(clk100), // 100MHz
     .c2(clkSDRAM), // 100MHz with phase shift
-    .c3(clkGPU), // 25MHz
-    .c4(clkTMDShalf) //125MHz
+    .c3(), // 25MHz (unused — was GPU pixel clock for HDMI)
+    .c4()  // 125MHz (unused — was HDMI TMDS half-clock)
 );
 
 assign SDRAM_CLK = clkSDRAM;
@@ -336,6 +340,8 @@ wire [31:0] vram32_cpu_q;
 // GPU will not write to VRAM
 assign vram32_gpu_we = 1'b0;
 assign vram32_gpu_d  = 32'd0;
+// GPU read port unused (no BGW renderer with SPI display)
+assign vram32_gpu_addr = 11'd0;
 
 VRAM #(
     .WIDTH(32),
@@ -351,7 +357,7 @@ VRAM #(
     .cpu_q   (vram32_cpu_q),
 
     //GPU port
-    .gpu_clk (clkGPU),
+    .gpu_clk (clk100),
     .gpu_d   (vram32_gpu_d),
     .gpu_addr(vram32_gpu_addr),
     .gpu_we  (vram32_gpu_we),
@@ -374,6 +380,8 @@ wire [7:0]  vram8_cpu_q;
 // GPU will not write to VRAM
 assign vram8_gpu_we = 1'b0;
 assign vram8_gpu_d  = 8'd0;
+// GPU read port unused (no BGW renderer with SPI display)
+assign vram8_gpu_addr = 14'd0;
 
 VRAM #(
     .WIDTH(8),
@@ -389,7 +397,7 @@ VRAM #(
     .cpu_q   (vram8_cpu_q),
 
     // GPU port
-    .gpu_clk (clkGPU),
+    .gpu_clk (clk100),
     .gpu_d   (vram8_gpu_d),
     .gpu_addr(vram8_gpu_addr),
     .gpu_we  (vram8_gpu_we),
@@ -418,21 +426,14 @@ wire        palette_cpu_we;
 wire [7:0]  palette_cpu_addr;
 wire [23:0] palette_cpu_wdata;
 
-// GPU pixel interface - direct SRAM read
+// Display pixel interface - SRAM read
 wire [16:0] gpu_pixel_addr;
 wire [7:0]  gpu_pixel_data;
-wire        gpu_pixel_using_line_buffer;
-
-// Timing signals from FSX (25MHz domain)
-wire [11:0] fsx_h_count;
-wire [11:0] fsx_v_count;
-wire        fsx_vsync;
-wire        fsx_blank;
+wire        display_pixel_reading;
 
 VRAMPXSram vrampx_sram (
-    // Clocks and reset
+    // Clock and reset
     .clk100(clk100),
-    .clk_pixel(clkGPU),
     .reset(reset),
     
     // CPU/DMA write port (DMA wins when dma_vp_we is high; CPU spins on
@@ -441,14 +442,10 @@ VRAMPXSram vrampx_sram (
     .cpu_data(vramPX_w_data),
     .cpu_we(vramPX_w_we),
     
-    // GPU interface - direct SRAM read
+    // Display read interface
     .gpu_addr(gpu_pixel_addr),
     .gpu_data(gpu_pixel_data),
-    .using_line_buffer(gpu_pixel_using_line_buffer),
-    
-    // GPU timing
-    .blank(fsx_blank),
-    .vsync(fsx_vsync),
+    .display_read(display_pixel_reading),
     
     // CPU backpressure
     .cpu_fifo_full(vramPX_fifo_full),
@@ -716,46 +713,25 @@ SDRAMarbiter sdram_arb (
 );
 
 /******************************************************************************
- * FSX GPU (SRAM V2) - Direct SRAM Read Design
+ * SPI Display Controller (ILI9341 320x240)
  ******************************************************************************/
 wire frameDrawn;
-FSX_SRAM fsx (
-    // Clocks
-    .clk_pixel(clkGPU),
-    .clk_tmds_half(clkTMDShalf),
-    .clk_sys(clk100),
+SPIDisplayController spi_display (
+    .clk(clk100),
+    .reset(reset),
 
-    // HDMI
-    .tmds_clk_p(HDMI_CLK_P),
-    .tmds_clk_n(HDMI_CLK_N),
-    .tmds_d0_p (HDMI_D0_P),
-    .tmds_d0_n (HDMI_D0_N),
-    .tmds_d1_p (HDMI_D1_P),
-    .tmds_d1_n (HDMI_D1_N),
-    .tmds_d2_p (HDMI_D2_P),
-    .tmds_d2_n (HDMI_D2_N),
+    // SPI display pins (directly to display header)
+    .spi_clk(disp_1),       // LCD_SPI_CLK
+    .spi_mosi(disp_2),      // LCD_SPI_MOSI
+    .spi_cs_n(disp_3),      // LCD_SPI_CS_N
+    .spi_dc(disp_4),        // LCD_DC
+    .lcd_rst_n(disp_5),     // LCD_RST_N
+    .lcd_backlight(disp_6), // LCD_BL (always on)
 
-    // VRAM32
-    .vram32_addr(vram32_gpu_addr),
-    .vram32_q   (vram32_gpu_q),
-
-    // VRAM8
-    .vram8_addr(vram8_gpu_addr),
-    .vram8_q   (vram8_gpu_q),
-
-    // Pixel SRAM interface
+    // Pixel SRAM read interface
     .pixel_sram_addr(gpu_pixel_addr),
     .pixel_sram_data(gpu_pixel_data),
-    .pixel_using_line_buffer(gpu_pixel_using_line_buffer),
-
-    // Timing outputs
-    .h_count_out(fsx_h_count),
-    .v_count_out(fsx_v_count),
-    .vsync_out(fsx_vsync),
-    .blank_out(fsx_blank),
-    
-    // Parameters
-    .half_res(half_res),
+    .pixel_reading(display_pixel_reading),
 
     // Palette CPU write port
     .palette_we(palette_cpu_we),
@@ -763,7 +739,8 @@ FSX_SRAM fsx (
     .palette_wdata(palette_cpu_wdata),
 
     // Interrupt signal
-    .frame_drawn(frameDrawn)
+    .frame_drawn(frameDrawn),
+    .busy()
 );
 
 /******************************************************************************
@@ -943,17 +920,9 @@ DMAengine dma_engine (
 /******************************************************************************
  * CPU
  ******************************************************************************/
-// Convert frameDrawn to CPU clock domain
-wire frameDrawn_CPU; // Interrupt synchronized to 100MHz clock
-reg frameDrawn_ff1, frameDrawn_ff2;
-
-always @(posedge clk100)
-begin
-    frameDrawn_ff1 <= frameDrawn;
-    frameDrawn_ff2 <= frameDrawn_ff1;
-end
-
-assign frameDrawn_CPU = frameDrawn_ff2;
+// frameDrawn is already in the 100MHz clock domain (SPI display controller
+// runs entirely at clk100), so no synchronization needed.
+wire frameDrawn_CPU = frameDrawn;
 
 B32P3 cpu (
     // Clock and reset
