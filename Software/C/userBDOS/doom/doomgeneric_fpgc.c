@@ -72,6 +72,9 @@ static unsigned int tick_base = 0;
  * fallback only; DG_DrawFrame now uses the DMA engine instead. */
 extern void doom_draw_frame_asm(unsigned char *src);
 
+/* Async DMA state: set when a VRAM blit is in progress */
+static int dma_in_flight = 0;
+
 /* Forward declarations */
 static void fpgc_poll_keys(void);
 static unsigned char translate_bdos_key(int bdos_key);
@@ -135,20 +138,25 @@ void DG_Init(void)
     I_AtExit(fpgc_restore_display, 1);
 }
 
+/* FPS counter state */
+static unsigned int fps_frame_count = 0;
+static unsigned int fps_last_time = 0;
+
 void DG_DrawFrame(void)
 {
-    /* Blit Doom's 320x200 screen buffer to FPGC's pixel framebuffer
-     * via the DMA engine. DG_ScreenBuffer is 32-byte aligned (see
-     * doomgeneric.c) and 64000 bytes is a multiple of 32. The 20-line
-     * top margin (320*20 = 6400 bytes) keeps the dest 32-byte aligned.
-     *
-     * dma_blit_to_vram is synchronous — it flushes the data cache for
-     * the source region, kicks the DMA, and waits for completion. */
-    dma_blit_to_vram(0x1EC01900,
-                     (unsigned int)DG_ScreenBuffer,
-                     (unsigned int)(DOOM_WIDTH * DOOM_HEIGHT));
-
-    /* Update the FPGC palette from Doom's colors array */
+    /* FPS counter — prints to terminal (overlays pixel framebuffer) */
+    {
+        unsigned int now = DG_GetTicksMs();
+        fps_frame_count++;
+        if (now - fps_last_time >= 1000) {
+            printf("\x1b[1;1HFPS: %d  ", (int)fps_frame_count);
+            fps_frame_count = 0;
+            fps_last_time = now;
+        }
+    }
+    /* Update the FPGC palette from Doom's colors array.
+     * Must happen before the DMA blit so the palette is current
+     * when the new pixels reach VRAM. */
 #ifdef CMAP256
     extern boolean palette_changed;
     extern struct color colors[256];
@@ -162,6 +170,26 @@ void DG_DrawFrame(void)
         palette_changed = 0;
     }
 #endif
+
+    /* Start async DMA blit — runs in background while next frame's
+     * game logic (TryRunTics) executes.  DG_WaitForVRAM() must be
+     * called before rendering touches DG_ScreenBuffer again. */
+    cache_flush_data();
+    dma_start_mem2vram(0x1EC01900,
+                       (unsigned int)DG_ScreenBuffer,
+                       (unsigned int)(DOOM_WIDTH * DOOM_HEIGHT));
+    dma_in_flight = 1;
+}
+
+/* Wait for any in-flight VRAM DMA to complete.
+ * Called from doomgeneric_Tick() before D_Display() starts rendering
+ * into DG_ScreenBuffer, so the DMA safely overlaps with game logic. */
+void DG_WaitForVRAM(void)
+{
+    if (dma_in_flight) {
+        while (dma_busy()) ;
+        dma_in_flight = 0;
+    }
 }
 
 void DG_SleepMs(unsigned int ms)

@@ -416,6 +416,11 @@ void doomgeneric_Tick()
 
     S_UpdateSounds (players[consoleplayer].mo);// move positional sounds
 
+    // Wait for any in-flight VRAM DMA blit from the previous frame
+    // before rendering writes to the screen buffer.
+    extern void DG_WaitForVRAM(void);
+    DG_WaitForVRAM();
+
     // Update display, next frame, with current state.
     if (screenvisible)
     {
