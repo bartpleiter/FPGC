@@ -164,9 +164,9 @@ static char **host_argv;
 #define IO_READ_WORDS(fd, b, n)  ((sys_read(fd, b, (n) * 4) + 3) / 4)
 #define IO_WRITE_WORDS(fd, b, n) (sys_write(fd, b, (n) * 4) / 4)
 #define IO_PRINT(s)           sys_putstr(s)
-#define IO_HEAP_ALLOC(n)      sys_heap_alloc(n)
-#define IO_ARGC()             sys_shell_argc()
-#define IO_ARGV()             sys_shell_argv()
+#define IO_HEAP_ALLOC(n)      malloc(n)
+#define IO_ARGC()             sys_argc()
+#define IO_ARGV()             sys_argv()
 
 static int asm_filesize(int fd)
 {
@@ -174,7 +174,15 @@ static int asm_filesize(int fd)
   sys_lseek(fd, 0, 0 /* SEEK_SET */);
   return sz;
 }
-#define IO_GETCWD()           sys_shell_getcwd()
+
+static char _getcwd_buf[128];
+static char *sys_getcwd_static(void)
+{
+  sys_getcwd(_getcwd_buf, 128);
+  return _getcwd_buf;
+}
+
+#define IO_GETCWD()           sys_getcwd_static()
 
 #endif
 

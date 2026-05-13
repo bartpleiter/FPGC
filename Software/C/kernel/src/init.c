@@ -51,6 +51,7 @@ void kernel_init(void)
 
     /* Networking (Ethernet + FNP) */
     net_init();
+    fnp_init();
     kernel_log("  ethernet ok\n");
 
     /* USB keyboard */
@@ -70,6 +71,9 @@ void kernel_init(void)
     vfs_init();
     dev_init();
     kernel_log("  vfs ok\n");
+
+    /* Set up kernel (pid 0) stdio: fd 0/1/2 → /dev/tty */
+    fd_init_stdio();
 
     /* Filesystems */
     kernel_log("  mounting spi flash\n");

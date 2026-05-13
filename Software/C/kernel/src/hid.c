@@ -1,8 +1,8 @@
 /*
  * hid.c — USB keyboard HID subsystem.
  *
- * Phase 1 port from v3: same CH376 polling logic, adapted
- * to v4 kernel API. Key events pushed to FIFO consumed by /dev/tty.
+ * CH376 polling logic for USB keyboard input.
+ * Key events pushed to FIFO consumed by /dev/tty.
  *
  * Uses CH376 on SPI_USB_1 (bottom port). Timer 1 ISR polls HID
  * reports every 10ms. Supports key repeat and modifier keys.
@@ -57,7 +57,7 @@ int hid_event_read(void)
     return ch;
 }
 
-static int hid_event_push(int key)
+int hid_event_push(int key)
 {
     int next;
     next = (key_fifo_head + 1) % KEY_FIFO_SIZE;
@@ -87,28 +87,28 @@ static int hid_translate_key(int keycode, int modifier)
     /* Special keys */
     switch (keycode)
     {
-    case 0x3A: return BDOS_KEY_F1;
-    case 0x3B: return BDOS_KEY_F2;
-    case 0x3C: return BDOS_KEY_F3;
-    case 0x3D: return BDOS_KEY_F4;
-    case 0x3E: return BDOS_KEY_F5;
-    case 0x3F: return BDOS_KEY_F6;
-    case 0x40: return BDOS_KEY_F7;
-    case 0x41: return BDOS_KEY_F8;
-    case 0x42: return BDOS_KEY_F9;
-    case 0x43: return BDOS_KEY_F10;
-    case 0x44: return BDOS_KEY_F11;
-    case 0x45: return BDOS_KEY_F12;
-    case 0x49: return BDOS_KEY_INSERT;
-    case 0x4A: return BDOS_KEY_HOME;
-    case 0x4B: return BDOS_KEY_PAGEUP;
-    case 0x4C: return BDOS_KEY_DELETE;
-    case 0x4D: return BDOS_KEY_END;
-    case 0x4E: return BDOS_KEY_PAGEDOWN;
-    case 0x4F: return BDOS_KEY_RIGHT;
-    case 0x50: return BDOS_KEY_LEFT;
-    case 0x51: return BDOS_KEY_DOWN;
-    case 0x52: return BDOS_KEY_UP;
+    case 0x3A: return KEY_F1;
+    case 0x3B: return KEY_F2;
+    case 0x3C: return KEY_F3;
+    case 0x3D: return KEY_F4;
+    case 0x3E: return KEY_F5;
+    case 0x3F: return KEY_F6;
+    case 0x40: return KEY_F7;
+    case 0x41: return KEY_F8;
+    case 0x42: return KEY_F9;
+    case 0x43: return KEY_F10;
+    case 0x44: return KEY_F11;
+    case 0x45: return KEY_F12;
+    case 0x49: return KEY_INSERT;
+    case 0x4A: return KEY_HOME;
+    case 0x4B: return KEY_PAGEUP;
+    case 0x4C: return KEY_DELETE;
+    case 0x4D: return KEY_END;
+    case 0x4E: return KEY_PAGEDOWN;
+    case 0x4F: return KEY_RIGHT;
+    case 0x50: return KEY_LEFT;
+    case 0x51: return KEY_DOWN;
+    case 0x52: return KEY_UP;
     default:   return 0;
     }
 }

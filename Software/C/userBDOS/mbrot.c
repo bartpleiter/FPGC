@@ -9,6 +9,7 @@
 //
 
 #include <syscall.h>
+#include <stdlib.h>
 #include <plot.h>
 
 // ---- ANSI / VFS shims for retired syscalls ----
@@ -371,7 +372,7 @@ int main(void)
   }
 
   // Allocate off-screen backbuffer (1 byte per pixel)
-  backbuf = (char *)sys_heap_alloc(SCREEN_WIDTH * SCREEN_HEIGHT);
+  backbuf = (char *)malloc(SCREEN_WIDTH * SCREEN_HEIGHT);
   for (ci = 0; ci < SCREEN_WIDTH * SCREEN_HEIGHT; ci++)
   {
     backbuf[ci] = 0;
@@ -434,13 +435,13 @@ int main(void)
 
     if (!auto_zoom)
     {
-      sys_delay(50);
+      sys_sleep(50);
     }
 
     // Check zoom limit
     if (auto_zoom && scale_hi == 0 && scale_lo < MIN_SCALE_LO)
     {
-      sys_delay(3000);
+      sys_sleep(3000);
       reset_view();
     }
   }

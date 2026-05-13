@@ -41,11 +41,16 @@
 #include "syscall_nums.h"
 #include "hid.h"
 #include "net.h"
+#include "fnp.h"
 
 /* Core kernel functions (main.c) */
 void kernel_panic(const char *msg);
 void kernel_loop(void);
 void kernel_log(const char *msg);
+
+/* Assembly helpers (crt0_kernel.asm) */
+extern void kernel_halt(void);
+extern void kernel_ccache(void);
 
 /* Initialization (init.c) */
 void kernel_init(void);

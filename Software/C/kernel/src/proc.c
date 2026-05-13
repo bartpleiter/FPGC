@@ -24,6 +24,7 @@ void proc_init(void)
         proc_table[i].exit_code = 0;
         proc_table[i].mem_base = 0;
         proc_table[i].mem_size = 0;
+        proc_table[i].heap_break = 0;
         proc_table[i].saved_pc = 0;
         proc_table[i].saved_hw_sp = 0;
         proc_table[i].fg = 0;
@@ -141,6 +142,77 @@ int proc_spawn(const char *path, int argc, char **argv)
     }
     brfs_close(fs, brfs_fd);
 
+    /* Apply load-time relocations if present */
+    {
+        unsigned int *prog_base;
+        unsigned int program_size;
+
+        prog_base = (unsigned int *)mem_base;
+        program_size = prog_base[2]; /* header word 2: program size in words */
+
+        /* file_size is bytes, program_size is words */
+        if ((unsigned int)file_size > program_size * 4u)
+        {
+            /* Relocation table present after program data */
+            unsigned int delta;
+            unsigned int reloc_count;
+            unsigned int ri;
+
+            delta = (unsigned int)mem_base; /* programs assembled with base 0 */
+            reloc_count = prog_base[program_size];
+
+            for (ri = 0; ri < reloc_count; ri++)
+            {
+                unsigned int entry;
+                unsigned int byte_offset;
+                unsigned int rtype;
+                unsigned int word_idx;
+
+                entry = prog_base[program_size + 1 + ri];
+                byte_offset = entry >> 8;
+                rtype = entry & 0xFF;
+                word_idx = byte_offset / 4;
+
+                if (rtype == 0)
+                {
+                    /* Type 0: data word — add delta to full 32-bit value */
+                    prog_base[word_idx] = prog_base[word_idx] + delta;
+                }
+                else if (rtype == 1)
+                {
+                    /* Type 1: load/loadhi pair */
+                    unsigned int load_instr;
+                    unsigned int loadhi_instr;
+                    unsigned int low16;
+                    unsigned int high16;
+                    unsigned int addr;
+
+                    load_instr = prog_base[word_idx];
+                    loadhi_instr = prog_base[word_idx + 1];
+                    low16 = (load_instr >> 8) & 0xFFFF;
+                    high16 = (loadhi_instr >> 8) & 0xFFFF;
+                    addr = (high16 << 16) | low16;
+                    addr = addr + delta;
+                    prog_base[word_idx] = (load_instr & 0xFF0000FFu) | ((addr & 0xFFFF) << 8);
+                    prog_base[word_idx + 1] = (loadhi_instr & 0xFF0000FFu) | (((addr >> 16) & 0xFFFF) << 8);
+                }
+                else if (rtype == 2)
+                {
+                    /* Type 2: jump instruction — 27-bit byte address in bits [27:1] */
+                    unsigned int instr;
+                    unsigned int addr27;
+
+                    instr = prog_base[word_idx];
+                    addr27 = (instr >> 1) & 0x7FFFFFFu;
+                    addr27 = addr27 + delta;
+                    prog_base[word_idx] = (instr & 0xF0000001u) | ((addr27 & 0x7FFFFFFu) << 1);
+                }
+            }
+        }
+    }
+
+    kernel_ccache();
+
     /* Set up process entry */
     p = &proc_table[pid];
     p->state = PROC_READY;
@@ -148,6 +220,8 @@ int proc_spawn(const char *path, int argc, char **argv)
     p->exit_code = 0;
     p->mem_base = mem_base;
     p->mem_size = mem_size;
+    /* Heap starts right after code+data, rounded up to 4-byte boundary */
+    p->heap_break = (mem_base + (unsigned int)file_size + 3u) & ~3u;
     p->saved_pc = mem_base;       /* Entry point = start of binary */
     p->saved_hw_sp = 0;          /* Empty HW stack */
     p->fg = 0;

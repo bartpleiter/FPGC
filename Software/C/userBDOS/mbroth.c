@@ -8,6 +8,7 @@
 //
 
 #include <syscall.h>
+#include <stdlib.h>
 #include <plot.h>
 #include <fnp.h>
 #include <fixed64.h>
@@ -223,7 +224,7 @@ void launch_workers(void)
   {
     fnp_send_command(get_worker_mac(w), "mbrotc", frame_buf, &tx_seq);
   }
-  sys_delay(1000);
+  sys_sleep(1000);
 }
 
 int identify_worker(int *src_mac)
@@ -411,7 +412,7 @@ int collect_all(int timeout_ms)
       try_collect_packets();
     else
     {
-      sys_delay(5);
+      sys_sleep(5);
       elapsed = elapsed + 5;
     }
   }
@@ -479,7 +480,7 @@ int main(void)
 
   launch_workers();
 
-  backbuf = (int *)sys_heap_alloc(SCREEN_WIDTH * SCREEN_HEIGHT);
+  backbuf = (int *)malloc(SCREEN_WIDTH * SCREEN_HEIGHT);
 
   term_clear();
   for (ci = 0; ci < SCREEN_WIDTH * SCREEN_HEIGHT; ci++)
@@ -529,7 +530,7 @@ int main(void)
 
     if (!auto_zoom)
     {
-      sys_delay(50);
+      sys_sleep(50);
       continue;
     }
 
@@ -539,7 +540,7 @@ int main(void)
 
     if (scale.hi == 0 && scale.lo < MIN_SCALE_LO)
     {
-      sys_delay(3000);
+      sys_sleep(3000);
       reset_view();
     }
 

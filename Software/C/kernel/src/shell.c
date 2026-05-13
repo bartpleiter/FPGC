@@ -17,6 +17,33 @@ static int  shell_input_len;
 static int  shell_prompt_shown;
 static char shell_cwd[SHELL_CWD_MAX];
 
+/* Resolve a relative path against cwd into buf. Returns buf. */
+static char *shell_resolve_path(char *buf, int bufsize, const char *path)
+{
+    int i;
+    int len;
+
+    if (path[0] == '/')
+    {
+        /* Absolute path — copy directly */
+        for (i = 0; path[i] && i < bufsize - 1; i++)
+            buf[i] = path[i];
+        buf[i] = '\0';
+        return buf;
+    }
+
+    /* Relative path — prepend cwd */
+    len = 0;
+    for (i = 0; shell_cwd[i] && len < bufsize - 1; i++)
+        buf[len++] = shell_cwd[i];
+    if (len > 1 && buf[len - 1] != '/' && len < bufsize - 1)
+        buf[len++] = '/';
+    for (i = 0; path[i] && len < bufsize - 1; i++)
+        buf[len++] = path[i];
+    buf[len] = '\0';
+    return buf;
+}
+
 static void shell_show_prompt(void)
 {
     term_puts(shell_cwd);
@@ -103,10 +130,7 @@ static int shell_cmd_ls(char *args)
 
     if (args && args[0])
     {
-        /* Use provided path */
-        for (i = 0; args[i] && i < SHELL_CWD_MAX - 1; i++)
-            path[i] = args[i];
-        path[i] = '\0';
+        shell_resolve_path(path, SHELL_CWD_MAX, args);
     }
     else
     {
@@ -134,12 +158,15 @@ static int shell_cmd_ls(char *args)
             term_putchar('/');
         term_putchar('\n');
     }
+
     return 0;
 }
 
 static int shell_cmd_cd(char *args)
 {
     int i;
+    char resolved[SHELL_CWD_MAX];
+    struct brfs_dir_entry entries[1];
 
     if (!args || !args[0])
     {
@@ -148,31 +175,46 @@ static int shell_cmd_cd(char *args)
         return 0;
     }
 
-    /* Simple: set cwd directly */
-    if (args[0] == '/')
+    /* Handle ".." — go up one directory */
+    if (args[0] == '.' && args[1] == '.' && args[2] == '\0')
     {
-        for (i = 0; args[i] && i < SHELL_CWD_MAX - 1; i++)
-            shell_cwd[i] = args[i];
-        shell_cwd[i] = '\0';
-    }
-    else
-    {
-        /* Append to cwd */
         int len;
         len = 0;
         while (shell_cwd[len]) len++;
-        if (len > 1 && shell_cwd[len - 1] != '/')
+        /* Remove trailing slash if not root */
+        if (len > 1 && shell_cwd[len - 1] == '/')
+            len--;
+        /* Find last slash */
+        while (len > 0 && shell_cwd[len - 1] != '/')
+            len--;
+        if (len <= 1)
         {
-            shell_cwd[len] = '/';
-            len++;
+            shell_cwd[0] = '/';
+            shell_cwd[1] = '\0';
         }
-        for (i = 0; args[i] && len < SHELL_CWD_MAX - 1; i++)
+        else
         {
-            shell_cwd[len] = args[i];
-            len++;
+            shell_cwd[len] = '\0';
         }
-        shell_cwd[len] = '\0';
+        return 0;
     }
+
+    /* Resolve path */
+    shell_resolve_path(resolved, SHELL_CWD_MAX, args);
+
+    /* Validate directory exists (try readdir) */
+    if (vfs_readdir(resolved, entries, 1) < 0)
+    {
+        term_puts("cd: no such directory: ");
+        term_puts(args);
+        term_putchar('\n');
+        return 1;
+    }
+
+    /* Set cwd */
+    for (i = 0; resolved[i] && i < SHELL_CWD_MAX - 1; i++)
+        shell_cwd[i] = resolved[i];
+    shell_cwd[i] = '\0';
     return 0;
 }
 
@@ -180,6 +222,7 @@ static int shell_cmd_cat(char *args)
 {
     int gfd;
     char buf[256];
+    char resolved[SHELL_CWD_MAX];
     int n;
 
     if (!args || !args[0])
@@ -188,7 +231,8 @@ static int shell_cmd_cat(char *args)
         return 1;
     }
 
-    gfd = vfs_open(args, O_RDONLY);
+    shell_resolve_path(resolved, SHELL_CWD_MAX, args);
+    gfd = vfs_open(resolved, O_RDONLY);
     if (gfd < 0)
     {
         term_puts("cat: cannot open file\n");
@@ -275,7 +319,30 @@ static void shell_execute(char *line)
     {
         /* Try to run as external program */
         int pid;
-        pid = proc_spawn(cmd, 0, 0);
+        char resolved[128];
+
+        /* Path resolution: /bin/<cmd> for non-absolute paths */
+        if (cmd[0] == '/')
+        {
+            int ci;
+            for (ci = 0; cmd[ci] && ci < 127; ci++)
+                resolved[ci] = cmd[ci];
+            resolved[ci] = '\0';
+        }
+        else
+        {
+            int ci;
+            resolved[0] = '/';
+            resolved[1] = 'b';
+            resolved[2] = 'i';
+            resolved[3] = 'n';
+            resolved[4] = '/';
+            for (ci = 0; cmd[ci] && ci < 122; ci++)
+                resolved[5 + ci] = cmd[ci];
+            resolved[5 + ci] = '\0';
+        }
+
+        pid = proc_spawn(resolved, 0, 0);
         if (pid < 0)
         {
             term_puts(cmd);
@@ -283,8 +350,85 @@ static void shell_execute(char *line)
         }
         else
         {
-            /* Wait for it to finish */
-            proc_waitpid(pid);
+            struct proc *p;
+            int exit_code;
+            int j;
+
+            p = proc_by_pid(pid);
+
+            /* Switch current process to user program */
+            current_pid = pid;
+            p->state = PROC_RUNNING;
+
+            /* Enter user program (blocks until it finishes) */
+            context_enter(p->saved_pc, p->saved_regs[13]);
+
+            /* Program finished — back to kernel */
+            current_pid = 0;
+
+            /* Clean up if proc_exit wasn't called (natural return from main) */
+            if (p->state != PROC_ZOMBIE)
+            {
+                for (j = 0; j < MAX_FDS; j++)
+                {
+                    if (p->fds[j] >= 0)
+                    {
+                        vfs_close(p->fds[j]);
+                        p->fds[j] = -1;
+                    }
+                }
+                if (p->mem_base)
+                {
+                    mem_free_region(p->mem_base, p->mem_size);
+                    p->mem_base = 0;
+                    p->mem_size = 0;
+                }
+                p->exit_code = (int)context_enter_retval;
+                p->state = PROC_ZOMBIE;
+            }
+
+            /* Collect exit code and free process slot */
+            exit_code = p->exit_code;
+            p->state = PROC_FREE;
+
+            kernel_ccache();
+
+            if (exit_code != 0)
+            {
+                char buf[16];
+                int len;
+                int val;
+                int bi;
+
+                term_puts("Program exited with code ");
+                val = exit_code;
+                len = 0;
+                if (val < 0)
+                {
+                    term_putchar('-');
+                    val = -val;
+                }
+                if (val == 0)
+                {
+                    buf[0] = '0';
+                    len = 1;
+                }
+                else
+                {
+                    char tmp[16];
+                    while (val > 0)
+                    {
+                        tmp[len] = '0' + (val % 10);
+                        val = val / 10;
+                        len++;
+                    }
+                    for (bi = 0; bi < len; bi++)
+                        buf[bi] = tmp[len - 1 - bi];
+                }
+                buf[len] = '\0';
+                term_puts(buf);
+                term_putchar('\n');
+            }
         }
     }
 }

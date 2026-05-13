@@ -2,7 +2,7 @@
  * sdformat.c — userland front-end for SYSCALL_SD_FORMAT.
  *
  * Formats the SD card with a BRFS v2 filesystem. The SD card must be
- * detected and initialised at boot (bdos_fs_sd_init) for this to work.
+ * detected and initialised at boot for this to work.
  *
  * Usage:
  *   sdformat <blocks> <bytes-per-block> <label>
@@ -50,8 +50,8 @@ static void usage(void)
 
 int main(void)
 {
-  int    argc = sys_shell_argc();
-  char **argv = sys_shell_argv();
+  int    argc = sys_argc();
+  char **argv = sys_argv();
   int    blocks;
   int    bytes_per_block;
   int    words_per_block;

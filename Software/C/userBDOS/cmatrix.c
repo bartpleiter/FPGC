@@ -8,6 +8,7 @@
 // Press Escape or Q to exit.
 
 #include <syscall.h>
+#include <stdlib.h>
 
 #define SCREEN_WIDTH  40
 #define SCREEN_HEIGHT 25
@@ -189,7 +190,7 @@ int main(void)
   int i;
 
   // Allocate rain status array on heap
-  rain_status = (int *)sys_heap_alloc(SCREEN_WIDTH * SCREEN_HEIGHT);
+  rain_status = (int *)malloc(SCREEN_WIDTH * SCREEN_HEIGHT);
   if (rain_status == (int *)0)
   {
     sys_putstr("cmatrix: out of memory\n");
@@ -234,7 +235,7 @@ int main(void)
     rng_rand();
     gen_rain_line(rng_mod(rng_rand(), SCREEN_WIDTH));
 
-    sys_delay(RAIN_DELAY_MS);
+    sys_sleep(RAIN_DELAY_MS);
   }
 
   /* Reset SGR, re-enable auto-wrap, leave alternate screen. */

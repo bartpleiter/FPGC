@@ -6,6 +6,7 @@
 // Uses pixel framebuffer via __builtin_store for inline VRAM writes.
 
 #include <syscall.h>
+#include <stdlib.h>
 #include <fixedmath.h>
 #include <plot.h>
 #include <time.h>
@@ -190,7 +191,7 @@ int load_textures_from_file(void)
     return 0;
   }
 
-  textures = (unsigned int *)sys_heap_alloc(expected);
+  textures = (unsigned int *)malloc(expected);
   if (textures == (unsigned int *)0)
   {
     sys_close(fd);
@@ -230,7 +231,7 @@ void generate_textures(void)
   int g;
   int b;
 
-  textures = (unsigned int *)sys_heap_alloc(NUM_TEXTURES * TEX_PIXELS);
+  textures = (unsigned int *)malloc(NUM_TEXTURES * TEX_PIXELS);
 
   for (y = 0; y < TEX_SIZE; y++)
   {
@@ -552,7 +553,7 @@ int main(void)
   unsigned char *raw;
 
   /* Allocate back buffer (76800 bytes + 32 for alignment slack). */
-  raw = (unsigned char *)sys_heap_alloc(SCREEN_W * SCREEN_H + 32);
+  raw = (unsigned char *)malloc(SCREEN_W * SCREEN_H + 32);
   if (raw == 0)
   {
     sys_putstr("w3d: back buffer allocation failed\n");

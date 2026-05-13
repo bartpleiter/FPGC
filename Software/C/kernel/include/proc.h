@@ -37,6 +37,7 @@ struct proc {
     /* Memory region */
     unsigned int   mem_base;
     unsigned int   mem_size;
+    unsigned int   heap_break;   /* Current sbrk break (next free byte) */
 
     /* Saved CPU context (filled by context switch) */
     unsigned int   saved_regs[16];   /* r0-r15 (r0 always 0) */
@@ -99,12 +100,20 @@ void sched_tick(void);
 /* ---- Context switch (assembly) ---- */
 
 /* Save current context and restore target context.
- * Implemented in context_asm.asm. */
+ * Implemented in crt0_kernel.asm. */
 extern void context_switch(struct proc *from, struct proc *to);
 
-/* First entry into a new process (no saved context to restore).
- * Sets up SP, PC, and jumps. */
-extern void context_enter(struct proc *p);
+/* Enter a user process: saves kernel state, jumps to entry_addr
+ * with stack_top as the stack pointer. Returns when the process
+ * exits (via crt0 natural return or EXIT syscall). */
+extern void context_enter(unsigned int entry_addr, unsigned int stack_top);
+
+/* Called from EXIT syscall after proc_exit(). Never returns.
+ * Resets HW stack and returns to context_enter caller. */
+extern void syscall_exit_to_kernel(void);
+
+/* Exit code from context_enter (user main() return value for natural return) */
+extern unsigned int context_enter_retval;
 
 /* ---- Globals ---- */
 

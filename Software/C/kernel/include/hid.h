@@ -11,7 +11,7 @@
 /* Key event FIFO */
 #define KEY_FIFO_SIZE 64
 
-/* Key state bitmap bit positions (same as v3 bdos_hid.h) */
+/* Key state bitmap bit positions */
 #define KEYSTATE_W        0x0001
 #define KEYSTATE_A        0x0002
 #define KEYSTATE_S        0x0004
@@ -28,29 +28,29 @@
 #define KEYSTATE_Q        0x2000
 
 /* Special (non-ASCII) keyboard event codes */
-#define BDOS_KEY_SPECIAL_BASE 0x100
-#define BDOS_KEY_UP           (BDOS_KEY_SPECIAL_BASE + 1)
-#define BDOS_KEY_DOWN         (BDOS_KEY_SPECIAL_BASE + 2)
-#define BDOS_KEY_LEFT         (BDOS_KEY_SPECIAL_BASE + 3)
-#define BDOS_KEY_RIGHT        (BDOS_KEY_SPECIAL_BASE + 4)
-#define BDOS_KEY_INSERT       (BDOS_KEY_SPECIAL_BASE + 5)
-#define BDOS_KEY_DELETE       (BDOS_KEY_SPECIAL_BASE + 6)
-#define BDOS_KEY_HOME         (BDOS_KEY_SPECIAL_BASE + 7)
-#define BDOS_KEY_END          (BDOS_KEY_SPECIAL_BASE + 8)
-#define BDOS_KEY_PAGEUP       (BDOS_KEY_SPECIAL_BASE + 9)
-#define BDOS_KEY_PAGEDOWN     (BDOS_KEY_SPECIAL_BASE + 10)
-#define BDOS_KEY_F1           (BDOS_KEY_SPECIAL_BASE + 11)
-#define BDOS_KEY_F2           (BDOS_KEY_SPECIAL_BASE + 12)
-#define BDOS_KEY_F3           (BDOS_KEY_SPECIAL_BASE + 13)
-#define BDOS_KEY_F4           (BDOS_KEY_SPECIAL_BASE + 14)
-#define BDOS_KEY_F5           (BDOS_KEY_SPECIAL_BASE + 15)
-#define BDOS_KEY_F6           (BDOS_KEY_SPECIAL_BASE + 16)
-#define BDOS_KEY_F7           (BDOS_KEY_SPECIAL_BASE + 17)
-#define BDOS_KEY_F8           (BDOS_KEY_SPECIAL_BASE + 18)
-#define BDOS_KEY_F9           (BDOS_KEY_SPECIAL_BASE + 19)
-#define BDOS_KEY_F10          (BDOS_KEY_SPECIAL_BASE + 20)
-#define BDOS_KEY_F11          (BDOS_KEY_SPECIAL_BASE + 21)
-#define BDOS_KEY_F12          (BDOS_KEY_SPECIAL_BASE + 22)
+#define KEY_SPECIAL_BASE 0x100
+#define KEY_UP           (KEY_SPECIAL_BASE + 1)
+#define KEY_DOWN         (KEY_SPECIAL_BASE + 2)
+#define KEY_LEFT         (KEY_SPECIAL_BASE + 3)
+#define KEY_RIGHT        (KEY_SPECIAL_BASE + 4)
+#define KEY_INSERT       (KEY_SPECIAL_BASE + 5)
+#define KEY_DELETE       (KEY_SPECIAL_BASE + 6)
+#define KEY_HOME         (KEY_SPECIAL_BASE + 7)
+#define KEY_END          (KEY_SPECIAL_BASE + 8)
+#define KEY_PAGEUP       (KEY_SPECIAL_BASE + 9)
+#define KEY_PAGEDOWN     (KEY_SPECIAL_BASE + 10)
+#define KEY_F1           (KEY_SPECIAL_BASE + 11)
+#define KEY_F2           (KEY_SPECIAL_BASE + 12)
+#define KEY_F3           (KEY_SPECIAL_BASE + 13)
+#define KEY_F4           (KEY_SPECIAL_BASE + 14)
+#define KEY_F5           (KEY_SPECIAL_BASE + 15)
+#define KEY_F6           (KEY_SPECIAL_BASE + 16)
+#define KEY_F7           (KEY_SPECIAL_BASE + 17)
+#define KEY_F8           (KEY_SPECIAL_BASE + 18)
+#define KEY_F9           (KEY_SPECIAL_BASE + 19)
+#define KEY_F10          (KEY_SPECIAL_BASE + 20)
+#define KEY_F11          (KEY_SPECIAL_BASE + 21)
+#define KEY_F12          (KEY_SPECIAL_BASE + 22)
 
 /* Initialize USB keyboard subsystem. */
 void hid_init(void);
@@ -66,6 +66,9 @@ int hid_event_read(void);
 
 /* Check if events are available. */
 int hid_event_available(void);
+
+/* Push a key event into the FIFO (used by FNP remote keyboard). */
+int hid_event_push(int key);
 
 /* Real-time held-key bitmap (rebuilt from HID report each poll). */
 extern unsigned int hid_key_state;

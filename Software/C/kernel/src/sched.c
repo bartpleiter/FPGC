@@ -95,7 +95,7 @@ void sched_tick(void)
     else if (cur && cur->pid == 0 && nxt->pid != 0)
     {
         /* Kernel→User: save kernel state, enter user process */
-        context_enter(nxt);
+        context_enter(nxt->saved_pc, nxt->saved_regs[13]);
     }
     else if (nxt->pid == 0)
     {

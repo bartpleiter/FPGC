@@ -49,8 +49,8 @@ static void usage(void)
 
 int main(void)
 {
-  int    argc = sys_shell_argc();
-  char **argv = sys_shell_argv();
+  int    argc = sys_argc();
+  char **argv = sys_argv();
   int    blocks;
   int    bytes_per_block;
   int    words_per_block;

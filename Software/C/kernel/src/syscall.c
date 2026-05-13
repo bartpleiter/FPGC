@@ -1,8 +1,10 @@
 /*
- * syscall.c — Syscall dispatch table.
+ * syscall.c — BDOS v4 syscall dispatch.
  *
  * Called from crt0 Syscall entry: syscall_dispatch(num, a1, a2, a3)
  * where num=r4, a1=r5, a2=r6, a3=r7.
+ *
+ * Clean v4 design — POSIX-aligned numbering, no v3 compatibility.
  */
 #include "kernel.h"
 
@@ -12,27 +14,29 @@ int syscall_dispatch(int num, int a1, int a2, int a3)
 
     switch (num)
     {
-    case SYS_EXIT:
+    /* ---- Core process control (1-5) ---- */
+
+    case SYS_EXIT:       /* 1 */
         proc_exit(a1);
+        syscall_exit_to_kernel();
+        return 0; /* not reached */
+
+    case SYS_YIELD:      /* 2 */
+        proc_yield();
         return 0;
 
-    case SYS_READ:
-    {
-        int gfd;
-        gfd = fd_to_gfd(a1);
-        if (gfd < 0) return -1;
-        return vfs_read(gfd, (void *)a2, a3);
-    }
+    case SYS_EXEC:       /* 3 */
+        return proc_spawn((const char *)a1, a2, (char **)a3);
 
-    case SYS_WRITE:
-    {
-        int gfd;
-        gfd = fd_to_gfd(a1);
-        if (gfd < 0) return -1;
-        return vfs_write(gfd, (const void *)a2, a3);
-    }
+    case SYS_WAITPID:    /* 4 */
+        return proc_waitpid(a1);
 
-    case SYS_OPEN:
+    case SYS_GETPID:     /* 5 */
+        return current_pid;
+
+    /* ---- File I/O (10-15) ---- */
+
+    case SYS_OPEN:       /* 10 */
     {
         int gfd;
         int fd;
@@ -43,10 +47,26 @@ int syscall_dispatch(int num, int a1, int a2, int a3)
         return fd;
     }
 
-    case SYS_CLOSE:
+    case SYS_CLOSE:      /* 11 */
         return fd_close(a1);
 
-    case SYS_LSEEK:
+    case SYS_READ:       /* 12 */
+    {
+        int gfd;
+        gfd = fd_to_gfd(a1);
+        if (gfd < 0) return -1;
+        return vfs_read(gfd, (void *)a2, a3);
+    }
+
+    case SYS_WRITE:      /* 13 */
+    {
+        int gfd;
+        gfd = fd_to_gfd(a1);
+        if (gfd < 0) return -1;
+        return vfs_write(gfd, (const void *)a2, a3);
+    }
+
+    case SYS_LSEEK:      /* 14 */
     {
         int gfd;
         gfd = fd_to_gfd(a1);
@@ -54,40 +74,42 @@ int syscall_dispatch(int num, int a1, int a2, int a3)
         return vfs_lseek(gfd, a2, a3);
     }
 
-    case SYS_DUP2:
+    case SYS_DUP2:       /* 15 */
         return fd_dup2(a1, a2);
 
-    case SYS_PIPE:
-        /* TODO: implement pipes */
-        return -1;
+    /* ---- Filesystem (20-28) ---- */
 
-    case SYS_EXEC:
-        return proc_spawn((const char *)a1, a2, (char **)a3);
+    case SYS_UNLINK:     /* 20 */
+        return vfs_unlink((const char *)a1);
 
-    case SYS_YIELD:
-        proc_yield();
+    case SYS_MKDIR:      /* 21 */
+        return vfs_mkdir((const char *)a1);
+
+    case SYS_READDIR:    /* 22 */
+        return vfs_readdir((const char *)a1, (void *)a2, a3);
+
+    case SYS_RENAME:     /* 23 */
+        return vfs_rename((const char *)a1, (const char *)a2);
+
+    case SYS_STAT:       /* 24 */
+        return vfs_stat((const char *)a1, (void *)a2);
+
+    case SYS_SYNC:       /* 25 */
+        fs_sync_all();
         return 0;
 
-    case SYS_WAITPID:
-        return proc_waitpid(a1);
+    case SYS_TRUNCATE:   /* 26 */
+        return -1; /* Phase 2 */
 
-    case SYS_GETPID:
-        return current_pid;
+    case SYS_FORMAT:     /* 27 */
+        return -1; /* Phase 2 */
 
-    case SYS_GETCWD:
-        p = proc_current();
-        if (!p) return -1;
-        {
-            char *dst;
-            int i;
-            dst = (char *)a1;
-            for (i = 0; i < a2 - 1 && p->cwd[i]; i++)
-                dst[i] = p->cwd[i];
-            dst[i] = '\0';
-        }
-        return 0;
+    case SYS_SD_FORMAT:  /* 28 */
+        return -1; /* Phase 2 */
 
-    case SYS_CHDIR:
+    /* ---- Process environment (30-34) ---- */
+
+    case SYS_CHDIR:      /* 30 */
         p = proc_current();
         if (!p) return -1;
         {
@@ -100,73 +122,84 @@ int syscall_dispatch(int num, int a1, int a2, int a3)
         }
         return 0;
 
-    case SYS_MKDIR:
-        return vfs_mkdir((const char *)a1);
+    case SYS_GETCWD:     /* 31 — getcwd(buf, size): copies cwd into user buffer */
+        p = proc_current();
+        if (!p) return -1;
+        {
+            char *dst;
+            int i;
+            dst = (char *)a1;
+            for (i = 0; i < a2 - 1 && p->cwd[i]; i++)
+                dst[i] = p->cwd[i];
+            dst[i] = '\0';
+        }
+        return a1; /* returns buf pointer, like POSIX */
 
-    case SYS_UNLINK:
-        return vfs_unlink((const char *)a1);
+    case SYS_ARGC:       /* 32 */
+        p = proc_current();
+        if (!p) return 0;
+        return p->argc;
 
-    case SYS_READDIR:
-        return vfs_readdir((const char *)a1, (void *)a2, a3);
+    case SYS_ARGV:       /* 33 — returns char** (pointer to argv array) */
+        p = proc_current();
+        if (!p) return 0;
+        return (int)p->argv;
 
-    case SYS_STAT:
-        return vfs_stat((const char *)a1, (void *)a2);
+    case SYS_SBRK:       /* 34 — sbrk(incr): extend process heap */
+        p = proc_current();
+        if (!p) return -1;
+        {
+            unsigned int old_break;
+            unsigned int new_break;
+            unsigned int limit;
+            old_break = p->heap_break;
+            new_break = old_break + (unsigned int)a1;
+            /* Leave 64 KiB for stack at top of process memory */
+            limit = p->mem_base + p->mem_size - (64u * 1024u);
+            if (new_break > limit || new_break < p->mem_base)
+                return -1;
+            p->heap_break = new_break;
+        }
+        return (int)p->heap_break - a1; /* return old break */
 
-    case SYS_IOCTL:
+    /* ---- Timing / input (40-42) ---- */
+
+    case SYS_SLEEP:      /* 40 — sleep(ms) */
+        delay((unsigned int)a1);
+        return 0;
+
+    case SYS_GET_KEY_STATE: /* 41 */
+        return (int)hid_key_state;
+
+    case SYS_GET_TIME_US: /* 42 */
+        return (int)get_micros();
+
+    /* ---- Networking (50-53) ---- */
+
+    case SYS_NET_SEND:   /* 50 */
+        return -1; /* Phase 2 */
+
+    case SYS_NET_RECV:   /* 51 */
+        return -1; /* Phase 2 */
+
+    case SYS_NET_PACKET_COUNT: /* 52 */
+        return 0;
+
+    case SYS_NET_GET_MAC: /* 53 */
+        return -1; /* Phase 2 */
+
+    /* ---- IPC (60-61) ---- */
+
+    case SYS_PIPE:       /* 60 */
+        return -1; /* Phase 2 */
+
+    case SYS_IOCTL:      /* 61 */
     {
         int gfd;
         gfd = fd_to_gfd(a1);
         if (gfd < 0) return -1;
         return vfs_ioctl(gfd, a2, a3);
     }
-
-    case SYS_SBRK:
-        /* TODO: extend process memory */
-        return -1;
-
-    case SYS_SLEEP:
-        proc_sleep_ms((unsigned int)a1);
-        return 0;
-
-    case SYS_GET_TIME_US:
-        return (int)get_micros();
-
-    case SYS_GET_KEY_STATE:
-        return (int)hid_key_state;
-
-    case SYS_NET_SEND:
-        /* TODO: network send */
-        return -1;
-
-    case SYS_NET_RECV:
-        /* TODO: network recv */
-        return -1;
-
-    case SYS_ARGC:
-        p = proc_current();
-        if (!p) return 0;
-        return p->argc;
-
-    case SYS_ARGV:
-        p = proc_current();
-        if (!p) return 0;
-        if (a1 < 0 || a1 >= p->argc) return 0;
-        return (int)p->argv[a1];
-
-    case SYS_FORMAT:
-        /* Format is handled via shell built-in, not syscall for now */
-        return -1;
-
-    case SYS_SYNC:
-        fs_sync_all();
-        return 0;
-
-    case SYS_RENAME:
-        return vfs_rename((const char *)a1, (const char *)a2);
-
-    case SYS_TRUNCATE:
-        /* TODO: truncate */
-        return -1;
 
     default:
         return -1;

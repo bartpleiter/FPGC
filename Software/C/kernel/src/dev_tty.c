@@ -83,16 +83,19 @@ static int tty_read(struct open_file *f, void *buf, int count)
     dst = (char *)buf;
     copied = 0;
 
-    /* If raw mode requested, return whatever HID gives us directly */
+    /* If raw mode requested, return events as 4-byte little-endian u32s */
     if (f->flags & O_RAW)
     {
-        while (copied < count)
+        while (copied + 4 <= count)
         {
             int ch;
             ch = hid_event_read();
             if (ch < 0) break;
-            dst[copied] = (char)ch;
-            copied++;
+            dst[copied]     = (char)(ch & 0xFF);
+            dst[copied + 1] = (char)((ch >> 8) & 0xFF);
+            dst[copied + 2] = (char)((ch >> 16) & 0xFF);
+            dst[copied + 3] = (char)((ch >> 24) & 0xFF);
+            copied += 4;
         }
         return copied;
     }

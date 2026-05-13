@@ -89,10 +89,30 @@ void net_poll(void)
 
 void net_init(void)
 {
+    int spi_id[8];
+
     net_isr_deferred = 0;
     net_enc28j60_spi_in_use = 0;
     net_user_owned = 0;
     net_ringbuf_reset();
+
+    /* Build MAC: 02:B4:B4:00:00:XX where XX is board-specific */
+    net_mac[0] = 0x02;
+    net_mac[1] = 0xB4;
+    net_mac[2] = 0xB4;
+    net_mac[3] = 0x00;
+    net_mac[4] = 0x00;
+
+    spi_flash_read_unique_id(SPI_FLASH_0, spi_id);
+    switch (spi_id[6])
+    {
+    case 0x58: net_mac[5] = 0x01; break;
+    case 0x4b: net_mac[5] = 0x02; break;
+    case 0x40: net_mac[5] = 0x03; break;
+    case 0x2a: net_mac[5] = 0x04; break;
+    case 0x46: net_mac[5] = 0x05; break;
+    default:   net_mac[5] = 0x01; break;
+    }
 
     /* Initialize ENC28J60 */
     enc28j60_init(net_mac);

@@ -36,10 +36,10 @@ CPROC_OUTPUT = $(CPROC_DIR)/output/cproc-qbe
 .PHONY: test-c test-c-single
 .PHONY: compile-asm compile-bootloader compile-c-baremetal compile-bdos compile-kernel compile-sdcard-init-test compile-sdcard-rw-test compile-sdcard-multi-test compile-sdcard-brfs-storage-test
 .PHONY: compile-userbdos compile-userbdos-all compile-doom
-.PHONY: run-uart uart-monitor run-asm-uart run-c-baremetal-uart run-bdos
+.PHONY: run-uart uart-monitor run-asm-uart run-c-baremetal-uart run-bdos run-kernel
 .PHONY: compile-spi1-dma-test run-spi1-dma-test
 .PHONY: run-userbdos run-doom
-.PHONY: flash-c-baremetal-spi flash-bdos
+.PHONY: flash-c-baremetal-spi flash-bdos flash-kernel
 .PHONY: qbe clean-qbe
 .PHONY: cproc clean-cproc
 .PHONY: selfhost-qbe selfhost-cproc selfhost-all stage-cc-toolchain
@@ -560,6 +560,7 @@ KERNEL_V4_SOURCES = \
 	Software/C/kernel/src/syscall.c \
 	Software/C/kernel/src/hid.c \
 	Software/C/kernel/src/net.c \
+	Software/C/kernel/src/fnp.c \
 	Software/C/kernel/src/shell.c
 
 compile-kernel: $(QBE_OUTPUT) $(CPROC_OUTPUT)
@@ -777,6 +778,8 @@ run-c-baremetal-uart: compile-c-baremetal run-uart
 
 run-bdos: compile-bdos run-uart
 
+run-kernel: compile-kernel run-uart
+
 # Standalone target: build the SPI1 DMA bring-up baremetal test
 # (Software/C/bareMetal/spi1_dma_test.c) with libfpgc + libc linked in.
 compile-spi1-dma-test: $(QBE_OUTPUT) $(CPROC_OUTPUT)
@@ -969,6 +972,9 @@ flash-c-baremetal-spi: compile-c-baremetal $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	./Scripts/Programmer/flash_spi.sh
 
 flash-bdos: compile-bdos
+	./Scripts/Programmer/flash_bdos.sh
+
+flash-kernel: compile-kernel
 	./Scripts/Programmer/flash_bdos.sh
 
 # =============================================================================

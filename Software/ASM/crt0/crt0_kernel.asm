@@ -140,12 +140,108 @@ kernel_loop_save_sp_bp:
     write 0 r11 r14
     jumpr 0 r15
 
-; Stubs for context switch — Phase 1 doesn't use multitasking
-; These will be replaced with real implementations in Phase 2
-.global context_switch
-context_switch:
-    jumpr 0 r15
-
+; ============================================================
+; context_enter(entry_addr, stack_top)
+;   r4 = user entry address
+;   r5 = user stack top
+;
+; Saves kernel state, jumps to user program.
+; Returns when user program exits (via natural return through
+; crt0 pop r15/jumpr, or via EXIT syscall → syscall_exit_to_kernel).
+; ============================================================
 .global context_enter
 context_enter:
+    ; Save kernel registers to HW stack (13 entries)
+    push r1
+    push r2
+    push r3
+    push r4
+    push r5
+    push r6
+    push r7
+    push r8
+    push r9
+    push r10
+    push r11
+    push r12
+    push r15
+
+    ; Save kernel SP/BP to globals
+    addr2reg kernel_loop_sp r11
+    write 0 r11 r13
+    addr2reg kernel_loop_bp r11
+    write 0 r11 r14
+
+    ; Set user stack pointer
+    or r0 r5 r13
+
+    ; Set user frame pointer to 0
+    load32 0 r14
+
+    ; Set return address — user crt0 will push this and pop it on main() return
+    addr2reg context_enter_return r15
+
+    ; Flush instruction cache (binary was just loaded into data memory)
+    ccache
+
+    ; Jump to user program entry
+    jumpr 0 r4
+
+.global context_enter_return
+context_enter_return:
+    ; User program finished (natural return or EXIT syscall jump)
+    ; Save user's r1 (exit code from main) to global
+    addr2reg context_enter_retval r11
+    write 0 r11 r1
+
+    ; Restore kernel SP/BP
+    addr2reg kernel_loop_sp r11
+    read 0 r11 r13
+    addr2reg kernel_loop_bp r11
+    read 0 r11 r14
+
+    ; Restore kernel registers from HW stack (13 entries)
+    pop r15
+    pop r12
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop r7
+    pop r6
+    pop r5
+    pop r4
+    pop r3
+    pop r2
+    pop r1
+
+    ; Return to C caller (shell_execute)
+    jumpr 0 r15
+
+; ============================================================
+; syscall_exit_to_kernel()
+;
+; Called from EXIT syscall handler after proc_exit() cleanup.
+; Resets HW stack to context_enter depth (13 entries) and
+; jumps to context_enter_return to restore kernel state.
+; Does not return.
+; ============================================================
+.global syscall_exit_to_kernel
+syscall_exit_to_kernel:
+    ; Reset HW stack pointer to context_enter depth (13 entries)
+    load32 0x1F000004 r1
+    load 13 r2
+    write 0 r1 r2
+
+    ; Jump to context_enter_return
+    jump context_enter_return
+
+; Return value from context_enter (r1 from user main())
+.global context_enter_retval
+context_enter_retval:
+    .dw 0
+
+; Stub for context_switch — Phase 2 will implement real multitasking
+.global context_switch
+context_switch:
     jumpr 0 r15

@@ -7,12 +7,8 @@
  */
 #include "kernel.h"
 
-/* Assembly helpers (from context_asm.asm) */
-extern void kernel_halt(void);
-extern void kernel_ccache(void);
+/* Assembly helpers (from crt0_kernel.asm) */
 extern void kernel_loop_save_sp_bp(void);
-extern void kernel_interrupt_redirect_pc(void);
-extern unsigned int kernel_read_pc_backup(void);
 
 /* Forward declarations for shell (temporary — Phase 1 only) */
 extern void shell_init(void);
@@ -45,6 +41,7 @@ void kernel_loop(void)
     {
         hid_poll();
         net_poll();
+        fnp_poll();
         sched_tick();
         shell_tick();
     }

@@ -6,7 +6,7 @@
  * Builds, parses, and sends FNP frames over raw Ethernet syscalls.
  */
 
-/* Protocol constants (must match BDOS bdos_fnp.h) */
+/* Protocol constants (must match kernel fnp.h) */
 #define FNP_ETHERTYPE       0xB4B4
 #define FNP_VERSION         0x01
 #define FNP_ETH_HEADER_SIZE 14

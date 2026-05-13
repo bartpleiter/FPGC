@@ -10,6 +10,7 @@
 // restored.
 
 #include <syscall.h>
+#include <stdlib.h>
 
 // ----------------------------------------------------------------------
 // ANSI helpers
@@ -212,7 +213,7 @@ int gap_grow(void)
   int i;
 
   new_size = buf_size + GAP_INITIAL;
-  new_buf = sys_heap_alloc(new_size);
+  new_buf = malloc(new_size);
   if (new_buf == (unsigned int *)0)
   {
     return 0;
@@ -809,7 +810,7 @@ int file_load(void)
 
   /* BRFS v2: filesize is in bytes. */
   alloc_size = fsize + GAP_INITIAL + 256;
-  buf = sys_heap_alloc(alloc_size);
+  buf = malloc(alloc_size);
   if (buf == (unsigned int *)0)
   {
     sys_putstr("edit: out of memory\n");
@@ -1071,11 +1072,11 @@ int main(void)
 {
   int argc;
   char **argv;
-  char *cwd;
+  char cwd[128];
   int key;
 
-  argc = sys_shell_argc();
-  argv = sys_shell_argv();
+  argc = sys_argc();
+  argv = sys_argv();
 
   if (argc < 2)
   {
@@ -1086,7 +1087,7 @@ int main(void)
   filepath[0] = 0;
   if (argv[1][0] != '/')
   {
-    cwd = sys_shell_getcwd();
+    sys_getcwd(cwd, 128);
     str_copy(filepath, cwd);
     str_cat(filepath, "/");
     str_cat(filepath, argv[1]);

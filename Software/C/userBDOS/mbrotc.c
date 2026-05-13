@@ -387,7 +387,7 @@ int main(void)
       }
     }
 
-    sys_delay(1);
+    sys_sleep(1);
   }
 
   return 0;

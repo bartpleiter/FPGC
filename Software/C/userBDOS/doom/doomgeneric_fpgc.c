@@ -16,12 +16,12 @@
 
 #include "config.h"
 
-/* BDOS syscall numbers and key state bits — use raw numbers to avoid
+/* BDOS v4 syscall numbers — use raw numbers to avoid
  * name collisions with Doom's own KEY_* defines. */
 extern int syscall(int num, int a1, int a2, int a3);
 
-/* BDOS syscall wrappers using raw numbers */
-static int bdos_get_key_state(void) { return syscall(25, 0, 0, 0); }
+/* v4 syscall wrappers using raw numbers */
+static int fpgc_get_key_state(void) { return syscall(41, 0, 0, 0); }
 
 /* /dev/pixpal and raw /dev/tty fds, opened in DG_Init. */
 static int g_pixpal_fd = -1;
@@ -77,7 +77,7 @@ static int dma_in_flight = 0;
 
 /* Forward declarations */
 static void fpgc_poll_keys(void);
-static unsigned char translate_bdos_key(int bdos_key);
+static unsigned char translate_fpgc_key(int fpgc_key);
 
 /* ---- Required platform functions ---- */
 
@@ -264,7 +264,7 @@ static struct keymap_entry keymap[] = {
 
 static void fpgc_poll_keys(void)
 {
-    int state = bdos_get_key_state();
+    int state = fpgc_get_key_state();
     int changed = state ^ prev_key_state;
     int i;
 
@@ -282,7 +282,7 @@ static void fpgc_poll_keys(void)
     {
         int k = (g_tty_fd >= 0) ? sys_tty_event_read(g_tty_fd, 0) : -1;
         if (k >= 0) {
-            unsigned char dk = translate_bdos_key(k);
+            unsigned char dk = translate_fpgc_key(k);
             if (dk != 0) {
                 enqueue_key(dk, 1);
                 enqueue_key(dk, 0);
@@ -291,25 +291,25 @@ static void fpgc_poll_keys(void)
     }
 }
 
-static unsigned char translate_bdos_key(int bdos_key)
+static unsigned char translate_fpgc_key(int fpgc_key)
 {
     /* ASCII keys pass through directly */
-    if (bdos_key >= 0x20 && bdos_key < 0x7f)
-        return (unsigned char)bdos_key;
+    if (fpgc_key >= 0x20 && fpgc_key < 0x7f)
+        return (unsigned char)fpgc_key;
 
     /* Special keys */
-    if (bdos_key == 0x0D || bdos_key == '\n')
+    if (fpgc_key == 0x0D || fpgc_key == '\n')
         return KEY_ENTER;
-    if (bdos_key == 0x1B)
+    if (fpgc_key == 0x1B)
         return 0;  /* escape handled by key_state bitmap — skip here to avoid duplicate press+release */
-    if (bdos_key == 0x09)
+    if (fpgc_key == 0x09)
         return KEY_TAB;
-    if (bdos_key == 0x08 || bdos_key == 0x7F)
+    if (fpgc_key == 0x08 || fpgc_key == 0x7F)
         return KEY_BACKSPACE;
 
-    /* BDOS special key codes — arrow keys are handled by key_state bitmap,
+    /* Special key codes — arrow keys are handled by key_state bitmap,
      * so only map non-bitmap keys here to avoid duplicate events */
-    switch (bdos_key) {
+    switch (fpgc_key) {
     case 0x10B: return KEY_F1;
     case 0x10C: return KEY_F2;
     case 0x10D: return KEY_F3;
