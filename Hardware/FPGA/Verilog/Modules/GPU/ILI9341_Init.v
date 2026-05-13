@@ -39,6 +39,7 @@ module ILI9341_Init (
     localparam CYCLES_PER_MS = 100_000;
     reg [23:0] delay_cnt = 24'd0;
     reg        delay_active = 1'b0;
+    reg        spi_accepted = 1'b0; // Tracks that tx_ready went low
 
     // ---- Init ROM ----
     // Format: {type[1:0], byte[7:0]} = 10 bits per entry
@@ -220,6 +221,7 @@ module ILI9341_Init (
             init_done <= 1'b0;
             delay_cnt <= 24'd0;
             delay_active <= 1'b0;
+            spi_accepted <= 1'b0;
         end else begin
             spi_tx_valid <= 1'b0; // Default: no transmit
 
@@ -286,15 +288,22 @@ module ILI9341_Init (
                 S_SEND_BYTE: begin
                     if (spi_tx_ready) begin
                         spi_tx_valid <= 1'b1;
+                        spi_accepted <= 1'b0;
                         state <= S_WAIT_SPI;
                     end
                 end
 
                 S_WAIT_SPI: begin
-                    // Wait for SPI to become ready again (byte transmitted)
-                    if (spi_tx_ready) begin
-                        rom_idx <= rom_idx + 7'd1;
-                        state <= S_RUN_ROM;
+                    // Wait for tx_ready to drop (byte accepted by SPIMaster),
+                    // then wait for it to rise again (byte transmitted).
+                    if (!spi_accepted) begin
+                        if (!spi_tx_ready)
+                            spi_accepted <= 1'b1;
+                    end else begin
+                        if (spi_tx_ready) begin
+                            rom_idx <= rom_idx + 7'd1;
+                            state <= S_RUN_ROM;
+                        end
                     end
                 end
 

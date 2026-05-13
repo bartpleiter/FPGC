@@ -104,7 +104,17 @@ module FPGC (
     // Buttons
     input wire          reset_n,
 
-    // Display header
+    // Display header — directly wired to ILI9341 2.8" SPI TFT module
+    //  FPGA Pin   | DISP Header | ILI9341 Module Pin
+    //  -----------+-------------+--------------------
+    //  PIN_AB13   | disp_1      | SCK  (SPI Clock)
+    //  PIN_AB14   | disp_2      | SDI  (SPI MOSI)
+    //  PIN_AB15   | disp_3      | CS   (Chip Select, active low)
+    //  PIN_AA13   | disp_4      | DC   (Data/Command select)
+    //  PIN_AA14   | disp_5      | RST  (Reset, active low)
+    //  PIN_AA15   | disp_6      | LED  (Backlight, active high)
+    //  Also connect: VCC → 3.3V, GND → GND on the ILI9341 module.
+    //  SDO (MISO) on the ILI9341 module is not connected (write-only).
     output wire         disp_1,
     output wire         disp_2,
     output wire         disp_3,

@@ -54,6 +54,11 @@ module FrameScanEngine (
     wire [7:0] rgb565_lo = {palette_rgb[12:10], palette_rgb[7:3]};
 
     // ---- Main state machine ----
+    //
+    // After every tx_valid assertion, the FSM transitions to S_WAIT_SPI
+    // which waits for the SPIMaster to accept the byte (tx_ready drops)
+    // and then finish it (tx_ready rises again), avoiding a 1-cycle race
+    // where tx_ready is still high from the previous IDLE.
     localparam
         S_IDLE         = 4'd0,
         S_CS_ASSERT    = 4'd1,
@@ -70,10 +75,13 @@ module FrameScanEngine (
         S_PIXEL_PAL    = 4'd8,  // Wait for palette data
         S_PIXEL_HI     = 4'd9,  // Send RGB565 high byte
         S_PIXEL_LO     = 4'd10, // Send RGB565 low byte
-        S_FRAME_DONE   = 4'd11;
+        S_FRAME_DONE   = 4'd11,
+        S_WAIT_SPI     = 4'd12; // Wait for SPI byte to complete
 
     reg [3:0] state = S_IDLE;
-    reg [2:0] byte_idx = 3'd0; // Sub-index for multi-byte commands
+    reg [3:0] return_state = S_IDLE; // Where to go after SPI byte done
+    reg       spi_accepted = 1'b0;  // Tracks that tx_ready went low
+    reg [2:0] byte_idx = 3'd0;      // Sub-index for multi-byte commands
 
     // CASET/PASET data bytes (landscape 320×240)
     // CASET: start_col=0x0000, end_col=0x013F (319)
@@ -93,11 +101,11 @@ module FrameScanEngine (
         paset_data[3] = 8'hEF; // End row low
     end
 
-    // ---- Helper: send a byte and wait ----
-    // We use a simple pattern: set tx_data/dc/valid, wait for ready
     always @(posedge clk) begin
         if (reset) begin
             state <= S_IDLE;
+            return_state <= S_IDLE;
+            spi_accepted <= 1'b0;
             spi_tx_valid <= 1'b0;
             spi_tx_data <= 8'd0;
             spi_dc <= 1'b0;
@@ -137,7 +145,9 @@ module FrameScanEngine (
                         spi_dc <= 1'b0;       // Command
                         spi_tx_valid <= 1'b1;
                         byte_idx <= 3'd0;
-                        state <= S_CASET_DATA;
+                        return_state <= S_CASET_DATA;
+                        spi_accepted <= 1'b0;
+                        state <= S_WAIT_SPI;
                     end
                 end
 
@@ -147,10 +157,13 @@ module FrameScanEngine (
                         spi_dc <= 1'b1; // Data
                         spi_tx_valid <= 1'b1;
                         if (byte_idx == 3'd3) begin
-                            state <= S_PASET_CMD;
+                            return_state <= S_PASET_CMD;
                         end else begin
                             byte_idx <= byte_idx + 3'd1;
+                            return_state <= S_CASET_DATA;
                         end
+                        spi_accepted <= 1'b0;
+                        state <= S_WAIT_SPI;
                     end
                 end
 
@@ -161,7 +174,9 @@ module FrameScanEngine (
                         spi_dc <= 1'b0;       // Command
                         spi_tx_valid <= 1'b1;
                         byte_idx <= 3'd0;
-                        state <= S_PASET_DATA;
+                        return_state <= S_PASET_DATA;
+                        spi_accepted <= 1'b0;
+                        state <= S_WAIT_SPI;
                     end
                 end
 
@@ -171,10 +186,13 @@ module FrameScanEngine (
                         spi_dc <= 1'b1; // Data
                         spi_tx_valid <= 1'b1;
                         if (byte_idx == 3'd3) begin
-                            state <= S_RAMWR_CMD;
+                            return_state <= S_RAMWR_CMD;
                         end else begin
                             byte_idx <= byte_idx + 3'd1;
+                            return_state <= S_PASET_DATA;
                         end
+                        spi_accepted <= 1'b0;
+                        state <= S_WAIT_SPI;
                     end
                 end
 
@@ -184,7 +202,9 @@ module FrameScanEngine (
                         spi_tx_data <= 8'h2C; // RAMWR
                         spi_dc <= 1'b0;       // Command
                         spi_tx_valid <= 1'b1;
-                        state <= S_PIXEL_READ;
+                        return_state <= S_PIXEL_READ;
+                        spi_accepted <= 1'b0;
+                        state <= S_WAIT_SPI;
                     end
                 end
 
@@ -211,7 +231,9 @@ module FrameScanEngine (
                         spi_tx_data <= rgb565_hi;
                         spi_dc <= 1'b1; // Data
                         spi_tx_valid <= 1'b1;
-                        state <= S_PIXEL_LO;
+                        return_state <= S_PIXEL_LO;
+                        spi_accepted <= 1'b0;
+                        state <= S_WAIT_SPI;
                     end
                 end
 
@@ -221,21 +243,23 @@ module FrameScanEngine (
                         spi_tx_data <= rgb565_lo;
                         spi_dc <= 1'b1; // Data
                         spi_tx_valid <= 1'b1;
+                        spi_accepted <= 1'b0;
 
                         // Advance to next pixel
                         if (pixel_x == 9'd319) begin
                             pixel_x <= 9'd0;
                             if (pixel_y == 8'd239) begin
                                 // Frame complete
-                                state <= S_FRAME_DONE;
+                                return_state <= S_FRAME_DONE;
                             end else begin
                                 pixel_y <= pixel_y + 8'd1;
-                                state <= S_PIXEL_READ;
+                                return_state <= S_PIXEL_READ;
                             end
                         end else begin
                             pixel_x <= pixel_x + 9'd1;
-                            state <= S_PIXEL_READ;
+                            return_state <= S_PIXEL_READ;
                         end
+                        state <= S_WAIT_SPI;
                     end
                 end
 
@@ -245,6 +269,19 @@ module FrameScanEngine (
                     pixel_x <= 9'd0;
                     pixel_y <= 8'd0;
                     state <= S_CASET_CMD;
+                end
+
+                // ---- Wait for SPI byte to complete ----
+                // First wait for tx_ready to drop (byte accepted),
+                // then wait for it to rise (byte transmitted).
+                S_WAIT_SPI: begin
+                    if (!spi_accepted) begin
+                        if (!spi_tx_ready)
+                            spi_accepted <= 1'b1;
+                    end else begin
+                        if (spi_tx_ready)
+                            state <= return_state;
+                    end
                 end
 
                 default: state <= S_IDLE;
