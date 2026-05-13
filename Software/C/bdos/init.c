@@ -1,3 +1,12 @@
+/*
+ * BDOS initialization — hardware setup and boot sequence.
+ *
+ * Boot order: GPU clear -> pattern/palette load -> terminal init ->
+ *   timer init -> USB keyboard init -> SPI flash BRFS mount ->
+ *   SD card init + BRFS mount -> FNP network init -> shell ready
+ *
+ * Build: make compile-bdos
+ */
 #include "bdos.h"
 
 /* libterm wiring: render callback pushes a single cell to the GPU

@@ -1,3 +1,13 @@
+/*
+ * BRFS v2 filesystem — public API and data structures.
+ *
+ * Block-based filesystem with FAT allocation. Two instances in BDOS:
+ *   brfs_spi (root /, SPI flash) and brfs_sd (/sdcard, SD card).
+ *
+ * Key types: brfs_state (filesystem instance), brfs_dir_entry
+ * Key API:   brfs_format, brfs_open, brfs_read, brfs_write, brfs_close,
+ *            brfs_lseek, brfs_mkdir, brfs_readdir, brfs_unlink, brfs_sync
+ */
 #ifndef FPGC_BRFS_H
 #define FPGC_BRFS_H
 

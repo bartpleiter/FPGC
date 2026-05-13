@@ -1,3 +1,12 @@
+/*
+ * CH376 USB host controller — command codes, status values, and API.
+ *
+ * Bus: SPI2 (top port) and SPI3 (bottom port)
+ * INT# pin: polled via MMIO (FPGC_CH376_0_NINT / FPGC_CH376_1_NINT)
+ *
+ * Key API: ch376_init, ch376_check_connection, ch376_set_usb_host_mode,
+ *          ch376_hid_get_report
+ */
 #ifndef FPGC_CH376_H
 #define FPGC_CH376_H
 

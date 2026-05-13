@@ -1,3 +1,9 @@
+/*
+ * bdos_proc.h — process model (Phase C).
+ *
+ * Synchronous foreground execution. PID 0 = shell (always RUNNING).
+ * Per-process: argv arena, fd table, heap mark, exit code.
+ */
 #ifndef BDOS_PROC_H
 #define BDOS_PROC_H
 

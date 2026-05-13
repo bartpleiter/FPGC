@@ -1,3 +1,9 @@
+/*
+ * bdos_fs.h — filesystem shared state and init API.
+ *
+ * Declares the two global BRFS instances (brfs_spi for / and
+ * brfs_sd for /sdcard) and mount/format/sync functions.
+ */
 #ifndef BDOS_FS_H
 #define BDOS_FS_H
 

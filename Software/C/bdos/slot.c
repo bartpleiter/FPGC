@@ -1,3 +1,20 @@
+/*
+ * BDOS job slot management — 6 program slots × 2 MiB each.
+ *
+ * Slots hold loaded user programs. Each slot has: status, name,
+ * saved PC, saved SP/FP, and a 2 MiB memory region.
+ * Memory: 0x2000000 + slot * 0x200000
+ *
+ * Public API:
+ *   bdos_slot_alloc(name)       -> int (slot index or -1)
+ *   bdos_slot_free(slot)        -> void
+ *   bdos_slot_exec(slot)        -> void (jump to program)
+ *   bdos_slot_suspend(slot)     -> void
+ *   bdos_slot_resume(slot)      -> void
+ *   bdos_slot_kill(slot)        -> void
+ *
+ * Build: make compile-bdos
+ */
 #include "bdos.h"
 
 /* Assembly helpers (from slot_asm.asm) */

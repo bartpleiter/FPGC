@@ -1,3 +1,9 @@
+/*
+ * bdos_heap.h — kernel bump allocator API.
+ *
+ * Region: MEM_HEAP_START to MEM_HEAP_END (28 MiB).
+ * No free() — use mark/release for per-process arenas.
+ */
 #ifndef BDOS_HEAP_H
 #define BDOS_HEAP_H
 

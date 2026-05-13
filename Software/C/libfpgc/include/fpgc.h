@@ -1,3 +1,15 @@
+/*
+ * FPGC hardware definitions — the single source of truth for:
+ *   - MMIO register addresses (0x1C000000–0x1C000084)
+ *   - DMA mode constants and status bits
+ *   - SPI bus identifiers (0–5)
+ *   - GPU VRAM addresses and screen constants
+ *   - Memory map (kernel, heap, program slots, BRFS cache regions)
+ *   - Interrupt IDs (1–7)
+ *   - Compiler builtins (__builtin_load/store for MMIO access)
+ *
+ * All drivers, kernel code, and user programs include this header.
+ */
 #ifndef FPGC_H
 #define FPGC_H
 

@@ -1,6 +1,16 @@
+/*
+ * BDOS kernel entry point, interrupt dispatcher, and main loop.
+ *
+ * Boot: main() -> bdos_init() -> bdos_shell_init() -> bdos_loop()
+ * Main loop: USB keyboard polling, FNP network polling, shell tick
+ * Interrupts: dispatched by interrupt() via get_int_id() switch
+ *
+ * Interrupt IDs: 1=UART, 2=Timer0, 3=Timer1, 4=Timer2,
+ *                5=FrameDrawn, 6=Ethernet, 7=DMA
+ *
+ * Build: make compile-bdos
+ */
 #include "bdos.h"
-
-/* Assembly helpers (from slot_asm.asm) */
 extern void bdos_halt(void);
 extern void bdos_ccache(void);
 extern void bdos_loop_save_sp_bp(void);

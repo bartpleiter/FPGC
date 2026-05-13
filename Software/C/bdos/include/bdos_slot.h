@@ -1,3 +1,9 @@
+/*
+ * bdos_slot.h — job slot state and API.
+ *
+ * 6 slots × 2 MiB each (0x2000000 + slot × 0x200000).
+ * Tracks: status, name, saved PC/SP/FP/regs, scheduling signals.
+ */
 #ifndef BDOS_SLOT_H
 #define BDOS_SLOT_H
 

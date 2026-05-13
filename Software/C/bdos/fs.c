@@ -1,3 +1,18 @@
+/*
+ * BDOS filesystem integration — BRFS mount, format, sync helpers.
+ *
+ * Manages two BRFS instances:
+ *   brfs_spi — root filesystem (/) on SPI flash
+ *   brfs_sd  — SD card filesystem (/sdcard)
+ *
+ * Public API:
+ *   bdos_fs_init()                    -> int (mount SPI flash BRFS)
+ *   bdos_fs_sd_init()                 -> int (mount SD card BRFS)
+ *   bdos_fs_format_and_sync(...)      -> int (format SPI flash)
+ *   bdos_fs_sd_format_and_sync(...)   -> int (format SD card)
+ *
+ * Build: make compile-bdos
+ */
 #include "bdos.h"
 #include "brfs_storage_spi_flash.h"
 #include "brfs_storage_sdcard.h"

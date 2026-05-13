@@ -1,3 +1,14 @@
+/*
+ * BDOS USB keyboard HID driver.
+ *
+ * Uses CH376 USB host on SPI2 or SPI3. Timer 1 ISR polls HID
+ * reports every 10 ms. Key events go into a FIFO read by the shell.
+ * Supports key repeat, modifier keys, and raw event mode.
+ *
+ * Global state: bdos_key_state_bitmap (modifier + key states)
+ *
+ * Build: make compile-bdos
+ */
 #include "bdos.h"
 
 #define BDOS_KEY_EVENT_FIFO_SIZE 64

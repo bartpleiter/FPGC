@@ -1,3 +1,12 @@
+/*
+ * BDOS Ethernet / FNP networking.
+ *
+ * Uses ENC28J60 on SPI4. Implements FNP (FPGC Network Protocol)
+ * for file transfer, keyboard streaming, and remote shell commands.
+ * Network packets buffered in a ring buffer, drained by ISR.
+ *
+ * Build: make compile-bdos
+ */
 #include "bdos.h"
 
 /* FNP state variables (declared extern in bdos_fnp.h) */

@@ -1,3 +1,10 @@
+/*
+ * GPU hardware abstraction layer — tile engine and VRAM access.
+ *
+ * Two planes: background (BG) and window (WIN), each with tile + color tables.
+ * Plus a 320×240 pixel plane with 256-color palette.
+ * All VRAM regions defined in fpgc.h (FPGC_GPU_*).
+ */
 #ifndef FPGC_GPU_HAL_H
 #define FPGC_GPU_HAL_H
 

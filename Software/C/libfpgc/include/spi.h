@@ -1,3 +1,11 @@
+/*
+ * SPI bus abstraction — uniform access to all 6 SPI buses.
+ *
+ * Bus IDs: SPI_FLASH_0(0), SPI_FLASH_1(1), SPI_USB_0(2),
+ *          SPI_USB_1(3), SPI_ETH(4), SPI_SD_CARD(5)
+ *
+ * Key API: spi_transfer, spi_select, spi_deselect
+ */
 #ifndef FPGC_SPI_H
 #define FPGC_SPI_H
 

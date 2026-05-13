@@ -1,3 +1,9 @@
+/*
+ * bdos.h — master include for the BDOS kernel.
+ *
+ * All kernel .c files include this single header, which pulls in
+ * libc, libfpgc (drivers, GPU, BRFS), and all bdos_*.h headers.
+ */
 #ifndef BDOS_H
 #define BDOS_H
 

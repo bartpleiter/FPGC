@@ -1,3 +1,9 @@
+/*
+ * bdos_hid.h — USB keyboard HID constants and API.
+ *
+ * Key state bitmap for modifier/arrow/WASD keys. USB HID report
+ * structures. Key event FIFO for shell input.
+ */
 #ifndef BDOS_HID_H
 #define BDOS_HID_H
 

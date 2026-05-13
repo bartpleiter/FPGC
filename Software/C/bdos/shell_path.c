@@ -1,3 +1,11 @@
+/*
+ * shell_path.c — PATH resolution and string utilities for the shell.
+ *
+ * Resolves external commands by searching $PATH directories.
+ * Also provides: trim_whitespace, resolve_program.
+ *
+ * Build: make compile-bdos
+ */
 #include "bdos.h"
 
 void bdos_shell_trim_whitespace(char *s)

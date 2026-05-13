@@ -1,3 +1,15 @@
+/*
+ * BDOS shell built-in command implementations.
+ *
+ * Sections: General (help, clear, echo, uptime), Filesystem (pwd, cd,
+ * ls, mkdir, mkfile, rm, cat, write, cp, mv, sync, df), Process/job
+ * (jobs, kill, fg), Environment (export, set, unset, env, exit, true, false)
+ *
+ * Each command: static bdos_shell_cmd_X() + public bi_X() wrapper.
+ * Registration: bi_* wrappers called from shell_exec.c dispatch table.
+ *
+ * Build: make compile-bdos
+ */
 #include "bdos.h"
 
 #define BDOS_SHELL_LS_MAX_ENTRIES 32

@@ -1,3 +1,17 @@
+/*
+ * BDOS kernel heap — simple bump allocator.
+ *
+ * Region: MEM_HEAP_START to MEM_HEAP_END (28 MiB)
+ * No free() — memory reclaimed only on process exit.
+ *
+ * Public API:
+ *   bdos_heap_init()             -> void
+ *   bdos_heap_alloc(size_bytes)  -> uint* (or NULL)
+ *   bdos_heap_mark()             -> uint (save position)
+ *   bdos_heap_release(mark)      -> void (restore position)
+ *
+ * Build: make compile-bdos
+ */
 #include "bdos.h"
 
 static unsigned int bdos_heap_next = MEM_HEAP_START;

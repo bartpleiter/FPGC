@@ -1,3 +1,22 @@
+/*
+ * BRFS in-RAM block cache
+ *
+ * Two modes: Linear (all blocks pinned, for SPI flash) and
+ * LRU (fixed slot pool with eviction, for SD card).
+ * Mode selected automatically by brfs_cache_configure().
+ *
+ * Public API:
+ *   brfs_cache_init(c, storage, buf, buf_words)  -> void
+ *   brfs_cache_configure(c, total_blocks, ...)   -> int
+ *   brfs_cache_superblock(c)                     -> uint* (always pinned)
+ *   brfs_cache_fat(c)                            -> uint* (always pinned)
+ *   brfs_cache_data(c, block_idx)                -> uint* (may evict LRU)
+ *   brfs_cache_mark_dirty(c, block_idx)          -> void
+ *   brfs_cache_sync(c)                           -> int (flush dirty blocks)
+ *
+ * Dependencies: brfs_cache.h, brfs.h, string.h
+ * Build: part of libfpgc (make compile-bdos)
+ */
 #include "brfs_cache.h"
 #include "brfs.h"   /* for BRFS_OK / BRFS_ERR_* and BRFS_FLASH_* layout consts */
 #include <string.h>

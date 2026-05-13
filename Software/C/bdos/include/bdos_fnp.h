@@ -1,3 +1,9 @@
+/*
+ * bdos_fnp.h — FNP (FPGC Network Protocol) definitions.
+ *
+ * Custom L2 protocol over Ethernet (EtherType 0xB4B4) for file
+ * transfer, keyboard streaming, and remote shell commands.
+ */
 #ifndef BDOS_FNP_H
 #define BDOS_FNP_H
 

@@ -1,3 +1,9 @@
+/*
+ * Hardware timer driver — 3 timers (Timer 0, 1, 2).
+ *
+ * BDOS assignments: Timer 0 = deferred net ISR, Timer 1 = USB HID polling,
+ * Timer 2 = delay(). Registers: FPGC_TIMERn_VAL, FPGC_TIMERn_CTRL.
+ */
 #ifndef FPGC_TIMER_H
 #define FPGC_TIMER_H
 

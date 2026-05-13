@@ -1,3 +1,10 @@
+/*
+ * SPI NOR flash driver — API declarations.
+ *
+ * Bus: SPI0 (FPGC_SPI_FLASH_0) or SPI1 (FPGC_SPI_FLASH_1)
+ * Used for: BRFS root filesystem, bootloader code
+ * Page size: 256 bytes. Sector: 4 KB. Block: 32/64 KB.
+ */
 #ifndef FPGC_SPI_FLASH_H
 #define FPGC_SPI_FLASH_H
 

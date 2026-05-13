@@ -1,3 +1,9 @@
+/*
+ * bdos_mem_map.h — kernel memory layout aliases.
+ *
+ * Wraps FPGC_* constants from fpgc.h into shorter MEM_* names
+ * used throughout the kernel. Also defines interrupt ID aliases.
+ */
 #ifndef BDOS_MEM_MAP_H
 #define BDOS_MEM_MAP_H
 

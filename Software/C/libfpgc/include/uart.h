@@ -1,3 +1,9 @@
+/*
+ * UART serial driver — TX/RX with ring buffer.
+ *
+ * Registers: FPGC_UART_TX (0x00), FPGC_UART_RX (0x04) — direct MMIO
+ * Used for: debug output, UART programming, serial console
+ */
 #ifndef FPGC_UART_H
 #define FPGC_UART_H
 

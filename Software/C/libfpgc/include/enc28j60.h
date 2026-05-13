@@ -1,3 +1,11 @@
+/*
+ * ENC28J60 Ethernet controller — register definitions and API.
+ *
+ * Bus: SPI4 (FPGC_SPI_ETH)
+ * Interrupt: INTID_ETH (6)
+ *
+ * Key API: enc28j60_init, enc28j60_packet_send, enc28j60_packet_recv
+ */
 #ifndef FPGC_ENC28J60_H
 #define FPGC_ENC28J60_H
 

@@ -1,3 +1,12 @@
+/*
+ * shell_format.c — boot-time BRFS format command.
+ *
+ * Interactive format wizard used when the filesystem is corrupt or
+ * empty on first boot. Once /bin/format exists as a userBDOS binary,
+ * normal format operations use that instead.
+ *
+ * Build: make compile-bdos
+ */
 #include "bdos.h"
 
 #define BDOS_SHELL_FORMAT_LABEL_MAX 10

@@ -1,3 +1,11 @@
+/*
+ * shell_util.c — shared helper functions for the BDOS shell.
+ *
+ * Provides: filesystem readiness checks, error printing,
+ * and common shell formatting utilities.
+ *
+ * Build: make compile-bdos
+ */
 #include "bdos.h"
 
 int bdos_shell_require_fs_ready(void)

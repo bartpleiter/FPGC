@@ -1,3 +1,9 @@
+/*
+ * GPU palette index constants and ASCII pattern table data.
+ *
+ * Defines named palette entries (PALETTE_*) for the 32-entry palette table
+ * and the default 8×8 ASCII font pattern data for the tile engine.
+ */
 #ifndef FPGC_GPU_DATA_ASCII_H
 #define FPGC_GPU_DATA_ASCII_H
 

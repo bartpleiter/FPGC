@@ -1,3 +1,9 @@
+/*
+ * GPU framebuffer (pixel plane) drawing primitives.
+ *
+ * Operates on the 320×240 pixel data region (FPGC_GPU_PIXEL_DATA).
+ * Used by programs that need direct pixel access (games, renderers).
+ */
 #ifndef FPGC_GPU_FB_H
 #define FPGC_GPU_FB_H
 
