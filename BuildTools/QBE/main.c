@@ -113,8 +113,8 @@ dbgfile(char *fn)
 int
 main(void)
 {
-	int ac = sys_shell_argc();
-	char **av = sys_shell_argv();
+	int ac = sys_argc();
+	char **av = sys_argv();
 #else
 int
 main(int ac, char *av[])

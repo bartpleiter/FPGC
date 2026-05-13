@@ -21,8 +21,8 @@ main(void)
 {
 	bool pponly = false;
 	char *output = NULL, *target = NULL;
-	int argc = sys_shell_argc();
-	char **argv = sys_shell_argv();
+	int argc = sys_argc();
+	char **argv = sys_argv();
 #else
 int
 main(int argc, char *argv[])

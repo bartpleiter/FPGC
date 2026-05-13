@@ -63,6 +63,8 @@ static int shell_cmd_help(void)
     term_puts("  cat F   - print file contents\n");
     term_puts("  echo .. - print arguments\n");
     term_puts("  free    - show free memory\n");
+    term_puts("  ps      - show process table\n");
+    term_puts("  kill N  - terminate process by PID\n");
     term_puts("  sync    - flush filesystems\n");
     term_puts("  halt    - stop the system\n");
     return 0;
@@ -249,6 +251,129 @@ static int shell_cmd_cat(char *args)
     return 0;
 }
 
+static void shell_print_int(int val)
+{
+    char buf[16];
+    char tmp[16];
+    int len;
+    int i;
+
+    if (val < 0)
+    {
+        term_putchar('-');
+        val = -val;
+    }
+    len = 0;
+    if (val == 0)
+    {
+        buf[0] = '0';
+        len = 1;
+    }
+    else
+    {
+        while (val > 0)
+        {
+            tmp[len] = '0' + (val % 10);
+            val = val / 10;
+            len++;
+        }
+        for (i = 0; i < len; i++)
+            buf[i] = tmp[len - 1 - i];
+    }
+    buf[len] = '\0';
+    term_puts(buf);
+}
+
+static int shell_cmd_ps(void)
+{
+    int i;
+    struct proc *p;
+    const char *state_names[5];
+
+    state_names[0] = "free";
+    state_names[1] = "run ";
+    state_names[2] = "rdy ";
+    state_names[3] = "blk ";
+    state_names[4] = "zomb";
+
+    term_puts("PID  STATE  NAME\n");
+    for (i = 0; i < MAX_PROCS; i++)
+    {
+        p = proc_by_pid(i);
+        if (!p) continue;
+
+        /* PID */
+        if (i < 10) term_putchar(' ');
+        shell_print_int(i);
+        term_puts("   ");
+
+        /* State */
+        if (p->state >= 0 && p->state <= 4)
+            term_puts(state_names[p->state]);
+        else
+            term_puts("??? ");
+        term_puts("   ");
+
+        /* Name */
+        term_puts(p->name);
+        term_putchar('\n');
+    }
+    return 0;
+}
+
+static int shell_cmd_kill(char *args)
+{
+    int pid;
+    int i;
+    struct proc *p;
+
+    if (!args || !args[0])
+    {
+        term_puts("kill: usage: kill <pid>\n");
+        return 1;
+    }
+
+    /* Parse PID */
+    pid = 0;
+    for (i = 0; args[i] >= '0' && args[i] <= '9'; i++)
+        pid = pid * 10 + (args[i] - '0');
+
+    if (i == 0 || pid == 0)
+    {
+        term_puts("kill: invalid pid\n");
+        return 1;
+    }
+
+    p = proc_by_pid(pid);
+    if (!p)
+    {
+        term_puts("kill: no such process\n");
+        return 1;
+    }
+
+    /* Clean up the process */
+    for (i = 0; i < MAX_FDS; i++)
+    {
+        if (p->fds[i] >= 0)
+        {
+            vfs_close(p->fds[i]);
+            p->fds[i] = -1;
+        }
+    }
+    if (p->mem_base)
+    {
+        mem_free_region(p->mem_base, p->mem_size);
+        p->mem_base = 0;
+        p->mem_size = 0;
+    }
+    p->state = PROC_FREE;
+
+    term_puts("killed pid ");
+    shell_print_int(pid);
+    term_putchar('\n');
+    return 0;
+}
+
 static int shell_cmd_sync(void)
 {
     fs_sync_all();
@@ -310,6 +435,10 @@ static void shell_execute(char *line)
         shell_cmd_cat(args);
     else if (cmd[0] == 's' && cmd[1] == 'y' && cmd[2] == 'n' && cmd[3] == 'c' && cmd[4] == '\0')
         shell_cmd_sync();
+    else if (cmd[0] == 'p' && cmd[1] == 's' && cmd[2] == '\0')
+        shell_cmd_ps();
+    else if (cmd[0] == 'k' && cmd[1] == 'i' && cmd[2] == 'l' && cmd[3] == 'l' && cmd[4] == '\0')
+        shell_cmd_kill(args);
     else if (cmd[0] == 'h' && cmd[1] == 'a' && cmd[2] == 'l' && cmd[3] == 't' && cmd[4] == '\0')
     {
         term_puts("System halted.\n");

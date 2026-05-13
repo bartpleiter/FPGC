@@ -116,8 +116,10 @@ int proc_spawn(const char *path, int argc, char **argv)
         return -1;
     }
 
-    /* Allocate at least 1 MiB for the process, or file_size + 512 KiB headroom */
-    mem_size = (unsigned int)file_size + (512 * 1024);
+    /* Allocate file_size + 8 MiB headroom for heap/stack.
+     * Phase 1 is single-tasking, so generous allocation is fine.
+     * Phase 2 will need smarter allocation. */
+    mem_size = (unsigned int)file_size + (8u * 1024u * 1024u);
     if (mem_size < PROC_MEM_MIN)
         mem_size = PROC_MEM_MIN;
 
