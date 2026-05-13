@@ -34,7 +34,7 @@ CPROC_OUTPUT = $(CPROC_DIR)/output/cproc-qbe
 .PHONY: sim-cpu sim-sdram sim-bootloader
 .PHONY: test-cpu test-cpu-single debug-cpu quartus-timing
 .PHONY: test-c test-c-single
-.PHONY: compile-asm compile-bootloader compile-c-baremetal compile-bdos compile-sdcard-init-test compile-sdcard-rw-test compile-sdcard-multi-test compile-sdcard-brfs-storage-test
+.PHONY: compile-asm compile-bootloader compile-c-baremetal compile-bdos compile-kernel compile-sdcard-init-test compile-sdcard-rw-test compile-sdcard-multi-test compile-sdcard-brfs-storage-test
 .PHONY: compile-userbdos compile-userbdos-all compile-doom
 .PHONY: run-uart uart-monitor run-asm-uart run-c-baremetal-uart run-bdos
 .PHONY: compile-spi1-dma-test run-spi1-dma-test
@@ -513,6 +513,62 @@ compile-bdos: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 		--libc \
 		-I Software/C/libfpgc/include \
 		-I Software/C/bdos/include \
+		-h -s \
+		-o Software/ASM/Output/code.bin
+
+# ---- BDOS v4 kernel ----
+
+KERNEL_V4_SOURCES = \
+	Software/ASM/crt0/crt0_kernel.asm \
+	Software/C/libc/sys/_exit.asm \
+	Software/C/libc/string/string.c \
+	Software/C/libc/stdlib/stdlib.c \
+	Software/C/libc/stdlib/malloc.c \
+	Software/C/libc/ctype/ctype.c \
+	Software/C/libc/stdio/stdio.c \
+	Software/C/libc/sys/syscalls.c \
+	Software/C/libfpgc/sys/sys_asm.asm \
+	Software/C/libfpgc/sys/sys.c \
+	Software/C/libfpgc/io/spi.c \
+	Software/C/libfpgc/io/uart.c \
+	Software/C/libfpgc/io/timer.c \
+	Software/C/libfpgc/io/spi_flash.c \
+	Software/C/libfpgc/io/sd.c \
+	Software/C/libfpgc/io/ch376.c \
+	Software/C/libfpgc/io/enc28j60.c \
+	Software/C/libfpgc/io/dma_asm.asm \
+	Software/C/libfpgc/io/dma.c \
+	Software/C/libfpgc/gfx/gpu_hal.c \
+	Software/C/libfpgc/gfx/gpu_fb.c \
+	Software/C/libfpgc/gfx/gpu_data_ascii.c \
+	Software/C/libfpgc/term/term.c \
+	Software/C/libfpgc/mem/debug.c \
+	Software/C/libfpgc/fs/brfs.c \
+	Software/C/libfpgc/fs/brfs_storage_spi_flash.c \
+	Software/C/libfpgc/fs/brfs_storage_sdcard.c \
+	Software/C/libfpgc/fs/brfs_cache.c \
+	Software/C/kernel/src/main.c \
+	Software/C/kernel/src/init.c \
+	Software/C/kernel/src/mem.c \
+	Software/C/kernel/src/proc.c \
+	Software/C/kernel/src/sched.c \
+	Software/C/kernel/src/vfs.c \
+	Software/C/kernel/src/dev.c \
+	Software/C/kernel/src/dev_tty.c \
+	Software/C/kernel/src/dev_null.c \
+	Software/C/kernel/src/fs.c \
+	Software/C/kernel/src/syscall.c \
+	Software/C/kernel/src/hid.c \
+	Software/C/kernel/src/net.c \
+	Software/C/kernel/src/shell.c
+
+compile-kernel: $(QBE_OUTPUT) $(CPROC_OUTPUT)
+	@mkdir -p Software/ASM/Output
+	./Scripts/BCC/compile_modern_c.sh \
+		$(KERNEL_V4_SOURCES) \
+		--libc \
+		-I Software/C/libfpgc/include \
+		-I Software/C/kernel/include \
 		-h -s \
 		-o Software/ASM/Output/code.bin
 
