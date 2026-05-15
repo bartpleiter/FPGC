@@ -346,6 +346,7 @@ int vfs_readdir(const char *path, void *buf, int max)
         if (count < max) vfs_synth_file(&entries[count++], "uptime");
         if (count < max) vfs_synth_file(&entries[count++], "meminfo");
         if (count < max) vfs_synth_file(&entries[count++], "ps");
+        if (count < max) vfs_synth_file(&entries[count++], "df");
         return count;
     }
 
@@ -498,6 +499,23 @@ void fd_close_all(void)
         {
             vfs_close(p->fds[i]);
             p->fds[i] = -1;
+        }
+    }
+}
+
+void vfs_close_orphans(void)
+{
+    int i;
+    /* Force-close any VFS entries except gfd 0 (kernel tty).
+     * After a program exits, only the kernel's tty should remain open.
+     * This catches leaked entries where brfs_close_all closed the BRFS
+     * handle but the VFS entry's refcount was never decremented. */
+    for (i = 1; i < MAX_OPEN_FILES; i++)
+    {
+        if (file_table[i].refcount > 0)
+        {
+            file_table[i].refcount = 1;
+            vfs_close(i);
         }
     }
 }

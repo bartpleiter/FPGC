@@ -35,7 +35,7 @@ CPROC_OUTPUT = $(CPROC_DIR)/output/cproc-qbe
 .PHONY: test-cpu test-cpu-single debug-cpu quartus-timing
 .PHONY: test-c test-c-single
 .PHONY: compile-asm compile-bootloader compile-c-baremetal compile-bdos compile-kernel compile-sdcard-init-test compile-sdcard-rw-test compile-sdcard-multi-test compile-sdcard-brfs-storage-test
-.PHONY: compile-userbdos compile-userbdos-all compile-doom
+.PHONY: compile-userbdos compile-userbdos-all compile-doom compile-user-all
 .PHONY: run-uart uart-monitor run-asm-uart run-c-baremetal-uart run-bdos run-kernel
 .PHONY: compile-spi1-dma-test run-spi1-dma-test
 .PHONY: run-userbdos run-doom
@@ -765,6 +765,8 @@ compile-userbdos-all: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 		exit 1; \
 	fi; \
 	echo "============================================================"
+	
+compile-user-all: compile-userbdos-all compile-doom stage-cc-toolchain
 
 # =============================================================================
 # Hardware Programming
@@ -1200,6 +1202,7 @@ help:
 	@echo "                        and lay them out under Files/BRFS-init/ (lib/, bin/cc, user/hello.c)"
 	@echo "                        for an on-device 'cc <src.c> <name>' compile flow."
 	@echo "                        Push with 'make fnp-sync-files dev=N' afterwards."
+	@echo "  compile-user-all	 - Compile all user programs to run on the FPGC"
 	@echo ""
 	@echo "--- Hardware Programming ---"
 	@echo "  run-uart              - Run compiled binary via UART"

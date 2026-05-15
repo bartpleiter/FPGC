@@ -24,6 +24,7 @@ void *_sbrk(int incr)
 void sys_exit (int code) { syscall(SYS_EXIT,  code, 0, 0); }
 void _exit    (int code) { syscall(SYS_EXIT,  code, 0, 0); }
 int  sys_getpid(void)    { return syscall(SYS_GETPID, 0, 0, 0); }
+int  sys_kill(int pid)   { return syscall(SYS_KILL, pid, 0, 0); }
 void sys_yield(void)     { syscall(SYS_YIELD, 0, 0, 0); }
 
 /* ---- I/O convenience ---- */

@@ -16,6 +16,7 @@
 #define SYS_EXEC             3
 #define SYS_WAITPID          4
 #define SYS_GETPID           5
+#define SYS_KILL             6
 
 /* File I/O (10-15) */
 #define SYS_OPEN            10
@@ -127,6 +128,7 @@ int syscall(int num, int a1, int a2, int a3);
 /* ---- Process control ---- */
 void sys_exit(int code);
 int  sys_getpid(void);
+int  sys_kill(int pid);
 void sys_yield(void);
 
 /* ---- I/O convenience ---- */

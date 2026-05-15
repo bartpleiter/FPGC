@@ -92,15 +92,13 @@ static int shell_cmd_help(void)
     shell_puts("Built-in commands:\n");
     shell_puts("  help    - show this message\n");
     shell_puts("  clear   - clear screen\n");
-    shell_puts("  ls      - list directory\n");
     shell_puts("  cd DIR  - change directory\n");
-    shell_puts("  cat F   - print file contents\n");
     shell_puts("  echo .. - print arguments\n");
-    shell_puts("  free    - show free memory\n");
-    shell_puts("  ps      - show process table\n");
-    shell_puts("  kill N  - terminate process by PID\n");
-    shell_puts("  sync    - flush filesystems\n");
     shell_puts("  halt    - stop the system\n");
+    shell_puts("External programs in /bin/:\n");
+    shell_puts("  ls cat cp mv rm mkdir touch\n");
+    shell_puts("  ps free df kill sync\n");
+    shell_puts("  grep head wc tree\n");
     return 0;
 }
 
@@ -117,84 +115,6 @@ static int shell_cmd_echo(char *args)
         shell_puts(args);
     }
     shell_putchar('\n');
-    return 0;
-}
-
-static int shell_cmd_free(void)
-{
-    unsigned int free_bytes;
-    char buf[16];
-    free_bytes = mem_free_total();
-    /* Simple decimal conversion */
-    {
-        int i;
-        int len;
-        unsigned int val;
-        val = free_bytes;
-        len = 0;
-        if (val == 0)
-        {
-            buf[0] = '0';
-            len = 1;
-        }
-        else
-        {
-            char tmp[16];
-            while (val > 0)
-            {
-                tmp[len] = '0' + (val % 10);
-                val = val / 10;
-                len++;
-            }
-            for (i = 0; i < len; i++)
-                buf[i] = tmp[len - 1 - i];
-        }
-        buf[len] = '\0';
-    }
-    shell_puts("Free process memory: ");
-    shell_puts(buf);
-    shell_puts(" bytes\n");
-    return 0;
-}
-
-static int shell_cmd_ls(char *args)
-{
-    char path[SHELL_CWD_MAX];
-    struct brfs_dir_entry entries[32];
-    int result;
-    int i;
-
-    if (args && args[0])
-    {
-        shell_resolve_path(path, SHELL_CWD_MAX, args);
-    }
-    else
-    {
-        /* Use cwd */
-        for (i = 0; shell_cwd[i] && i < SHELL_CWD_MAX - 1; i++)
-            path[i] = shell_cwd[i];
-        path[i] = '\0';
-    }
-
-    result = vfs_readdir(path, entries, 32);
-    if (result < 0)
-    {
-        term_puts("ls: cannot list directory\n");
-        return 1;
-    }
-
-    /* result is number of entries returned */
-    for (i = 0; i < result; i++)
-    {
-        char name[17];
-        brfs_decompress_string(name, entries[i].filename, 4);
-        name[16] = '\0';
-        shell_puts(name);
-        if (entries[i].flags & BRFS_FLAG_DIRECTORY)
-            shell_putchar('/');
-        shell_putchar('\n');
-    }
-
     return 0;
 }
 
@@ -254,37 +174,6 @@ static int shell_cmd_cd(char *args)
     return 0;
 }
 
-static int shell_cmd_cat(char *args)
-{
-    int gfd;
-    char buf[256];
-    char resolved[SHELL_CWD_MAX];
-    int n;
-
-    if (!args || !args[0])
-    {
-        term_puts("cat: missing file argument\n");
-        return 1;
-    }
-
-    shell_resolve_path(resolved, SHELL_CWD_MAX, args);
-    gfd = vfs_open(resolved, O_RDONLY);
-    if (gfd < 0)
-    {
-        term_puts("cat: cannot open file\n");
-        return 1;
-    }
-
-    while ((n = vfs_read(gfd, buf, 255)) > 0)
-    {
-        buf[n] = '\0';
-        shell_puts(buf);
-    }
-    vfs_close(gfd);
-    shell_putchar('\n');
-    return 0;
-}
-
 static void shell_print_int(int val)
 {
     char buf[16];
@@ -318,101 +207,22 @@ static void shell_print_int(int val)
     shell_puts(buf);
 }
 
-static int shell_cmd_ps(void)
+/* Check if /bin/<cmd> exists without opening a file handle */
+static int shell_has_external(const char *cmd)
 {
-    int i;
-    struct proc *p;
-    const char *state_names[5];
+    char rel_path[128];
+    int ci;
 
-    state_names[0] = "free";
-    state_names[1] = "run ";
-    state_names[2] = "rdy ";
-    state_names[3] = "blk ";
-    state_names[4] = "zomb";
+    if (cmd[0] == '/') return 1;
 
-    shell_puts("PID  STATE  NAME\n");
-    for (i = 0; i < MAX_PROCS; i++)
-    {
-        p = proc_by_pid(i);
-        if (!p) continue;
+    /* Build BRFS-relative path: "bin/<cmd>" */
+    rel_path[0] = 'b'; rel_path[1] = 'i';
+    rel_path[2] = 'n'; rel_path[3] = '/';
+    for (ci = 0; cmd[ci] && ci < 122; ci++)
+        rel_path[4 + ci] = cmd[ci];
+    rel_path[4 + ci] = '\0';
 
-        /* PID */
-        if (i < 10) shell_putchar(' ');
-        shell_print_int(i);
-        shell_puts("   ");
-
-        /* State */
-        if (p->state >= 0 && p->state <= 4)
-            shell_puts(state_names[p->state]);
-        else
-            shell_puts("??? ");
-        shell_puts("   ");
-
-        /* Name */
-        shell_puts(p->name);
-        shell_putchar('\n');
-    }
-    return 0;
-}
-
-static int shell_cmd_kill(char *args)
-{
-    int pid;
-    int i;
-    struct proc *p;
-
-    if (!args || !args[0])
-    {
-        term_puts("kill: usage: kill <pid>\n");
-        return 1;
-    }
-
-    /* Parse PID */
-    pid = 0;
-    for (i = 0; args[i] >= '0' && args[i] <= '9'; i++)
-        pid = pid * 10 + (args[i] - '0');
-
-    if (i == 0 || pid == 0)
-    {
-        term_puts("kill: invalid pid\n");
-        return 1;
-    }
-
-    p = proc_by_pid(pid);
-    if (!p)
-    {
-        term_puts("kill: no such process\n");
-        return 1;
-    }
-
-    /* Clean up the process */
-    for (i = 0; i < MAX_FDS; i++)
-    {
-        if (p->fds[i] >= 0)
-        {
-            vfs_close(p->fds[i]);
-            p->fds[i] = -1;
-        }
-    }
-    if (p->mem_base)
-    {
-        mem_free_region(p->mem_base, p->mem_size);
-        p->mem_base = 0;
-        p->mem_size = 0;
-    }
-    p->state = PROC_FREE;
-
-    shell_puts("killed pid ");
-    shell_print_int(pid);
-    shell_putchar('\n');
-    return 0;
-}
-
-static int shell_cmd_sync(void)
-{
-    fs_sync_all();
-    shell_puts("filesystems synced\n");
-    return 0;
+    return brfs_exists(&brfs_spi, rel_path);
 }
 
 /* ---- Pipe temp file helpers ---- */
@@ -439,20 +249,8 @@ static int shell_try_builtin(char *cmd, char *args)
         { shell_cmd_clear(); return 1; }
     if (cmd[0] == 'e' && cmd[1] == 'c' && cmd[2] == 'h' && cmd[3] == 'o' && cmd[4] == '\0')
         { shell_cmd_echo(args); return 1; }
-    if (cmd[0] == 'f' && cmd[1] == 'r' && cmd[2] == 'e' && cmd[3] == 'e' && cmd[4] == '\0')
-        { shell_cmd_free(); return 1; }
-    if (cmd[0] == 'l' && cmd[1] == 's' && cmd[2] == '\0')
-        { shell_cmd_ls(args); return 1; }
     if (cmd[0] == 'c' && cmd[1] == 'd' && cmd[2] == '\0')
         { shell_cmd_cd(args); return 1; }
-    if (cmd[0] == 'c' && cmd[1] == 'a' && cmd[2] == 't' && cmd[3] == '\0')
-        { shell_cmd_cat(args); return 1; }
-    if (cmd[0] == 's' && cmd[1] == 'y' && cmd[2] == 'n' && cmd[3] == 'c' && cmd[4] == '\0')
-        { shell_cmd_sync(); return 1; }
-    if (cmd[0] == 'p' && cmd[1] == 's' && cmd[2] == '\0')
-        { shell_cmd_ps(); return 1; }
-    if (cmd[0] == 'k' && cmd[1] == 'i' && cmd[2] == 'l' && cmd[3] == 'l' && cmd[4] == '\0')
-        { shell_cmd_kill(args); return 1; }
     if (cmd[0] == 'h' && cmd[1] == 'a' && cmd[2] == 'l' && cmd[3] == 't' && cmd[4] == '\0')
         { term_puts("System halted.\n"); kernel_panic("user halt"); return 1; }
     return 0;
@@ -574,11 +372,13 @@ static int shell_run_external(char *cmd, char *args, int stdin_gfd, int stdout_g
     p->state = PROC_FREE;
 
     /*
-     * Safety net: close any BRFS files that survived the per-fd
-     * cleanup. This catches leaked handles when proc_exit didn't
-     * run (crash) or when the VFS→BRFS close path failed.
+     * Safety net: close any leaked VFS and BRFS entries.
+     * vfs_close_orphans() properly closes VFS entries (which also
+     * closes underlying BRFS handles via ops->close).  brfs_close_all
+     * catches any BRFS handles not associated with a VFS entry.
      * Phase 1 is single-foreground, so this is safe.
      */
+    vfs_close_orphans();
     brfs_close_all(&brfs_spi);
     if (fs_sd_ready)
         brfs_close_all(&brfs_sd);
@@ -767,7 +567,8 @@ static void shell_execute(char *line)
         if (out_gfd >= 0)
             shell_out_gfd = out_gfd;
 
-        if (!shell_try_builtin(cmd, args))
+        /* Prefer external /bin/<cmd> over builtin */
+        if (shell_has_external(cmd))
         {
             shell_out_gfd = -1;
             int exit_code;
@@ -778,6 +579,12 @@ static void shell_execute(char *line)
                 shell_print_int(exit_code);
                 term_putchar('\n');
             }
+        }
+        else if (!shell_try_builtin(cmd, args))
+        {
+            shell_out_gfd = -1;
+            term_puts(cmd);
+            term_puts(": command not found\n");
         }
         shell_out_gfd = -1;
 
@@ -835,16 +642,23 @@ static void shell_execute(char *line)
 
             if (cmd[0] != '\0')
             {
-                /* Try builtin first */
-                if (out_gfd >= 0)
-                    shell_out_gfd = out_gfd;
-                /* Note: builtins don't use stdin redirection */
-                if (!shell_try_builtin(cmd, args))
+                /* Prefer external /bin/<cmd> over builtin */
+                if (shell_has_external(cmd))
                 {
                     shell_out_gfd = -1;
                     shell_run_external(cmd, args, in_gfd, out_gfd);
                 }
-                shell_out_gfd = -1;
+                else
+                {
+                    if (out_gfd >= 0)
+                        shell_out_gfd = out_gfd;
+                    if (!shell_try_builtin(cmd, args))
+                    {
+                        shell_out_gfd = -1;
+                        shell_run_external(cmd, args, in_gfd, out_gfd);
+                    }
+                    shell_out_gfd = -1;
+                }
             }
 
             /* Close the gfds we opened for this segment */

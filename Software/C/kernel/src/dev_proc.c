@@ -12,6 +12,7 @@
 #define PROC_FILE_UPTIME  0
 #define PROC_FILE_MEMINFO 1
 #define PROC_FILE_PS      2
+#define PROC_FILE_DF      3
 
 /* ---- Integer formatting helpers ---- */
 
@@ -113,6 +114,47 @@ static int gen_ps(char *buf, int bufsize)
     return len;
 }
 
+static int gen_df(char *buf, int bufsize)
+{
+    int len;
+    unsigned int total;
+    unsigned int free_blk;
+    unsigned int bsize;
+
+    len = 0;
+    len += proc_strcpy(buf + len, "Filesystem  Blocks  Free  Used  BlockSize\n");
+
+    /* SPI flash root */
+    if (brfs_statfs(&brfs_spi, &total, &free_blk, &bsize) == 0)
+    {
+        len += proc_strcpy(buf + len, "/           ");
+        len += proc_itoa(buf + len, total);
+        len += proc_strcpy(buf + len, "  ");
+        len += proc_itoa(buf + len, free_blk);
+        len += proc_strcpy(buf + len, "  ");
+        len += proc_itoa(buf + len, total - free_blk);
+        len += proc_strcpy(buf + len, "  ");
+        len += proc_itoa(buf + len, bsize * 4);
+        buf[len++] = '\n';
+    }
+
+    /* SD card */
+    if (fs_sd_ready && brfs_statfs(&brfs_sd, &total, &free_blk, &bsize) == 0)
+    {
+        len += proc_strcpy(buf + len, "/sdcard     ");
+        len += proc_itoa(buf + len, total);
+        len += proc_strcpy(buf + len, "  ");
+        len += proc_itoa(buf + len, free_blk);
+        len += proc_strcpy(buf + len, "  ");
+        len += proc_itoa(buf + len, total - free_blk);
+        len += proc_strcpy(buf + len, "  ");
+        len += proc_itoa(buf + len, bsize * 4);
+        buf[len++] = '\n';
+    }
+
+    return len;
+}
+
 /* ---- File operations ---- */
 
 static int proc_read(struct open_file *f, void *buf, int count)
@@ -135,6 +177,9 @@ static int proc_read(struct open_file *f, void *buf, int count)
         break;
     case PROC_FILE_PS:
         len = gen_ps(content, 512);
+        break;
+    case PROC_FILE_DF:
+        len = gen_df(content, 512);
         break;
     default:
         return -1;
@@ -207,6 +252,8 @@ static int proc_open(const char *path, int flags, struct open_file *f)
         f->private = (void *)PROC_FILE_MEMINFO;
     else if (proc_streq(name, "ps"))
         f->private = (void *)PROC_FILE_PS;
+    else if (proc_streq(name, "df"))
+        f->private = (void *)PROC_FILE_DF;
     else
         return -1; /* unknown proc file */
 

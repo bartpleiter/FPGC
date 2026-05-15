@@ -43,6 +43,30 @@ int syscall_dispatch(int num, int a1, int a2, int a3)
     case SYS_GETPID:     /* 5 */
         return current_pid;
 
+    case SYS_KILL:       /* 6 */
+    {
+        struct proc *kp;
+        int ki;
+        kp = proc_by_pid(a1);
+        if (!kp || a1 == 0) return -1;
+        for (ki = 0; ki < MAX_FDS; ki++)
+        {
+            if (kp->fds[ki] >= 0)
+            {
+                vfs_close(kp->fds[ki]);
+                kp->fds[ki] = -1;
+            }
+        }
+        if (kp->mem_base)
+        {
+            mem_free_region(kp->mem_base, kp->mem_size);
+            kp->mem_base = 0;
+            kp->mem_size = 0;
+        }
+        kp->state = PROC_FREE;
+        return 0;
+    }
+
     /* ---- File I/O (10-15) ---- */
 
     case SYS_OPEN:       /* 10 */

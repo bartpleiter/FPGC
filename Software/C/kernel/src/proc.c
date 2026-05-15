@@ -118,8 +118,11 @@ int proc_spawn(const char *path, int argc, char **argv)
 
     /* Allocate file_size + 8 MiB headroom for heap/stack.
      * Phase 1 is single-tasking, so generous allocation is fine.
-     * Phase 2 will need smarter allocation. */
+     * Phase 2 will need smarter allocation.
+     * Align to 32 bytes to match mem_alloc's internal alignment,
+     * so mem_free_region returns the exact block that was allocated. */
     mem_size = (unsigned int)file_size + (8u * 1024u * 1024u);
+    mem_size = (mem_size + 31) & ~31u;
     if (mem_size < PROC_MEM_MIN)
         mem_size = PROC_MEM_MIN;
 

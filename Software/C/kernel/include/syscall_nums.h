@@ -13,6 +13,7 @@
 #define SYS_EXEC             3
 #define SYS_WAITPID          4
 #define SYS_GETPID           5
+#define SYS_KILL             6
 
 /* ---- File I/O ---- */
 #define SYS_OPEN            10

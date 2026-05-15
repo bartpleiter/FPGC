@@ -101,6 +101,9 @@ void fd_inherit(struct proc *child, struct proc *parent);
 /* Close all fds for a process (on exit). */
 void fd_close_all(void);
 
+/* Force-close orphaned VFS entries (everything except gfd 0). */
+void vfs_close_orphans(void);
+
 /* ---- Device registration ---- */
 
 /*
