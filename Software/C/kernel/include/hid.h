@@ -72,6 +72,7 @@ int hid_event_push(int key);
 
 /* Real-time held-key bitmap (rebuilt from HID report each poll). */
 extern unsigned int hid_key_state;
+extern int ctrl_c_pending;
 
 /* USB device state */
 extern usb_device_info_t hid_usb_device;

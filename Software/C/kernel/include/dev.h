@@ -15,6 +15,9 @@ void dev_init(void);
 void dev_tty_init(void);
 void dev_null_init(void);
 void dev_pixpal_init(void);
+void dev_uart_init(void);
+void dev_random_init(void);
+void dev_proc_init(void);
 void dev_fb_init(void);
 
 #endif /* KERNEL_DEV_H */

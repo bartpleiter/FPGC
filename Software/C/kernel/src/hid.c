@@ -15,6 +15,9 @@ int hid_keyboard_connected;
 int hid_spi_id;
 unsigned int hid_key_state;
 
+/* Ctrl+C interrupt flag — set by ISR, checked by syscall dispatcher */
+int ctrl_c_pending;
+
 /* Key event FIFO */
 static int key_fifo[KEY_FIFO_SIZE];
 static int key_fifo_head;
@@ -219,7 +222,11 @@ void hid_timer_callback(int timer_id)
             key_event = hid_translate_key(new_keycode, kb_report.modifier);
             if (key_event)
             {
-                hid_event_push(key_event);
+                /* Ctrl+C (ASCII 0x03): set interrupt flag instead of FIFO */
+                if (key_event == 0x03)
+                    ctrl_c_pending = 1;
+                else
+                    hid_event_push(key_event);
             }
             repeat_keycode = new_keycode;
             repeat_modifier = kb_report.modifier;
@@ -307,6 +314,7 @@ void hid_init(void)
     hid_key_state = 0;
     key_fifo_head = 0;
     key_fifo_tail = 0;
+    ctrl_c_pending = 0;
     hid_reset_state();
 
     ch376_host_init(hid_spi_id);

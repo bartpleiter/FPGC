@@ -12,6 +12,15 @@ int syscall_dispatch(int num, int a1, int a2, int a3)
 {
     struct proc *p;
 
+    /* Check for Ctrl+C interrupt — force exit if pending */
+    if (ctrl_c_pending && current_pid != 0)
+    {
+        ctrl_c_pending = 0;
+        proc_exit(130); /* 128 + SIGINT(2), POSIX convention */
+        syscall_exit_to_kernel();
+        /* not reached */
+    }
+
     switch (num)
     {
     /* ---- Core process control (1-5) ---- */
@@ -176,17 +185,28 @@ int syscall_dispatch(int num, int a1, int a2, int a3)
 
     /* ---- Networking (50-53) ---- */
 
-    case SYS_NET_SEND:   /* 50 */
-        return -1; /* Phase 2 */
+    case SYS_NET_SEND:   /* 50 — net_send(buf, len): send raw Ethernet frame */
+        enc28j60_packet_send((char *)a1, (int)a2);
+        return a2;
 
-    case SYS_NET_RECV:   /* 51 */
-        return -1; /* Phase 2 */
+    case SYS_NET_RECV:   /* 51 — net_recv(buf, max): receive packet from ring */
+        return net_ringbuf_pop((char *)a1, a2);
 
     case SYS_NET_PACKET_COUNT: /* 52 */
-        return 0;
+        return net_ringbuf_count();
 
-    case SYS_NET_GET_MAC: /* 53 */
-        return -1; /* Phase 2 */
+    case SYS_NET_GET_MAC: /* 53 — net_get_mac(buf6): copy MAC to user buffer */
+    {
+        char *dst;
+        dst = (char *)a1;
+        dst[0] = (char)net_mac[0];
+        dst[1] = (char)net_mac[1];
+        dst[2] = (char)net_mac[2];
+        dst[3] = (char)net_mac[3];
+        dst[4] = (char)net_mac[4];
+        dst[5] = (char)net_mac[5];
+        return 0;
+    }
 
     /* ---- IPC (60-61) ---- */
 

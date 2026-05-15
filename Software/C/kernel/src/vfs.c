@@ -230,6 +230,12 @@ int vfs_ioctl(int gfd, int cmd, int arg)
     return f->ops->ioctl(f, cmd, arg);
 }
 
+void vfs_addref(int gfd)
+{
+    if (gfd >= 0 && gfd < MAX_OPEN_FILES)
+        file_table[gfd].refcount++;
+}
+
 /* ---- Path operations ---- */
 
 int vfs_unlink(const char *path)
@@ -250,14 +256,114 @@ int vfs_mkdir(const char *path)
     return brfs_create_dir(fs, rel);
 }
 
+/* Helper: create a synthetic directory entry */
+static void vfs_synth_dir(struct brfs_dir_entry *e, const char *name)
+{
+    brfs_compress_string(e->filename, name);
+    e->modify_date = 0;
+    e->flags = BRFS_FLAG_DIRECTORY;
+    e->fat_idx = 0;
+    e->filesize = 0;
+}
+
+/* Helper: create a synthetic file entry */
+static void vfs_synth_file(struct brfs_dir_entry *e, const char *name)
+{
+    brfs_compress_string(e->filename, name);
+    e->modify_date = 0;
+    e->flags = 0;
+    e->fat_idx = 0;
+    e->filesize = 0;
+}
+
+/* Check if two strings are equal */
+static int vfs_streq(const char *a, const char *b)
+{
+    while (*a && *b)
+    {
+        if (*a != *b) return 0;
+        a++; b++;
+    }
+    return *a == *b;
+}
+
 int vfs_readdir(const char *path, void *buf, int max)
 {
-    const char *rel;
-    struct brfs_state *fs;
-    fs = fs_for_path(path, &rel);
-    if (!fs) return -1;
-    /* buf is treated as struct brfs_dir_entry array, max is max entries */
-    return brfs_read_dir(fs, rel, (struct brfs_dir_entry *)buf, (unsigned int)max);
+    struct brfs_dir_entry *entries;
+    int count;
+
+    entries = (struct brfs_dir_entry *)buf;
+    count = 0;
+
+    /* Root directory: BRFS entries + synthetic mount points */
+    if (vfs_streq(path, "/"))
+    {
+        const char *rel;
+        struct brfs_state *fs;
+        int brfs_count;
+
+        fs = fs_for_path(path, &rel);
+        if (fs)
+        {
+            brfs_count = brfs_read_dir(fs, rel, entries, (unsigned int)max);
+            if (brfs_count > 0)
+                count = brfs_count;
+        }
+
+        /* Append synthetic mount points */
+        if (count < max)
+            vfs_synth_dir(&entries[count++], "dev");
+        if (count < max)
+            vfs_synth_dir(&entries[count++], "proc");
+        if (count < max && fs_sd_ready)
+            vfs_synth_dir(&entries[count++], "sdcard");
+        return count;
+    }
+
+    /* /dev or /dev/ — list registered devices */
+    if (vfs_streq(path, "/dev") || vfs_streq(path, "/dev/"))
+    {
+        int i;
+        for (i = 0; i < device_count && count < max; i++)
+        {
+            /* Extract basename: skip "/dev/" prefix */
+            const char *name;
+            name = devices[i].prefix;
+            if (name[0] == '/' && name[1] == 'd' && name[2] == 'e'
+                && name[3] == 'v' && name[4] == '/')
+                name = name + 5;
+            /* Skip /proc/ entries (they have their own listing) */
+            if (name[0] == '/' && name[1] == 'p')
+                continue;
+            vfs_synth_file(&entries[count++], name);
+        }
+        return count;
+    }
+
+    /* /proc or /proc/ — list proc virtual files */
+    if (vfs_streq(path, "/proc") || vfs_streq(path, "/proc/"))
+    {
+        if (count < max) vfs_synth_file(&entries[count++], "uptime");
+        if (count < max) vfs_synth_file(&entries[count++], "meminfo");
+        if (count < max) vfs_synth_file(&entries[count++], "ps");
+        return count;
+    }
+
+    /* /sdcard or /sdcard/ — list SD card root directory */
+    if (vfs_streq(path, "/sdcard") || vfs_streq(path, "/sdcard/"))
+    {
+        if (!fs_sd_ready) return -1;
+        return brfs_read_dir(&brfs_sd, "", entries, (unsigned int)max);
+    }
+
+    /* Default: delegate to BRFS */
+    {
+        const char *rel;
+        struct brfs_state *fs;
+        fs = fs_for_path(path, &rel);
+        if (!fs) return -1;
+        return brfs_read_dir(fs, rel, entries, (unsigned int)max);
+    }
 }
 
 int vfs_stat(const char *path, void *buf)

@@ -69,6 +69,7 @@ int vfs_write(int gfd, const void *buf, int count);
 int vfs_lseek(int gfd, int offset, int whence);
 int vfs_close(int gfd);
 int vfs_ioctl(int gfd, int cmd, int arg);
+void vfs_addref(int gfd);
 
 /* Path operations (not fd-based) */
 int vfs_unlink(const char *path);

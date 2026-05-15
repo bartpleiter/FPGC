@@ -10,6 +10,9 @@
 
 /* ---- Write side ---- */
 
+/* UART mirror: 1 = mirror tty output to UART (filtered), 0 = off */
+static int uart_mirror_enabled = 1;
+
 /* ANSI escape filter state for UART mirroring */
 static int uart_esc_state; /* 0=normal, 1=saw ESC, 2=in CSI sequence */
 
@@ -45,7 +48,8 @@ static int tty_write(struct open_file *f, const void *buf, int count)
     for (i = 0; i < count; i++)
     {
         term_putchar(p[i]);
-        uart_putchar_filtered(p[i]);
+        if (uart_mirror_enabled)
+            uart_putchar_filtered(p[i]);
     }
     return count;
 }
@@ -182,10 +186,21 @@ static int tty_close(struct open_file *f)
     return 0;
 }
 
+#define TTY_IOCTL_GET_UART_MIRROR 1
+#define TTY_IOCTL_SET_UART_MIRROR 2
+
 static int tty_ioctl(struct open_file *f, int cmd, int arg)
 {
-    /* TODO: set raw/cooked mode, etc. */
-    return -1;
+    switch (cmd)
+    {
+    case TTY_IOCTL_GET_UART_MIRROR:
+        return uart_mirror_enabled;
+    case TTY_IOCTL_SET_UART_MIRROR:
+        uart_mirror_enabled = (arg != 0) ? 1 : 0;
+        return 0;
+    default:
+        return -1;
+    }
 }
 
 /* ---- File operations vtable ---- */
