@@ -2,11 +2,39 @@
  * dev_tty.c — /dev/tty device driver.
  *
  * Read: returns key events from HID FIFO (with line editing).
- * Write: sends chars to the terminal (libterm) and optionally UART.
+ * Write: sends chars to the terminal (libterm) and mirrors to UART.
+ *        UART output filters out ANSI escape sequences so only
+ *        plain text appears on the serial console.
  */
 #include "kernel.h"
 
 /* ---- Write side ---- */
+
+/* ANSI escape filter state for UART mirroring */
+static int uart_esc_state; /* 0=normal, 1=saw ESC, 2=in CSI sequence */
+
+static void uart_putchar_filtered(char c)
+{
+    switch (uart_esc_state)
+    {
+    case 0: /* normal */
+        if (c == '\x1b')
+            uart_esc_state = 1;
+        else
+            uart_putchar(c);
+        break;
+    case 1: /* saw ESC */
+        if (c == '[')
+            uart_esc_state = 2; /* CSI sequence */
+        else
+            uart_esc_state = 0; /* not CSI, skip just the ESC+char */
+        break;
+    case 2: /* in CSI — skip until final byte (0x40-0x7E) */
+        if (c >= 0x40 && c <= 0x7E)
+            uart_esc_state = 0;
+        break;
+    }
+}
 
 static int tty_write(struct open_file *f, const void *buf, int count)
 {
@@ -17,6 +45,7 @@ static int tty_write(struct open_file *f, const void *buf, int count)
     for (i = 0; i < count; i++)
     {
         term_putchar(p[i]);
+        uart_putchar_filtered(p[i]);
     }
     return count;
 }

@@ -556,6 +556,7 @@ KERNEL_V4_SOURCES = \
 	Software/C/kernel/src/dev.c \
 	Software/C/kernel/src/dev_tty.c \
 	Software/C/kernel/src/dev_null.c \
+	Software/C/kernel/src/dev_pixpal.c \
 	Software/C/kernel/src/fs.c \
 	Software/C/kernel/src/syscall.c \
 	Software/C/kernel/src/hid.c \

@@ -145,9 +145,7 @@ int vfs_open(const char *path, int flags)
 
         brfs_fd = brfs_open(fs, rel_path);
         if (brfs_fd < 0)
-        {
             return -1;
-        }
 
         if (flags & O_APPEND)
         {
@@ -296,7 +294,6 @@ int fd_alloc(int gfd)
         if (p->fds[i] < 0)
         {
             p->fds[i] = gfd;
-            file_table[gfd].refcount++;
             return i;
         }
     }

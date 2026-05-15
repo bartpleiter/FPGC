@@ -520,6 +520,16 @@ static void shell_execute(char *line)
             exit_code = p->exit_code;
             p->state = PROC_FREE;
 
+            /*
+             * Safety net: close any BRFS files that survived the per-fd
+             * cleanup. This catches leaked handles when proc_exit didn't
+             * run (crash) or when the VFS→BRFS close path failed.
+             * Phase 1 is single-foreground, so this is safe.
+             */
+            brfs_close_all(&brfs_spi);
+            if (fs_sd_ready)
+                brfs_close_all(&brfs_sd);
+
             kernel_ccache();
 
             if (exit_code != 0)
