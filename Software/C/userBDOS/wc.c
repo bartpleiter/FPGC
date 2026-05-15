@@ -1,7 +1,8 @@
 /*
  * wc — count lines, words, and bytes
  *
- * Usage: wc [file ...]
+ * Usage: wc [-l] [file ...]
+ * -l: print only line count
  * With no arguments, reads from stdin.
  */
 
@@ -9,6 +10,8 @@
 #include <string.h>
 
 #define BUF_SIZE 256
+
+static int lflag;
 
 void print_num(int val)
 {
@@ -84,12 +87,20 @@ void wc_fd(int fd, int *total_lines, int *total_words, int *total_bytes)
     *total_words += words;
     *total_bytes += bytes;
 
-    sys_putstr("  ");
-    print_num(lines);
-    sys_putstr("  ");
-    print_num(words);
-    sys_putstr("  ");
-    print_num(bytes);
+    if (lflag)
+    {
+        sys_putstr("  ");
+        print_num(lines);
+    }
+    else
+    {
+        sys_putstr("  ");
+        print_num(lines);
+        sys_putstr("  ");
+        print_num(words);
+        sys_putstr("  ");
+        print_num(bytes);
+    }
 }
 
 int main(void)
@@ -105,19 +116,37 @@ int main(void)
     argc = sys_argc();
     argv = sys_argv();
 
+    lflag = 0;
+    for (i = 1; i < argc; i++)
+    {
+        if (argv[i][0] == '-' && argv[i][1] == 'l' && argv[i][2] == '\0')
+            lflag = 1;
+    }
+
     total_lines = 0;
     total_words = 0;
     total_bytes = 0;
 
-    if (argc < 2)
+    /* Count non-flag arguments */
     {
-        wc_fd(0, &total_lines, &total_words, &total_bytes);
-        sys_putc('\n');
-        return 0;
+        int nfiles;
+        nfiles = 0;
+        for (i = 1; i < argc; i++)
+        {
+            if (argv[i][0] != '-') nfiles++;
+        }
+
+        if (nfiles == 0)
+        {
+            wc_fd(0, &total_lines, &total_words, &total_bytes);
+            sys_putc('\n');
+            return 0;
+        }
     }
 
     for (i = 1; i < argc; i++)
     {
+        if (argv[i][0] == '-') continue;
         fd = sys_open(argv[i], O_RDONLY);
         if (fd < 0)
         {
@@ -133,15 +162,32 @@ int main(void)
         sys_close(fd);
     }
 
-    if (argc > 2)
+    /* Print total for multiple files */
     {
-        sys_putstr("  ");
-        print_num(total_lines);
-        sys_putstr("  ");
-        print_num(total_words);
-        sys_putstr("  ");
-        print_num(total_bytes);
-        sys_putstr(" total\n");
+        int nfiles;
+        nfiles = 0;
+        for (i = 1; i < argc; i++)
+        {
+            if (argv[i][0] != '-') nfiles++;
+        }
+        if (nfiles > 1)
+        {
+            if (lflag)
+            {
+                sys_putstr("  ");
+                print_num(total_lines);
+            }
+            else
+            {
+                sys_putstr("  ");
+                print_num(total_lines);
+                sys_putstr("  ");
+                print_num(total_words);
+                sys_putstr("  ");
+                print_num(total_bytes);
+            }
+            sys_putstr(" total\n");
+        }
     }
 
     return 0;

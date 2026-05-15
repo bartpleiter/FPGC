@@ -17,6 +17,18 @@ static int  shell_input_len;
 static int  shell_prompt_shown;
 static char shell_cwd[SHELL_CWD_MAX];
 
+/* Sync shell_cwd into the kernel process's proc.cwd so children inherit it */
+static void shell_sync_cwd(void)
+{
+    struct proc *kp;
+    int i;
+    kp = proc_by_pid(0);
+    if (!kp) return;
+    for (i = 0; shell_cwd[i] && i < PROC_CWD_LEN - 1; i++)
+        kp->cwd[i] = shell_cwd[i];
+    kp->cwd[i] = '\0';
+}
+
 /* Output redirection: -1 = terminal, >= 0 = gfd for pipe/redirect */
 static int shell_out_gfd = -1;
 
@@ -128,6 +140,7 @@ static int shell_cmd_cd(char *args)
     {
         shell_cwd[0] = '/';
         shell_cwd[1] = '\0';
+        shell_sync_cwd();
         return 0;
     }
 
@@ -152,6 +165,7 @@ static int shell_cmd_cd(char *args)
         {
             shell_cwd[len] = '\0';
         }
+        shell_sync_cwd();
         return 0;
     }
 
@@ -171,6 +185,7 @@ static int shell_cmd_cd(char *args)
     for (i = 0; resolved[i] && i < SHELL_CWD_MAX - 1; i++)
         shell_cwd[i] = resolved[i];
     shell_cwd[i] = '\0';
+    shell_sync_cwd();
     return 0;
 }
 
@@ -207,22 +222,42 @@ static void shell_print_int(int val)
     shell_puts(buf);
 }
 
-/* Check if /bin/<cmd> exists without opening a file handle */
+/* Check if a command exists as an external program.
+ * Checks:  absolute paths (/foo/bar),
+ *          relative paths (./foo, dir/foo) — resolved against cwd,
+ *          bare commands (ls) — looked up in /bin/ */
 static int shell_has_external(const char *cmd)
 {
-    char rel_path[128];
+    char path[128];
     int ci;
 
-    if (cmd[0] == '/') return 1;
+    if (cmd[0] == '/')
+    {
+        /* Absolute path — check BRFS directly (skip leading /) */
+        return brfs_exists(&brfs_spi, cmd + 1);
+    }
 
-    /* Build BRFS-relative path: "bin/<cmd>" */
-    rel_path[0] = 'b'; rel_path[1] = 'i';
-    rel_path[2] = 'n'; rel_path[3] = '/';
+    /* Check if path contains '/' (e.g., ./foo or dir/foo) */
+    for (ci = 0; cmd[ci]; ci++)
+    {
+        if (cmd[ci] == '/')
+        {
+            /* Relative path — resolve against cwd */
+            shell_resolve_path(path, 128, cmd);
+            if (path[0] == '/')
+                return brfs_exists(&brfs_spi, path + 1);
+            return brfs_exists(&brfs_spi, path);
+        }
+    }
+
+    /* Bare command name — look up in /bin/ */
+    path[0] = 'b'; path[1] = 'i';
+    path[2] = 'n'; path[3] = '/';
     for (ci = 0; cmd[ci] && ci < 122; ci++)
-        rel_path[4 + ci] = cmd[ci];
-    rel_path[4 + ci] = '\0';
+        path[4 + ci] = cmd[ci];
+    path[4 + ci] = '\0';
 
-    return brfs_exists(&brfs_spi, rel_path);
+    return brfs_exists(&brfs_spi, path);
 }
 
 /* ---- Pipe temp file helpers ---- */
@@ -287,7 +322,10 @@ static int shell_run_external(char *cmd, char *args, int stdin_gfd, int stdout_g
         }
     }
 
-    /* Path resolution: /bin/<cmd> for non-absolute paths */
+    /* Path resolution:
+     * - Absolute paths (/foo): use as-is
+     * - Paths with / (./foo, dir/foo): resolve against cwd
+     * - Bare names (ls): prepend /bin/ */
     if (cmd[0] == '/')
     {
         int ci;
@@ -298,14 +336,27 @@ static int shell_run_external(char *cmd, char *args, int stdin_gfd, int stdout_g
     else
     {
         int ci;
-        resolved[0] = '/';
-        resolved[1] = 'b';
-        resolved[2] = 'i';
-        resolved[3] = 'n';
-        resolved[4] = '/';
-        for (ci = 0; cmd[ci] && ci < 122; ci++)
-            resolved[5 + ci] = cmd[ci];
-        resolved[5 + ci] = '\0';
+        int has_slash;
+        has_slash = 0;
+        for (ci = 0; cmd[ci]; ci++)
+        {
+            if (cmd[ci] == '/') { has_slash = 1; break; }
+        }
+        if (has_slash)
+        {
+            shell_resolve_path(resolved, 128, cmd);
+        }
+        else
+        {
+            resolved[0] = '/';
+            resolved[1] = 'b';
+            resolved[2] = 'i';
+            resolved[3] = 'n';
+            resolved[4] = '/';
+            for (ci = 0; cmd[ci] && ci < 122; ci++)
+                resolved[5 + ci] = cmd[ci];
+            resolved[5 + ci] = '\0';
+        }
     }
 
     pid = proc_spawn(resolved, argc, argv);

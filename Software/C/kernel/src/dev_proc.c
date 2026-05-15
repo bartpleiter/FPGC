@@ -50,6 +50,36 @@ static int proc_strcpy(char *dst, const char *src)
     return i;
 }
 
+/* Right-justify a number in a field of given width */
+static int proc_itoa_rjust(char *buf, unsigned int val, int width)
+{
+    char tmp[12];
+    int ndigits;
+    int i;
+    int pad;
+
+    ndigits = 0;
+    if (val == 0)
+    {
+        tmp[ndigits++] = '0';
+    }
+    else
+    {
+        while (val > 0)
+        {
+            tmp[ndigits++] = '0' + (val % 10);
+            val /= 10;
+        }
+    }
+
+    pad = width - ndigits;
+    for (i = 0; i < pad; i++)
+        buf[i] = ' ';
+    for (i = 0; i < ndigits; i++)
+        buf[pad + i] = tmp[ndigits - 1 - i];
+    return (pad > 0) ? pad + ndigits : ndigits;
+}
+
 /* ---- Content generators ---- */
 
 static int gen_uptime(char *buf, int bufsize)
@@ -122,33 +152,28 @@ static int gen_df(char *buf, int bufsize)
     unsigned int bsize;
 
     len = 0;
-    len += proc_strcpy(buf + len, "Filesystem  Blocks  Free  Used  BlockSize\n");
+    /* Compact header: fits in 40 chars */
+    len += proc_strcpy(buf + len, "FS       Blocks  Free  Used  BSz\n");
 
     /* SPI flash root */
     if (brfs_statfs(&brfs_spi, &total, &free_blk, &bsize) == 0)
     {
-        len += proc_strcpy(buf + len, "/           ");
-        len += proc_itoa(buf + len, total);
-        len += proc_strcpy(buf + len, "  ");
-        len += proc_itoa(buf + len, free_blk);
-        len += proc_strcpy(buf + len, "  ");
-        len += proc_itoa(buf + len, total - free_blk);
-        len += proc_strcpy(buf + len, "  ");
-        len += proc_itoa(buf + len, bsize * 4);
+        len += proc_strcpy(buf + len, "/        ");
+        len += proc_itoa_rjust(buf + len, total, 6);
+        len += proc_itoa_rjust(buf + len, free_blk, 6);
+        len += proc_itoa_rjust(buf + len, total - free_blk, 6);
+        len += proc_itoa_rjust(buf + len, bsize * 4, 5);
         buf[len++] = '\n';
     }
 
     /* SD card */
     if (fs_sd_ready && brfs_statfs(&brfs_sd, &total, &free_blk, &bsize) == 0)
     {
-        len += proc_strcpy(buf + len, "/sdcard     ");
-        len += proc_itoa(buf + len, total);
-        len += proc_strcpy(buf + len, "  ");
-        len += proc_itoa(buf + len, free_blk);
-        len += proc_strcpy(buf + len, "  ");
-        len += proc_itoa(buf + len, total - free_blk);
-        len += proc_strcpy(buf + len, "  ");
-        len += proc_itoa(buf + len, bsize * 4);
+        len += proc_strcpy(buf + len, "/sdcard  ");
+        len += proc_itoa_rjust(buf + len, total, 6);
+        len += proc_itoa_rjust(buf + len, free_blk, 6);
+        len += proc_itoa_rjust(buf + len, total - free_blk, 6);
+        len += proc_itoa_rjust(buf + len, bsize * 4, 5);
         buf[len++] = '\n';
     }
 

@@ -8,6 +8,42 @@
  */
 #include "kernel.h"
 
+/*
+ * Resolve a user-supplied path against the current process's cwd.
+ * If path is absolute (starts with '/'), copies it as-is.
+ * Otherwise prepends cwd + '/'.
+ */
+static void resolve_user_path(char *out, int outsize, const char *path)
+{
+    struct proc *p;
+    int len;
+    int i;
+
+    if (path[0] == '/')
+    {
+        for (i = 0; path[i] && i < outsize - 1; i++)
+            out[i] = path[i];
+        out[i] = '\0';
+        return;
+    }
+
+    p = proc_current();
+    len = 0;
+    if (p)
+    {
+        for (i = 0; p->cwd[i] && len < outsize - 2; i++)
+            out[len++] = p->cwd[i];
+        if (len > 1 || (len == 1 && out[0] != '/'))
+        {
+            if (out[len - 1] != '/')
+                out[len++] = '/';
+        }
+    }
+    for (i = 0; path[i] && len < outsize - 1; i++)
+        out[len++] = path[i];
+    out[len] = '\0';
+}
+
 int syscall_dispatch(int num, int a1, int a2, int a3)
 {
     struct proc *p;
@@ -73,7 +109,9 @@ int syscall_dispatch(int num, int a1, int a2, int a3)
     {
         int gfd;
         int fd;
-        gfd = vfs_open((const char *)a1, a2);
+        char resolved[256];
+        resolve_user_path(resolved, 256, (const char *)a1);
+        gfd = vfs_open(resolved, a2);
         if (gfd < 0) return -1;
         fd = fd_alloc(gfd);
         if (fd < 0) { vfs_close(gfd); return -1; }
@@ -113,19 +151,41 @@ int syscall_dispatch(int num, int a1, int a2, int a3)
     /* ---- Filesystem (20-28) ---- */
 
     case SYS_UNLINK:     /* 20 */
-        return vfs_unlink((const char *)a1);
+    {
+        char resolved[256];
+        resolve_user_path(resolved, 256, (const char *)a1);
+        return vfs_unlink(resolved);
+    }
 
     case SYS_MKDIR:      /* 21 */
-        return vfs_mkdir((const char *)a1);
+    {
+        char resolved[256];
+        resolve_user_path(resolved, 256, (const char *)a1);
+        return vfs_mkdir(resolved);
+    }
 
     case SYS_READDIR:    /* 22 */
-        return vfs_readdir((const char *)a1, (void *)a2, a3);
+    {
+        char resolved[256];
+        resolve_user_path(resolved, 256, (const char *)a1);
+        return vfs_readdir(resolved, (void *)a2, a3);
+    }
 
     case SYS_RENAME:     /* 23 */
-        return vfs_rename((const char *)a1, (const char *)a2);
+    {
+        char res_old[256];
+        char res_new[256];
+        resolve_user_path(res_old, 256, (const char *)a1);
+        resolve_user_path(res_new, 256, (const char *)a2);
+        return vfs_rename(res_old, res_new);
+    }
 
     case SYS_STAT:       /* 24 */
-        return vfs_stat((const char *)a1, (void *)a2);
+    {
+        char resolved[256];
+        resolve_user_path(resolved, 256, (const char *)a1);
+        return vfs_stat(resolved, (void *)a2);
+    }
 
     case SYS_SYNC:       /* 25 */
         fs_sync_all();

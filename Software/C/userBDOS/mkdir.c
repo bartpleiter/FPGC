@@ -1,7 +1,8 @@
 /*
  * mkdir — create directories
  *
- * Usage: mkdir <path> [path ...]
+ * Usage: mkdir [-p] <path> [path ...]
+ * -p: no error if existing
  */
 
 #include <syscall.h>
@@ -12,25 +13,37 @@ int main(void)
     char **argv;
     int i;
     int ret;
+    int pflag;
 
     argc = sys_argc();
     argv = sys_argv();
 
-    if (argc < 2)
+    pflag = 0;
+    for (i = 1; i < argc; i++)
     {
-        sys_putstr("usage: mkdir <path> [path ...]\n");
+        if (argv[i][0] == '-' && argv[i][1] == 'p' && argv[i][2] == '\0')
+            pflag = 1;
+    }
+
+    if (argc < 2 || (pflag && argc < 3))
+    {
+        sys_putstr("usage: mkdir [-p] <path> [path ...]\n");
         return 1;
     }
 
     ret = 0;
     for (i = 1; i < argc; i++)
     {
+        if (argv[i][0] == '-') continue;
         if (sys_mkdir(argv[i]) < 0)
         {
-            sys_putstr("mkdir: cannot create '");
-            sys_putstr(argv[i]);
-            sys_putstr("'\n");
-            ret = 1;
+            if (!pflag)
+            {
+                sys_putstr("mkdir: cannot create '");
+                sys_putstr(argv[i]);
+                sys_putstr("'\n");
+                ret = 1;
+            }
         }
     }
     return ret;
