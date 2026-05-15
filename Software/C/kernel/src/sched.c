@@ -24,26 +24,22 @@ void sched_wake_sleepers(void)
             p->saved_regs[1] = 0;  /* r1 = return value of sleep (0) */
             p->state = PROC_READY;
             p->blocked_reason = BLOCK_NONE;
+            sched_should_yield = 1;
         }
     }
 }
 
-/* Pick the next READY process to run (round-robin). */
+/* Pick the next READY process to run (simple linear scan). */
 static int sched_pick_next(void)
 {
     int i;
-    int start;
+    struct proc *p;
 
-    start = (current_pid + 1) % MAX_PROCS;
-    for (i = 0; i < MAX_PROCS; i++)
+    for (i = 1; i < MAX_PROCS; i++)
     {
-        int pid;
-        struct proc *p;
-
-        pid = (start + i) % MAX_PROCS;
-        p = proc_by_pid(pid);
+        p = proc_by_pid(i);
         if (p && p->state == PROC_READY)
-            return pid;
+            return i;
     }
 
     /* No READY processes — stay on current if it's RUNNING */
@@ -88,9 +84,9 @@ void sched_tick(void)
     current_pid = next;
 
     /* Perform context switch */
-    if (cur && cur->pid != 0 && nxt->pid != 0)
+    if (cur && cur->state == PROC_RUNNING && cur->pid != 0 && nxt->pid != 0)
     {
-        /* User→User: full register save/restore */
+        /* User→User: full register save/restore (Phase 4 preemption) */
         context_switch(cur, nxt);
     }
     else if (nxt->pid != 0)

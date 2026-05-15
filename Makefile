@@ -564,8 +564,7 @@ KERNEL_V4_SOURCES = \
 	Software/C/kernel/src/syscall.c \
 	Software/C/kernel/src/hid.c \
 	Software/C/kernel/src/net.c \
-	Software/C/kernel/src/fnp.c \
-	Software/C/kernel/src/shell.c
+	Software/C/kernel/src/fnp.c
 
 compile-kernel: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	@mkdir -p Software/ASM/Output

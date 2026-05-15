@@ -130,6 +130,10 @@ void sys_exit(int code);
 int  sys_getpid(void);
 int  sys_kill(int pid);
 void sys_yield(void);
+int  sys_exec(const char *path, int argc, const char **argv);
+int  sys_waitpid(int pid);
+int  sys_stat(const char *path, void *buf);
+int  sys_ioctl(int fd, int cmd, int arg);
 
 /* ---- I/O convenience ---- */
 void sys_putc  (int ch);

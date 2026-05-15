@@ -10,10 +10,6 @@
 /* Assembly helpers (from crt0_kernel.asm) */
 extern void kernel_loop_save_sp_bp(void);
 
-/* Forward declarations for shell (temporary — Phase 1 only) */
-extern void shell_init(void);
-extern void shell_tick(void);
-
 void kernel_panic(const char *msg)
 {
     term_set_palette(PALETTE_WHITE_ON_RED);
@@ -43,14 +39,22 @@ void kernel_loop(void)
         net_poll();
         fnp_poll();
         sched_tick();
-        shell_tick();
     }
 }
 
 int main(void)
 {
     kernel_init();
-    shell_init();
+
+    /* Spawn /bin/init as PID 1 */
+    {
+        int pid;
+        pid = proc_spawn("/bin/init", 0, (char **)0);
+        if (pid < 0)
+            kernel_panic("failed to spawn /bin/init");
+        sched_should_yield = 1;
+    }
+
     kernel_loop();
     return 0x42;
 }

@@ -369,7 +369,36 @@ int vfs_readdir(const char *path, void *buf, int max)
 
 int vfs_stat(const char *path, void *buf)
 {
-    /* TODO: implement stat */
+    const char *rel_path;
+    struct brfs_state *fs;
+    int i;
+
+    /* Check if it matches a device path (e.g., /dev/tty) */
+    for (i = 0; i < device_count; i++)
+    {
+        int match;
+        int j;
+
+        match = 1;
+        for (j = 0; j < devices[i].prefix_len; j++)
+        {
+            if (path[j] != devices[i].prefix[j])
+            {
+                match = 0;
+                break;
+            }
+        }
+        if (match)
+            return 0;  /* Device exists */
+    }
+
+    /* Check filesystem */
+    fs = fs_for_path(path, &rel_path);
+    if (!fs) return -1;
+
+    if (brfs_exists(fs, rel_path))
+        return 0;
+
     return -1;
 }
 
