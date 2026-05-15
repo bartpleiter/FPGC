@@ -7,7 +7,7 @@
 #include "kernel.h"
 
 /* Timer-based sleep: check all BLOCKED/SLEEP processes. */
-static void sched_wake_sleepers(void)
+void sched_wake_sleepers(void)
 {
     unsigned int now;
     int i;
@@ -21,6 +21,7 @@ static void sched_wake_sleepers(void)
             && p->blocked_reason == BLOCK_SLEEP
             && now >= p->wake_time)
         {
+            p->saved_regs[1] = 0;  /* r1 = return value of sleep (0) */
             p->state = PROC_READY;
             p->blocked_reason = BLOCK_NONE;
         }
@@ -92,10 +93,11 @@ void sched_tick(void)
         /* User→User: full register save/restore */
         context_switch(cur, nxt);
     }
-    else if (cur && cur->pid == 0 && nxt->pid != 0)
+    else if (nxt->pid != 0)
     {
         /* Kernel→User: save kernel state, enter user process */
-        context_enter(nxt->saved_pc, nxt->saved_regs[13]);
+        current_proc_regs_ptr = (unsigned int)&nxt->saved_regs[0];
+        context_enter();
     }
     else if (nxt->pid == 0)
     {

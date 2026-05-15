@@ -93,6 +93,10 @@ void proc_sleep_ms(unsigned int ms);
  * Called from yield, exit, and timer soft preemption. */
 void sched_run(void);
 
+/* Wake sleeping processes whose timers have expired.
+ * Called from sched_tick and from the shell wait loop. */
+void sched_wake_sleepers(void);
+
 /* Timer tick handler — called from Timer 0 ISR at 100 Hz.
  * Wakes sleeping processes and sets soft preemption flag. */
 void sched_tick(void);
@@ -103,17 +107,26 @@ void sched_tick(void);
  * Implemented in crt0_kernel.asm. */
 extern void context_switch(struct proc *from, struct proc *to);
 
-/* Enter a user process: saves kernel state, jumps to entry_addr
- * with stack_top as the stack pointer. Returns when the process
- * exits (via crt0 natural return or EXIT syscall). */
-extern void context_enter(unsigned int entry_addr, unsigned int stack_top);
+/* Enter a user process: saves kernel state, loads user state from
+ * proc struct (via current_proc_regs_ptr), and jumps to user code.
+ * saved_regs[15] is the jump target (entry point or resume address).
+ * Returns when the process exits or blocks. */
+extern void context_enter(void);
 
-/* Called from EXIT syscall after proc_exit(). Never returns.
+/* Called from EXIT syscall handler after proc_exit() cleanup.
  * Resets HW stack and returns to context_enter caller. */
 extern void syscall_exit_to_kernel(void);
 
-/* Exit code from context_enter (user main() return value for natural return) */
+/* Exit code from context_enter (legacy, kept for compat) */
 extern unsigned int context_enter_retval;
+
+/* Pointer to current proc's saved_regs[0]. Must be set before
+ * calling context_enter() or making a syscall. */
+extern unsigned int current_proc_regs_ptr;
+
+/* Flag: set to 1 by blocking syscalls (waitpid, sleep).
+ * Checked by Return_Syscall asm to exit to kernel. */
+extern int proc_was_blocked;
 
 /* ---- Globals ---- */
 

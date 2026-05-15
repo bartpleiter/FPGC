@@ -257,8 +257,8 @@ int syscall_dispatch(int num, int a1, int a2, int a3)
 
     /* ---- Timing / input (40-42) ---- */
 
-    case SYS_SLEEP:      /* 40 — sleep(ms) */
-        delay((unsigned int)a1);
+    case SYS_SLEEP:      /* 40 — sleep(ms): blocks process, yields to scheduler */
+        proc_sleep_ms((unsigned int)a1);
         return 0;
 
     case SYS_GET_KEY_STATE: /* 41 */

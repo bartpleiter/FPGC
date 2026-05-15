@@ -241,8 +241,10 @@ int proc_spawn(const char *path, int argc, char **argv)
             p->saved_regs[j] = 0;
         /* r13 = SP, set to top of allocated region */
         p->saved_regs[13] = mem_base + mem_size - 4;
-        /* r14 = FP, same as SP initially */
-        p->saved_regs[14] = mem_base + mem_size - 4;
+        /* r14 = FP, 0 (crt0 sets it anyway) */
+        p->saved_regs[14] = 0;
+        /* r15 = entry point (context_enter jumps here) */
+        p->saved_regs[15] = mem_base;
     }
 
     /* Clear HW stack */
@@ -349,8 +351,12 @@ void proc_exit(int code)
             && parent->blocked_reason == BLOCK_WAITPID
             && (parent->wait_pid == p->pid || parent->wait_pid == -1))
         {
+            /* Set parent's r1 = exit code (return value of waitpid) */
+            parent->saved_regs[1] = (unsigned int)code;
             parent->state = PROC_READY;
             parent->blocked_reason = BLOCK_NONE;
+            /* Child is collected — free the slot */
+            p->state = PROC_FREE;
         }
     }
 
@@ -384,7 +390,8 @@ int proc_waitpid(int pid)
         p->blocked_reason = BLOCK_WAITPID;
         p->wait_pid = pid;
         sched_should_yield = 1;
-        return 0; /* Will be resumed when child exits */
+        proc_was_blocked = 1;
+        return 0; /* Return_Syscall will exit to kernel */
     }
 
     /* pid == -1: wait for any child */
@@ -408,6 +415,7 @@ int proc_waitpid(int pid)
     p->blocked_reason = BLOCK_WAITPID;
     p->wait_pid = -1;
     sched_should_yield = 1;
+    proc_was_blocked = 1;
     return 0;
 }
 
@@ -421,4 +429,5 @@ void proc_sleep_ms(unsigned int ms)
     p->blocked_reason = BLOCK_SLEEP;
     p->wake_time = get_micros() + (ms * 1000);
     sched_should_yield = 1;
+    proc_was_blocked = 1;
 }

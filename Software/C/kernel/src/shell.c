@@ -391,13 +391,34 @@ static int shell_run_external(char *cmd, char *args, int stdin_gfd, int stdout_g
     current_pid = pid;
     p->state = PROC_RUNNING;
 
-    /* Enter user program (blocks until it finishes) */
-    context_enter(p->saved_pc, p->saved_regs[13]);
+    /* Enter user program — loop to handle blocking syscalls */
+    while (1)
+    {
+        current_proc_regs_ptr = (unsigned int)&p->saved_regs[0];
+        context_enter();
 
-    /* Program finished — back to kernel */
-    current_pid = 0;
+        /* context_enter returned — process either exited or blocked */
+        current_pid = 0;
 
-    /* Clean up if proc_exit wasn't called (natural return from main) */
+        if (p->state == PROC_ZOMBIE || p->state == PROC_FREE)
+            break; /* Process exited normally via SYS_EXIT */
+
+        /* Process is blocked (sleep, waitpid, etc.)
+         * Wait for it to become READY, running kernel services */
+        while (p->state == PROC_BLOCKED)
+        {
+            hid_poll();
+            net_poll();
+            fnp_poll();
+            sched_wake_sleepers();
+        }
+
+        /* Process is now READY — re-enter it */
+        current_pid = pid;
+        p->state = PROC_RUNNING;
+    }
+
+    /* Clean up if proc_exit wasn't called (safety net for broken programs) */
     if (p->state != PROC_ZOMBIE)
     {
         for (j = 0; j < MAX_FDS; j++)
@@ -414,7 +435,7 @@ static int shell_run_external(char *cmd, char *args, int stdin_gfd, int stdout_g
             p->mem_base = 0;
             p->mem_size = 0;
         }
-        p->exit_code = (int)context_enter_retval;
+        p->exit_code = 0;
         p->state = PROC_ZOMBIE;
     }
 
