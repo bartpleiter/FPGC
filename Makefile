@@ -285,6 +285,7 @@ selfhost-all: selfhost-qbe selfhost-cproc
 #   /bin/cproc, /bin/qbe        — modern toolchain (built via selfhost-*)
 #   /bin/cpp,   /bin/asm-link   — preprocessor + assembler/linker (userBDOS)
 #   /bin/cc                     — shell script: cpp | cproc | qbe | asm-link
+#   /bin/libc-build             — shell script: one-time libc compilation
 #   /lib/include/*.h            — libc + userlib headers
 #   /lib/src/*.c                — libc + userlib C sources (compiled on device)
 #   /lib/asm/*.asm              — hand-written crt0 + asm helpers
@@ -298,6 +299,7 @@ selfhost-all: selfhost-qbe selfhost-cproc
 # After this completes, push it with:
 #   make fnp-sync-files dev=N
 # Then on the device:
+#   libc-build                    # one-time: compile libc to /lib/asm-cache/
 #   cc /user/hello.c hello && hello
 # -----------------------------------------------------------------------------
 
@@ -315,13 +317,15 @@ STAGE_LIB_C_SOURCES = \
 	Software/C/userlib/src/fixedmath.c \
 	Software/C/userlib/src/fixed64.c \
 	Software/C/userlib/src/plot.c \
-	Software/C/userlib/src/fnp.c
+	Software/C/userlib/src/fnp.c \
+	Software/C/userlib/src/dma.c
 
 # Hand-written .asm files that ship verbatim (no cpp/cproc/qbe pass needed).
 STAGE_LIB_ASM_SOURCES = \
 	Software/ASM/crt0/crt0_ubdos.asm \
 	Software/C/userlib/src/syscall_asm.asm \
-	Software/C/userlib/src/fixed64_asm.asm
+	Software/C/userlib/src/fixed64_asm.asm \
+	Software/C/userlib/src/dma_asm.asm
 
 STAGE_DIR        = Files/BRFS-init
 STAGE_LIB_INC    = $(STAGE_DIR)/lib/include

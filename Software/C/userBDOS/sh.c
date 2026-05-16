@@ -32,6 +32,13 @@
 #define VAR_VALUE_LEN   96
 #define SAVE_FD         10
 #define SAVE_FD_IN      11
+#define SCRIPT_FILE_MAX  8192   /* max script file size */
+#define SCRIPT_LINES_MAX 128    /* max lines in a script */
+
+/* Positional parameters for script execution ($0-$9, $#) */
+static char  pos_param_store[10][PATH_MAX];
+static int   pos_param_count;
+static int   in_script;          /* 1 while executing a script file */
 
 /* ---- Token types ---- */
 
@@ -349,14 +356,15 @@ static int sh_expand(const char *src, char *dst, int dst_size)
             }
             else if (*src == '#')
             {
-                /* $# — not applicable in interactive mode */
-                val = "0";
+                int_to_str(pos_param_count, num_buf);
+                val = num_buf;
                 src++;
             }
             else if (*src >= '0' && *src <= '9')
             {
-                /* $0-$9 — not applicable in interactive mode */
-                val = "";
+                int idx;
+                idx = *src - '0';
+                val = pos_param_store[idx];
                 src++;
             }
             else if (is_name_start(*src))
@@ -1345,6 +1353,112 @@ static int try_var_assign(sh_cmd_t *cmd)
     return 1;
 }
 
+/* ---- Script file execution ---- */
+
+/* Forward declaration — defined later in the file */
+static int execute_lines(const char **lines, int nlines);
+
+/* Check if a file starts with #! (shebang). */
+static int is_script_file(const char *path)
+{
+    int fd;
+    char hdr[2];
+    int n;
+
+    fd = sys_open(path, O_RDONLY);
+    if (fd < 0) return 0;
+
+    n = sys_read(fd, hdr, 2);
+    sys_close(fd);
+
+    return (n == 2 && hdr[0] == '#' && hdr[1] == '!');
+}
+
+/*
+ * Execute a shell script file.
+ * Reads the entire file, splits into lines, skips the shebang,
+ * sets positional parameters ($0-$9, $#), then runs via execute_lines().
+ * Aborts on the first command that returns non-zero (implicit set -e).
+ */
+static char  file_buf[SCRIPT_FILE_MAX];
+
+static int run_script(const char *path, int argc, char **argv)
+{
+    int fd;
+    int file_size;
+    int n;
+    int i;
+    int line_count;
+    int result;
+    char *lines[SCRIPT_LINES_MAX];
+
+    if (in_script)
+    {
+        sys_putstr("sh: nested scripts not supported\n");
+        return 1;
+    }
+
+    /* Open and read file */
+    fd = sys_open(path, O_RDONLY);
+    if (fd < 0)
+    {
+        sys_putstr("sh: cannot open ");
+        sys_putstr(path);
+        sys_putc('\n');
+        return 1;
+    }
+
+    file_size = sys_lseek(fd, 0, SEEK_END);
+    sys_lseek(fd, 0, SEEK_SET);
+
+    if (file_size <= 0 || file_size >= SCRIPT_FILE_MAX - 1)
+    {
+        sys_close(fd);
+        sys_putstr("sh: script too large\n");
+        return 1;
+    }
+
+    n = sys_read(fd, file_buf, file_size);
+    sys_close(fd);
+    if (n <= 0) return 1;
+    file_buf[n] = '\0';
+
+    /* Split into lines, skip shebang line */
+    line_count = 0;
+    i = 0;
+
+    /* Skip first line (shebang) */
+    while (i < n && file_buf[i] != '\n') i++;
+    if (i < n) i++;
+
+    while (i < n && line_count < SCRIPT_LINES_MAX)
+    {
+        lines[line_count++] = &file_buf[i];
+        while (i < n && file_buf[i] != '\n') i++;
+        if (i < n) file_buf[i++] = '\0';
+    }
+
+    /* Set positional parameters */
+    pos_param_count = (argc > 1) ? argc - 1 : 0;
+    sh_strncpy(pos_param_store[0], path, PATH_MAX);
+    for (i = 1; i < argc && i < 10; i++)
+        sh_strncpy(pos_param_store[i], argv[i], PATH_MAX);
+    for (; i < 10; i++)
+        pos_param_store[i][0] = '\0';
+
+    /* Execute all lines */
+    in_script = 1;
+    result = execute_lines((const char **)lines, line_count);
+    in_script = 0;
+
+    /* Clear positional parameters */
+    pos_param_count = 0;
+    for (i = 0; i < 10; i++)
+        pos_param_store[i][0] = '\0';
+
+    return result;
+}
+
 /* Run a single command (builtin or external). */
 static int run_cmd(sh_cmd_t *cmd)
 {
@@ -1380,7 +1494,16 @@ static int run_cmd(sh_cmd_t *cmd)
 
     /* External */
     if (has_external(cmd->argv[0]))
+    {
+        char resolved[PATH_MAX];
+        resolve_cmd_path(cmd->argv[0], resolved);
+
+        /* Script file? (starts with #!) */
+        if (is_script_file(resolved))
+            return run_script(resolved, cmd->argc, cmd->argv);
+
         return run_external(cmd);
+    }
 
     sys_putstr(cmd->argv[0]);
     sys_putstr(": command not found\n");
@@ -1754,7 +1877,6 @@ static int glob_expand(sh_tok_t *toks, int ntoks, int max_toks,
  * Lines are stored contiguously separated by '\0'.
  */
 #define SCRIPT_MAX  4096
-#define SCRIPT_LINES_MAX  128
 
 static char  script_buf[SCRIPT_MAX];
 static int   script_len;
@@ -2086,6 +2208,7 @@ static int execute_lines(const char **lines, int nlines)
             }
             result = exec_if_block(&lines[i], end - i + 1);
             last_exit = result;
+            if (in_script && result != 0) return result;
             i = end + 1;
             continue;
         }
@@ -2107,6 +2230,7 @@ static int execute_lines(const char **lines, int nlines)
             }
             result = exec_for_block(&lines[i], end - i + 1);
             last_exit = result;
+            if (in_script && result != 0) return result;
             i = end + 1;
             continue;
         }
@@ -2127,6 +2251,7 @@ static int execute_lines(const char **lines, int nlines)
             }
             result = exec_while_block(&lines[i], end - i + 1);
             last_exit = result;
+            if (in_script && result != 0) return result;
             i = end + 1;
             continue;
         }
@@ -2134,6 +2259,7 @@ static int execute_lines(const char **lines, int nlines)
         /* Regular line */
         result = execute_line(line);
         last_exit = result;
+        if (in_script && result != 0) return result;
         i++;
     }
 
