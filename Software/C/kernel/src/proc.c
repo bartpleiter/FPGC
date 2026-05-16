@@ -116,14 +116,13 @@ int proc_spawn(const char *path, int argc, char **argv)
         return -1;
     }
 
-    /* Allocate file_size + 8 MiB headroom for heap/stack.
-     * Phase 3 runs init + sh + user program concurrently, so
-     * keep headroom modest (30 MiB pool ÷ 3 procs ≈ 10 MiB each).
-     * Memory-hungry programs (asm-link) must size their own buffers
-     * to fit within this budget.
-     * Align to 32 bytes to match mem_alloc's internal alignment,
-     * so mem_free_region returns the exact block that was allocated. */
-    mem_size = (unsigned int)file_size + (8u * 1024u * 1024u);
+    /* Allocate file_size + PROC_STACK_SIZE for the initial region.
+     * The heap starts right after the code and grows upward via sbrk.
+     * When sbrk needs more space, the kernel extends the region in-place
+     * from the process pool (see SYS_SBRK in syscall.c).
+     * This keeps the spawn footprint small so many processes can run
+     * concurrently in the 30 MiB pool. */
+    mem_size = (unsigned int)file_size + PROC_STACK_SIZE;
     mem_size = (mem_size + 31) & ~31u;
     if (mem_size < PROC_MEM_MIN)
         mem_size = PROC_MEM_MIN;
@@ -227,8 +226,19 @@ int proc_spawn(const char *path, int argc, char **argv)
     p->exit_code = 0;
     p->mem_base = mem_base;
     p->mem_size = mem_size;
-    /* Heap starts right after code+data, rounded up to 4-byte boundary */
-    p->heap_break = (mem_base + (unsigned int)file_size + 3u) & ~3u;
+
+    /* Memory layout: [Code+BSS | Stack (fixed) | Heap (growable)]
+     * Stack sits right after code, grows DOWN toward code.
+     * Heap sits after the stack area, grows UP via sbrk.
+     * sbrk can extend mem_size from the pool on demand. */
+    {
+        unsigned int stack_top;
+        stack_top = mem_base + (unsigned int)file_size + PROC_STACK_SIZE;
+        p->heap_base = (stack_top + 3u) & ~3u;
+        p->heap_break = p->heap_base;
+    }
+
+
     p->saved_pc = mem_base;       /* Entry point = start of binary */
     p->saved_hw_sp = 0;          /* Empty HW stack */
     p->fg = 0;
@@ -236,13 +246,18 @@ int proc_spawn(const char *path, int argc, char **argv)
     p->wake_time = 0;
     p->wait_pid = -1;
 
-    /* Initialize software stack: SP at top of process memory */
+    /* Initialize software registers */
     {
         int j;
         for (j = 0; j < 16; j++)
             p->saved_regs[j] = 0;
-        /* r13 = SP, set to top of allocated region */
-        p->saved_regs[13] = mem_base + mem_size - 4;
+        /* r13 = SP: top of stack area.
+         * The B32P3 C ABI writes old FP at [SP+0] and RA at [SP+4]
+         * in the callee prologue BEFORE decrementing SP.  Therefore
+         * SP must be at least stack_top − 8 so that [SP+4] stays
+         * within the stack region and does not overlap heap_base. */
+        p->saved_regs[13] = mem_base + (unsigned int)file_size
+                            + PROC_STACK_SIZE - 8;
         /* r14 = FP, 0 (crt0 sets it anyway) */
         p->saved_regs[14] = 0;
         /* r15 = entry point (context_enter jumps here) */

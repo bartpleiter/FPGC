@@ -238,3 +238,54 @@ unsigned int mem_free_total(void)
     }
     return total;
 }
+
+/*
+ * mem_grow_region — try to extend an existing allocation in-place.
+ *
+ * Looks for a free block immediately adjacent to base + old_size.
+ * If found, absorbs up to `growth` bytes from it (aligned to 32 bytes).
+ * Returns the number of bytes actually absorbed (may be >= growth due
+ * to alignment), or 0 if in-place growth is not possible.
+ */
+unsigned int mem_grow_region(unsigned int base, unsigned int old_size,
+                             unsigned int growth)
+{
+    struct free_node *prev;
+    struct free_node *curr;
+    unsigned int end;
+    unsigned int aligned_growth;
+
+    end = base + old_size;
+    aligned_growth = (growth + 31) & ~31u;
+
+    /* Find the free node starting at `end` */
+    prev = 0;
+    curr = free_list;
+    while (curr && curr->base < end)
+    {
+        prev = curr;
+        curr = curr->next;
+    }
+
+    if (!curr || curr->base != end)
+        return 0; /* No adjacent free block */
+
+    if (curr->size <= aligned_growth)
+    {
+        /* Absorb the entire free node */
+        unsigned int absorbed;
+        absorbed = curr->size;
+        if (prev)
+            prev->next = curr->next;
+        else
+            free_list = curr->next;
+        release_node(curr);
+        free_node_count--;
+        return absorbed;
+    }
+
+    /* Partial absorption: shrink the free node */
+    curr->base += aligned_growth;
+    curr->size -= aligned_growth;
+    return aligned_growth;
+}

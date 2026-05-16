@@ -247,10 +247,27 @@ int syscall_dispatch(int num, int a1, int a2, int a3)
             unsigned int limit;
             old_break = p->heap_break;
             new_break = old_break + (unsigned int)a1;
-            /* Leave 64 KiB for stack at top of process memory */
-            limit = p->mem_base + p->mem_size - (64u * 1024u);
-            if (new_break > limit || new_break < p->mem_base)
+            /* Heap must not shrink below its base */
+            if (new_break < p->heap_base)
                 return -1;
+            /* Heap can use all space up to end of allocation */
+            limit = p->mem_base + p->mem_size;
+            if (new_break > limit)
+            {
+                /* Try to grow the region in-place from the pool */
+                unsigned int need;
+                unsigned int grew;
+                need = new_break - limit;
+                if (need < PROC_GROW_CHUNK)
+                    need = PROC_GROW_CHUNK;
+                grew = mem_grow_region(p->mem_base, p->mem_size, need);
+                if (grew == 0)
+                    return -1;
+                p->mem_size += grew;
+                limit = p->mem_base + p->mem_size;
+                if (new_break > limit)
+                    return -1;
+            }
             p->heap_break = new_break;
         }
         return (int)p->heap_break - a1; /* return old break */

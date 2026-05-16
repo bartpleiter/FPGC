@@ -29,7 +29,8 @@
 
 /* Minimum and default process allocation */
 #define PROC_MEM_MIN           0x10000     /* 64 KiB minimum */
-#define PROC_MEM_HEAP_MARGIN   0x40000     /* 256 KiB extra for heap/stack */
+#define PROC_STACK_SIZE        0x40000     /* 256 KiB stack per process */
+#define PROC_GROW_CHUNK        0x100000    /* 1 MiB growth granularity */
 #define PROC_MEM_ALIGN         0x20        /* 32-byte alignment (cache line) */
 
 /* BRFS cache regions */
@@ -57,6 +58,11 @@ void mem_free_region(unsigned int base, unsigned int size);
 
 /* Return total free bytes in the process pool. */
 unsigned int mem_free_total(void);
+
+/* Try to grow an existing allocation in-place.
+ * Returns bytes absorbed (>= growth), or 0 on failure. */
+unsigned int mem_grow_region(unsigned int base, unsigned int old_size,
+                             unsigned int growth);
 
 /*
  * Kernel heap — simple bump allocator.

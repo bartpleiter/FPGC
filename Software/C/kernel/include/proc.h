@@ -37,6 +37,7 @@ struct proc {
     /* Memory region */
     unsigned int   mem_base;
     unsigned int   mem_size;
+    unsigned int   heap_base;    /* Start of heap (after stack), never changes */
     unsigned int   heap_break;   /* Current sbrk break (next free byte) */
 
     /* Saved CPU context (filled by context switch) */
