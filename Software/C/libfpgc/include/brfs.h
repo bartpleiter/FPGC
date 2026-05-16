@@ -144,6 +144,7 @@ int brfs_write(struct brfs_state *fs, int fd, const void *buffer, unsigned int l
 int brfs_seek(struct brfs_state *fs, int fd, unsigned int offset);
 int brfs_tell(struct brfs_state *fs, int fd);
 int brfs_file_size(struct brfs_state *fs, int fd);
+int brfs_truncate(struct brfs_state *fs, int fd);
 
 /* ---- Directory Operations ---- */
 int brfs_create_dir(struct brfs_state *fs, const char *path);

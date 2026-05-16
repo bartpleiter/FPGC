@@ -117,8 +117,10 @@ int proc_spawn(const char *path, int argc, char **argv)
     }
 
     /* Allocate file_size + 8 MiB headroom for heap/stack.
-     * Phase 1 is single-tasking, so generous allocation is fine.
-     * Phase 2 will need smarter allocation.
+     * Phase 3 runs init + sh + user program concurrently, so
+     * keep headroom modest (30 MiB pool ÷ 3 procs ≈ 10 MiB each).
+     * Memory-hungry programs (asm-link) must size their own buffers
+     * to fit within this budget.
      * Align to 32 bytes to match mem_alloc's internal alignment,
      * so mem_free_region returns the exact block that was allocated. */
     mem_size = (unsigned int)file_size + (8u * 1024u * 1024u);
@@ -277,8 +279,10 @@ int proc_spawn(const char *path, int argc, char **argv)
     }
 
     /* Arguments */
+    if (argc > MAX_ARGV)
+        argc = MAX_ARGV;
     p->argc = argc;
-    for (i = 0; i < 16; i++)
+    for (i = 0; i < MAX_ARGV; i++)
     {
         if (i < argc && argv)
             p->argv[i] = argv[i];

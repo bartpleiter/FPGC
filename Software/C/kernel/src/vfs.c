@@ -155,6 +155,11 @@ int vfs_open(const char *path, int flags)
                 brfs_seek(fs, brfs_fd, (unsigned int)fsize);
         }
 
+        if (flags & O_TRUNC)
+        {
+            brfs_truncate(fs, brfs_fd);
+        }
+
         /* Store fs pointer and brfs fd in the open_file */
         file_table[gfd].refcount = 1;
         file_table[gfd].flags = flags;

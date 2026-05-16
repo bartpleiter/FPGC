@@ -10,7 +10,7 @@
 
 #define MAX_PROCS         16
 #define MAX_FDS           16
-#define MAX_ARGV          16
+#define MAX_ARGV          32     /* Must match shell's ARGV_MAX (cc.sh uses ~21) */
 #define PROC_NAME_LEN     32
 #define PROC_CWD_LEN      128
 

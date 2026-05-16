@@ -1270,7 +1270,7 @@ static int apply_redirects(sh_cmd_t *cmd, int pipe_in_fd, int pipe_out_fd)
     if (cmd->redir_out)
     {
         resolve_path(rpath, CWD_MAX, cmd->redir_out);
-        fd = sys_open(rpath, O_WRONLY | O_CREAT);
+        fd = sys_open(rpath, O_WRONLY | O_CREAT | O_TRUNC);
         if (fd < 0)
         {
             sys_putstr("sh: cannot open ");
@@ -1549,7 +1549,7 @@ static int run_pipeline(sh_pipeline_t *pl)
         if (!is_last)
         {
             pipe_path(pp, i);
-            pipe_out_fd = sys_open(pp, O_WRONLY | O_CREAT);
+            pipe_out_fd = sys_open(pp, O_WRONLY | O_CREAT | O_TRUNC);
             if (pipe_out_fd < 0)
             {
                 sys_putstr("sh: cannot create pipe\n");

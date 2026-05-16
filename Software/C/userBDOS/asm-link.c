@@ -195,24 +195,36 @@ static char *sys_getcwd_static(void)
 #define MAX_TOKENS        16
 #define MAX_PATH          256
 
-/* On-device BDOS heap is 28 MiB shared. asm-link allocates 13 line arrays
- * twice (input + output), each MAX_LINES * 4 bytes, plus the pools below.
- * Keep BDOS limits small enough that everything fits comfortably; the host
- * build keeps the larger limits used when linking big programs. */
+/* asm-link allocates 13 line arrays twice (input + output), each
+ * MAX_LINES * 4 bytes, plus string/label pools and output buffer.
+ *
+ * On BDOS, each process gets file_size + 8 MiB headroom.  With 3
+ * concurrent processes (init + sh + user program) in a 30 MiB pool,
+ * we must keep total allocation under ~7.5 MiB.  The host build
+ * keeps larger limits for linking big programs.
+ *
+ * BDOS budget (~7.3 MiB):
+ *   26 arrays × 48K × 4  = 4.88 MiB   (line + out arrays)
+ *   str_pool 512 KiB + byte_pool 256 KiB
+ *   labels 8K × 68 = 544 KiB
+ *   output 1 MiB + relocs 32 KiB
+ */
 #ifdef ASMLINK_HOST
   #define MAX_LINES         (256 * 1024)
   #define STR_POOL_BYTES    (2 * 1024 * 1024)
   #define BYTE_POOL_BYTES   (512 * 1024)
   #define OUTPUT_WORDS      (256 * 1024)
+  #define MAX_LABELS        16384
+  #define MAX_RELOCS        16384
 #else
-  #define MAX_LINES         (96 * 1024)        /* ~10 MiB for line arrays */
-  #define STR_POOL_BYTES    (1 * 1024 * 1024)  /* 1 MiB interned strings */
+  #define MAX_LINES         (48 * 1024)        /* ~4.88 MiB for 26 arrays */
+  #define STR_POOL_BYTES    (512 * 1024)       /* 512 KiB interned strings */
   #define BYTE_POOL_BYTES   (256 * 1024)       /* 256 KiB ELF byte data */
   #define OUTPUT_WORDS      (256 * 1024)       /* 1 MiB output */
+  #define MAX_LABELS        8192               /* 544 KiB label storage */
+  #define MAX_RELOCS        8192               /* 32 KiB reloc entries */
 #endif
 #define LABEL_NAME_LEN    64
-#define MAX_LABELS        16384
-#define MAX_RELOCS        16384
 
 /*===========================================================================*/
 /*  Instruction encoding constants                                           */

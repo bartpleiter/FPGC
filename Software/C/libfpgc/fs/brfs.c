@@ -1241,6 +1241,55 @@ int brfs_file_size(struct brfs_state *fs, int fd)
   return (int)file->filesize;
 }
 
+/*
+ * brfs_truncate — set an open file's size to zero.
+ *
+ * Frees every FAT block after the first one and resets cursor/filesize.
+ * The first block is kept (zeroed) so that subsequent writes work without
+ * allocating a new block.  The directory entry is updated on brfs_close().
+ */
+int brfs_truncate(struct brfs_state *fs, int fd)
+{
+  struct brfs_file *file;
+  unsigned int *fat;
+  unsigned int first;
+  unsigned int cur;
+  unsigned int next;
+
+  if (!fs->initialized) return BRFS_ERR_NOT_INITIALIZED;
+  if (fd < 0 || fd >= BRFS_MAX_OPEN_FILES) return BRFS_ERR_INVALID_PARAM;
+
+  file = &fs->open_files[fd];
+  if (!file->in_use) return BRFS_ERR_NOT_OPEN;
+
+  fat = brfs_get_fat(fs);
+  first = file->fat_idx;
+
+  /* Free all blocks after the first one. */
+  cur = fat[first];
+  fat[first] = BRFS_FAT_EOF;
+  while (cur != BRFS_FAT_EOF && cur != BRFS_FAT_FREE)
+  {
+    next = fat[cur];
+    fat[cur] = BRFS_FAT_FREE;
+    cur = next;
+  }
+
+  /* Zero the first block so stale data cannot be read back. */
+  {
+    struct brfs_superblock *sb;
+    sb = (struct brfs_superblock *)brfs_get_superblock(fs);
+    memset(brfs_get_data_block(fs, first), 0,
+           sb->words_per_block * sizeof(unsigned int));
+    brfs_mark_block_dirty(fs, first);
+  }
+
+  file->filesize = 0;
+  file->cursor = 0;
+
+  return BRFS_OK;
+}
+
 /* ---- Directory Reading ---- */
 
 int brfs_read_dir(struct brfs_state *fs, const char *path, struct brfs_dir_entry *buffer, unsigned int max_entries)
