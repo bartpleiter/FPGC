@@ -10,7 +10,7 @@
 /* ---- Core process control ---- */
 #define SYS_EXIT             1
 #define SYS_YIELD            2
-#define SYS_EXEC             3
+#define SYS_SPAWN            3
 #define SYS_WAITPID          4
 #define SYS_GETPID           5
 #define SYS_KILL             6

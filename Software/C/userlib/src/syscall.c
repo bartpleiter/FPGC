@@ -26,9 +26,9 @@ void _exit    (int code) { syscall(SYS_EXIT,  code, 0, 0); }
 int  sys_getpid(void)    { return syscall(SYS_GETPID, 0, 0, 0); }
 int  sys_kill(int pid)   { return syscall(SYS_KILL, pid, 0, 0); }
 void sys_yield(void)     { syscall(SYS_YIELD, 0, 0, 0); }
-int  sys_exec(const char *path, int argc, const char **argv)
+int  sys_spawn(const char *path, int argc, const char **argv)
 {
-    return syscall(SYS_EXEC, (int)path, argc, (int)argv);
+    return syscall(SYS_SPAWN, (int)path, argc, (int)argv);
 }
 int  sys_waitpid(int pid) { return syscall(SYS_WAITPID, pid, 0, 0); }
 int  sys_stat(const char *path, void *buf) { return syscall(SYS_STAT, (int)path, (int)buf, 0); }

@@ -392,7 +392,7 @@ static int run_external(char *cmd, char *args, int redir_stdin, int redir_stdout
     }
 
     /* Spawn child */
-    pid = sys_exec(resolved, argc, (const char **)argv);
+    pid = sys_spawn(resolved, argc, (const char **)argv);
     if (pid < 0)
     {
         /* Restore fds before error message */

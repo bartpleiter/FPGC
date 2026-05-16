@@ -13,7 +13,7 @@
 /* Core process control (1-5) */
 #define SYS_EXIT             1
 #define SYS_YIELD            2
-#define SYS_EXEC             3
+#define SYS_SPAWN            3
 #define SYS_WAITPID          4
 #define SYS_GETPID           5
 #define SYS_KILL             6
@@ -130,7 +130,7 @@ void sys_exit(int code);
 int  sys_getpid(void);
 int  sys_kill(int pid);
 void sys_yield(void);
-int  sys_exec(const char *path, int argc, const char **argv);
+int  sys_spawn(const char *path, int argc, const char **argv);
 int  sys_waitpid(int pid);
 int  sys_stat(const char *path, void *buf);
 int  sys_ioctl(int fd, int cmd, int arg);

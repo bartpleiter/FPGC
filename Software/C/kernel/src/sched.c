@@ -29,7 +29,11 @@ void sched_wake_sleepers(void)
     }
 }
 
-/* Pick the next READY process to run (simple linear scan). */
+/* Pick the next READY process to run (simple linear scan). 
+ * For some reason, round robin by keeping track of "last_scheduled"
+ * causes the scheduler to lock up. So we keep it at this until it
+ * causes issues with bias.
+ */
 static int sched_pick_next(void)
 {
     int i;

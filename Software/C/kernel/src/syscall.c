@@ -70,7 +70,7 @@ int syscall_dispatch(int num, int a1, int a2, int a3)
         proc_yield();
         return 0;
 
-    case SYS_EXEC:       /* 3 */
+    case SYS_SPAWN:      /* 3 */
         return proc_spawn((const char *)a1, a2, (char **)a3);
 
     case SYS_WAITPID:    /* 4 */

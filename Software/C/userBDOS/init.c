@@ -15,7 +15,7 @@ int main(void)
 
     while (1)
     {
-        pid = sys_exec("/bin/sh", 0, (const char **)0);
+        pid = sys_spawn("/bin/sh", 0, (const char **)0);
         if (pid < 0)
         {
             sys_putstr("init: failed to start /bin/sh\n");

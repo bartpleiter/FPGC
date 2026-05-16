@@ -74,6 +74,7 @@ static struct free_node *alloc_node(void)
             return &free_nodes[i];
         }
     }
+    uart_puts("mem: WARNING: free list node pool exhausted\n");
     return 0;
 }
 
