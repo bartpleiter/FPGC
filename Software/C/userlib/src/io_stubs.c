@@ -1,9 +1,9 @@
 /*
  * io_stubs.c — libc I/O implementation for userBDOS programs.
  *
- * Phase B: byte/word translation has moved into BDOS (vfs.c). This file
+ * Phase B: byte/word translation has moved into the kernel (vfs.c). This file
  * is now a thin shim that maps libc's negative stdin/stdout/stderr fds
- * onto the BDOS-pre-opened fds 0/1/2 and forwards everything else
+ * onto the kernel-opened fds 0/1/2 and forwards everything else
  * directly to sys_open/read/write/lseek/close.
  *
  * NUL-as-EOF text-file convention: BRFS files are word-aligned, so a

@@ -112,7 +112,7 @@ static int host_read_bytes(int fd, void *buf, int n)
 #define IO_CLOSE(fd)          sys_close(fd)
 #define IO_FILESIZE_BYTES(fd) cpp_filesize(fd)
 #define IO_READ_BYTES(fd, b, n) sys_read(fd, b, n)
-#define IO_HEAP_ALLOC(n)      sys_heap_alloc(n)
+#define IO_HEAP_ALLOC(n)      malloc(n)
 #define IO_PRINT_ERR(s)       sys_putstr(s)
 
 static int cpp_filesize(int fd)
@@ -1219,15 +1219,15 @@ int main(int argc, char **argv)
 #else
 int main()
 {
-  /* BDOS entry: parse argv via sys_shell_argc/argv, mirror host behavior. */
-  int argc = sys_shell_argc();
-  char **argv = sys_shell_argv();
+  /* BDOS entry: parse argv via sys_argc/argv, mirror host behavior. */
+  int argc = sys_argc();
+  char **argv = sys_argv();
   int i;
   const char *input_path = NULL;
   const char *output_path = NULL;
 
   str_pool_size = STR_POOL_BYTES;
-  str_pool = (char *)sys_heap_alloc(STR_POOL_BYTES);
+  str_pool = (char *)malloc(STR_POOL_BYTES);
   if (!str_pool) { sys_putstr("cpp: out of memory\n"); return 1; }
 
   for (i = 1; i < argc; i++)

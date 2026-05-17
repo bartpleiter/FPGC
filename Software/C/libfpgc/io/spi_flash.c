@@ -14,7 +14,7 @@
  *
  * Page size: 256 bytes. Sector erase: 4 KB. Block erase: 32/64 KB.
  * Dependencies: spi.h, dma.h, fpgc.h
- * Build: part of libfpgc (make compile-bdos)
+ * Build: part of libfpgc (make compile-kernel)
  */
 #include "spi.h"
 #include "spi_flash.h"

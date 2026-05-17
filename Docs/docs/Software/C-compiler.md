@@ -35,8 +35,8 @@ Both cproc and QBE have been adapted from their upstream versions to target the 
 # Compile a bare-metal C program
 make compile-c-baremetal file=demo/mandelbrot
 
-# Compile and run BDOS
-make run-bdos
+# Compile and run the kernel
+make run-kernel
 
 # Compile a userBDOS program
 make compile-userbdos file=snake

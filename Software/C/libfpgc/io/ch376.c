@@ -12,7 +12,7 @@
  *   ch376_hid_get_report(spi_id, buf, len)  -> int (bytes read)
  *
  * Dependencies: fpgc.h, spi.h, timer.h, sys.h
- * Build: part of libfpgc (make compile-bdos)
+ * Build: part of libfpgc (make compile-kernel)
  */
 #include "fpgc.h"
 #include "ch376.h"

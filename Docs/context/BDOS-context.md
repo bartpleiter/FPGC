@@ -10,13 +10,13 @@ flat binary). For the project-wide overview see
 
 | Target | Purpose |
 |--------|---------|
-| `make compile-bdos` | Compile BDOS kernel (~302 KB binary) |
-| `make run-bdos` | Compile + upload via UART |
-| `make flash-bdos` | Flash to SPI (persistent) |
+| `make compile-kernel` | Compile BDOS kernel (~224 KB binary) |
+| `make run-kernel` | Compile + upload via UART |
+| `make flash-kernel` | Flash to SPI (persistent) |
 | `make compile-userbdos file=<name>` | Compile one userBDOS program |
-| `make compile-userbdos-all` | Compile all ~18 userBDOS programs |
+| `make compile-userbdos-all` | Compile all ~35 userBDOS programs |
 
-Pipeline: `crt0_bdos.asm + libc + libfpgc + bdos sources → cproc →
+Pipeline: `crt0_kernel.asm + libc + libfpgc + kernel sources → cproc →
 QBE → asm → ASMPY linker → .list → .bin`.
 
 ## Source layout
@@ -25,7 +25,7 @@ QBE → asm → ASMPY linker → .list → .bin`.
 
 picolibc-derived freestanding C library: `string.h`, `stdlib.h`,
 `stdio.h` (printf family), `ctype.h`, `stdint.h`, `errno.h`, ...
-System hooks in `sys/`. printf goes through `_write` which the BDOS
+System hooks in `sys/`. printf goes through `_write` which the kernel
 build wires to libterm.
 
 ### libfpgc (`Software/C/libfpgc/`)
@@ -52,73 +52,89 @@ Hardware abstraction. Headers in `include/`:
 | `brfs_cache.h` | LRU cache layer (used by SD card backend) |
 | `debug.h` | Hex-dump helpers |
 
-### BDOS kernel (`Software/C/bdos/`)
+### Kernel (`Software/C/kernel/`)
 
 | File | Role |
 |------|------|
-| `include/bdos.h` | Master include — pulls libc, libfpgc, all bdos_* headers |
-| `include/bdos_syscall.h` | Syscall numbers (active + reserved) |
-| `include/bdos_mem_map.h` | Memory layout constants (slots, caches, stacks) |
-| `include/bdos_heap.h` | Heap allocator interface |
-| `include/bdos_slot.h` | Slot management (loader / runner) |
-| `include/bdos_proc.h` | PID table + per-process FD table |
-| `include/bdos_vfs.h` | Byte-oriented VFS API |
-| `include/bdos_hid.h` | USB keyboard subsystem + key-state bitmap |
-| `include/bdos_fs.h` | BRFS mount/format/sync + SD card globals |
-| `include/bdos_fnp.h` | FNP protocol definitions |
-| `include/bdos_shell.h` | Shell entry points + argc/argv globals |
-| `main.c` | Entry point, interrupt handler, main loop |
-| `init.c` | Hardware init (GPU, UART, timers, SPI, USB, Ethernet) |
-| `syscall.c` | Syscall C dispatcher (single switch) |
-| `heap.c` | Bump allocator for kernel heap |
-| `slot.c` + `slot_asm.asm` | Program-slot loader, context switch, exec/return |
-| `proc.c` | PID table + per-process state |
-| `vfs.c` | File/tty/null/pipe/pixpal device table; per-process fds |
-| `hid.c` | USB keyboard: INT# polling, HID translation, FIFO, key state |
-| `fs.c` | BRFS mount/format/sync for both SPI flash and SD card |
-| `eth.c` | FNP file-transfer + remote-keycode injection |
-| `shell.c` | Line editor, prompt, command dispatch |
-| `shell_lex.c` | Tokenizer (quoting, operators, escapes) |
-| `shell_parse.c` | AST builder (commands, pipelines, chains, redirs) |
-| `shell_exec.c` | Built-in registry + program launcher; pipes via temp files |
-| `shell_path.c` | `/bin/<name>` then cwd lookup |
-| `shell_script.c` | `#!/bin/sh` interpreter (`$0`–`$9`, `$#`, `$?`, `set -e`) |
-| `shell_vars.c` | Shell + environment variables |
-| `shell_cmds.c` | Built-in implementations (`bi_*`) |
-| `shell_format.c` | Boot-time mount-failure format wizard |
-| `shell_util.c` | Misc shell helpers |
+| `include/kernel.h` | Master include — pulls libc, libfpgc, all kernel headers |
+| `include/syscall_nums.h` | Syscall numbers (POSIX-aligned, clean v4 design) |
+| `include/proc.h` | Process table, states, blocking, fd table |
+| `include/vfs.h` | VFS core — file_ops vtable, open file table |
+| `include/dev.h` | Device registration table |
+| `include/mem.h` | Process memory allocator (free-list) |
+| `include/hid.h` | USB keyboard subsystem, key constants, FIFO |
+| `include/fs.h` | BRFS mount/format/sync helpers |
+| `include/net.h` | Ethernet ring buffer, MAC, ISR |
+| `include/fnp.h` | FNP protocol definitions |
+| `src/main.c` | Entry point, interrupt handler, kernel loop |
+| `src/init.c` | Hardware init (GPU, UART, timers, SPI, USB, Ethernet, FS) |
+| `src/syscall.c` | Syscall C dispatcher (single switch) |
+| `src/proc.c` | Process table, spawn, exit, waitpid, fd management |
+| `src/sched.c` | FIFO scheduler, sleep/wake, context dispatch |
+| `src/mem.c` | First-fit free-list allocator for process memory pool |
+| `src/vfs.c` | VFS core (open/read/write/close dispatch, fd table) |
+| `src/dev.c` | Device registration |
+| `src/dev_tty.c` | /dev/tty (cooked/raw modes, line editing, UART mirror) |
+| `src/dev_null.c` | /dev/null |
+| `src/dev_pixpal.c` | /dev/pixpal GPU palette DAC |
+| `src/dev_uart.c` | /dev/uart raw serial device |
+| `src/dev_random.c` | /dev/random LFSR pseudo-random device |
+| `src/dev_proc.c` | /proc virtual filesystem (uptime, meminfo, ps, df) |
+| `src/fs.c` | BRFS mount/format/sync for SPI flash and SD card |
+| `src/hid.c` | USB keyboard: INT# polling, HID translation, FIFO, key state |
+| `src/net.c` | ENC28J60 Ethernet: ISR drain, ring buffer, MAC |
+| `src/fnp.c` | FNP file-transfer protocol handler |
 
 Each `.c` is compiled independently; standard
 `#include <header.h>` with `-I` paths set by the build script.
+
+### Shell (`Software/C/userBDOS/sh.c`)
+
+The shell is a userland program, not part of the kernel. It implements:
+
+- Bourne-style syntax: pipes, redirection, boolean chains, quoting
+- Variable expansion: `$VAR`, `${VAR}`, `$?`, `$#`, `$0`–`$9`
+- Built-in commands: help, clear, echo, cd, pwd, exit, halt, export,
+  set, unset, env, true, false, test/[
+- Control flow: if/then/else/fi, for/in/do/done, while/do/done
+- Command history (up/down arrow) and tab completion
+- Glob expansion: `*`, `?`
+- External command lookup: `/bin/<name>` then cwd
+- Script execution: `#!/bin/sh`
+
+### Init (`Software/C/userBDOS/init.c`)
+
+PID 1. Spawns `/bin/sh` in a loop, respawning on exit.
 
 ## Memory map (byte addresses)
 
 | Region | Range | Size |
 |--------|-------|------|
-| Kernel code + stacks | `0x000000`–`0x3FFFFF` | 4 MiB |
-| Kernel heap | `0x400000`–`0x1FFFFFF` | 28 MiB |
-| User program slots | `0x2000000`–`0x2BFFFFF` | 12 MiB (6 × 2 MiB) |
-| SD card BRFS cache | `0x2C00000`–`0x2FFFFFF` | 4 MiB (LRU) |
-| SPI flash BRFS cache | `0x3000000`–`0x3FFFFFF` | 16 MiB |
+| Kernel code + BSS | `0x000000`–`0x0FFFFF` | 1 MiB |
+| Kernel stacks (3) | `0x100000`–`0x10FFFF` | 64 KiB |
+| Kernel heap | `0x110000`–`0x1FFFFF` | ~960 KiB |
+| Process memory pool | `0x200000`–`0x1FFFFFF` | 30 MiB |
+| BRFS SD cache | `0x2000000`–`0x23FFFFF` | 4 MiB (LRU) |
+| BRFS SPI flash cache | `0x2400000`–`0x3FFFFFF` | 28 MiB |
 
-Kernel stacks: main `0x3DFFFC`, syscall `0x3EFFFC`, interrupt
-`0x3FFFFC`.
+Kernel stacks: main `0x107FFC`, syscall `0x10BFFC`, interrupt
+`0x10FFFC`.
 
 ## Boot flow
 
-1. `main()` → `bdos_init()` — GPU + libterm, UART, timers, SPI,
-   USB keyboard (CH376 with boot-time enumeration), Ethernet
-   (ENC28J60).
-2. `bdos_fs_boot_init()` — `brfs_init()` then `brfs_mount()` on
-   SPI flash. On mount failure sets `bdos_fs_boot_needs_format`.
-3. `bdos_fs_sd_init()` — `sd_init()` then `brfs_init()` +
-   `brfs_mount()` on SD card. Mounts at `/sdcard` if card present;
-   silently skipped if no card.
-4. `bdos_shell_init()` — banner; if SPI flash mount failed, run
-   the in-kernel format wizard from `shell_format.c`.
-5. `bdos_loop()` — forever: poll keyboard (INT# pin check +
-   main-loop connect/disconnect), poll FNP/Ethernet, run
-   `bdos_shell_tick()`.
+1. `main()` → `kernel_init()`:
+   - GPU init (VRAM clear, pattern table, palette)
+   - libterm init (tile renderer + UART mirror callbacks)
+   - Timer, UART, networking (ENC28J60 + FNP), USB keyboard init
+   - Memory allocators: `kheap_init()` + `mem_init()`
+   - Process table: `proc_init()` — 16 slots, PID 0 = kernel
+   - VFS + device registration (all `/dev/*` devices)
+   - Kernel stdio: fd 0/1/2 = `/dev/tty`
+   - Filesystems: BRFS mount from SPI flash (`/`), SD card (`/sdcard`)
+2. `proc_spawn("/bin/init", 0, 0)` — spawns init as PID 1
+3. `sched_should_yield = 1` — trigger scheduler on first tick
+4. `kernel_loop()` — polling loop: `hid_poll()`, `net_poll()`,
+   `fnp_poll()`, `sched_tick()`
 
 ## Interrupts
 
@@ -131,34 +147,103 @@ Kernel stacks: main `0x3DFFFC`, syscall `0x3EFFFC`, interrupt
 | 3 | Timer 1 | USB keyboard HID report polling (10 ms periodic) |
 | 4 | Timer 2 | `delay()` completion |
 | 5 | Frame drawn | (unused) |
-| 6 | ENC28J60 RX | Drain hardware RX into 64-slot kernel ring |
+| 6 | ENC28J60 RX | Drain hardware RX into ring buffer |
 | 7 | DMA complete | Transfer done notification |
+
+**Ctrl+C:** Timer ISR detects Ctrl+C (ASCII 0x03), sets
+`ctrl_c_pending` flag. Syscall dispatcher checks flag, forces
+`proc_exit(130)` + `syscall_exit_to_kernel()`.
+
+## Process model
+
+Up to 16 processes with variable-size memory from a 30 MiB pool.
+Cooperative multitasking with process blocking.
+
+### Process states
+
+- `PROC_FREE` (0): Slot unused
+- `PROC_RUNNING` (1): Currently executing (one at a time)
+- `PROC_READY` (2): Runnable, waiting for scheduler
+- `PROC_BLOCKED` (3): Waiting on sleep, waitpid, or pipe I/O
+- `PROC_ZOMBIE` (4): Exited, waiting for parent to collect
+
+### Block reasons
+
+- `BLOCK_SLEEP`: sleeping until `wake_time` microseconds
+- `BLOCK_WAITPID`: waiting for child to exit
+- `BLOCK_PIPE_READ` / `BLOCK_PIPE_WRITE`: pipe I/O (future)
+
+### Process struct (key fields)
+
+```c
+struct proc {
+    int pid, ppid, state, exit_code;
+    unsigned int mem_base, mem_size;     /* contiguous memory region */
+    unsigned int heap_base, heap_break;  /* sbrk heap tracking */
+    unsigned int saved_regs[16];         /* r0–r15 */
+    unsigned int saved_pc;
+    int fds[16];                         /* per-process fd table */
+    char name[32], cwd[128];
+    int argc; char *argv[32];
+    int fg;                              /* owns terminal? */
+    int blocked_reason;
+    unsigned int wake_time;
+    int wait_pid;
+};
+```
+
+### Process lifecycle
+
+1. **Spawn** (`SYS_SPAWN`): allocate memory, load binary + relocations,
+   init registers/stack/heap, inherit parent fds + cwd, set READY
+2. **Running**: scheduler picks via `context_enter()`, loads saved regs
+3. **Blocking**: syscall sets BLOCKED + reason, `proc_was_blocked = 1`,
+   asm layer exits to kernel loop
+4. **Waking**: `sched_wake_sleepers()` or parent exit → READY
+5. **Exit** (`SYS_EXIT`): close fds, free memory, ZOMBIE, wake parent
+6. **Collection**: parent `waitpid` gets exit code, slot → FREE
+
+### Memory layout per process
+
+```
+mem_base         → [Code + BSS]
+                 → [Stack (256 KiB, grows DOWN)]
+heap_base        → [Heap (grows UP via sbrk)]
+mem_base+mem_size → End
+```
+
+Registers: `r13` (SP) = top of stack, `r14` (FP) = 0, `r15` = entry.
+
+### Scheduler
+
+FIFO scan of process table. `sched_tick()`:
+1. Wake sleeping processes whose `wake_time` has passed
+2. If `sched_should_yield` is set, pick next READY process
+3. Mark current as READY, next as RUNNING
+4. `context_enter()` loads user regs from proc struct, jumps to entry
 
 ## Input / HID
 
 USB keyboard via CH376 over SPI. Hybrid polling approach:
 
 - **Connect/disconnect**: main-loop polling of the CH376 INT# pin
-  via `ch376_read_int()` — reads MMIO directly, no SPI traffic when
-  idle. Eliminates periodic activity LED blinks.
+  via `ch376_read_int()`.
 - **HID report reading**: Timer 1 ISR callback (10 ms). When a
-  keyboard is connected, `ch376_read_keyboard()` reads the HID
-  report and pushes events into the FIFO.
-- **Boot-time enumeration**: `bdos_init_usb_keyboard()` attempts
-  `ch376_test_connect()` + `ch376_enumerate_device()` during boot,
-  so a keyboard plugged in at power-on is immediately available.
+  keyboard is connected, reads the HID report and pushes events
+  into the FIFO.
+- **Boot-time enumeration**: `hid_init()` attempts connect + enumerate
+  during boot.
 
 Event FIFO: 64-entry ring; overflow drops new events. Consumers:
-`bdos_keyboard_event_available()` / `bdos_keyboard_event_read()`.
+`hid_event_available()` / `hid_event_read()`.
 
 Key encoding (FIFO and 4-byte `/dev/tty` packets):
 - Printable ASCII: raw value
 - Ctrl+A..Z: control codes 1..26
-- Special keys: `BDOS_KEY_*` / `KEY_*` constants (base `0x100`)
+- Special keys: `KEY_*` constants (base `0x100`)
 
-Real-time held-key bitmap (`bdos_key_state_bitmap`) rebuilt from raw
-HID report each poll; user programs read via syscall `GET_KEY_STATE`
-(25). Bits: WASD, arrows, Space, Shift, Ctrl, Escape, E, Q.
+Real-time held-key bitmap (`hid_key_state`) rebuilt from raw HID
+report each poll; user programs read via syscall `GET_KEY_STATE` (41).
 
 ## Filesystem
 
@@ -166,34 +251,40 @@ Two BRFS v2 instances, each backed by a different storage vtable:
 
 | Instance | Backend | Mount point | Cache |
 |----------|---------|------------|-------|
-| `brfs_spi` | SPI flash 0 | `/` (root) | 16 MiB direct-mapped |
+| `brfs_spi` | SPI flash 0 | `/` (root) | 28 MiB direct-mapped |
 | `brfs_sd` | SD card (SPI5) | `/sdcard` | 4 MiB LRU |
 
-- `bdos_fs_for_path(path)` routes paths starting with `/sdcard/` to
+- `fs_for_path(path)` routes paths starting with `/sdcard/` to
   `brfs_sd`; everything else goes to `brfs_spi`.
-- Shell `ls /` injects a synthetic `/sdcard` entry when
-  `bdos_sd_initialized` is true.
+- VFS mount table: `ls /` shows `dev/`, `proc/`, `sdcard/` alongside
+  BRFS entries.
 - Sync is explicit (`brfs_sync()`).
-- Format: `bdos_fs_sd_format_and_sync()` for SD card; syscall
-  `SD_FORMAT` (41) exposes this to userland (`sdformat` program).
 - See [BRFS docs](../docs/Software/BRFS.md).
 
 ## VFS
 
-`Software/C/bdos/vfs.c` — per-process file-descriptor layer. Five
-device kinds:
+`Software/C/kernel/src/vfs.c` — global open file table + device
+dispatch.
 
-- **file** — BRFS entry (on SPI flash or SD card). Byte-addressable;
-  honours `O_CREAT`, `O_TRUNC`, `O_APPEND`.
-- **tty** — `/dev/tty`. Cooked by default (line-buffered, ANSI on
-  writes). With `O_RAW`, `read` returns 4-byte LE event packets;
-  combine with `O_NONBLOCK` for polling games.
-- **pipe** — temp file under `/tmp/`; the shell rewrites `a | b`
-  into `a >/tmp/p.N ; b </tmp/p.N`.
-- **null** — `/dev/null`.
-- **pixpal** — `/dev/pixpal`. 256-entry × 4-byte 8-bit pixel-palette
-  DAC. `lseek` sets byte cursor; `write` autoincrements one 4-byte
-  `0x00RRGGBB` entry. Both length and cursor must be 4-byte aligned.
+### Device kinds
+
+| Device | Path | Description |
+|--------|------|-------------|
+| file | (any BRFS path) | Byte-addressable BRFS entry |
+| tty | `/dev/tty` | Terminal: cooked (line-buffered) or raw mode |
+| null | `/dev/null` | Bit bucket |
+| pixpal | `/dev/pixpal` | 256-entry GPU pixel-palette DAC |
+| uart | `/dev/uart` | Raw UART serial TX/RX |
+| random | `/dev/random` | LFSR pseudo-random bytes |
+| proc | `/proc/*` | Virtual files: uptime, meminfo, ps, df |
+
+### Architecture
+
+- **Global open file table**: 64 entries, each with refcount,
+  `file_ops` vtable pointer, private data, flags, position.
+- **Per-process fd table**: 16 fds mapping to global table indices.
+- `fd_inherit(child, parent)`: copies fd table on spawn.
+- `dup2` shares the global entry (increments refcount).
 
 Every spawned program inherits `fd 0/1/2 = /dev/tty`.
 
@@ -205,135 +296,81 @@ Custom L2 protocol over ENC28J60 (EtherType `0xB4B4`).
 - Message types: `FILE_START`/`FILE_DATA`/`FILE_END`/`FILE_ABORT`
   (file transfer with checksum + ACK/NACK), `KEYCODE` (remote
   keyboard input), `MESSAGE`.
-- `bdos_fnp_poll()` runs each main-loop iteration; user programs that
-  call `NET_SEND`/`NET_RECV` take ownership and pause kernel polling
-  until they exit.
+- `fnp_poll()` runs each kernel-loop iteration.
+- Ethernet ring buffer: 64-slot kernel-managed buffer, filled by ISR.
+- User programs that call `NET_SEND`/`NET_RECV` read from the ring
+  buffer directly; kernel FNP polling is paused.
 
-## Heap
+## Memory allocators
 
-Bump allocator over `0x400000`–`0x1FFFFFF` (28 MiB). All allocations
-freed together when the owning program exits — no individual `free()`.
+### Kernel heap (bump allocator)
 
-API (word-counted):
+`kheap_init()` / `kheap_alloc(bytes)`. ~960 KiB region. Used for
+kernel data structures (process table, fd table, free-list nodes).
+`kheap_mark()` / `kheap_release()` for stack-like rewind.
 
-```c
-unsigned int *bdos_heap_alloc(unsigned int size_words);
-void          bdos_heap_free_all(void);
-```
+### Process memory pool (first-fit free list)
 
-User-facing `HEAP_ALLOC` (syscall 20) takes the same word count.
+`mem_init()` / `mem_alloc(size)` / `mem_free_region()`. 30 MiB pool.
+32-byte aligned, up to 32 free-list nodes. Coalesces adjacent free
+regions on release. `mem_grow_region()` supports in-place growth
+(used by `sbrk`).
 
 ## Syscalls
 
 ABI: `r4` = number, `r5`/`r6`/`r7` = up to 3 args, `r1` = return
-value. Dispatched in `bdos_syscall_dispatch()` (`syscall.c`).
-Reserved numbers return `-1`.
+value. Dispatched in `syscall_dispatch()` (`syscall.c`).
 
 | # | Name | Args | Returns |
 |---|------|------|---------|
-| 0–12 | *(reserved — legacy raw I/O and raw BRFS)* | | `-1` |
-| 13 | `SHELL_ARGC` | — | argc |
-| 14 | `SHELL_ARGV` | — | `char **argv` |
-| 15 | `SHELL_GETCWD` | — | `char *cwd` |
-| 16–19 | *(reserved — legacy terminal)* | | `-1` |
-| 20 | `HEAP_ALLOC` | `size_words` | pointer / 0 |
-| 21 | `DELAY` | `ms` | 0 |
-| 22 | *(reserved)* | | `-1` |
-| 23 | `EXIT` | `exit_code` | *(no return)* |
-| 24 | *(reserved)* | | `-1` |
-| 25 | `GET_KEY_STATE` | — | bitmap |
-| 26 | *(reserved)* | | `-1` |
-| 27 | `NET_SEND` | `buf, len` | 1 ok / 0 err |
-| 28 | `NET_RECV` | `buf, max_len` | bytes received |
-| 29 | `NET_PACKET_COUNT` | — | count |
-| 30 | `NET_GET_MAC` | `6-int buf` | 0 |
-| 31–33 | *(reserved)* | | `-1` |
-| 34 | `OPEN` | `path, flags` | fd |
-| 35 | `READ` | `fd, buf, bytes` | bytes read |
-| 36 | `WRITE` | `fd, buf, bytes` | bytes written |
-| 37 | `CLOSE` | `fd` | 0 ok |
-| 38 | `LSEEK` | `fd, off, whence` | new offset |
-| 39 | `DUP2` | `oldfd, newfd` | newfd / -1 |
-| 40 | `FS_FORMAT` | `blocks, words/blk, label` | 0 ok |
-| 41 | `SD_FORMAT` | `blocks, words/blk, label` | 0 ok |
-| 42 | `UNLINK` | `path` | 0 ok |
-| 43 | `MKDIR` | `path` | 0 ok |
-| 44 | `READDIR` | `path, entry_buf, max` | entries |
+| 1 | `EXIT` | `code` | *(no return)* |
+| 2 | `YIELD` | — | 0 |
+| 3 | `SPAWN` | `path, argc, argv` | pid / -1 |
+| 4 | `WAITPID` | `pid` (-1=any child) | exit code |
+| 5 | `GETPID` | — | pid |
+| 6 | `KILL` | `pid` | 0 |
+| 10 | `OPEN` | `path, flags` | fd |
+| 11 | `CLOSE` | `fd` | 0 |
+| 12 | `READ` | `fd, buf, bytes` | bytes read |
+| 13 | `WRITE` | `fd, buf, bytes` | bytes written |
+| 14 | `LSEEK` | `fd, off, whence` | new offset |
+| 15 | `DUP2` | `oldfd, newfd` | newfd / -1 |
+| 20 | `UNLINK` | `path` | 0 ok |
+| 21 | `MKDIR` | `path` | 0 ok |
+| 22 | `READDIR` | `path, buf, max` | entries |
+| 23 | `RENAME` | `oldpath, newpath` | 0 ok |
+| 24 | `STAT` | `path, stat_buf` | 0 ok |
+| 25 | `SYNC` | — | 0 |
+| 30 | `CHDIR` | `path` | 0 |
+| 31 | `GETCWD` | `buf, size` | buf pointer |
+| 32 | `ARGC` | — | argc |
+| 33 | `ARGV` | — | `char **argv` |
+| 34 | `SBRK` | `incr` | old break / -1 |
+| 40 | `SLEEP` | `ms` | 0 |
+| 41 | `GET_KEY_STATE` | — | bitmap |
+| 42 | `GET_TIME_US` | — | microseconds |
+| 50 | `NET_SEND` | `buf, len` | len |
+| 51 | `NET_RECV` | `buf, max_len` | bytes received |
+| 52 | `NET_PACKET_COUNT` | — | count |
+| 53 | `NET_GET_MAC` | `6-byte buf` | 0 |
+| 60 | `PIPE` | `fildes[2]` | 0 ok |
+| 61 | `IOCTL` | `fd, cmd, arg` | result |
 
-The **byte-oriented VFS** API (34–39, 42–44) is the path everything
-new should use. `OPEN` flags: `O_RDONLY` (1), `O_WRONLY` (2),
-`O_RDWR` (3), `O_APPEND` (4), `O_CREAT` (8), `O_TRUNC` (16),
-`O_RAW` (32), `O_NONBLOCK` (64).
-
-`EXIT` never returns — it resets the HW stack and jumps to the BDOS
-return path. `NET_SEND`/`NET_RECV` take ownership of the Ethernet
-controller while active.
+`OPEN` flags: `O_RDONLY` (1), `O_WRONLY` (2), `O_RDWR` (3),
+`O_APPEND` (4), `O_CREAT` (8), `O_TRUNC` (16), `O_RAW` (32),
+`O_NONBLOCK` (64).
 
 ## Program execution
 
-Programs are launched by typing their name or path at the shell.
-Loading:
+Programs are spawned via `SYS_SPAWN` (from shell or init):
 
-1. `bdos_slot_alloc()` finds a free slot (6 slots, 2 MiB each).
-2. Binary read from BRFS in 256-word chunks into slot memory.
-3. If file has a relocation table, the loader patches data pointers,
-   `load`/`loadhi` pairs, and header `jump`s by adding the slot base.
-4. `ccache` flushes L1 I/D caches.
-5. Register setup: `r13` = top of slot, `r15` = trampoline.
-6. Jump to slot offset 0 (relocated header `jump Main`).
-7. On return, BDOS frees the slot (heap cleanup included) and prints
-   the exit code.
-
-## Job control
-
-Up to 6 user programs in 2 MiB slots. At most one RUNNING; others
-may be SUSPENDED. PIDs are user-visible (monotonically increasing);
-`jobs`, `fg <pid>`, and `kill <pid>` use them.
-
-Hotkeys during program execution:
-
-- `F1`–`F6` — suspend and switch to that slot.
-- `F12` — suspend and return to BDOS.
-- `Alt+F4` — kill and return to BDOS.
-
-## Shell
-
-Bourne-style v2 shell — pipes (over temp files), redirection
-(`<`, `>`, `>>`), boolean chains (`&&`, `||`, `;`), variable
-expansion (`$VAR`, `${VAR}`), `#!/bin/sh` scripts.
-
-Built-ins: `help`, `clear`, `echo`, `uptime`, `pwd`, `cd`, `ls`,
-`mkdir`, `mkfile`, `rm`, `cat`, `write`, `cp`, `mv`, `df`, `sync`,
-`jobs`, `fg`, `kill`, `export`, `set`, `unset`, `env`, `exit`,
-`true`, `false`.
-
-`format` is an **external program** (`/bin/format`), not a built-in.
-The boot-time mount-failure wizard still lives in `shell_format.c`.
-
-## User programs
-
-`Software/C/userBDOS/`. Compiled with
-`make compile-userbdos file=<name>` (or `make compile-userbdos-all`).
-Output: `Files/BRFS-init/bin/<name>`.
-
-| Program | Description |
-|---------|-------------|
-| `doom/` | Full Doom port (DMA-accelerated) |
-| `w3d.c` | Wolfenstein 3D raycaster |
-| `edit.c` | Text editor (alt-screen, raw TTY) |
-| `snake.c` | Snake game (non-blocking raw TTY) |
-| `tetrisc.c` / `tetrish.c` | Tetris (client / host) |
-| `mbrot.c` / `mbrotc.c` / `mbroth.c` | Mandelbrot (solo / cluster) |
-| `cmatrix.c` | CMatrix display |
-| `tree.c` | Recursive directory listing |
-| `bench.c` | Benchmark suite |
-| `format.c` | SPI flash BRFS format |
-| `sdformat.c` | SD card BRFS format |
-| `asm-link.c` | On-device assembler/linker |
-| `cpp.c` | On-device C preprocessor |
-
-Reference ports: `snake.c` (non-blocking raw TTY + ANSI),
-`edit.c` (blocking raw TTY, alt-screen, DECAWM-off).
+1. `mem_alloc()` allocates contiguous region from pool
+2. Binary read from BRFS into region
+3. Relocation table applied (data pointers, load/loadhi pairs, jumps)
+4. `kernel_ccache()` flushes L1 I/D caches
+5. Register setup: `r13` = stack top, `r14` = 0, `r15` = entry
+6. Process set to READY; scheduler dispatches via `context_enter()`
+7. On `SYS_EXIT`: close fds, free memory, set ZOMBIE, wake parent
 
 ## Coding guidelines
 
@@ -341,14 +378,13 @@ Reference ports: `snake.c` (non-blocking raw TTY + ANSI),
   `__builtin_load*` / `__builtin_store*` for MMIO.
 - Each `.c` is compiled independently. Standard `#include <header.h>`.
 - Assembly goes in dedicated `.asm` files.
-- Timer 0 is free (doubles as deferred ENC28J60 retry). Timer 1 is
-  taken by HID polling. Timer 2 is taken by `delay()`.
+- Timer 0 is free (deferred ENC28J60 retry). Timer 1 is HID polling.
+  Timer 2 is `delay()`.
 - DMA transfers must be 32-byte aligned. Call `cache_flush_data()`
   before MEM→device and after device→MEM.
 - SD card is on SPI bus 5 (`FPGC_SPI_SD_CARD`). Use `sd.h` API.
-- New shell built-ins: add `bi_*` in `shell_cmds.c`, register in
-  `shell_exec.c` table, add help line in `bi_help`.
-- New syscalls: add number in `bdos_syscall.h`, case in
-  `bdos_syscall_dispatch()`, wrapper in `userlib/src/syscall.c`,
-  prototype in `userlib/include/syscall.h`. Keep both headers in sync.
+- New device drivers: add in `src/dev_*.c`, register in `src/dev.c`.
+- New syscalls: add number in `include/syscall_nums.h`, case in
+  `syscall_dispatch()`, wrapper in `userlib/src/syscall.c`,
+  prototype in `userlib/include/syscall.h`. Keep both in sync.
 - Removed syscalls stay reserved (return `-1`).

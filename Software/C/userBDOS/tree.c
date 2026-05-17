@@ -4,6 +4,7 @@
 
 #include <syscall.h>
 #include <string.h>
+#include <stdlib.h>
 
 /*===========================================================================*/
 /*  Constants                                                                */
@@ -236,8 +237,8 @@ void tree_dir(char *path, int *continues, int depth)
     return;
   }
 
-  names = (char (*)[MAX_NAME_LEN])sys_heap_alloc(MAX_ENTRIES * MAX_NAME_LEN);
-  types = (int *)sys_heap_alloc(MAX_ENTRIES * sizeof(int));
+  names = (char (*)[MAX_NAME_LEN])malloc(MAX_ENTRIES * MAX_NAME_LEN);
+  types = (int *)malloc(MAX_ENTRIES * sizeof(int));
   if (names == 0 || types == 0)
   {
     print_str("[heap exhausted]\n");
@@ -299,14 +300,14 @@ int main(void)
 {
   int argc;
   char **argv;
-  char *cwd;
+  char cwd[128];
   char root_path[MAX_PATH_LEN];
   int continues[MAX_DEPTH];
   int i;
 
-  argc = sys_shell_argc();
-  argv = sys_shell_argv();
-  cwd = sys_shell_getcwd();
+  argc = sys_argc();
+  argv = sys_argv();
+  sys_getcwd(cwd, 128);
 
   if (argc > 2)
   {
@@ -335,7 +336,7 @@ int main(void)
     strcpy(root_path, cwd);
   }
 
-  entry_buf = sys_heap_alloc(MAX_ENTRIES * DIR_ENTRY_WORDS * sizeof(unsigned int));
+  entry_buf = malloc(MAX_ENTRIES * DIR_ENTRY_WORDS * sizeof(unsigned int));
   if (entry_buf == 0)
   {
     print_str("error: heap alloc failed\n");

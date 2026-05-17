@@ -4,22 +4,22 @@ description: 'Add a new shell built-in command to BDOS. Use when asked to add a 
 ---
 # Add a shell built-in command
 
-Follow these steps exactly. Missing any step will cause a broken build
-or a command that silently doesn't work.
+The shell is a userBDOS program at `Software/C/userBDOS/sh.c`.
+Built-in commands are implemented directly in `sh.c`.
 
 ## Step 1: Implement the command
 
-Edit `Software/C/bdos/shell_cmds.c`.
+Edit `Software/C/userBDOS/sh.c`.
 
-Add a static implementation function following this pattern:
+Add an implementation function following the existing pattern:
 
 ```c
-static int bdos_shell_cmd_YOURCOMMAND(int argc, char **argv)
+static int bi_YOURCOMMAND(int argc, char **argv)
 {
     // argc includes the command name itself
     // argv[0] is the command name
     if (argc < 2) {
-        bdos_shell_print("Usage: YOURCOMMAND <arg>\n");
+        print_str("Usage: YOURCOMMAND <arg>\n");
         return 1;
     }
     // Implementation here
@@ -27,49 +27,33 @@ static int bdos_shell_cmd_YOURCOMMAND(int argc, char **argv)
 }
 ```
 
-Then add a public wrapper function:
-
-```c
-int bi_YOURCOMMAND(int argc, char **argv)
-{
-    return bdos_shell_cmd_YOURCOMMAND(argc, argv);
-}
-```
-
-**Reference:** Study the `cd` builtin for a complete example.
-
 ## Step 2: Register in the builtin dispatch table
 
-Edit `Software/C/bdos/shell_exec.c`.
-
-Find the builtin dispatch section and add your command. The exact
-registration mechanism is a string comparison chain — add yours
+Find the builtin dispatch section in `sh.c` and add your command.
+The registration mechanism is a string comparison chain — add yours
 following the existing pattern.
 
 ## Step 3: Add help text
 
-Edit `Software/C/bdos/shell_cmds.c`.
+Find the `help` command implementation in `sh.c` and add a line
+describing your new command.
 
-Find the `help` command implementation and add a line describing your
-new command.
-
-## Step 4: Declare the wrapper
-
-If `bi_YOURCOMMAND` is called from `shell_exec.c`, ensure the
-function is declared in the appropriate header or at the top of
-`shell_exec.c` with an `extern` declaration.
-
-## Step 5: Build and test
+## Step 4: Build and test
 
 ```
-make compile-bdos
-make test-shell-host    # If applicable
+make compile-userbdos file=sh
 ```
 
 ## Checklist
-- [ ] Implementation function in `shell_cmds.c`
-- [ ] Wrapper function `bi_YOURCOMMAND` in `shell_cmds.c`
-- [ ] Registration in `shell_exec.c` dispatch table
+- [ ] Implementation function in `sh.c`
+- [ ] Registration in builtin dispatch table
 - [ ] Help text added
-- [ ] Declaration visible to `shell_exec.c`
-- [ ] `make compile-bdos` passes
+- [ ] `make compile-userbdos file=sh` passes
+
+## Note: External commands
+
+For commands that should be standalone programs (pipe-compatible,
+usable outside the shell), create a new userBDOS program in
+`Software/C/userBDOS/` instead. See existing programs like `ls.c`,
+`cat.c`, `grep.c` for examples. External programs are preferred
+over builtins for most new commands.

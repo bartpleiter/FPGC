@@ -56,5 +56,5 @@ make selfhost-all       # Build both
 
 ## Ripple effects
 - Changing cproc code generation → run `make test-c` (full suite)
-- Changing QBE B32P3 backend → run `make test-c` AND `make compile-bdos`
+- Changing QBE B32P3 backend → run `make test-c` AND `make compile-kernel`
 - Changing ASMPY → run `make test-asmpy` AND `make test-asm-link`

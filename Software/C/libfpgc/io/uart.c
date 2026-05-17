@@ -14,7 +14,7 @@
  *
  * Uses a ring buffer for received characters (UART_RX_BUFFER_SIZE).
  * Dependencies: fpgc.h
- * Build: part of libfpgc (make compile-bdos)
+ * Build: part of libfpgc (make compile-kernel)
  */
 #include "fpgc.h"
 #include "uart.h"

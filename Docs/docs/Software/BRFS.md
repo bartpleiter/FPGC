@@ -37,8 +37,8 @@ BRFS v2 is split into the layers described in §4.1 of the plan:
 
 ```
 +-----------------------------------------------------+
-| BDOS VFS  (Software/C/bdos/vfs.c file_dev_table)    |
-|   bdos_vfs_open / read / write / close / lseek      |
+| Kernel VFS  (Software/C/kernel/src/vfs.c)            |
+|   vfs_open / read / write / close / lseek            |
 +-----------------------------------------------------+
 | BRFS v2 core   (Software/C/libfpgc/fs/brfs.c)       |
 |   path walk · directory ops · FAT · file ops        |
@@ -224,7 +224,7 @@ There are two ways to invoke it from a running system:
   on boot (no valid superblock, wrong magic), it drops into a
   stripped-down prompt that walks the user through entering block
   count, bytes-per-block, and a label. This path lives in
-  `Software/C/bdos/shell_format.c` and is the only way to format from
+  `Software/C/kernel/src/fs.c` and is the only way to format from
   a system that does not yet have an FS to load `/bin/format` from.
 - **`/bin/format` userBDOS program.** From a healthy system,
   `format <blocks> <bytes-per-block> <label>` runs the same code path

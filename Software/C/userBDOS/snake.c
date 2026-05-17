@@ -333,7 +333,7 @@ int main(void)
       }
     }
     rng_rand();
-    sys_delay(TICK_DELAY_MS);
+    sys_sleep(TICK_DELAY_MS);
   }
 
   /* Leave alternate screen, restoring previous view; close TTY fd. */

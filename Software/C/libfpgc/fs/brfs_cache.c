@@ -15,7 +15,7 @@
  *   brfs_cache_sync(c)                           -> int (flush dirty blocks)
  *
  * Dependencies: brfs_cache.h, brfs.h, string.h
- * Build: part of libfpgc (make compile-bdos)
+ * Build: part of libfpgc (make compile-kernel)
  */
 #include "brfs_cache.h"
 #include "brfs.h"   /* for BRFS_OK / BRFS_ERR_* and BRFS_FLASH_* layout consts */

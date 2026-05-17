@@ -7,7 +7,7 @@ applyTo: 'Software/C/libfpgc/fs/**'
 
 ## Validation
 ```
-make compile-bdos    # Verify kernel compiles
+make compile-kernel    # Verify kernel compiles
 make test-host       # Run host-side BRFS unit tests
 ```
 

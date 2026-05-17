@@ -2,61 +2,64 @@
 #define SYSCALL_H
 
 /*
- * Userland syscall interface — must stay in sync with BDOS bdos_syscall.h.
+ * BDOS v4 userland syscall interface.
  *
- * shell-terminal-v2 Phase E removed several legacy syscalls. Programs
- * that still call the retired wrappers (sys_term_put_cell, sys_read_key,
- * sys_set_palette, sys_uart_print_str, ...) will not link. See the
- * MIGRATION block below for replacements; snake.c was ported as a
- * reference example.
+ * POSIX-aligned syscall numbers. Must stay in sync with
+ * kernel/include/syscall_nums.h.
  */
 
-/*
- * MIGRATION (legacy -> replacement):
- *
- *   sys_putc(c) / sys_putstr(s)            -> already wrapped on sys_write(1, ...)
- *   sys_read_key() / sys_key_available()   -> open("/dev/tty", O_RDONLY|O_RAW
- *                                              [|O_NONBLOCK]) then
- *                                              sys_read(fd, &event, 4) — event
- *                                              is little-endian uint32 of the
- *                                              key code (0x00..0xFF for ASCII,
- *                                              0x100+ for KEY_UP, KEY_F1, ...).
- *   sys_term_put_cell(x, y, ch|pal)        -> sys_write(1, "\x1b[<y+1>;<x+1>H"
- *                                              "\x1b[<pal>m<ch>", n)
- *   sys_term_clear()                       -> sys_write(1, "\x1b[2J\x1b[H", 7)
- *   sys_term_set_cursor(x, y)              -> sys_write(1, "\x1b[<y+1>;<x+1>H", n)
- *   sys_term_get_cursor()                  -> not exposed; track locally
- *   sys_set_palette(i, v)                  -> no replacement yet (was raw MMIO)
- *   sys_set_pixel_palette(i, rgb)          -> no replacement yet (was raw MMIO)
- *   sys_uart_print_str(s)                  -> sys_write(2, s, n) (stderr)
- */
+/* ---- Syscall numbers ---- */
 
-/* Syscall numbers — kept in sync with BDOS bdos_syscall.h.
- * Legacy raw-BRFS slots (4–12, 24, 33) removed — use VFS API instead. */
-#define SYSCALL_SHELL_ARGC       13
-#define SYSCALL_SHELL_ARGV       14
-#define SYSCALL_SHELL_GETCWD     15
-#define SYSCALL_HEAP_ALLOC       20
-#define SYSCALL_DELAY            21
-#define SYSCALL_EXIT             23
-#define SYSCALL_GET_KEY_STATE    25
-#define SYSCALL_NET_SEND         27
-#define SYSCALL_NET_RECV         28
-#define SYSCALL_NET_PACKET_COUNT 29
-#define SYSCALL_NET_GET_MAC      30
-#define SYSCALL_OPEN             34
-#define SYSCALL_READ             35
-#define SYSCALL_WRITE            36
-#define SYSCALL_CLOSE            37
-#define SYSCALL_LSEEK            38
-#define SYSCALL_DUP2             39
-#define SYSCALL_FS_FORMAT        40
-#define SYSCALL_SD_FORMAT        41
-#define SYSCALL_UNLINK           42
-#define SYSCALL_MKDIR            43
-#define SYSCALL_READDIR          44
+/* Core process control (1-5) */
+#define SYS_EXIT             1
+#define SYS_YIELD            2
+#define SYS_SPAWN            3
+#define SYS_WAITPID          4
+#define SYS_GETPID           5
+#define SYS_KILL             6
 
-/* Flags for sys_open() (must match BDOS_O_* in bdos_vfs.h) */
+/* File I/O (10-15) */
+#define SYS_OPEN            10
+#define SYS_CLOSE           11
+#define SYS_READ            12
+#define SYS_WRITE           13
+#define SYS_LSEEK           14
+#define SYS_DUP2            15
+
+/* Filesystem (20-28) */
+#define SYS_UNLINK          20
+#define SYS_MKDIR           21
+#define SYS_READDIR         22
+#define SYS_RENAME          23
+#define SYS_STAT            24
+#define SYS_SYNC            25
+#define SYS_TRUNCATE        26
+#define SYS_FORMAT          27
+#define SYS_SD_FORMAT       28
+
+/* Process environment (30-34) */
+#define SYS_CHDIR           30
+#define SYS_GETCWD          31
+#define SYS_ARGC            32
+#define SYS_ARGV            33
+#define SYS_SBRK            34
+
+/* Timing / input (40-42) */
+#define SYS_SLEEP           40
+#define SYS_GET_KEY_STATE   41
+#define SYS_GET_TIME_US     42
+
+/* Networking (50-53) */
+#define SYS_NET_SEND        50
+#define SYS_NET_RECV        51
+#define SYS_NET_PACKET_COUNT 52
+#define SYS_NET_GET_MAC     53
+
+/* IPC (60-61) */
+#define SYS_PIPE            60
+#define SYS_IOCTL           61
+
+/* ---- Flags for sys_open() (must match kernel vfs.h) ---- */
 #define O_RDONLY    0x01
 #define O_WRONLY    0x02
 #define O_RDWR      0x03
@@ -66,19 +69,19 @@
 #define O_RAW       0x20    /* /dev/tty: deliver 4-byte event packets */
 #define O_NONBLOCK  0x40    /* /dev/tty raw: don't block when FIFO empty */
 
-/* whence values for sys_lseek() */
+/* ---- whence values for sys_lseek() ---- */
 #ifndef SEEK_SET
 #define SEEK_SET 0
 #define SEEK_CUR 1
 #define SEEK_END 2
 #endif
 
-/* Standard fds (pre-opened by BDOS to /dev/tty) */
+/* ---- Standard fds (pre-opened by BDOS to /dev/tty) ---- */
 #define STDIN_FD   0
 #define STDOUT_FD  1
 #define STDERR_FD  2
 
-/* Key state bitmap bit positions (matching BDOS bdos_hid.h) */
+/* ---- Key state bitmap ---- */
 #define KEYSTATE_W        0x0001
 #define KEYSTATE_A        0x0002
 #define KEYSTATE_S        0x0004
@@ -94,8 +97,7 @@
 #define KEYSTATE_E        0x1000
 #define KEYSTATE_Q        0x2000
 
-/* Special key codes (must match BDOS_KEY_* in bdos_hid.h).
-   Returned in the low 32 bits of an O_RAW /dev/tty event packet. */
+/* ---- Special key codes for O_RAW /dev/tty events ---- */
 #define KEY_SPECIAL_BASE 0x100
 #define KEY_UP           (KEY_SPECIAL_BASE + 1)
 #define KEY_DOWN         (KEY_SPECIAL_BASE + 2)
@@ -120,59 +122,61 @@
 #define KEY_F11          (KEY_SPECIAL_BASE + 21)
 #define KEY_F12          (KEY_SPECIAL_BASE + 22)
 
-/* Low-level syscall invocation (implemented in syscall_asm.asm) */
+/* ---- Low-level syscall invocation (implemented in syscall_asm.asm) ---- */
 int syscall(int num, int a1, int a2, int a3);
 
-/* ---- Convenience wrappers: I/O ---- */
-void sys_putc  (int ch);            /* fd 1, honours redirection */
-void sys_putstr(const char *s);     /* fd 1, honours redirection */
+/* ---- Process control ---- */
+void sys_exit(int code);
+int  sys_getpid(void);
+int  sys_kill(int pid);
+void sys_yield(void);
+int  sys_spawn(const char *path, int argc, const char **argv);
+int  sys_waitpid(int pid);
+int  sys_stat(const char *path, void *buf);
+int  sys_ioctl(int fd, int cmd, int arg);
 
-/* ---- Convenience wrappers: Filesystem (format utilities) ---- */
-int  sys_fs_format  (int blocks, int words_per_block, char *label);
-int  sys_sd_format  (int blocks, int words_per_block, char *label);
+/* ---- I/O convenience ---- */
+void sys_putc  (int ch);
+void sys_putstr(const char *s);
 
-/* ---- Convenience wrappers: Shell ---- */
-int    sys_shell_argc  (void);
-char **sys_shell_argv  (void);
-char  *sys_shell_getcwd(void);
-
-/* ---- Convenience wrappers: Heap ---- */
-void *sys_heap_alloc(int size);
-
-/* ---- Convenience wrappers: Timing ---- */
-void sys_delay(int ms);
-
-/* ---- Convenience wrappers: Networking (raw Ethernet) ---- */
-int  sys_net_send        (char *buf, int len);
-int  sys_net_recv        (char *buf, int max_len);
-int  sys_net_packet_count(void);
-void sys_net_get_mac     (int *mac_buf);
-
-/* ---- Convenience wrappers: VFS / fd-oriented byte I/O ---- */
+/* ---- File I/O ---- */
 int  sys_open (const char *path, int flags);
 int  sys_close(int fd);
 int  sys_read (int fd, void *buf, int len);
 int  sys_write(int fd, const void *buf, int len);
 int  sys_lseek(int fd, int offset, int whence);
 int  sys_dup2 (int oldfd, int newfd);
+
+/* ---- Filesystem ---- */
 int  sys_unlink(const char *path);
 int  sys_mkdir(const char *path);
 int  sys_readdir(const char *path, void *entry_buf, int max_entries);
+int  sys_rename(const char *oldpath, const char *newpath);
+int  sys_sync(void);
+int  sys_fs_format(int blocks, int words_per_block, char *label);
+int  sys_sd_format(int blocks, int words_per_block, char *label);
 
-/* ---- Convenience wrappers: Process control ---- */
-void sys_exit(int code);
+/* ---- Process environment ---- */
+int    sys_argc  (void);
+char **sys_argv  (void);
+int    sys_getcwd(char *buf, int size);
+int    sys_chdir (const char *path);
+void  *sys_sbrk  (int incr);
 
-/* ---- Convenience wrappers: Key state ---- */
+/* ---- Timing ---- */
+void sys_sleep(int ms);
+int  sys_get_time_us(void);
+
+/* ---- Input ---- */
 int sys_get_key_state(void);
 
-/* ---- Convenience wrappers: TTY events (replacement for sys_read_key) ----
- *
- * sys_tty_open_raw() opens /dev/tty in raw mode. The returned fd reads
- * 4-byte little-endian event packets via sys_read(fd, buf, 4*N).
- * sys_tty_event_read(fd, blocking) is a thin helper that does that
- * read and decodes one packet. Returns the event code (>=0), or -1 if
- * non-blocking and no event was queued.
- */
+/* ---- Networking ---- */
+int  sys_net_send        (char *buf, int len);
+int  sys_net_recv        (char *buf, int max_len);
+int  sys_net_packet_count(void);
+void sys_net_get_mac     (int *mac_buf);
+
+/* ---- TTY event helpers ---- */
 int sys_tty_open_raw(int nonblocking);
 int sys_tty_event_read(int fd, int blocking);
 

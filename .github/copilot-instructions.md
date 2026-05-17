@@ -24,7 +24,7 @@ The C compiler is **cproc** (C11 subset) → **QBE** (SSA backend) →
 ## Build & validation
 
 ```
-make compile-bdos              # Build BDOS kernel (~302 KB)
+make compile-kernel            # Build BDOS kernel
 make compile-userbdos file=X   # Build a single userBDOS program
 make compile-userbdos-all      # Build ALL userBDOS programs
 make test-c                    # Run C compiler tests
@@ -32,15 +32,15 @@ make test-host                 # Run host-side unit tests
 make check                     # Format, lint, and test (CI-safe)
 ```
 
-**Validation rule:** After editing any file under `Software/C/bdos/`
-or `Software/C/libfpgc/`, always run `make compile-bdos` to verify.
+**Validation rule:** After editing any file under `Software/C/kernel/`
+or `Software/C/libfpgc/`, always run `make compile-kernel` to verify.
 After editing a userBDOS program, run `make compile-userbdos file=X`.
 
 ## Key paths
 
 | Area | Path |
 |------|------|
-| BDOS kernel | `Software/C/bdos/` |
+| BDOS kernel | `Software/C/kernel/` |
 | Hardware drivers | `Software/C/libfpgc/io/` |
 | Filesystem (BRFS) | `Software/C/libfpgc/fs/` |
 | User programs | `Software/C/userBDOS/` |
@@ -65,10 +65,10 @@ All MMIO addresses are defined in `Software/C/libfpgc/include/fpgc.h`.
 ## Dangerous areas — ask the user before changing
 
 - Memory layout constants in `fpgc.h` (FPGC_KERNEL_*, FPGC_PROGRAM_*, etc.)
-- Interrupt handler dispatch in `Software/C/bdos/main.c`
+- Interrupt handler dispatch in `Software/C/kernel/src/main.c`
 - BRFS on-disk format in `Software/C/libfpgc/fs/brfs.c`
 - SPI bus assignments in `fpgc.h`
-- Boot sequence in `Software/C/bdos/init.c`
+- Boot sequence in `Software/C/kernel/src/init.c`
 
 ## Deep context (read on demand, do NOT auto-load)
 

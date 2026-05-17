@@ -5,7 +5,7 @@
             "includePath": [
                 "${workspaceFolder}/Software/C/libc/include",
                 "${workspaceFolder}/Software/C/libfpgc/include",
-                "${workspaceFolder}/Software/C/bdos/include"
+                "${workspaceFolder}/Software/C/kernel/include"
             ],
             "defines": [],
             "compilerPath": "",

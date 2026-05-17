@@ -454,7 +454,7 @@ class FNPConnection:
         if dirs:
             print(f"[2/3] Creating {len(dirs)} directories...")
             for d in dirs:
-                if not self.send_shell_command(f"mkdir {d}", delay=delay):
+                if not self.send_shell_command(f"mkdir -p {d}", delay=delay):
                     print(f"  Warning: mkdir {d} may have failed", file=sys.stderr)
                     # Continue anyway — directory might already exist
         else:
@@ -666,7 +666,7 @@ def main():
 
         elif cmd == "sync-files":
             sync_args = list(cmd_args)
-            delay = 0.5
+            delay = 0.2
             if "--delay" in sync_args:
                 idx = sync_args.index("--delay")
                 if idx + 1 >= len(sync_args):

@@ -21,7 +21,7 @@
  *
  * Count is in WORDS (4 bytes each). Addresses must be word-aligned.
  * Dependencies: fpgc.h
- * Build: part of libfpgc (make compile-bdos)
+ * Build: part of libfpgc (make compile-kernel)
  */
 #include "dma.h"
 #include "fpgc.h"

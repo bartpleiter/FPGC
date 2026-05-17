@@ -802,7 +802,7 @@ int main(void)
     if (!has_assign)
     {
       poll_network();
-      sys_delay(1);
+      sys_sleep(1);
       continue;
     }
 

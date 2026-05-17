@@ -1,131 +1,215 @@
 # Shell
 
-The BDOS v2 shell is a Bourne-style command interpreter that drops in once
-[BDOS](OS.md) finishes booting.
+The BDOS shell (`/bin/sh`) is a Bourne-style interactive shell implemented as a userland program (`Software/C/userBDOS/sh.c`). It is spawned by `/bin/init` (PID 1) and respawned automatically when it exits.
 
-It is split across several source files in `Software/C/bdos/`:
-
-| File | Role |
-|------|------|
-| `shell.c` | Line editor, prompt rendering, command dispatch |
-| `shell_lex.c` | Tokenizer (quoting, operators, escapes) |
-| `shell_parse.c` | Builds a small AST (commands, pipelines, chains, redirs) |
-| `shell_exec.c` | Built-in registry + program launcher; pipes via temp files |
-| `shell_path.c` | `PATH` lookup (`/bin/<name>` then cwd) |
-| `shell_script.c` | In-kernel `#!/bin/sh` interpreter (`$0`–`$9`, `$#`, `$?`, `set -e`) |
-| `shell_vars.c` | Shell + environment variable storage |
-| `shell_cmds.c` | Built-in implementations (the `bi_*` functions) |
-| `shell_format.c` | Boot-time mount-failure format wizard (only) |
+```bash
+make compile-userbdos file=sh   # Compile the shell
+```
 
 ## Syntax
 
+The grammar follows traditional Bourne shell conventions:
+
 ```
-COMMAND       := WORD WORD* (REDIR)*
-PIPELINE      := COMMAND ('|' COMMAND)*
-CHAIN         := PIPELINE (('&&' | '||' | ';') PIPELINE)*
-REDIR         := ('<' WORD) | ('>' WORD) | ('>>' WORD)
+LINE      := CHAIN ( ';' CHAIN )*
+CHAIN     := PIPELINE ( '&&' PIPELINE | '||' PIPELINE )*
+PIPELINE  := COMMAND ( '|' COMMAND )*
+COMMAND   := WORD+ REDIR*
+REDIR     := '<' FILE | '>' FILE | '>>' FILE
 ```
 
-### Words and quoting
+Comments start with `#` and extend to end of line.
 
-- Bare words split on unquoted whitespace.
-- `'...'` — single-quoted: literal, no expansion, no escape processing.
-- `"..."` — double-quoted: variable expansion still happens, `\\` and
-  `\"` and `\$` are honoured, everything else is literal.
-- `\X` outside quotes — escape any single character.
+## Words and Quoting
 
-### Variable expansion
+| Syntax | Behaviour |
+|--------|-----------|
+| `bare` | Split on whitespace; glob and variable expansion applied |
+| `'single'` | Literal — no expansion, no escapes |
+| `"double"` | Variable expansion (`$`) applied; `\"`, `\\`, `\$` recognized |
+| `\X` | Escape any single character (outside quotes) |
 
-- `$NAME` and `${NAME}` — substitute a shell or environment variable.
-  Unset variables expand to the empty string.
-- `$0`..`$9`, `$#`, `$?` — only inside script execution
-  (`shell_script.c`); `$0` is the script path, `$#` is the positional
-  argument count, `$?` is the exit code of the last command.
-- Assignments of the form `NAME=value` set a shell variable for the
-  current shell; combine with `export NAME` (or `export NAME=value`)
-  to make it visible to spawned children.
+## Variables
 
-There is **no** command substitution (`$(cmd)` / backticks) and **no**
-arithmetic expansion in v2.0 — both are listed as future work in the
-plan's §2 non-goals.
+Shell variables are set with `NAME=value` and accessed with `$NAME` or `${NAME}`.
 
-### Operators
-
-| Operator | Meaning |
+| Variable | Meaning |
 |----------|---------|
-| `;`  | Sequence — run left, then right, regardless of exit status |
-| `&&` | Run right only if left exited 0 |
-| `||` | Run right only if left exited non-zero |
-| `|`  | Pipe — implemented as `a >/tmp/p.N ; b </tmp/p.N` (no concurrency) |
-| `<`  | Redirect stdin from the named file |
-| `>`  | Redirect stdout to the named file (truncate / create) |
-| `>>` | Redirect stdout to the named file (append / create) |
+| `$NAME` / `${NAME}` | Shell or environment variable (empty string if unset) |
+| `$?` | Exit code of the last command |
+| `$$` | Current process PID |
+| `$#` | Positional argument count (scripts only) |
+| `$0`–`$9` | Positional parameters (scripts only) |
 
-Pipes do *not* run concurrently — the left side runs to completion,
-buffering its stdout into a temp file under `/tmp/`, then the right
-side runs with that temp file wired to its stdin. This keeps the
-single-thread execution model intact while letting users compose tools
-like `cat foo | grep bar > out`.
+Default environment variables: `PATH=/bin`, `HOME=/`.
 
-## Built-ins
+Use `export NAME[=value]` to make a variable visible to child processes.
 
-The built-in registry lives in `shell_exec.c` as a static
-`{ name, function }` table. Adding a built-in is a one-line edit there
-plus the implementation in `shell_cmds.c`.
+## Operators
 
-| Built-in | Notes |
-|----------|-------|
-| `help` | Prints a short list of built-ins |
-| `clear` | `\x1b[2J\x1b[H` to fd 1 |
-| `echo <text>...` | Prints args separated by spaces, then `\n` |
-| `uptime` | Seconds since boot |
+| Operator | Description |
+|----------|-------------|
+| `;` | Sequence — run left, then right regardless of exit code |
+| `&&` | AND — run right only if left exits 0 |
+| `\|\|` | OR — run right only if left exits non-zero |
+| `\|` | Pipe — connect stdout of left to stdin of right |
+| `<` | Redirect stdin from file |
+| `>` | Redirect stdout to file (truncate) |
+| `>>` | Redirect stdout to file (append) |
+
+### Pipes
+
+Pipes are implemented via temporary files (`/tmp/p.0`, `/tmp/p.1`, ...) rather than concurrent processes. In a pipeline `a | b`:
+
+1. `a` runs with stdout redirected to `/tmp/p.0`
+2. `b` runs with stdin redirected from `/tmp/p.0`
+3. The temp file is cleaned up automatically
+
+## Control Flow
+
+### if / elif / else / fi
+
+```shell
+if test -f /bin/hello
+then
+    echo "hello exists"
+elif test -f /bin/hi
+then
+    echo "hi exists"
+else
+    echo "neither found"
+fi
+```
+
+The condition is evaluated as a command — exit code 0 means true, non-zero means false. Nesting is supported.
+
+### for / in / do / done
+
+```shell
+for f in *.txt
+do
+    echo "File: $f"
+done
+```
+
+The word list is expanded (including globs) before iteration.
+
+### while / do / done
+
+```shell
+while test -f /tmp/lock
+do
+    sleep 1
+done
+```
+
+A safety limit of 10,000 iterations prevents infinite loops.
+
+## Test Expressions
+
+The `test` built-in (also available as `[`) evaluates conditionals:
+
+### Unary
+
+| Expression | True when |
+|------------|-----------|
+| `STRING` | String is non-empty |
+| `-n STRING` | String is non-empty |
+| `-z STRING` | String is empty |
+| `-f PATH` | File exists |
+| `-d PATH` | Directory exists |
+| `! EXPR` | Expression is false |
+
+### Binary (string)
+
+| Expression | True when |
+|------------|-----------|
+| `S1 = S2` | Strings are equal |
+| `S1 != S2` | Strings differ |
+
+### Binary (integer)
+
+| Expression | True when |
+|------------|-----------|
+| `N1 -eq N2` | Equal |
+| `N1 -ne N2` | Not equal |
+| `N1 -lt N2` | Less than |
+| `N1 -gt N2` | Greater than |
+
+## Glob Expansion
+
+Patterns are expanded after tokenization:
+
+| Pattern | Matches |
+|---------|---------|
+| `*` | Any sequence of characters |
+| `?` | Any single character |
+| `[abc]` | Any character in set |
+| `[a-z]` | Any character in range |
+| `[!a-z]` | Any character NOT in range |
+
+Hidden files (starting with `.`) are skipped unless the pattern itself starts with `.`. If no files match, the pattern is returned as-is.
+
+## Built-in Commands
+
+| Command | Description |
+|---------|-------------|
+| `help` | List built-ins and available programs in `/bin/` |
+| `clear` | Clear the terminal screen |
+| `echo <text>` | Print text to stdout |
+| `cd [path]` | Change directory (bare `cd` goes to `/`) |
 | `pwd` | Print working directory |
-| `cd [path]` | Change directory; bare `cd` goes to `/` |
-| `ls [path]` | Directory listing with size column |
-| `mkdir <path>` / `mkfile <path>` / `rm <path>` | Tree mutation |
-| `cat <file>` / `write <file> <text>` | File read / overwrite |
-| `cp <src> <dst>` / `mv <src> <dst>` | Copy / rename |
-| `sync` | Flush BRFS write cache to flash |
-| `df` | Filesystem usage |
-| `jobs` / `fg <pid>` / `kill <pid>` | Job control |
-| `export NAME[=val]` / `set NAME[=val]` / `unset NAME` / `env` | Variables |
-| `exit [code]` | Exit the shell (only meaningful in scripts / nested shells) |
-| `true` / `false` | Always exit 0 / 1 — useful in chains |
+| `export [NAME[=VAL]]` | Export variable or list all exported variables |
+| `set` | List all shell variables |
+| `unset NAME` | Remove a variable |
+| `env` | List exported variables |
+| `test EXPR` / `[ EXPR ]` | Evaluate a conditional expression |
+| `true` | Exit with code 0 |
+| `false` | Exit with code 1 |
+| `history` | Show numbered command history |
+| `exit [N]` | Exit the shell with optional exit code |
+| `halt` | Halt the system |
 
-The previous `format` built-in was moved out to `/bin/format` in Phase E
-(use it as `format <blocks> <bytes-per-block> <label>`). The kernel
-still owns the boot-time mount-failure prompt because that path runs
-before any external binary is reachable.
+## External Commands
 
-## Program lookup
+Anything that is not a built-in is resolved as a program:
 
-Anything that is not a built-in is treated as a program reference:
+1. Bare names: try `/bin/<name>` first, then the current directory
+2. Names containing `/` or starting with `.`: resolved as paths (absolute or relative)
 
-1. If the token contains `/` or starts with `.`, it is treated as a
-   path — absolute (`/bin/foo`) or relative to the current working
-   directory (`./foo`, `subdir/foo`).
-2. Otherwise the shell tries `/bin/<name>` first, then falls back to
-   `<cwd>/<name>`.
+Programs are spawned as child processes via `SYS_SPAWN` and the shell waits for them to exit via `SYS_WAITPID`.
 
-Argument vectors are copied into a per-process arena (see the process
-model section in [OS.md](OS.md#process-model)) so the child cannot
-corrupt the shell's input buffers.
+## Script Execution
 
-## Scripts
+Scripts start with a `#!/bin/sh` shebang line. To execute:
 
-A file whose first line is `#!/bin/sh` (or which is invoked as
-`sh script.sh`) is interpreted by `shell_script.c`. Inside a script
-the following extras are available:
+```bash
+sh myscript.sh arg1 arg2
+```
 
-- `$0` is the script path; `$1`..`$9` are the positional arguments;
-  `$#` is the count of positionals; `$?` is the exit status of the
-  most recent command.
-- `set -e` aborts the script the moment any command exits non-zero.
-- Comments starting with `#` are stripped per line.
+Within a script, positional parameters `$0`–`$9` and `$#` are available. Scripts abort on the first non-zero exit code (implicit `set -e`). Maximum script size is 8192 bytes / 128 lines. Nested script execution is not supported.
 
-There is no flow control (`if`/`then`/`fi`, loops, functions) yet.
+## Interactive Features
 
-## See also
+### Command History
 
-- [OS.md — Process model & VFS](OS.md#process-model)
-- [Terminal.md — libterm + supported ANSI escapes](Terminal.md)
+The shell maintains a 32-entry command history (ring buffer). Navigate with **Up/Down** arrow keys. Duplicate entries are suppressed. Use the `history` built-in to display the numbered list.
+
+### Tab Completion
+
+- **Command position**: completes built-in names, control flow keywords, and programs in `/bin/`
+- **Argument position**: completes filenames in the current or specified directory
+- **Single match**: auto-completes in place
+- **Multiple matches**: fills the longest common prefix and lists all candidates
+
+### Line Editing
+
+| Key | Action |
+|-----|--------|
+| Left / Right | Move cursor |
+| Home / Ctrl-A | Move to start of line |
+| End / Ctrl-E | Move to end of line |
+| Backspace | Delete character before cursor |
+| Delete | Delete character at cursor |
+| Up / Down | Navigate command history |
+| Tab | Auto-complete |

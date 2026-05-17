@@ -19,9 +19,9 @@ description: 'Update documentation after making code or hardware changes. Use wh
 1. `Docs/docs/Hardware/` — relevant hardware doc page
 2. `Docs/context/Project-context.md` — if MMIO registers, interrupts, or SPI assignments changed
 
-### After a kernel change (BDOS)
+### After a kernel change
 1. `Docs/context/BDOS-context.md` — if syscalls, memory map, interrupts, or boot sequence changed
-2. `.github/instructions/bdos-kernel.instructions.md` — if file map or syscall table changed
+2. `.github/instructions/kernel.instructions.md` — if file map or syscall table changed
 
 ### After a driver change (libfpgc)
 1. `Docs/docs/Hardware/IO/` — relevant I/O doc page

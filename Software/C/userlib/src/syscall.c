@@ -1,10 +1,8 @@
 /*
- * syscall.c — userland convenience wrappers around the BDOS syscall trap.
+ * syscall.c — BDOS v4 userland syscall wrappers.
  *
- * The low-level syscall() function lives in syscall_asm.asm. This file
- * only exposes thin helpers; legacy wrappers (sys_term_*, sys_read_key,
- * sys_set_palette, sys_uart_print_*) were removed in shell-terminal-v2
- * Phase E — see syscall.h for the migration table.
+ * The low-level syscall() function lives in syscall_asm.asm.
+ * This file provides thin C wrappers and the _sbrk backing for malloc.
  */
 
 #include <syscall.h>
@@ -14,31 +12,29 @@ int errno;
 
 /*
  * _sbrk — heap allocation backing for libc malloc/free.
- * Lazily requests a heap block from BDOS via sys_heap_alloc() on first
- * call, then manages the break pointer within that block.
+ * Calls the kernel SBRK syscall to extend the process heap.
  */
-#define SBRK_HEAP_SIZE (8 * 1024 * 1024) /* 8 MiB */
-static char *sbrk_base;
-static char *sbrk_ptr;
-
 void *_sbrk(int incr)
 {
-    char *prev;
-
-    if (sbrk_base == 0) {
-        sbrk_base = (char *)sys_heap_alloc(SBRK_HEAP_SIZE);
-        if (sbrk_base == 0)
-            return (void *)-1;
-        sbrk_ptr = sbrk_base;
-    }
-    if (sbrk_ptr + incr > sbrk_base + SBRK_HEAP_SIZE || sbrk_ptr + incr < sbrk_base)
-        return (void *)-1;
-    prev = sbrk_ptr;
-    sbrk_ptr += incr;
-    return (void *)prev;
+    return sys_sbrk(incr);
 }
 
-/* ---- I/O ---- */
+/* ---- Process control ---- */
+
+void sys_exit (int code) { syscall(SYS_EXIT,  code, 0, 0); }
+void _exit    (int code) { syscall(SYS_EXIT,  code, 0, 0); }
+int  sys_getpid(void)    { return syscall(SYS_GETPID, 0, 0, 0); }
+int  sys_kill(int pid)   { return syscall(SYS_KILL, pid, 0, 0); }
+void sys_yield(void)     { syscall(SYS_YIELD, 0, 0, 0); }
+int  sys_spawn(const char *path, int argc, const char **argv)
+{
+    return syscall(SYS_SPAWN, (int)path, argc, (int)argv);
+}
+int  sys_waitpid(int pid) { return syscall(SYS_WAITPID, pid, 0, 0); }
+int  sys_stat(const char *path, void *buf) { return syscall(SYS_STAT, (int)path, (int)buf, 0); }
+int  sys_ioctl(int fd, int cmd, int arg)   { return syscall(SYS_IOCTL, fd, cmd, arg); }
+
+/* ---- I/O convenience ---- */
 
 void sys_putc(int ch)
 {
@@ -53,55 +49,64 @@ void sys_putstr(const char *s)
     sys_write(1, s, n);
 }
 
-/* ---- Filesystem (format utilities only — raw FS wrappers removed) ---- */
+/* ---- File I/O ---- */
+
+int sys_open (const char *path, int flags)         { return syscall(SYS_OPEN,  (int)path, flags, 0); }
+int sys_close(int fd)                              { return syscall(SYS_CLOSE, fd, 0, 0); }
+int sys_read (int fd, void *buf, int len)          { return syscall(SYS_READ,  fd, (int)buf, len); }
+int sys_write(int fd, const void *buf, int len)    { return syscall(SYS_WRITE, fd, (int)buf, len); }
+int sys_lseek(int fd, int offset, int whence)      { return syscall(SYS_LSEEK, fd, offset, whence); }
+int sys_dup2 (int oldfd, int newfd)                { return syscall(SYS_DUP2,  oldfd, newfd, 0); }
+
+/* ---- Filesystem ---- */
+
+int sys_unlink(const char *path)                   { return syscall(SYS_UNLINK, (int)path, 0, 0); }
+int sys_mkdir(const char *path)                    { return syscall(SYS_MKDIR, (int)path, 0, 0); }
+int sys_readdir(const char *path, void *entry_buf, int max_entries)
+{
+    return syscall(SYS_READDIR, (int)path, (int)entry_buf, max_entries);
+}
+int sys_rename(const char *oldpath, const char *newpath)
+{
+    return syscall(SYS_RENAME, (int)oldpath, (int)newpath, 0);
+}
+int sys_sync(void) { return syscall(SYS_SYNC, 0, 0, 0); }
 
 int sys_fs_format(int blocks, int words_per_block, char *label)
 {
-    return syscall(SYSCALL_FS_FORMAT, blocks, words_per_block, (int)label);
+    return syscall(SYS_FORMAT, blocks, words_per_block, (int)label);
 }
 
 int sys_sd_format(int blocks, int words_per_block, char *label)
 {
-    return syscall(SYSCALL_SD_FORMAT, blocks, words_per_block, (int)label);
+    return syscall(SYS_SD_FORMAT, blocks, words_per_block, (int)label);
 }
 
-/* ---- Shell ---- */
+/* ---- Process environment ---- */
 
-int    sys_shell_argc  (void) { return        syscall(SYSCALL_SHELL_ARGC,   0, 0, 0); }
-char **sys_shell_argv  (void) { return (char **)syscall(SYSCALL_SHELL_ARGV, 0, 0, 0); }
-char  *sys_shell_getcwd(void) { return (char  *)syscall(SYSCALL_SHELL_GETCWD, 0, 0, 0); }
+int    sys_argc(void)             { return syscall(SYS_ARGC, 0, 0, 0); }
+char **sys_argv(void)             { return (char **)syscall(SYS_ARGV, 0, 0, 0); }
+int    sys_getcwd(char *buf, int size) { return syscall(SYS_GETCWD, (int)buf, size, 0); }
+int    sys_chdir(const char *path)     { return syscall(SYS_CHDIR, (int)path, 0, 0); }
+void  *sys_sbrk(int incr)             { return (void *)syscall(SYS_SBRK, incr, 0, 0); }
 
-/* ---- Heap / timing / process / key state ---- */
+/* ---- Timing ---- */
 
-void *sys_heap_alloc(int size)   { return (void *)syscall(SYSCALL_HEAP_ALLOC, size, 0, 0); }
-void  sys_delay     (int ms)     { syscall(SYSCALL_DELAY, ms, 0, 0); }
-void  sys_exit      (int code)   { syscall(SYSCALL_EXIT,  code, 0, 0); }
-void  _exit         (int code)   { syscall(SYSCALL_EXIT,  code, 0, 0); }
-int   sys_get_key_state(void)    { return syscall(SYSCALL_GET_KEY_STATE, 0, 0, 0); }
+void sys_sleep(int ms)           { syscall(SYS_SLEEP, ms, 0, 0); }
+int  sys_get_time_us(void)       { return syscall(SYS_GET_TIME_US, 0, 0, 0); }
+
+/* ---- Input ---- */
+
+int sys_get_key_state(void)      { return syscall(SYS_GET_KEY_STATE, 0, 0, 0); }
 
 /* ---- Networking ---- */
 
-int  sys_net_send        (char *buf, int len)     { return syscall(SYSCALL_NET_SEND,         (int)buf, len, 0); }
-int  sys_net_recv        (char *buf, int max_len) { return syscall(SYSCALL_NET_RECV,         (int)buf, max_len, 0); }
-int  sys_net_packet_count(void)                   { return syscall(SYSCALL_NET_PACKET_COUNT, 0, 0, 0); }
-void sys_net_get_mac     (int *mac_buf)           { syscall(SYSCALL_NET_GET_MAC, (int)mac_buf, 0, 0); }
+int  sys_net_send        (char *buf, int len)     { return syscall(SYS_NET_SEND,         (int)buf, len, 0); }
+int  sys_net_recv        (char *buf, int max_len) { return syscall(SYS_NET_RECV,         (int)buf, max_len, 0); }
+int  sys_net_packet_count(void)                   { return syscall(SYS_NET_PACKET_COUNT, 0, 0, 0); }
+void sys_net_get_mac     (int *mac_buf)           { syscall(SYS_NET_GET_MAC, (int)mac_buf, 0, 0); }
 
-/* ---- VFS / fd-oriented byte I/O ---- */
-
-int sys_open (const char *path, int flags)         { return syscall(SYSCALL_OPEN,  (int)path, flags, 0); }
-int sys_close(int fd)                              { return syscall(SYSCALL_CLOSE, fd, 0, 0); }
-int sys_read (int fd, void *buf, int len)          { return syscall(SYSCALL_READ,  fd, (int)buf, len); }
-int sys_write(int fd, const void *buf, int len)    { return syscall(SYSCALL_WRITE, fd, (int)buf, len); }
-int sys_lseek(int fd, int offset, int whence)      { return syscall(SYSCALL_LSEEK, fd, offset, whence); }
-int sys_dup2 (int oldfd, int newfd)                { return syscall(SYSCALL_DUP2,  oldfd, newfd, 0); }
-int sys_unlink(const char *path)                   { return syscall(SYSCALL_UNLINK, (int)path, 0, 0); }
-int sys_mkdir(const char *path)                    { return syscall(SYSCALL_MKDIR, (int)path, 0, 0); }
-int sys_readdir(const char *path, void *entry_buf, int max_entries)
-{
-    return syscall(SYSCALL_READDIR, (int)path, (int)entry_buf, max_entries);
-}
-
-/* ---- TTY raw event helpers ---- */
+/* ---- TTY event helpers ---- */
 
 int sys_tty_open_raw(int nonblocking)
 {
@@ -115,7 +120,7 @@ int sys_tty_event_read(int fd, int blocking)
     unsigned char buf[4];
     int n = sys_read(fd, buf, 4);
     if (n != 4) {
-        (void)blocking; /* fd already configured for blocking semantics */
+        (void)blocking;
         return -1;
     }
     return (int)( (unsigned int)buf[0]

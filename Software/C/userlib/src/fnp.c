@@ -146,7 +146,7 @@ int fnp_send_reliable(int *dest_mac, int msg_type,
                     }
                 }
             }
-            sys_delay(1);
+            sys_sleep(1);
         }
     }
     return 0;

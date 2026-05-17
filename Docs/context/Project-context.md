@@ -19,8 +19,9 @@ programs. Doom runs on it.
   v2 filesystem on both flash (`/`) and SD card (`/sdcard`).
 - **I/O**: 6 SPI buses, 3 timers, UART, DMA engine (7 modes),
   CH376 USB host (keyboard), ENC28J60 Ethernet.
-- **OS**: BDOS — single-user, single-foreground, with Bourne-style
-  shell, VFS, job control (up to 6 slots), USB keyboard, Ethernet.
+- **OS**: BDOS — single-user, cooperative multitasking, with
+  Bourne-style shell, VFS, process model (up to 16 processes),
+  USB keyboard, Ethernet.
 - **Toolchain**: cproc (C11) → QBE (SSA optimiser) → ASMPY (Python
   assembler/linker). Self-hosting on BDOS is operational.
 
@@ -39,14 +40,14 @@ Software/
   C/
     libc/                picolibc-derived freestanding C library
     libfpgc/             hardware drivers, libterm, BRFS, DMA, SD, CH376
-    bdos/                BDOS kernel sources
+    kernel/              BDOS kernel sources (v4)
     userlib/             userland syscall wrappers + DMA + fixedmath
-    userBDOS/            user programs (Doom, editor, snake, etc.)
+    userBDOS/            user programs (Doom, editor, shell, snake, etc.)
     bareMetal/           bare-metal hardware test programs
 Tests/
   CPU/                   Verilog testbenches (14 categories incl. DMA)
   C/                     Compiler end-to-end tests (~20 categories)
-  host/                  Host-side C unit tests (term, VFS, shell)
+  host/                  Host-side C unit tests (libterm)
   asm-link/              Assembler/linker regression tests
 Scripts/
   BCC/                   compile_modern_c.sh (main build tool), cc.sh
@@ -90,13 +91,14 @@ ISA reference: [Docs/docs/Hardware/CPU/CPU.md](../docs/Hardware/CPU/CPU.md).
 
 | Region | Range | Size |
 |--------|-------|------|
-| Kernel code + stacks | `0x000000`–`0x3FFFFF` | 4 MiB |
-| Kernel heap | `0x400000`–`0x1FFFFFF` | 28 MiB |
-| User program slots | `0x2000000`–`0x2BFFFFF` | 12 MiB (6 × 2 MiB) |
-| SD card BRFS cache | `0x2C00000`–`0x2FFFFFF` | 4 MiB (LRU) |
-| SPI flash BRFS cache | `0x3000000`–`0x3FFFFFF` | 16 MiB |
+| Kernel code + BSS | `0x000000`–`0x0FFFFF` | 1 MiB |
+| Kernel stacks (3) | `0x100000`–`0x10FFFF` | 64 KiB |
+| Kernel heap | `0x110000`–`0x1FFFFF` | ~960 KiB |
+| Process memory pool | `0x200000`–`0x1FFFFFF` | 30 MiB |
+| BRFS SD cache | `0x2000000`–`0x23FFFFF` | 4 MiB (LRU) |
+| BRFS SPI flash cache | `0x2400000`–`0x3FFFFFF` | 28 MiB |
 
-Stacks: kernel `0x3DFFFC`, syscall `0x3EFFFC`, interrupt `0x3FFFFC`.
+Stacks: main `0x107FFC`, syscall `0x10BFFC`, interrupt `0x10FFFC`.
 
 ## MMIO peripheral map
 
@@ -195,9 +197,9 @@ the top-level Makefile.
 
 | Target | What it builds |
 |--------|---------------|
-| `make compile-bdos` | BDOS kernel (~302 KB binary) |
+| `make compile-kernel` | BDOS kernel (~224 KB binary) |
 | `make compile-userbdos file=<name>` | Single userBDOS program |
-| `make compile-userbdos-all` | All userBDOS programs (~18) |
+| `make compile-userbdos-all` | All userBDOS programs (~35) |
 | `make compile-doom` | Doom port |
 | `make compile-bootloader` | Two-phase bootloader (RAM → ROM) |
 | `make compile-asm file=<name>` | Raw assembly program |
@@ -224,7 +226,7 @@ Two storage backends via `brfs_storage_t` vtable:
 
 - LE on disk; magic `BRF2`; superblock version `2`.
 - Persistence is explicit (`brfs_sync()`).
-- `bdos_fs_for_path()` routes paths starting with `/sdcard/` to the
+- `fs_for_path()` routes paths starting with `/sdcard/` to the
   SD BRFS instance; everything else goes to SPI flash.
 - See [BRFS docs](../docs/Software/BRFS.md).
 
@@ -242,9 +244,9 @@ probes by attempting init.
 
 ## BDOS
 
-Single-foreground OS. See
-[BDOS-context.md](BDOS-context.md) for the full source map, syscall
-table, and subsystem detail.
+Cooperative multitasking OS with process blocking and scheduling.
+See [BDOS-context.md](BDOS-context.md) for the full source map,
+syscall table, and subsystem detail.
 
 Key facts for any change:
 
@@ -252,11 +254,15 @@ Key facts for any change:
   `"\x1b[..."` via `sys_write(1, ...)`.
 - Raw keyboard: open `/dev/tty` with `O_RAW[|O_NONBLOCK]`, `read`
   returns 4-byte LE event codes (ASCII or `KEY_*`).
-- VFS exposes file / `/dev/tty` / `/dev/null` / `/dev/pixpal` / pipe
-  under `open`/`read`/`write`/`close`/`lseek`/`dup2`.
+- VFS exposes files, `/dev/tty`, `/dev/null`, `/dev/pixpal`,
+  `/dev/uart`, `/dev/random`, and `/proc/*` under a unified
+  `open`/`read`/`write`/`close`/`lseek`/`dup2` API.
 - USB keyboard: connect/disconnect via INT# pin polling (main loop);
   HID report reading via timer ISR (10 ms).
 - SD card mounted at `/sdcard` during boot if a card is present.
+- Shell runs as `/bin/sh` (userland program), spawned by `/bin/init`.
+- Processes block on sleep/waitpid; scheduler picks next READY process.
+- Up to 16 processes with variable-size memory from a 30 MiB pool.
 
 ## User programs
 
@@ -266,6 +272,8 @@ Output: `Files/BRFS-init/bin/<name>`.
 
 | Program | Description |
 |---------|-------------|
+| `init.c` | PID 1 — spawns `/bin/sh`, respawns on exit |
+| `sh.c` | Bourne-style shell (variables, pipes, redirection, control flow) |
 | `doom/` | Full Doom port (DMA-accelerated blitting) |
 | `w3d.c` | Wolfenstein 3D-style raycaster |
 | `edit.c` | Text editor (alt-screen, raw TTY) |
@@ -275,10 +283,11 @@ Output: `Files/BRFS-init/bin/<name>`.
 | `cmatrix.c` | CMatrix-style display |
 | `tree.c` | Recursive directory listing |
 | `bench.c` | Benchmark suite |
-| `format.c` | Filesystem format utility (was a shell built-in) |
+| `format.c` | SPI flash BRFS format utility |
 | `sdformat.c` | SD card BRFS format utility |
 | `asm-link.c` | On-device assembler/linker |
 | `cpp.c` | On-device C preprocessor |
+| `cat.c` / `ls.c` / `grep.c` / ... | External Unix-style utilities (pipe-compatible) |
 
 Reference ports: `snake.c` (non-blocking raw TTY), `edit.c`
 (blocking raw TTY, alt-screen, DECAWM).
@@ -289,8 +298,8 @@ Iterate on BDOS and user programs over Ethernet without reflashing:
 
 | Target | What it does |
 |--------|-------------|
-| `make run-bdos` | Compile + upload BDOS via UART |
-| `make flash-bdos` | Flash BDOS to SPI (persistent) |
+| `make run-kernel` | Compile + upload kernel via UART |
+| `make flash-kernel` | Flash kernel to SPI (persistent) |
 | `make fnp-upload-userbdos file=<n>` | Compile + upload program to `/bin` over Ethernet |
 | `make fnp-sync-files` | Sync `Files/BRFS-init/` to device filesystem |
 | `make fnp-keyboard` | Interactive keyboard streaming to device |
@@ -310,10 +319,8 @@ Tool: `Scripts/Programmer/Network/fnp_tool.py`.
 | `make test-cpu` | All CPU Verilog testbenches (parallel) |
 | `make test-c` | All cproc+QBE+ASMPY compiler tests (parallel) |
 | `make test-asmpy` | ASMPY Python unit tests |
-| `make test-host` | All host-side C tests (term + vfs-pixpal + shell) |
+| `make test-host` | All host-side C tests (libterm) |
 | `make test-term` | libterm host unit tests |
-| `make test-vfs-pixpal` | `/dev/pixpal` VFS host tests |
-| `make test-shell-host` | Shell lex/parse/expand host tests |
 | `make test-asm-link` | Assembler/linker regression tests |
 | `make test-cpp` | C preprocessor regression tests |
 
@@ -324,7 +331,7 @@ When working on:
 
 - **Verilog** → `make test-cpu` then `make test-c`
 - **Toolchain** (cproc/QBE/ASMPY) → `make test-c`
-- **BDOS / userBDOS** → `make compile-bdos` or `make compile-userbdos file=<n>` (no per-feature tests beyond host tests)
+- **Kernel / userBDOS** → `make compile-kernel` or `make compile-userbdos file=<n>`
 
 ## Simulation
 
@@ -373,8 +380,8 @@ Source: `Hardware/FPGA/Verilog/Modules/`. Key modules:
 - Each `.c` is compiled independently. Standard `#include <header.h>`
   with `-I` paths from the build script.
 - Assembly in dedicated `.asm` files — never inline.
-- Keep `bdos_syscall.h` and userlib `syscall.h` in sync. Removed
-  syscalls stay reserved (return `-1`).
+- Keep `kernel/include/syscall_nums.h` and userlib `syscall.h` in
+  sync. Removed syscalls stay reserved (return `-1`).
 
 ## Where to look next
 

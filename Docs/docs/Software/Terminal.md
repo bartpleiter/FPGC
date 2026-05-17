@@ -40,7 +40,7 @@ The legacy `term.c` shim was deleted in Phase E; all callers now use the
                        +---------------+
 ```
 
-`term_init()` is called once during `bdos_init` (`Software/C/bdos/init.c`)
+`term_init()` is called once during `kernel_init` (`Software/C/kernel/src/init.c`)
 with two callbacks: a tile renderer (currently `gpu_write_window_tile`) and
 a UART mirror (currently `uart_putchar`). Disabling the UART mirror at
 runtime is a single call to `term_set_uart_mirror(0)`.

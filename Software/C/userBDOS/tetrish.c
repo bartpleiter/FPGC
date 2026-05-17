@@ -1208,7 +1208,7 @@ void launch_workers(void)
   {
     fnp_send_command(get_worker_mac(w), "tetrisc", frame_buf, &tx_seq);
   }
-  sys_delay(1000);
+  sys_sleep(1000);
 }
 
 // ===========================================================================
@@ -1394,7 +1394,7 @@ int main(void)
 
     if (!ga_running)
     {
-      sys_delay(50);
+      sys_sleep(50);
       continue;
     }
 

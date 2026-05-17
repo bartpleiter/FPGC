@@ -7,7 +7,7 @@
  * Bus: SPI0 (FPGC_SPI_FLASH_0) or SPI1 (FPGC_SPI_FLASH_1)
  *
  * Dependencies: spi_flash.h, brfs_storage_spi_flash.h
- * Build: part of libfpgc (make compile-bdos)
+ * Build: part of libfpgc (make compile-kernel)
  */
 #include "brfs_storage_spi_flash.h"
 #include "spi_flash.h"
