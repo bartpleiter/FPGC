@@ -14,7 +14,7 @@
  *   enc28j60_spi_in_use — set while SPI4 is active (prevents ISR re-entry)
  *
  * Dependencies: spi.h, timer.h, dma.h
- * Build: part of libfpgc (make compile-bdos)
+ * Build: part of libfpgc (make compile-kernel)
  */
 #include "enc28j60.h"
 #include "spi.h"

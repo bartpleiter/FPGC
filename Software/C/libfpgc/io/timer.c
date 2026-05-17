@@ -19,7 +19,7 @@
  *   get_micros()                             -> unsigned int (FPGC_MICROS counter)
  *
  * Dependencies: fpgc.h
- * Build: part of libfpgc (make compile-bdos)
+ * Build: part of libfpgc (make compile-kernel)
  */
 #include "fpgc.h"
 #include "timer.h"

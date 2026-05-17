@@ -29,17 +29,17 @@ CPROC_OUTPUT = $(CPROC_DIR)/output/cproc-qbe
 .PHONY: venv
 .PHONY: lint format format-check mypy ruff-lint ruff-format ruff-format-check
 .PHONY: asmpy-install asmpy-uninstall test-asmpy asmpy-clean
-.PHONY: test-asm-link test-cpp test-term test-vfs-pixpal test-shell-host test-host
+.PHONY: test-asm-link test-cpp test-term test-host
 .PHONY: docs-serve docs-deploy
 .PHONY: sim-cpu sim-sdram sim-bootloader
 .PHONY: test-cpu test-cpu-single debug-cpu quartus-timing
 .PHONY: test-c test-c-single
-.PHONY: compile-asm compile-bootloader compile-c-baremetal compile-bdos compile-kernel compile-sdcard-init-test compile-sdcard-rw-test compile-sdcard-multi-test compile-sdcard-brfs-storage-test
+.PHONY: compile-asm compile-bootloader compile-c-baremetal compile-kernel compile-sdcard-init-test compile-sdcard-rw-test compile-sdcard-multi-test compile-sdcard-brfs-storage-test
 .PHONY: compile-userbdos compile-userbdos-all compile-doom compile-user-all
-.PHONY: run-uart uart-monitor run-asm-uart run-c-baremetal-uart run-bdos run-kernel
+.PHONY: run-uart uart-monitor run-asm-uart run-c-baremetal-uart run-kernel
 .PHONY: compile-spi1-dma-test run-spi1-dma-test
 .PHONY: run-userbdos run-doom
-.PHONY: flash-c-baremetal-spi flash-bdos flash-kernel
+.PHONY: flash-c-baremetal-spi flash-kernel
 .PHONY: qbe clean-qbe
 .PHONY: cproc clean-cproc
 .PHONY: selfhost-qbe selfhost-cproc selfhost-all stage-cc-toolchain
@@ -98,15 +98,7 @@ test-term:
 	@echo "Running libterm host unit tests..."
 	uv run pytest Scripts/Tests/term_tests.py -v
 
-test-vfs-pixpal:
-	@echo "Running /dev/pixpal VFS host unit tests..."
-	uv run pytest Scripts/Tests/vfs_pixpal_tests.py -v
-
-test-shell-host:
-	@echo "Running BDOS shell host unit tests..."
-	uv run pytest Scripts/Tests/shell_host_tests.py -v
-
-test-host: test-term test-vfs-pixpal test-shell-host
+test-host: test-term
 	@echo "All host-side unit tests passed."
 
 asmpy-clean:
@@ -459,70 +451,7 @@ compile-c-baremetal: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	@mkdir -p Software/ASM/Output
 	./Scripts/BCC/compile_modern_c.sh Software/ASM/crt0/crt0_baremetal.asm Software/C/bareMetal/$(file).c -h -o Software/ASM/Output/code.bin
 
-BDOS_V3_SOURCES = \
-	Software/ASM/crt0/crt0_bdos.asm \
-	Software/C/libc/sys/_exit.asm \
-	Software/C/libc/string/string.c \
-	Software/C/libc/stdlib/stdlib.c \
-	Software/C/libc/stdlib/malloc.c \
-	Software/C/libc/ctype/ctype.c \
-	Software/C/libc/stdio/stdio.c \
-	Software/C/libc/sys/syscalls.c \
-	Software/C/libfpgc/sys/sys_asm.asm \
-	Software/C/libfpgc/sys/sys.c \
-	Software/C/libfpgc/io/spi.c \
-	Software/C/libfpgc/io/uart.c \
-	Software/C/libfpgc/io/timer.c \
-	Software/C/libfpgc/io/spi_flash.c \
-	Software/C/libfpgc/io/sd.c \
-	Software/C/libfpgc/io/ch376.c \
-	Software/C/libfpgc/io/enc28j60.c \
-	Software/C/libfpgc/io/dma_asm.asm \
-	Software/C/libfpgc/io/dma.c \
-	Software/C/libfpgc/gfx/gpu_hal.c \
-	Software/C/libfpgc/gfx/gpu_fb.c \
-	Software/C/libfpgc/gfx/gpu_data_ascii.c \
-	Software/C/libfpgc/term/term.c \
-	Software/C/libfpgc/mem/debug.c \
-	Software/C/libfpgc/fs/brfs.c \
-	Software/C/libfpgc/fs/brfs_storage_spi_flash.c \
-	Software/C/libfpgc/fs/brfs_storage_sdcard.c \
-	Software/C/libfpgc/fs/brfs_cache.c \
-	Software/C/bdos/slot_asm.asm \
-	Software/C/bdos/main.c \
-	Software/C/bdos/init.c \
-	Software/C/bdos/heap.c \
-	Software/C/bdos/syscall.c \
-	Software/C/bdos/vfs.c \
-	Software/C/bdos/proc.c \
-	Software/C/bdos/slot.c \
-	Software/C/bdos/hid.c \
-	Software/C/bdos/fs.c \
-	Software/C/bdos/eth.c \
-	Software/C/bdos/shell.c \
-	Software/C/bdos/shell_cmds.c \
-	Software/C/bdos/shell_path.c \
-	Software/C/bdos/shell_util.c \
-	Software/C/bdos/shell_format.c \
-	Software/C/bdos/shell_vars.c \
-	Software/C/bdos/shell_lex.c \
-	Software/C/bdos/shell_parse.c \
-	Software/C/bdos/shell_exec.c \
-	Software/C/bdos/shell_script.c
-
-compile-bdos: $(QBE_OUTPUT) $(CPROC_OUTPUT)
-	@mkdir -p Software/ASM/Output
-	./Scripts/BCC/compile_modern_c.sh \
-		$(BDOS_V3_SOURCES) \
-		--libc \
-		-I Software/C/libfpgc/include \
-		-I Software/C/bdos/include \
-		-h -s \
-		-o Software/ASM/Output/code.bin
-
-# ---- BDOS v4 kernel ----
-
-KERNEL_V4_SOURCES = \
+KERNEL_SOURCES = \
 	Software/ASM/crt0/crt0_kernel.asm \
 	Software/C/libc/sys/_exit.asm \
 	Software/C/libc/string/string.c \
@@ -573,7 +502,7 @@ KERNEL_V4_SOURCES = \
 compile-kernel: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	@mkdir -p Software/ASM/Output
 	./Scripts/BCC/compile_modern_c.sh \
-		$(KERNEL_V4_SOURCES) \
+		$(KERNEL_SOURCES) \
 		--libc \
 		-I Software/C/libfpgc/include \
 		-I Software/C/kernel/include \
@@ -785,8 +714,6 @@ run-asm-uart: compile-asm run-uart
 
 run-c-baremetal-uart: compile-c-baremetal run-uart
 
-run-bdos: compile-bdos run-uart
-
 run-kernel: compile-kernel run-uart
 
 # Standalone target: build the SPI1 DMA bring-up baremetal test
@@ -980,9 +907,6 @@ flash-c-baremetal-spi: compile-c-baremetal $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	fi
 	./Scripts/Programmer/flash_spi.sh
 
-flash-bdos: compile-bdos
-	./Scripts/Programmer/flash_bdos.sh
-
 flash-kernel: compile-kernel
 	./Scripts/Programmer/flash_bdos.sh
 
@@ -1145,8 +1069,6 @@ help:
 	@echo "  test-asm-link       - Run asm-link byte-for-byte regression tests vs ASMPY"
 	@echo "  test-cpp            - Run cpp byte-for-byte regression tests vs gcc cpp"
 	@echo "  test-term           - Run libterm host unit tests"
-	@echo "  test-vfs-pixpal     - Run /dev/pixpal VFS host unit tests"
-	@echo "  test-shell-host     - Run BDOS shell (lex/parse/expand) host unit tests"
 	@echo "  test-host           - Run all host-side C unit tests"
 	@echo "  asmpy-clean         - Clean ASMPY build artifacts"
 	@echo ""
@@ -1196,7 +1118,7 @@ help:
 	@echo "  compile-c-baremetal - Compile bare-metal C file"
 	@echo "                        Usage: make compile-c-baremetal file=<filename>"
 	@echo "  compile-bootloader  - Compile bootloader"
-	@echo "  compile-bdos        - Compile BDOS kernel"
+	@echo "  compile-kernel      - Compile BDOS kernel"
 	@echo "  compile-userbdos    - Compile a single userBDOS program"
 	@echo "                        Usage: make compile-userbdos file=<filename>"
 	@echo "  compile-userbdos-all - Compile ALL userBDOS programs"
@@ -1213,10 +1135,10 @@ help:
 	@echo "                          Usage: make uart-monitor [uart_port=/dev/ttyUSB0]"
 	@echo "  run-asm-uart          - Compile and run ASM binary via UART"
 	@echo "  run-c-baremetal-uart  - Compile and run C binary via UART"
-	@echo "  run-bdos              - Compile and run BDOS via UART"
+	@echo "  run-kernel            - Compile and run kernel via UART"
 	@echo "  flash-c-baremetal-spi - Flash C binary to SPI flash"
 	@echo "                          Usage: make flash-c-baremetal-spi file=<filename>"
-	@echo "  flash-bdos            - Flash BDOS to SPI flash"
+	@echo "  flash-kernel          - Flash kernel to SPI flash"
 	@echo ""
 	@echo "--- Asset Conversion ---"
 	@echo "  convert-w3d-textures  - Convert W3D textures to binary"

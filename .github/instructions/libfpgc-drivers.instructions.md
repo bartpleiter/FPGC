@@ -6,7 +6,7 @@ applyTo: 'Software/C/libfpgc/**'
 # libfpgc driver guidelines
 
 ## Validation
-After any change: `make compile-bdos`
+After any change: `make compile-kernel`
 For filesystem changes: also `make test-host`
 
 ## File map — I/O drivers (`libfpgc/io/`)

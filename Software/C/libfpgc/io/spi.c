@@ -11,7 +11,7 @@
  *
  * Bus assignments: see fpgc.h (FPGC_SPI_FLASH_0..FPGC_SPI_SD_CARD)
  * Dependencies: fpgc.h
- * Build: part of libfpgc (make compile-bdos)
+ * Build: part of libfpgc (make compile-kernel)
  */
 #include "fpgc.h"
 #include "spi.h"

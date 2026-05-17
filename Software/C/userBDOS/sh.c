@@ -3079,6 +3079,12 @@ int main(void)
     /* Open raw TTY for line editing */
     raw_fd = sys_tty_open_raw(1);
 
+    /* Print welcome message */
+    sys_putstr(" ___ ___   ___  ___ \n");
+    sys_putstr("| _ )   \\ / _ \\/ __|\n");
+    sys_putstr("| _ \\ |) | (_) \\__ \\\n");
+    sys_putstr("|___/___/ \\___/|___/v4.0\n\n");
+
     while (1)
     {
         int n;

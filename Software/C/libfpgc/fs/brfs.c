@@ -21,7 +21,7 @@
  *   brfs_sync(fs)                                         -> int
  *
  * Dependencies: brfs.h, string.h
- * Build: part of libfpgc (make compile-bdos)
+ * Build: part of libfpgc (make compile-kernel)
  * Tests: make test-host
  */
 #include "brfs.h"

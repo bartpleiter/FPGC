@@ -14,9 +14,7 @@ applyTo: 'Tests/**'
 | `make test-asm-link` | Assembler/linker regression | `Tests/asm-link/` |
 | `make test-cpp` | C preprocessor vs gcc | (preprocessor tests) |
 | `make test-host` | All host-side C unit tests | `Tests/host/` |
-| `make test-shell-host` | BDOS shell host tests | `Tests/host/` |
 | `make test-term` | libterm host tests | `Tests/host/` |
-| `make test-vfs-pixpal` | /dev/pixpal VFS tests | `Tests/host/` |
 | `make check` | Format + lint + all tests (CI) | — |
 
 ## Single test execution
