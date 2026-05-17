@@ -51,8 +51,9 @@ int main(void)
         int pid;
         pid = proc_spawn("/bin/init", 0, (char **)0);
         if (pid < 0)
-            kernel_panic("failed to spawn /bin/init");
-        sched_should_yield = 1;
+            kernel_log("/bin/init not found!\nEntering FNP-only mode\n");
+        else
+            sched_should_yield = 1;
     }
 
     kernel_loop();

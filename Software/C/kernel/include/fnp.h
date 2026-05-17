@@ -18,6 +18,8 @@
 #define FNP_TYPE_FILE_END    0x12
 #define FNP_TYPE_FILE_ABORT  0x13
 #define FNP_TYPE_KEYCODE     0x20
+#define FNP_TYPE_MKDIR       0x21
+#define FNP_TYPE_SYNC        0x22
 #define FNP_TYPE_MESSAGE     0x30
 
 /* FNP flags */

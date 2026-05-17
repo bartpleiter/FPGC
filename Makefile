@@ -34,9 +34,9 @@ CPROC_OUTPUT = $(CPROC_DIR)/output/cproc-qbe
 .PHONY: sim-cpu sim-sdram sim-bootloader
 .PHONY: test-cpu test-cpu-single debug-cpu quartus-timing
 .PHONY: test-c test-c-single
-.PHONY: compile-asm compile-bootloader compile-c-baremetal compile-kernel compile-sdcard-init-test compile-sdcard-rw-test compile-sdcard-multi-test compile-sdcard-brfs-storage-test
+.PHONY: compile-asm compile-bootloader compile-c-baremetal compile-kernel compile-sdcard-init-test compile-sdcard-rw-test compile-sdcard-multi-test compile-sdcard-brfs-storage-test compile-format-spi-flash1
 .PHONY: compile-userbdos compile-userbdos-all compile-doom compile-user-all
-.PHONY: run-uart uart-monitor run-asm-uart run-c-baremetal-uart run-kernel
+.PHONY: run-uart uart-monitor run-asm-uart run-c-baremetal-uart run-kernel run-format-spi-flash1
 .PHONY: compile-spi1-dma-test run-spi1-dma-test
 .PHONY: run-userbdos run-doom
 .PHONY: flash-c-baremetal-spi flash-kernel
@@ -45,7 +45,7 @@ CPROC_OUTPUT = $(CPROC_DIR)/output/cproc-qbe
 .PHONY: selfhost-qbe selfhost-cproc selfhost-all stage-cc-toolchain
 .PHONY: check
 .PHONY: fnp-upload-text fnp-upload-userbdos
-.PHONY: fnp-keyboard fnp-detect-iface fnp-sync-files fnp-run
+.PHONY: fnp-keyboard fnp-detect-iface fnp-sync-files fnp-sync fnp-run
 .PHONY: fnp-debug-userbdos
 .PHONY: convert-w3d-textures
 .PHONY: sd-read-brfs sd-write-brfs
@@ -897,6 +897,38 @@ compile-sdcard-brfs-storage-test: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 
 run-sdcard-brfs-storage-test: compile-sdcard-brfs-storage-test run-uart
 
+# Standalone target: format SPI Flash 1 with BRFS v2 (bare-metal).
+# Used for first-time setup of a blank FPGC before flashing the kernel.
+compile-format-spi-flash1: $(QBE_OUTPUT) $(CPROC_OUTPUT)
+	@mkdir -p Software/ASM/Output
+	./Scripts/BCC/compile_modern_c.sh \
+		Software/ASM/crt0/crt0_baremetal.asm \
+		Software/C/libc/sys/_exit.asm \
+		Software/C/libc/sys/syscalls.c \
+		Software/C/libc/string/string.c \
+		Software/C/libc/stdlib/stdlib.c \
+		Software/C/libc/stdlib/malloc.c \
+		Software/C/libc/ctype/ctype.c \
+		Software/C/libc/stdio/stdio.c \
+		Software/C/libfpgc/sys/sys_asm.asm \
+		Software/C/libfpgc/sys/sys.c \
+		Software/C/libfpgc/io/spi.c \
+		Software/C/libfpgc/io/spi_flash.c \
+		Software/C/libfpgc/io/uart.c \
+		Software/C/libfpgc/io/timer.c \
+		Software/C/libfpgc/io/dma_asm.asm \
+		Software/C/libfpgc/io/dma.c \
+		Software/C/libfpgc/fs/brfs.c \
+		Software/C/libfpgc/fs/brfs_cache.c \
+		Software/C/libfpgc/fs/brfs_storage_spi_flash.c \
+		Software/C/bareMetal/format_spi_flash1.c \
+		--libc \
+		-I Software/C/libfpgc/include \
+		-h \
+		-o Software/ASM/Output/code.bin
+
+run-format-spi-flash1: compile-format-spi-flash1 run-uart
+
 flash-c-baremetal-spi: compile-c-baremetal $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	@if [ -z "$(file)" ]; then \
 		echo "Usage: make flash-c-baremetal-spi file=<c_filename_in_bareMetal_dir_without_extension>"; \
@@ -968,6 +1000,11 @@ fnp-keyboard:
 fnp-sync-files:
 	@echo "Syncing to device $(dev) (MAC $(FNP_MAC))"
 	@.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py --mac $(FNP_MAC) sync-files Files/BRFS-init
+
+# Flush BRFS caches to storage on a specific device: make fnp-sync dev=1
+fnp-sync:
+	@echo "Syncing BRFS on device $(dev) (MAC $(FNP_MAC))"
+	@.venv/bin/python3 Scripts/Programmer/Network/fnp_tool.py --mac $(FNP_MAC) sync
 
 # Launch a command on a specific device: make fnp-run dev=2 cmd="mbrot_client"
 fnp-run:

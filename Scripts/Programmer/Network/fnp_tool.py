@@ -51,6 +51,8 @@ FNP_TYPE_FILE_DATA = 0x11
 FNP_TYPE_FILE_END = 0x12
 FNP_TYPE_FILE_ABORT = 0x13
 FNP_TYPE_KEYCODE = 0x20
+FNP_TYPE_MKDIR = 0x21
+FNP_TYPE_SYNC = 0x22
 FNP_TYPE_MESSAGE = 0x30
 
 # Flags
@@ -396,6 +398,24 @@ class FNPConnection:
         """Send FILE_ABORT to cancel any in-progress transfer."""
         return self._send_and_wait_ack(FNP_TYPE_FILE_ABORT, 0, b"")
 
+    def send_mkdir(self, path: str) -> bool:
+        """
+        Send a MKDIR message to create a directory on the FPGC.
+        The kernel creates the directory via VFS and ignores errors
+        (so existing directories are fine, like mkdir -p).
+        """
+        path_bytes = path.encode("ascii", errors="replace")
+        if len(path_bytes) > 127:
+            print(f"  Path too long: {path}", file=sys.stderr)
+            return False
+        return self._send_and_wait_ack(FNP_TYPE_MKDIR, 0, path_bytes)
+
+    def send_sync(self) -> bool:
+        """
+        Send a SYNC message to flush all BRFS caches to storage.
+        """
+        return self._send_and_wait_ack(FNP_TYPE_SYNC, 0, b"")
+
     def send_shell_command(self, command: str, delay: float = 0.5) -> bool:
         """
         Send a shell command to the FPGC by typing it as keycodes
@@ -418,9 +438,8 @@ class FNPConnection:
         """
         Sync a local directory tree to the FPGC root filesystem.
 
-        1. Sends 'cd /' via keycodes to go to root.
-        2. Creates all directories via 'mkdir' shell commands.
-        3. Uploads all files via FNP file transfer (4 bytes packed per word).
+        1. Creates all directories via FNP MKDIR messages.
+        2. Uploads all files via FNP file transfer (4 bytes packed per word).
         """
         base = pathlib.Path(local_dir)
         if not base.is_dir():
@@ -444,32 +463,27 @@ class FNPConnection:
         print(f"  Command delay: {delay}s")
         print()
 
-        # Step 1: Navigate to root
-        print("[1/3] Navigating to root directory...")
-        if not self.send_shell_command("cd /", delay=delay):
-            return False
-
-        # Step 2: Create directories (breadth-first order is guaranteed
-        # by sorted rglob since parent paths sort before children)
+        # Step 1: Create directories via FNP MKDIR (no shell needed)
         if dirs:
-            print(f"[2/3] Creating {len(dirs)} directories...")
+            print(f"[1/2] Creating {len(dirs)} directories...")
             for d in dirs:
-                if not self.send_shell_command(f"mkdir -p {d}", delay=delay):
+                print(f"  mkdir {d}")
+                if not self.send_mkdir(d):
                     print(f"  Warning: mkdir {d} may have failed", file=sys.stderr)
                     # Continue anyway — directory might already exist
         else:
-            print("[2/3] No directories to create.")
+            print("[1/2] No directories to create.")
 
-        # Step 3: Upload files
+        # Step 2: Upload files
         if files:
-            print(f"[3/3] Uploading {len(files)} files...")
+            print(f"[2/2] Uploading {len(files)} files...")
             for i, (local_path, fpgc_path) in enumerate(files, 1):
                 print(f"\n--- File {i}/{len(files)}: {fpgc_path} ---")
                 if not self.upload_file(str(local_path), fpgc_path):
                     print(f"  Failed to upload {fpgc_path}", file=sys.stderr)
                     return False
         else:
-            print("[3/3] No files to upload.")
+            print("[2/2] No files to upload.")
 
         print("\nSync complete!")
         return True
@@ -571,6 +585,7 @@ def print_usage():
     print("  keycode <hex_code>                      Send a single HID keycode")
     print("  keyboard                                Interactive keyboard streaming")
     print("  abort                                   Abort in-progress transfer")
+    print("  sync                                    Flush BRFS caches to storage")
     print("  detect-iface                            Print detected interface and exit")
     print()
     print("Options:")
@@ -597,6 +612,7 @@ def parse_mac(mac_str: str) -> bytes:
 FNP_COMMANDS = {
     "upload",
     "sync-files",
+    "sync",
     "key",
     "keycode",
     "keyboard",
@@ -708,6 +724,12 @@ def main():
         elif cmd == "abort":
             success = conn.abort_transfer()
             print(f"Abort: {'OK' if success else 'FAILED'}")
+            sys.exit(0 if success else 1)
+
+        elif cmd == "sync":
+            print("Syncing BRFS to storage...")
+            success = conn.send_sync()
+            print(f"Sync: {'OK' if success else 'FAILED'}")
             sys.exit(0 if success else 1)
 
         else:

@@ -278,6 +278,43 @@ static void fnp_handle_keycode(int seq, const char *data, int data_len, int flag
 
 /* ---- Public API ---- */
 
+/* ---- MKDIR handler ---- */
+
+static void fnp_handle_mkdir(int seq, const char *data, int data_len)
+{
+    char path_buf[128];
+    int i;
+
+    if (data_len < 1 || data_len > 127)
+    {
+        fnp_send_nack(seq, "bad mkdir path length");
+        return;
+    }
+
+    for (i = 0; i < data_len && i < 127; i++)
+        path_buf[i] = data[i];
+    path_buf[i] = '\0';
+
+    term_puts("[FNP] mkdir: ");
+    term_puts(path_buf);
+    term_putchar('\n');
+
+    /* Ignore errors — directory may already exist */
+    vfs_mkdir(path_buf);
+    fnp_send_ack(seq);
+}
+
+/* ---- SYNC handler ---- */
+
+static void fnp_handle_sync(int seq)
+{
+    term_puts("[FNP] sync\n");
+    fs_sync_all();
+    fnp_send_ack(seq);
+}
+
+/* ---- Init ---- */
+
 void fnp_init(void)
 {
     fnp_has_peer = 0;
@@ -348,6 +385,14 @@ int fnp_poll(void)
 
     case FNP_TYPE_KEYCODE:
         fnp_handle_keycode(seq, payload, payload_len, flags);
+        break;
+
+    case FNP_TYPE_MKDIR:
+        fnp_handle_mkdir(seq, payload, payload_len);
+        break;
+
+    case FNP_TYPE_SYNC:
+        fnp_handle_sync(seq);
         break;
 
     case FNP_TYPE_MESSAGE:
