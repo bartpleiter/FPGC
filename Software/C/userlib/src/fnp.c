@@ -28,7 +28,13 @@ static int fnp_read_u16(char *buf, int offset)
 
 void fnp_init(void)
 {
-    sys_net_get_mac(fnp_our_mac);
+    char mac_bytes[6];
+    int i;
+    /* Kernel writes 6 sequential bytes; read into char buffer first,
+     * then expand to int array (avoids byte-packing issues). */
+    syscall(SYS_NET_GET_MAC, (int)mac_bytes, 0, 0);
+    for (i = 0; i < 6; i++)
+        fnp_our_mac[i] = mac_bytes[i] & 0xFF;
 }
 
 int fnp_send(int *dest_mac, int msg_type, int seq, int flags,

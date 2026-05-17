@@ -238,8 +238,8 @@ int enc28j60_init(int *mac)
   enc28j60_write_reg16(ETXSTL, ENC_TXSTART);
   enc28j60_write_reg16(ETXNDL, ENC_TXSTOP);
 
-  /* Receive filter: unicast + CRC only */
-  enc28j60_write_reg(ERXFCON, ERXFCON_UCEN | ERXFCON_CRCEN);
+  /* Receive filter: unicast + broadcast + CRC */
+  enc28j60_write_reg(ERXFCON, ERXFCON_UCEN | ERXFCON_BCEN | ERXFCON_CRCEN);
 
   /* MAC init */
   enc28j60_write_reg(MACON1, MACON1_MARXEN | MACON1_TXPAUS | MACON1_RXPAUS);

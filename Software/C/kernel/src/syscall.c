@@ -287,10 +287,26 @@ int syscall_dispatch(int num, int a1, int a2, int a3)
     /* ---- Networking (50-53) ---- */
 
     case SYS_NET_SEND:   /* 50 — net_send(buf, len): send raw Ethernet frame */
+        if (!net_user_owned)
+        {
+            net_user_owned = 1;
+            net_owner_pid = current_pid;
+            net_ringbuf_reset();
+        }
+        if (net_owner_pid != current_pid)
+            return -1;
         enc28j60_packet_send((char *)a1, (int)a2);
         return a2;
 
     case SYS_NET_RECV:   /* 51 — net_recv(buf, max): receive packet from ring */
+        if (!net_user_owned)
+        {
+            net_user_owned = 1;
+            net_owner_pid = current_pid;
+            net_ringbuf_reset();
+        }
+        if (net_owner_pid != current_pid)
+            return -1;
         return net_ringbuf_pop((char *)a1, a2);
 
     case SYS_NET_PACKET_COUNT: /* 52 */

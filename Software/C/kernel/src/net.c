@@ -10,6 +10,7 @@
 int net_isr_deferred;
 int net_enc28j60_spi_in_use;
 int net_user_owned;
+int net_owner_pid;
 int net_mac[6];
 
 /* Ring buffer for received packets */
@@ -94,6 +95,7 @@ void net_init(void)
     net_isr_deferred = 0;
     net_enc28j60_spi_in_use = 0;
     net_user_owned = 0;
+    net_owner_pid = -1;
     net_ringbuf_reset();
 
     /* Build MAC: 02:B4:B4:00:00:XX where XX is board-specific */

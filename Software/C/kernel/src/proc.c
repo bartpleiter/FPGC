@@ -351,6 +351,14 @@ void proc_exit(int code)
         }
     }
 
+    /* Release network ownership if we held it */
+    if (net_user_owned && net_owner_pid == p->pid)
+    {
+        net_user_owned = 0;
+        net_owner_pid = -1;
+        net_ringbuf_reset();
+    }
+
     /* Free memory */
     if (p->mem_base)
     {

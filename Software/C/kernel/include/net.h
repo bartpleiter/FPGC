@@ -26,6 +26,7 @@ void net_ringbuf_reset(void);
 extern int net_isr_deferred;
 extern int net_enc28j60_spi_in_use;
 extern int net_user_owned;
+extern int net_owner_pid;
 
 /* MAC address */
 extern int net_mac[6];
