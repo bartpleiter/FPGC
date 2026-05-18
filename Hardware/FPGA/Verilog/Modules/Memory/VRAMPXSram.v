@@ -23,6 +23,7 @@ module VRAMPXSram (
     // Display read interface (100MHz, from SPIDisplayController)
     input  wire [16:0]  gpu_addr,      // Requested pixel address
     output wire [7:0]   gpu_data,      // Pixel data output
+    output wire         gpu_data_valid, // HIGH when gpu_data is valid for gpu_addr
     input  wire         display_read,  // Asserted when display needs a read
     
     // CPU backpressure
@@ -80,6 +81,7 @@ SRAMArbiter arbiter (
     // Display read interface
     .gpu_addr(gpu_addr),
     .gpu_data(gpu_data),
+    .gpu_data_valid(gpu_data_valid),
     .display_read(display_read),
     
     // CPU Write FIFO interface

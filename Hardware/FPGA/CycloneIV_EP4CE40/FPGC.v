@@ -439,6 +439,7 @@ wire [23:0] palette_cpu_wdata;
 // Display pixel interface - SRAM read
 wire [16:0] gpu_pixel_addr;
 wire [7:0]  gpu_pixel_data;
+wire        gpu_pixel_data_valid;
 wire        display_pixel_reading;
 
 VRAMPXSram vrampx_sram (
@@ -455,6 +456,7 @@ VRAMPXSram vrampx_sram (
     // Display read interface
     .gpu_addr(gpu_pixel_addr),
     .gpu_data(gpu_pixel_data),
+    .gpu_data_valid(gpu_pixel_data_valid),
     .display_read(display_pixel_reading),
     
     // CPU backpressure
@@ -741,6 +743,7 @@ SPIDisplayController spi_display (
     // Pixel SRAM read interface
     .pixel_sram_addr(gpu_pixel_addr),
     .pixel_sram_data(gpu_pixel_data),
+    .pixel_sram_data_valid(gpu_pixel_data_valid),
     .pixel_reading(display_pixel_reading),
 
     // Palette CPU write port

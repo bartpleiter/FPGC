@@ -27,6 +27,7 @@ module SPIDisplayController (
     // Pixel SRAM read interface (directly to SRAMArbiter/VRAMPXSram)
     output wire [16:0] pixel_sram_addr,
     input  wire [7:0]  pixel_sram_data,
+    input  wire        pixel_sram_data_valid,
     output wire        pixel_reading,
 
     // Palette CPU write port (directly from MemoryUnit)
@@ -133,6 +134,7 @@ module SPIDisplayController (
         .enable(init_done),
         .sram_addr(scan_sram_addr),
         .sram_data(pixel_sram_data),
+        .sram_data_valid(pixel_sram_data_valid),
         .sram_read(scan_sram_read),
         .palette_idx(scan_palette_idx),
         .palette_rgb(palette_rgb),
