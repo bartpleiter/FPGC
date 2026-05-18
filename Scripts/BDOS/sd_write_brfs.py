@@ -58,10 +58,11 @@ def write_words(f, byte_addr, words, big_endian=False):
 
 
 def compress_string(s):
-    """Pack a string into 4 words using FPGC's big-endian char packing.
+    """Pack a string into 4 words using BRFS's MSB-first char packing.
 
     Matches brfs_compress_string(): char[i] is placed at
-    bits (24 - (i%4)*8) of the corresponding word.
+    bits (24 - (i%4)*8) of the corresponding word.  This is a BRFS
+    filename convention; the CPU itself is little-endian.
     """
     words = [0, 0, 0, 0]
     for i, ch in enumerate(s[:BRFS_MAX_FILENAME_LEN]):

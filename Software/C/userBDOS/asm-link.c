@@ -2590,10 +2590,10 @@ static int write_output(const char *path)
   if (fd < 0) { emsg2("cannot open output: ", path); return -1; }
 
 #ifdef ASMLINK_HOST
-  /* On host: emit big-endian byte stream so the result matches
-   * `perl -ne 'print pack("B32", $_)'` from compile_modern_c.sh.
-   * That gives the canonical .bin layout. We write 4 bytes per word, BE.
-   */
+  /* On host: emit big-endian byte stream for the legacy .bin format.
+   * NOTE: the current build pipeline (compile_modern_c.sh) uses
+   * perl pack("V") which outputs little-endian. This host mode
+   * is only used for standalone testing. */
   {
     unsigned char *buf = (unsigned char *)malloc((size_t)output_count * 4);
     for (i = 0; i < output_count; i++)

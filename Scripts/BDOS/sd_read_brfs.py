@@ -12,11 +12,12 @@ The BRFS partition starts at byte 0 of the device with this layout:
     0x01000  FAT         (total_blocks words)
     0x10000  data blocks (total_blocks × words_per_block words)
 
-The FPGC B32P3 CPU packs characters into 32-bit words in big-endian
+BRFS filenames are packed into 32-bit words with MSB-first character
 order (char 0 at bits 24-31, char 1 at bits 16-23, etc.) — see
-brfs_compress_string() in brfs.c.  Word VALUES on the SD card may be
-in either LE or BE byte order depending on the DMA/SPI path; the
-script auto-detects this from the BRFS magic word.
+brfs_compress_string() in brfs.c.  Note: the CPU itself is little-endian;
+this MSB-first packing is a BRFS-specific convention for filenames only.
+Word VALUES on the SD card may be in either LE or BE byte order depending
+on the DMA/SPI path; the script auto-detects this from the BRFS magic word.
 """
 
 import argparse
@@ -62,12 +63,11 @@ def read_words(f, byte_addr, n_words, big_endian=False):
 
 
 def words_to_bytes(words):
-    """Pack word values to bytes using the FPGC's big-endian char packing.
+    """Pack word values to bytes using BRFS's MSB-first char packing.
 
-    The FPGC stores char[0] at bits 24-31 (MSB) of each word — see
-    brfs_compress_string().  Regardless of how word values are stored
-    on the SD card (LE or BE), the logical byte order within a word
-    is always big-endian.
+    BRFS stores char[0] at bits 24-31 (MSB) of each word — see
+    brfs_compress_string().  This is a BRFS filename convention;
+    the CPU itself is little-endian.
     """
     return struct.pack('>%dI' % len(words), *words)
 
@@ -136,8 +136,8 @@ class BRFSReader:
 
         File data uses the CPU's native LE byte addressing, so raw
         bytes on the SD card are already in the correct order.  This
-        is different from filenames, which are packed with explicit
-        big-endian shifts in brfs_compress_string().
+        is different from filenames, which are packed with MSB-first
+        shifts in brfs_compress_string().
         """
         self.f.seek(self._block_addr(blk_idx))
         return self.f.read(self.bytes_per_block)

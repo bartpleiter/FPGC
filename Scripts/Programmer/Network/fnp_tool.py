@@ -17,8 +17,8 @@ Usage:
 
 If <interface> is omitted, the tool auto-detects a USB Ethernet adapter.
 
-Files are uploaded in binary mode: bytes are packed 4-per-word
-(big-endian), matching the FPGC's byte-addressable memory layout.
+Files are uploaded in binary mode as raw bytes, matching the FPGC's
+little-endian byte-addressable memory layout.
 
 Requires raw socket capability. Either run as root, or grant it with:
   sudo setcap cap_net_raw+ep $(which python3)
@@ -314,8 +314,8 @@ class FNPConnection:
         """
         Upload a file to the FPGC using the FNP file transfer protocol.
 
-        File bytes are packed 4-per-word (big-endian) for the FPGC's
-        byte-addressable memory layout.
+        File bytes are sent as raw data, matching the FPGC's
+        little-endian byte-addressable memory layout.
         """
         # Read file
         with open(local_path, "rb") as f:

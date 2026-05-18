@@ -194,7 +194,7 @@ Multiple data entries can be defined in a single directive by separating them wi
 | `.dw` | 32-bit word data | `.dw 0x12345678 42 -1` |
 | `.dbb` | Bytes merged into 32-bit words | `.dbb 0x12 0x34 0x56 0x78` |
 | `.ddb` | 16-bit values merged into 32-bit words | `.ddb 0x1234 0x5678` |
-| `.dsb` | String packed into 32-bit words (4 chars per word, big-endian) | `.dsb \"Hello World\"` |
+| `.dsb` | String packed into 32-bit words (4 chars per word, little-endian) | `.dsb "Hello World"` |
 | `.dbw` | Bytes as separate 32-bit words | `.dbw 0x12 0x34` |
 | `.ddw` | 16-bit values as separate 32-bit words | `.ddw 0x1234 0x5678` |
 | `.dsw` | String as separate 32-bit words (1 char per word) | `.dsw \"Hi\"` |

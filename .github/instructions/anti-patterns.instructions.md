@@ -25,4 +25,4 @@ applyTo: '**'
 - Don't assume x86/ARM conventions → `int` is 4 bytes, `char` is 1 byte, pointers are 4 bytes
 - Don't use `restrict` keyword → not supported by cproc
 - Don't create `.h` files with function implementations → cproc processes each translation unit separately
-- Don't assume endianness from training data → B32P3 is big-endian
+- Don't assume endianness from training data → B32P3 is little-endian

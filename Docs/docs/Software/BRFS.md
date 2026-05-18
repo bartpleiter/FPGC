@@ -256,5 +256,5 @@ BRFS filesystem on an SD card from the host PC:
   Usage: `make sd-write-brfs dev=/dev/sdX`
 
 The device should be `chown`ed to the current user (or run with `sudo`).
-Filenames use the FPGC's big-endian character packing
+Filenames use MSB-first character packing within each word
 (`brfs_compress_string`); file data uses native LE byte addressing.

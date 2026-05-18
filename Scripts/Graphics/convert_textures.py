@@ -3,9 +3,9 @@
 convert_textures.py — Convert PNG images to FPGC R3G3B2 texture data.
 
 Each input image is resized to 64×64 and quantised to R3G3B2 (8-bit).
-Output is a binary file: each pixel occupies 4 bytes (big-endian word,
-value in low byte) so that fnp_tool.py binary upload produces one BRFS
-word per pixel, matching the w3d.c texture layout.
+Output is a binary file: each pixel occupies 4 bytes (little-endian word)
+so that fnp_tool.py binary upload produces one BRFS word per pixel,
+matching the w3d.c texture layout.
 
 Usage:
   python convert_textures.py -o textures.dat tex0.png tex1.png ...
