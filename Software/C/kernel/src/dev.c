@@ -13,5 +13,6 @@ void dev_init(void)
     dev_uart_init();
     dev_random_init();
     dev_proc_init();
+    dev_uart_mirror_init();
     /* dev_fb_init() will be added later */
 }

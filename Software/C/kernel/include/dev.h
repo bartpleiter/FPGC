@@ -19,5 +19,10 @@ void dev_uart_init(void);
 void dev_random_init(void);
 void dev_proc_init(void);
 void dev_fb_init(void);
+void dev_uart_mirror_init(void);
+
+/* UART mirror shared accessors (used by /dev/tty ioctl + /dev/uart-mirror) */
+int  uart_mirror_get(void);
+void uart_mirror_set(int enabled);
 
 #endif /* KERNEL_DEV_H */

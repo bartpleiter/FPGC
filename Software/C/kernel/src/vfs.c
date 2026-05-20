@@ -101,8 +101,7 @@ int vfs_open(const char *path, int flags)
                 break;
             }
         }
-
-        if (match)
+        if (match && path[devices[i].prefix_len] == '\0')
         {
             file_table[gfd].refcount = 1;
             file_table[gfd].flags = flags;

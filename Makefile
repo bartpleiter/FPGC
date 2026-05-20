@@ -493,6 +493,7 @@ KERNEL_SOURCES = \
 	Software/C/kernel/src/dev_uart.c \
 	Software/C/kernel/src/dev_random.c \
 	Software/C/kernel/src/dev_proc.c \
+	Software/C/kernel/src/dev_uart_mirror.c \
 	Software/C/kernel/src/fs.c \
 	Software/C/kernel/src/syscall.c \
 	Software/C/kernel/src/hid.c \

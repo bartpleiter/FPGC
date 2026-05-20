@@ -11,7 +11,13 @@
 /* ---- Write side ---- */
 
 /* UART mirror: 1 = mirror tty output to UART (filtered), 0 = off */
-static int uart_mirror_enabled = 1;
+static int uart_mirror_enabled = 0;
+/* Shared accessor functions — used by /dev/tty ioctl and /dev/uart-mirror. */
+int  uart_mirror_get(void) { return uart_mirror_enabled; }
+void uart_mirror_set(int v) {
+    uart_mirror_enabled = v ? 1 : 0;
+    term_set_uart_mirror(uart_mirror_enabled);
+}
 
 /* ANSI escape filter state for UART mirroring */
 static int uart_esc_state; /* 0=normal, 1=saw ESC, 2=in CSI sequence */
@@ -194,9 +200,9 @@ static int tty_ioctl(struct open_file *f, int cmd, int arg)
     switch (cmd)
     {
     case TTY_IOCTL_GET_UART_MIRROR:
-        return uart_mirror_enabled;
+        return uart_mirror_get();
     case TTY_IOCTL_SET_UART_MIRROR:
-        uart_mirror_enabled = (arg != 0) ? 1 : 0;
+        uart_mirror_set(arg);
         return 0;
     default:
         return -1;
