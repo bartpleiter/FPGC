@@ -5,7 +5,14 @@
 
 void cam_enable(void)
 {
+    /* bit 0 = enable, bit 1 = byte_phase (0=odd, 1=even) */
     __builtin_store(FPGC_CAM_CTRL, 1);
+}
+
+void cam_enable_phase(int phase)
+{
+    /* bit 0 = enable, bit 1 = byte_phase */
+    __builtin_store(FPGC_CAM_CTRL, 1 | ((phase & 1) << 1));
 }
 
 void cam_disable(void)

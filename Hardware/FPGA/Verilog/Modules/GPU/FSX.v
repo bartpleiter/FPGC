@@ -48,6 +48,7 @@ module FSX (
         // VRAM read interface
         .pixel_sram_addr (vramPX_addr),
         .pixel_sram_data (vramPX_q),
+        .pixel_sram_data_valid(1'b1), // BRAM: data always valid next cycle
         .pixel_reading   (),
 
         // Palette CPU write port

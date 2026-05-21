@@ -275,9 +275,6 @@ set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/ButtonInput.v
 
 # Camera
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/CameraCapture.v
-set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/CameraConfigure.v
-set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/SCCB_master.v
-set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/OV7670_config_rom.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/I2C_master.v
 
 # GPU (SPI display)

@@ -193,8 +193,24 @@ module ILI9341_Init (
         init_rom[86] = {TYPE_CMD,   8'h29};
         init_rom[87] = {TYPE_DELAY, 8'd20};    // 20ms settle
 
+        // Set address window (landscape 320x240) and start RAMWR
+        // CASET: columns 0-319
+        init_rom[88]  = {TYPE_CMD,   8'h2A};
+        init_rom[89]  = {TYPE_DATA,  8'h00}; // Start col high
+        init_rom[90]  = {TYPE_DATA,  8'h00}; // Start col low
+        init_rom[91]  = {TYPE_DATA,  8'h01}; // End col high (319=0x013F)
+        init_rom[92]  = {TYPE_DATA,  8'h3F}; // End col low
+        // PASET: rows 0-239
+        init_rom[93]  = {TYPE_CMD,   8'h2B};
+        init_rom[94]  = {TYPE_DATA,  8'h00}; // Start row high
+        init_rom[95]  = {TYPE_DATA,  8'h00}; // Start row low
+        init_rom[96]  = {TYPE_DATA,  8'h00}; // End row high (239=0x00EF)
+        init_rom[97]  = {TYPE_DATA,  8'hEF}; // End row low
+        // RAMWR: start memory write (stays active until next command)
+        init_rom[98]  = {TYPE_CMD,   8'h2C};
+
         // End of sequence
-        init_rom[88] = {TYPE_END,   8'h00};
+        init_rom[99]  = {TYPE_END,   8'h00};
     end
 
     // ---- Main state machine ----
@@ -279,7 +295,8 @@ module ILI9341_Init (
                             state <= S_DELAY;
                         end
                         TYPE_END: begin
-                            spi_cs_n <= 1'b1;
+                            // Keep CS asserted — FrameScanEngine will
+                            // continue streaming pixel data immediately.
                             state <= S_DONE;
                         end
                     endcase
@@ -318,7 +335,7 @@ module ILI9341_Init (
 
                 S_DONE: begin
                     init_done <= 1'b1;
-                    spi_cs_n <= 1'b1;
+                    // CS stays low (asserted) — pixel streaming follows
                 end
             endcase
         end

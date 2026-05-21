@@ -1,192 +1,224 @@
 /*
  * FPGC-Camera — Main Application
  *
- * Bare-metal camera app: displays a live dithered viewfinder on HDMI
- * using the OV7670 sensor captured via the CameraCapture hardware.
+ * Bare-metal camera app: displays a live viewfinder on HDMI using
+ * the OV7670 sensor captured via the CameraCapture hardware.
  *
- * Pipeline: Y channel from SDRAM → downsample 2×2 → auto-contrast
- *         → 4×4 ordered dither → scale 2× → VRAMPX framebuffer
+ * Display modes:
+ *   RAW   — 256-shade greyscale (direct Y blit)
+ *   DITH  — 4-shade Dashboy Camera dither
+ *   DITH8 — 8-shade Bayer ordered dither
  *
  * Build: make compile-camera && make run-uart
  */
+#include "viewfinder.h"
 #include "cam_driver.h"
-#include "image_proc.h"
-#include "uart.h"
-#include "dma.h"
-#include "i2c.h"
 #include "ov7670_init.h"
+#include "gpu_hal.h"
+#include "gpu_data_ascii.h"
 #include "fpgc.h"
 #include "sys.h"
+#include "spi.h"
+#include "ch376.h"
+#include "timer.h"
+#include "settings.h"
+#include "hud.h"
+#include "storage.h"
 
-/* Display dimensions */
-#define DISP_W  320
-#define DISP_H  240
+/* Current display mode (shared with viewfinder.c) */
+int display_mode = MODE_RAW;
 
-/* Processing dimensions (after downsample) */
-#define PROC_W  160
-#define PROC_H  120
+/* ---- Keyboard input (bare-metal CH376 USB HID) ---- */
+static int kb_spi;
+static usb_device_info_t kb_dev;
+static hid_keyboard_report_t kb_prev;
+static int kb_connected;
 
-/* Working buffers in SDRAM — placed after kernel region */
-#define BUF_DS_ADDR     0x00500000  /* downsample output: 160×120 = 19200 bytes */
-#define BUF_DITH_ADDR   0x00505000  /* dither output: 160×120 = 19200 bytes */
-#define BUF_DISP_ADDR   0x0050A000  /* display output: 320×240 = 76800 bytes */
-
-/* 4-shade palette: black, dark grey, light grey, white */
-static void setup_palette(void)
+static void keyboard_init(void)
 {
-    unsigned int *pal;
-    int i;
-    unsigned int grey;
-    pal = (unsigned int *)FPGC_GPU_PIXEL_PALETTE;
-    /* Full 256-shade greyscale ramp for raw debug display */
-    for (i = 0; i < 256; i++) {
-        grey = (unsigned int)i;
-        pal[i] = (grey << 16) | (grey << 8) | grey;
+    kb_spi = SPI_USB_0;
+    kb_connected = 0;
+    spi_deselect(SPI_FLASH_0);  /* clean SPI bus state */
+    ch376_host_init(kb_spi);
+}
+
+/* Try to connect to a USB keyboard. Call periodically. */
+void keyboard_check_connect(void)
+{
+    int st;
+    st = ch376_test_connect(kb_spi);
+    if (st == CH376_CONN_CONNECTED && !kb_connected) {
+        /* Device just plugged in — wait for stabilization */
+        delay(1000);
+        if (ch376_enumerate_device(kb_spi, &kb_dev) == 1) {
+            if (ch376_is_keyboard(&kb_dev)) {
+                kb_connected = 1;
+            }
+        }
+    } else if (st == CH376_CONN_DISCONNECTED && kb_connected) {
+        kb_connected = 0;
+        ch376_reset(kb_spi);
+        ch376_host_init(kb_spi);
     }
 }
 
-/* Process one frame and display it — RAW DEBUG MODE */
-static void process_frame(unsigned int src_addr, int do_print)
+/* Poll for a newly pressed key. Returns ASCII char or 0. */
+int keyboard_poll(void)
 {
-    unsigned char *buf;
+    hid_keyboard_report_t report;
+    int st;
     int i;
+    int j;
+    int keycode;
+    int found;
 
-    /* Print first 32 bytes for debug (only on selected frames) */
-    if (do_print) {
-        cache_flush_data();
-        buf = (unsigned char *)src_addr;
-        uart_puts("Px:");
-        for (i = 0; i < 32; i++) {
-            uart_putchar(' ');
-            uart_puthex((unsigned int)buf[i], 0);
+    if (!kb_connected) return 0;
+    if (ch376_test_connect(kb_spi) != CH376_CONN_READY) return 0;
+
+    st = ch376_read_keyboard(kb_spi, &kb_dev, &report);
+    if (st != 1) return 0;
+
+    /* Find newly pressed key */
+    for (i = 0; i < 6; i++) {
+        keycode = report.keycode[i];
+        if (keycode == 0) continue;
+        found = 0;
+        for (j = 0; j < 6; j++) {
+            if (kb_prev.keycode[j] == keycode) found = 1;
         }
-        uart_putchar('\n');
+        if (!found) {
+            kb_prev = report;
+            return ch376_keycode_to_ascii(keycode, report.modifier);
+        }
     }
+    kb_prev = report;
+    return 0;
+}
 
-    /* Blit raw Y bytes directly to VRAMPX — no processing */
-    dma_blit_to_vram(FPGC_GPU_PIXEL_DATA, src_addr, CAM_FRAME_BYTES);
+/* Switch display mode and update palette */
+void set_mode(int mode)
+{
+    display_mode = mode;
+    if (mode == MODE_DITH) {
+        setup_palette_4shade();
+    } else if (mode == MODE_DITH8) {
+        setup_palette_8shade();
+    } else {
+        setup_palette_greyscale();
+    }
 }
 
 int main(void)
 {
-    int frame_count;
-    unsigned int frame_addr;
-    unsigned int dma_dst;
     int timeout;
     int status;
 
-    uart_puts("\n=== FPGC-Camera ===\n");
-    uart_puts("Initializing...\n");
+    /* Clear all VRAM planes (remove bootloader logo) */
+    gpu_clear_vram();
 
-    /* Set up 256-shade greyscale palette */
-    setup_palette();
+    /* Load font patterns and palettes early (needed for format prompt) */
+    hud_init();
+
+    /* Load dither threshold/offset tables into DMA engine hardware */
+    load_dither_tables();
+
+    /* Init timer subsystem (required for delay() used by CH376) */
+    timer_init();
+
+    /* Init USB keyboard */
+    keyboard_init();
+    keyboard_check_connect();
+
+    /* Initialize SD card and BRFS filesystem */
+    {
+        int sd_rc;
+        sd_rc = storage_init();
+        if (sd_rc == 1) {
+            /* SD card found but no BRFS — ask user to format */
+            gpu_write_window_tile(5, 10, 'F', PALETTE_WHITE_ON_BLACK);
+            gpu_write_window_tile(6, 10, 'o', PALETTE_WHITE_ON_BLACK);
+            gpu_write_window_tile(7, 10, 'r', PALETTE_WHITE_ON_BLACK);
+            gpu_write_window_tile(8, 10, 'm', PALETTE_WHITE_ON_BLACK);
+            gpu_write_window_tile(9, 10, 'a', PALETTE_WHITE_ON_BLACK);
+            gpu_write_window_tile(10, 10, 't', PALETTE_WHITE_ON_BLACK);
+            gpu_write_window_tile(12, 10, 'S', PALETTE_WHITE_ON_BLACK);
+            gpu_write_window_tile(13, 10, 'D', PALETTE_WHITE_ON_BLACK);
+            gpu_write_window_tile(14, 10, '?', PALETTE_WHITE_ON_BLACK);
+            gpu_write_window_tile(16, 10, '(', PALETTE_GREEN_ON_BLACK);
+            gpu_write_window_tile(17, 10, 'Y', PALETTE_GREEN_ON_BLACK);
+            gpu_write_window_tile(18, 10, '/', PALETTE_GREEN_ON_BLACK);
+            gpu_write_window_tile(19, 10, 'N', PALETTE_RED_ON_BLACK);
+            gpu_write_window_tile(20, 10, ')', PALETTE_GREEN_ON_BLACK);
+
+            /* Wait for Y or N keypress */
+            while (1) {
+                int fmt_key;
+                fmt_key = keyboard_poll();
+                if (fmt_key == 'y' || fmt_key == 'Y') {
+                    /* Show formatting message */
+                    gpu_clear_window();
+                    gpu_write_window_tile(5, 12, 'F', PALETTE_YELLOW_ON_BLACK);
+                    gpu_write_window_tile(6, 12, 'o', PALETTE_YELLOW_ON_BLACK);
+                    gpu_write_window_tile(7, 12, 'r', PALETTE_YELLOW_ON_BLACK);
+                    gpu_write_window_tile(8, 12, 'm', PALETTE_YELLOW_ON_BLACK);
+                    gpu_write_window_tile(9, 12, 'a', PALETTE_YELLOW_ON_BLACK);
+                    gpu_write_window_tile(10, 12, 't', PALETTE_YELLOW_ON_BLACK);
+                    gpu_write_window_tile(11, 12, 't', PALETTE_YELLOW_ON_BLACK);
+                    gpu_write_window_tile(12, 12, 'i', PALETTE_YELLOW_ON_BLACK);
+                    gpu_write_window_tile(13, 12, 'n', PALETTE_YELLOW_ON_BLACK);
+                    gpu_write_window_tile(14, 12, 'g', PALETTE_YELLOW_ON_BLACK);
+                    gpu_write_window_tile(15, 12, '.', PALETTE_YELLOW_ON_BLACK);
+                    gpu_write_window_tile(16, 12, '.', PALETTE_YELLOW_ON_BLACK);
+                    gpu_write_window_tile(17, 12, '.', PALETTE_YELLOW_ON_BLACK);
+                    storage_format();
+                    break;
+                }
+                if (fmt_key == 'n' || fmt_key == 'N') {
+                    break;
+                }
+            }
+            gpu_clear_window();
+        }
+        /* sd_rc == -1 means no SD card — storage_ready will be 0 */
+    }
 
     /* Configure OV7670 via I2C */
-    uart_puts("Configuring OV7670...\n");
     ov7670_init();
 
-    /* Enable camera capture */
-    uart_puts("Enabling camera capture...\n");
-    cam_enable();
+    /* Initialize camera settings (Auto mode, defaults) */
+    settings_init();
 
-    uart_puts("Waiting for first frame_done...\n");
+    /* Enable camera capture with even byte phase (Y in YUYV) */
+    cam_enable_phase(1);
 
     /* Wait for first frame_done so we know VSYNC boundary */
     timeout = 0;
     while (1) {
         status = __builtin_load(FPGC_CAM_STATUS);
         if (status & 1) {
-            uart_puts("First frame_done received!\n");
             break;
         }
         timeout = timeout + 1;
-        if ((timeout & 0x1FFFF) == 0) {
-            uart_putchar('.');
-        }
         if (timeout >= 10000000) {
-            uart_puts("\nTIMEOUT: no frame. DBG=");
-            uart_putint(__builtin_load(0x1C00009C));
-            uart_putchar('\n');
             cam_disable();
             while (1) { /* halt */ }
         }
     }
 
-    frame_count = 0;
-
-    /* FPS measurement and rate toggle state */
-    unsigned int fps_start;
-    int fps_frames;
-    int fast_mode;
-    unsigned int toggle_time;
-
-    fps_start = get_micros();
-    fps_frames = 0;
-    fast_mode = 1;  /* Start in 30fps mode (PLL x4) */
-    toggle_time = get_micros();
-
-    /* Main viewfinder loop: DMA-based capture */
-    while (1) {
-        unsigned int t_cap_start;
-        unsigned int t_cap_end;
-        unsigned int t_blit_end;
-
-        /* Alternate between two SDRAM buffers */
-        if (frame_count & 1)
-            dma_dst = CAM_BUF1_BYTE_ADDR;
-        else
-            dma_dst = CAM_BUF0_BYTE_ADDR;
-
-        /* Start DMA in CAM2MEM mode — DMA engine waits for VSYNC internally */
-        t_cap_start = get_micros();
-        dma_start_cam(dma_dst, CAM_FRAME_BYTES);
-
-        /* Poll DMA until transfer is complete */
-        while (dma_busy()) { }
-        t_cap_end = get_micros();
-
-        /* Process and display the captured frame */
-        process_frame(dma_dst, 0);
-        t_blit_end = get_micros();
-
-        frame_count++;
-        fps_frames++;
-
-        /* Print FPS and timing every second */
-        if ((get_micros() - fps_start) >= 1000000) {
-            uart_puts("FPS:");
-            uart_putint(fps_frames);
-            uart_puts(" cap=");
-            uart_putint((int)(t_cap_end - t_cap_start));
-            uart_puts("us blit=");
-            uart_putint((int)(t_blit_end - t_cap_end));
-            uart_puts("us\n");
-            fps_frames = 0;
-            fps_start = get_micros();
-        }
-
-        /* Toggle between 30fps and 16fps every 5 seconds */
-        if ((get_micros() - toggle_time) >= 5000000) {
-            toggle_time = get_micros();
-            fast_mode = !fast_mode;
-            if (fast_mode) {
-                /* 30fps: PLL x4, CLKRC div-2 → PCLK=50MHz */
-                i2c_write(OV7670_ADDR, 0x6B, 0x4A);
-                i2c_write(OV7670_ADDR, 0x11, 0x00);
-                uart_puts("-> 30fps\n");
-            } else {
-                /* 16fps: no PLL, CLKRC bypass → PCLK=25MHz */
-                i2c_write(OV7670_ADDR, 0x6B, 0x0A);
-                i2c_write(OV7670_ADDR, 0x11, 0x40);
-                uart_puts("-> 16fps\n");
-            }
-        }
-    }
+    /* Enter viewfinder loop (does not return) */
+    viewfinder_run(MODE_RAW);
 
     return 0;
 }
 
-/* Required by crt0_baremetal — empty interrupt handler */
+/* Required by crt0_baremetal -- interrupt handler for timer subsystem */
 void interrupt(void)
 {
+    int id;
+    id = get_int_id();
+    if (id == FPGC_INTID_TIMER1) {
+        timer_isr_handler(TIMER_1);
+    } else if (id == FPGC_INTID_TIMER2) {
+        timer_isr_handler(TIMER_2);
+    }
 }

@@ -24,6 +24,7 @@
 
 /* Enable/disable continuous capture */
 void cam_enable(void);
+void cam_enable_phase(int phase);  /* phase: 0=odd bytes, 1=even bytes */
 void cam_disable(void);
 
 /* Poll for new frame; returns 1 if a new frame is ready (clears the flag) */

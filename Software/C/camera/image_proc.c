@@ -43,7 +43,7 @@ void auto_contrast(unsigned char *buf, int w, int h)
     int lo;
     int hi;
     int range;
-    int v;
+    unsigned char lut[256];
 
     n = w * h;
     lo = 255;
@@ -57,15 +57,21 @@ void auto_contrast(unsigned char *buf, int w, int h)
     if (hi <= lo) return;
 
     range = hi - lo;
-    for (i = 0; i < n; i++) {
-        v = buf[i];
-        if (v <= lo) {
-            buf[i] = 0;
-        } else if (v >= hi) {
-            buf[i] = 255;
+
+    /* Precompute 256-entry LUT (256 divisions instead of n) */
+    for (i = 0; i < 256; i++) {
+        if (i <= lo) {
+            lut[i] = 0;
+        } else if (i >= hi) {
+            lut[i] = 255;
         } else {
-            buf[i] = (unsigned char)(((v - lo) * 255) / range);
+            lut[i] = (unsigned char)(((i - lo) * 255) / range);
         }
+    }
+
+    /* Apply LUT — no division per pixel */
+    for (i = 0; i < n; i++) {
+        buf[i] = lut[buf[i]];
     }
 }
 
@@ -86,6 +92,11 @@ static unsigned char mat_lg_dg[16];
 static unsigned char mat_w_lg[16];
 static int dither_tables_ready = 0;
 
+/* Externally accessible copies for combined dither+blit */
+unsigned char mat_dg_b_ext[16];
+unsigned char mat_lg_dg_ext[16];
+unsigned char mat_w_lg_ext[16];
+
 static void init_dither_tables(void)
 {
     int pos;
@@ -95,13 +106,21 @@ static void init_dither_tables(void)
     idx = 0;
     for (pos = 0; pos < 16; pos++) {
         mat_dg_b[pos]  = dither_patterns[idx];
+        mat_dg_b_ext[pos]  = dither_patterns[idx];
         idx++;
         mat_lg_dg[pos] = dither_patterns[idx];
+        mat_lg_dg_ext[pos] = dither_patterns[idx];
         idx++;
         mat_w_lg[pos]  = dither_patterns[idx];
+        mat_w_lg_ext[pos]  = dither_patterns[idx];
         idx++;
     }
     dither_tables_ready = 1;
+}
+
+void init_dither_tables_ext(void)
+{
+    init_dither_tables();
 }
 
 void dither_4x4(const unsigned char *in, unsigned char *out, int w, int h)
@@ -135,6 +154,47 @@ void dither_4x4(const unsigned char *in, unsigned char *out, int w, int h)
             } else {
                 dst_row[x] = 3;
             }
+        }
+    }
+}
+
+/* Bayer 4×4 matrix for 8-shade ordered dithering */
+static unsigned char bayer4[16] = {
+     0,  8,  2, 10,
+    12,  4, 14,  6,
+     3, 11,  1,  9,
+    15,  7, 13,  5
+};
+
+/* Externally accessible copy */
+unsigned char bayer4_ext[16] = {
+     0,  8,  2, 10,
+    12,  4, 14,  6,
+     3, 11,  1,  9,
+    15,  7, 13,  5
+};
+
+void dither_8shade(const unsigned char *in, unsigned char *out, int w, int h)
+{
+    int x;
+    int y;
+    int y4;
+    int mi;
+    int v;
+
+    for (y = 0; y < h; y++) {
+        const unsigned char *src_row;
+        unsigned char *dst_row;
+
+        src_row = in + y * w;
+        dst_row = out + y * w;
+        y4 = (y & 3) << 2;
+
+        for (x = 0; x < w; x++) {
+            mi = y4 + (x & 3);
+            v = ((int)src_row[x] + bayer4[mi] * 2 + 1) >> 5;
+            if (v > 7) v = 7;
+            dst_row[x] = (unsigned char)v;
         }
     }
 }

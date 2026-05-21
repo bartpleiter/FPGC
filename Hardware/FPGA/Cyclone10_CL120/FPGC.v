@@ -712,7 +712,10 @@ SDRAMarbiter sdram_arb (
     .sdc_we(sdc_we),
     .sdc_start(sdc_start),
     .sdc_done(sdc_done),
-    .sdc_q(sdc_q)
+    .sdc_q(sdc_q),
+
+    // Debug
+    .dbg_busy(sdram_arb_busy)
 );
 
 /******************************************************************************
@@ -762,24 +765,39 @@ wire [31:0] mu_q;
 // Forward declarations for camera, I2C, and button wires
 // (modules instantiated after DMA engine, but MemoryUnit needs the wires)
 wire        cam_ctrl_enable;
-wire [20:0] cam_ctrl_base_buf0;
-wire [20:0] cam_ctrl_base_buf1;
+wire        cam_ctrl_byte_phase;
 wire        cam_frame_done;
 wire        cam_current_buf;
 wire [2:0]  cam_dbg_state;
-wire [15:0] cam_dbg_write_count;
+wire [16:0] cam_dbg_frame_pixels;
+wire [8:0]  cam_dbg_line_count;
+wire [11:0] cam_dbg_cache_lines;
+wire [7:0]  cam_dbg_partial_drops;
 reg         cam_vsync_sync;
 reg         cam_href_sync;
-wire        mu_i2c_start;
-wire [7:0]  mu_i2c_reg_addr;
-wire [7:0]  mu_i2c_wr_data;
+
+// I2C master signals (generic, sole bus master)
+wire        i2c_start;
+wire        i2c_rw;
+wire [6:0]  i2c_dev_addr;
+wire [7:0]  i2c_reg_addr;
+wire [7:0]  i2c_wr_data;
 wire        i2c_busy;
+wire        i2c_ack_err;
+wire [7:0]  i2c_rd_data;
+wire [4:0]  i2c_dbg_state;
+wire        i2c_scl_oe;
+wire        i2c_sda_oe;
+
 wire [31:0] btn_state;
 wire        btn_irq;
 wire [255:0] cam_line_data;
 wire         cam_line_ready;
 wire         cam_line_ack;
 wire        mu_done;
+
+// SDRAM arbiter busy flag (debug)
+wire        sdram_arb_busy;
 
 // Interrupt outputs
 wire        uart_irq;
@@ -893,20 +911,32 @@ MemoryUnit memory_unit (
 
     // Camera
     .cam_ctrl_enable(cam_ctrl_enable),
-    .cam_ctrl_base_buf0(cam_ctrl_base_buf0),
-    .cam_ctrl_base_buf1(cam_ctrl_base_buf1),
+    .cam_ctrl_byte_phase(cam_ctrl_byte_phase),
     .cam_frame_done(cam_frame_done),
     .cam_current_buf(cam_current_buf),
+
+    // I2C (generic)
+    .i2c_start(i2c_start),
+    .i2c_rw(i2c_rw),
+    .i2c_dev_addr(i2c_dev_addr),
+    .i2c_reg_addr(i2c_reg_addr),
+    .i2c_wr_data(i2c_wr_data),
+    .i2c_busy(i2c_busy),
+    .i2c_ack_err(i2c_ack_err),
+    .i2c_rd_data(i2c_rd_data),
+    .i2c_dbg_state(i2c_dbg_state),
     .cam_vsync_raw(cam_vsync_sync),
     .cam_href_raw(cam_href_sync),
     .cam_dbg_state(cam_dbg_state),
-    .cam_dbg_write_count(cam_dbg_write_count),
+    .cam_dbg_frame_pixels(cam_dbg_frame_pixels),
+    .cam_dbg_line_count(cam_dbg_line_count),
+    .cam_dbg_cache_lines(cam_dbg_cache_lines),
+    .cam_dbg_partial_drops(cam_dbg_partial_drops),
+    .sdram_arb_busy(sdram_arb_busy),
 
-    // I2C/SCCB
-    .i2c_start(mu_i2c_start),
-    .i2c_reg_addr(mu_i2c_reg_addr),
-    .i2c_wr_data(mu_i2c_wr_data),
-    .i2c_busy(i2c_busy),
+    // GPU timing (no raster scan on SPI display — tie off)
+    .gpu_vblank(1'b0),
+    .gpu_v_count(12'd0),
 
     // Buttons
     .btn_state(btn_state)
@@ -974,52 +1004,42 @@ DMAengine dma_engine (
  * Camera Subsystem (OV7670)
  ******************************************************************************/
 
-// Camera data synchronizers (2-stage, into clk100 domain)
-reg [7:0]   cam_data_s1  = 8'd0,  cam_data_sync  = 8'd0;
-reg         cam_vsync_s1 = 1'b0;
-reg         cam_href_s1  = 1'b0;
-
+// Synchronize raw VSYNC and HREF pins into clk100 domain for diagnostics
+reg cam_vsync_s1 = 1'b0;
+reg cam_href_s1  = 1'b0;
 always @(posedge clk100) begin
-    cam_data_s1  <= cam_data;   cam_data_sync  <= cam_data_s1;
-    cam_vsync_s1 <= cam_vsync;  cam_vsync_sync <= cam_vsync_s1;
-    cam_href_s1  <= cam_href;   cam_href_sync  <= cam_href_s1;
+    cam_vsync_s1   <= cam_vsync;
+    cam_vsync_sync <= cam_vsync_s1;
+    cam_href_s1    <= cam_href;
+    cam_href_sync  <= cam_href_s1;
 end
 
+// V2 CameraCapture does its own internal synchronization for cam_pclk,
+// cam_vsync, cam_href, and cam_data. Pass raw pins directly.
 CameraCapture camera_capture (
-    .clk          (clk100),
-    .reset        (reset),
-    .cam_pclk     (cam_pclk),
-    .cam_vsync    (cam_vsync_sync),
-    .cam_href     (cam_href_sync),
-    .cam_data     (cam_data_sync),
-    .line_data    (cam_line_data),
-    .line_ready   (cam_line_ready),
-    .line_ack     (cam_line_ack),
-    .ctrl_enable  (cam_ctrl_enable),
-    .frame_done   (cam_frame_done),
-    .current_buf  (cam_current_buf),
-    .dbg_state    (cam_dbg_state),
-    .dbg_write_count(cam_dbg_write_count)
+    .clk            (clk100),
+    .reset          (reset),
+    .cam_pclk       (cam_pclk),
+    .cam_vsync      (cam_vsync),
+    .cam_href       (cam_href),
+    .cam_data       (cam_data),
+    .line_data      (cam_line_data),
+    .line_ready     (cam_line_ready),
+    .line_ack       (cam_line_ack),
+    .ctrl_enable    (cam_ctrl_enable),
+    .ctrl_byte_phase(cam_ctrl_byte_phase),
+    .frame_done     (cam_frame_done),
+    .current_buf    (cam_current_buf),
+    .dbg_state          (cam_dbg_state),
+    .dbg_frame_pixels   (cam_dbg_frame_pixels),
+    .dbg_line_count     (cam_dbg_line_count),
+    .dbg_cache_lines    (cam_dbg_cache_lines),
+    .dbg_partial_drops  (cam_dbg_partial_drops)
 );
 
-// ---- SCCB / I2C Configuration ----
-
-// CameraConfigure: auto-init OV7670 on reset
-wire cam_configure_done;
-wire cam_configure_sioc_oe;
-wire cam_configure_siod_oe;
-
-CameraConfigure camera_configure (
-    .clk     (clk100),
-    .reset   (reset),
-    .sioc_oe (cam_configure_sioc_oe),
-    .siod_oe (cam_configure_siod_oe),
-    .done    (cam_configure_done)
-);
-
-// I2C master for runtime SCCB writes from CPU
-wire        i2c_scl_oe;
-wire        i2c_sda_oe;
+// ---- I2C Master (generic, sole bus master) ----
+// All OV7670 configuration is done in software via I2C_CMD MMIO register.
+// No hardware CameraConfigure — removed.
 
 I2C_master #(
     .CLK_FREQ(100_000_000),
@@ -1027,26 +1047,24 @@ I2C_master #(
 ) i2c_master_inst (
     .clk      (clk100),
     .reset    (reset),
-    .start    (mu_i2c_start),
-    .rw       (1'b0),           // Write only for OV7670
-    .dev_addr (7'h21),          // OV7670 I2C address
-    .reg_addr (mu_i2c_reg_addr),
-    .wr_data  (mu_i2c_wr_data),
-    .rd_data  (),               // Not used (write-only)
+    .start    (i2c_start),
+    .rw       (i2c_rw),
+    .dev_addr (i2c_dev_addr),
+    .reg_addr (i2c_reg_addr),
+    .wr_data  (i2c_wr_data),
+    .rd_data  (i2c_rd_data),
     .busy     (i2c_busy),
+    .ack_err  (i2c_ack_err),
     .scl_oe   (i2c_scl_oe),
     .sda_oe   (i2c_sda_oe),
-    .sda_in   (cam_sda)
+    .sda_in   (cam_sda),
+    .dbg_state_out(i2c_dbg_state)
 );
 
-// SCCB bus mux: CameraConfigure owns bus until done, then I2C_master
-// SCL is push-pull (master-only bus), SDA is open-drain
-assign cam_scl = (cam_configure_done) ?
-                 (i2c_scl_oe ? 1'b0 : 1'b1) :
-                 (cam_configure_sioc_oe ? 1'b0 : 1'b1);
-assign cam_sda = (cam_configure_done) ?
-                 (i2c_sda_oe ? 1'b0 : 1'bz) :
-                 (cam_configure_siod_oe ? 1'b0 : 1'bz);
+// SCL: push-pull (OV7670 doesn't clock-stretch)
+// SDA: open-drain (bidirectional)
+assign cam_scl = i2c_scl_oe ? 1'b0 : 1'b1;
+assign cam_sda = i2c_sda_oe ? 1'b0 : 1'bz;
 
 /******************************************************************************
  * Button Input

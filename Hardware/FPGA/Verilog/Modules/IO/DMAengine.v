@@ -93,10 +93,12 @@ module DMAengine (
     input  wire         vp_full,
 
     // ---- Camera cache-line handshake (from CameraCapture) ----
-    input  wire         cam_line_ready,   // CameraCapture has a 256-bit line ready
-    input  wire [255:0] cam_line_data,    // The cache-line pixel data
-    output reg          cam_line_ack = 1'b0, // Acknowledge (consume the line)
-    input  wire         cam_frame_done,   // Frame-complete pulse from CameraCapture
+    input  wire         cam_line_ready,  // Camera has a 256-bit cache line available
+    input  wire [255:0] cam_line_data,   // The cache line data
+    output reg          cam_line_ack = 1'b0,  // Engine consumed the line (1-cycle pulse)
+
+    // ---- Camera frame sync (directly from CameraCapture) ----
+    input  wire         cam_frame_done,  // 1-cycle pulse on VSYNC boundary
 
     // ---- Interrupt to InterruptController bit 6 (INT_ID_DMA = 7) ----
     output reg          irq       = 1'b0
@@ -118,7 +120,8 @@ localparam MODE_MEM2VRAM      = 4'd3;
 localparam MODE_MEM2IO        = 4'd4;
 localparam MODE_IO2MEM        = 4'd5;
 localparam MODE_SPI2MEM_QSPI  = 4'd6;   // SPI1 only (QSPIflash)
-localparam MODE_CAM2MEM       = 4'd7;   // Camera → SDRAM (cache-line handshake)
+localparam MODE_CAM2MEM       = 4'd7;   // Camera → SDRAM via handshake
+localparam MODE_CAM2VRAM      = 4'd8;   // Camera → VRAMPX (with optional LUT + dither)
 
 // ---- Register backing storage ----
 reg [31:0] dma_src       = 32'd0;
@@ -154,6 +157,61 @@ reg [23:0] qspi_addr_cur = 24'd0;
 // transfer and stays high until ST_DONE / ST_ERROR.
 reg        qspi_burst_open = 1'b0;
 
+// ---- MEM2VRAM LUT + dither hardware acceleration ----
+
+// 256×8 auto-contrast LUT (inferred as M9K block RAM).
+// Written by software via reg_addr 6: {addr[7:0], data[7:0]}.
+// Read during MEM2VRAM drain with 1-cycle latency.
+(* ramstyle = "no_rw_check, M9K" *)
+reg [7:0] lut_mem [0:255];
+reg [7:0] lut_rd_data = 8'd0;
+
+// LUT write signals (directly from register bus)
+wire       lut_wr_en   = reg_we && (reg_addr == 3'd6);
+wire [7:0] lut_wr_addr = reg_data[15:8];
+wire [7:0] lut_wr_data = reg_data[7:0];
+
+// LUT phase: 0 = issue read address, 1 = LUT output ready
+reg        lut_phase = 1'b0;
+
+// 4-shade dither threshold tables: 3 thresholds × 16 matrix positions.
+// thresh_0[mi]: pixel < thresh_0 → shade 0 (black)
+// thresh_1[mi]: pixel < thresh_1 → shade 1 (dark grey)
+// thresh_2[mi]: pixel < thresh_2 → shade 2 (light grey)
+// else shade 3 (white)
+reg [7:0] thresh_0 [0:15];
+reg [7:0] thresh_1 [0:15];
+reg [7:0] thresh_2 [0:15];
+
+// 8-shade Bayer offset table: 16 matrix positions.
+// output = clamp((pixel + offset*2 + 1) >> 5, 0, 7)
+reg [7:0] bayer_off [0:15];
+
+// Dither table write signals (from register bus via reg_addr 7)
+// Bits [13:12] = table select (0=thresh_0, 1=thresh_1, 2=thresh_2, 3=bayer_off)
+// Bits [11:8]  = matrix index (0..15)
+// Bits [7:0]   = data
+wire       dith_wr_en    = reg_we && (reg_addr == 3'd7);
+wire [1:0] dith_wr_table = reg_data[13:12];
+wire [3:0] dith_wr_mi    = reg_data[11:8];
+wire [7:0] dith_wr_data  = reg_data[7:0];
+
+// Drain pixel position tracking (for dither matrix indexing)
+reg [8:0] drain_x = 9'd0;   // 0..319
+reg [7:0] drain_y = 8'd0;   // 0..239
+
+// Hardware min/max tracking: captures the min and max raw byte values
+// seen during ST_M2V_DRAIN. Reset at transfer start. Software reads
+// them via reg_addr 6 to compute auto-contrast LUT without SDRAM scan.
+reg [7:0] drain_min = 8'hFF;
+reg [7:0] drain_max = 8'h00;
+
+// 2× upscale state: cycles through 4 VRAMPX writes per source byte
+// Phase 0: (2*sx, 2*sy)   Phase 1: (2*sx+1, 2*sy)
+// Phase 2: (2*sx, 2*sy+1) Phase 3: (2*sx+1, 2*sy+1)
+reg [1:0] upscale_phase = 2'd0;
+reg [16:0] upscale_row_addr = 17'd0;  // base VRAMPX addr of current row pair
+
 localparam
     ST_IDLE          = 5'd0,
     ST_RD_REQ        = 5'd1,   // MEM2MEM / MEM2SPI: SDRAM read request
@@ -171,7 +229,7 @@ localparam
     ST_M2S_DRAIN     = 5'd13,  // MEM2SPI: drain 32 RX bytes (discarded)
     ST_M2V_DRAIN     = 5'd14,  // MEM2VRAM: emit 32 bytes from line_buf to vp_*
     ST_CAM_WAIT      = 5'd15,  // CAM2MEM: wait for camera cache line
-    ST_CAM_FRAME_WAIT= 5'd16;  // CAM2MEM: wait for VSYNC before capture
+    ST_CAM_FRAME_WAIT = 5'd16; // CAM2MEM: wait for VSYNC (frame_done) before capture
 
 reg [4:0] state = ST_IDLE;
 
@@ -185,6 +243,7 @@ begin
         3'd3:    reg_q = dma_ctrl;
         3'd4:    reg_q = {29'd0, sticky_error, sticky_done, busy};
         3'd5:    reg_q = dma_qspi_addr;
+        3'd6:    reg_q = {16'd0, drain_max, drain_min};  // HW min/max from last drain
         default: reg_q = 32'd0;
     endcase
 end
@@ -194,6 +253,11 @@ wire        ctrl_start_bit  = dma_ctrl[31];
 wire [3:0]  ctrl_mode       = dma_ctrl[3:0];
 wire        ctrl_irq_en     = dma_ctrl[4];
 wire [2:0]  ctrl_spi_id     = dma_ctrl[7:5];
+wire        ctrl_cam_imm    = dma_ctrl[8];   // CAM2MEM: skip frame_done wait (immediate capture)
+wire        ctrl_lut_en     = dma_ctrl[9];   // MEM2VRAM: apply 256-entry LUT during drain
+wire        ctrl_dither_en  = dma_ctrl[10];  // MEM2VRAM: apply dithering during drain
+wire        ctrl_dither_mode = dma_ctrl[11]; // MEM2VRAM dither: 0=4-shade, 1=8-shade Bayer
+wire        ctrl_upscale_2x  = dma_ctrl[12]; // MEM2VRAM/CAM2VRAM: 2× pixel doubling (160×120 → 320×240)
 
 // Aligned-to-32-bytes test (low 5 bits zero); applies to both SDRAM endpoints
 // in MEM2MEM and to the SDRAM endpoint in MEM2SPI / SPI2MEM.
@@ -240,20 +304,30 @@ wire mem2vram_args_aligned =
     (dma_dst        >= 32'h1EC00000) &&
     ((dma_dst + dma_count) <= 32'h1EC20000);
 
-// CAM2MEM: destination must be SDRAM-line-aligned, count line-aligned and > 0.
-wire cam2mem_args_aligned =
-    (dma_dst[4:0]   == 5'd0) &&
-    (dma_count[4:0] == 5'd0) &&
-    (dma_count      != 32'd0);
-
-// Latch cam_frame_done so a single-cycle pulse is not missed.
-reg cam_frame_done_latch = 1'b0;
-
 // SPI0 (Flash 1), SPI1 (Flash 2 / BRFS via QSPI), SPI4 (Ethernet) and SPI5
 // (SD card) are the four controllers wired through MemoryUnit's DMA burst
 // port. Reject other SPI ids cleanly.
 wire ctrl_spi_id_valid = (ctrl_spi_id == 3'd0) || (ctrl_spi_id == 3'd1) ||
                          (ctrl_spi_id == 3'd4) || (ctrl_spi_id == 3'd5);
+
+// CAM2MEM: dst must be 32-byte aligned, count must be 32-byte aligned and >0.
+// Source is the camera handshake (no src address needed).
+wire cam2mem_args_aligned =
+    (dma_dst[4:0] == 5'd0) &&
+    (dma_count[4:0] == 5'd0) &&
+    (dma_count != 32'd0);
+
+// CAM2VRAM: dst must be 32-byte aligned, in VRAMPX range, count > 0 and aligned.
+wire cam2vram_args_aligned =
+    (dma_dst[4:0]   == 5'd0)         &&
+    (dma_count[4:0] == 5'd0)         &&
+    (dma_count      != 32'd0)        &&
+    (dma_dst        >= 32'h1EC00000) &&
+    ((dma_dst + dma_count) <= 32'h1EC20000);
+
+// Latch cam_frame_done pulses so the DMA never misses a VSYNC between
+// the start command and reaching ST_CAM_FRAME_WAIT.
+reg cam_frame_done_latch = 1'b0;
 
 // Reading STATUS clears the sticky bits, but the MemoryUnit holds reg_addr=4
 // across an entire poll loop, so status_read sits high for many cycles in a
@@ -301,20 +375,24 @@ begin
         qspi_addr_cur    <= 24'd0;
         qspi_burst_open  <= 1'b0;
         cam_line_ack     <= 1'b0;
-        cam_frame_done_latch <= 1'b0;
         state           <= ST_IDLE;
+        lut_phase        <= 1'b0;
+        drain_x          <= 9'd0;
+        drain_y          <= 8'd0;
     end
     else
     begin
         // Defaults (single-cycle pulses)
         sd_start         <= 1'b0;
         irq              <= 1'b0;
+        cam_line_ack     <= 1'b0;
+        cam_line_ack     <= 1'b0;
         dma_burst_start  <= 1'b0;
         dma_burst_we     <= 1'b0;
         dma_burst_re_rx  <= 1'b0;
-        cam_line_ack     <= 1'b0;
 
-        // Latch cam_frame_done globally (single-cycle pulse from CameraCapture)
+        // Globally latch cam_frame_done so pulses arriving before
+        // the FSM reaches ST_CAM_FRAME_WAIT are not lost.
         if (cam_frame_done)
             cam_frame_done_latch <= 1'b1;
 
@@ -330,6 +408,16 @@ begin
                 3'd2: dma_count     <= reg_data;
                 3'd3: dma_ctrl      <= reg_data;
                 3'd5: dma_qspi_addr <= reg_data;
+                // reg_addr 6: LUT write handled separately (M9K write port)
+                3'd7: begin
+                    // Dither table write: {table[13:12], mi[11:8], data[7:0]}
+                    case (dith_wr_table)
+                        2'd0: thresh_0[dith_wr_mi] <= dith_wr_data;
+                        2'd1: thresh_1[dith_wr_mi] <= dith_wr_data;
+                        2'd2: thresh_2[dith_wr_mi] <= dith_wr_data;
+                        2'd3: bayer_off[dith_wr_mi] <= dith_wr_data;
+                    endcase
+                end
                 default: ; // STATUS is read-only
             endcase
         end
@@ -438,6 +526,13 @@ begin
                             src_cur         <= dma_src;
                             dst_cur         <= dma_dst;
                             bytes_remaining <= dma_count;
+                            drain_x         <= 9'd0;
+                            drain_y         <= 8'd0;
+                            lut_phase       <= 1'b0;
+                            drain_min       <= 8'hFF;
+                            drain_max       <= 8'h00;
+                            upscale_phase   <= 2'd0;
+                            upscale_row_addr <= dma_dst[16:0];
                             // First step: read the SDRAM line, then drain
                             // it into VRAMPX byte-by-byte.
                             state           <= ST_RD_REQ;
@@ -451,11 +546,33 @@ begin
                     begin
                         if (cam2mem_args_aligned)
                         begin
-                            dst_cur              <= dma_dst;
-                            bytes_remaining      <= dma_count;
+                            dst_cur         <= dma_dst;
+                            bytes_remaining <= dma_count;
+                            line_buf        <= 256'd0;
                             cam_frame_done_latch <= 1'b0;
-                            // Wait for VSYNC before starting capture
-                            state                <= ST_CAM_FRAME_WAIT;
+                            state           <= ctrl_cam_imm ? ST_CAM_WAIT : ST_CAM_FRAME_WAIT;
+                        end
+                        else
+                        begin
+                            state <= ST_ERROR;
+                        end
+                    end
+                    else if (ctrl_mode == MODE_CAM2VRAM)
+                    begin
+                        if (cam2vram_args_aligned)
+                        begin
+                            dst_cur         <= dma_dst;
+                            bytes_remaining <= dma_count;
+                            line_buf        <= 256'd0;
+                            drain_x         <= 9'd0;
+                            drain_y         <= 8'd0;
+                            lut_phase       <= 1'b0;
+                            drain_min       <= 8'hFF;
+                            drain_max       <= 8'h00;
+                            upscale_phase   <= 2'd0;
+                            upscale_row_addr <= dma_dst[16:0];
+                            cam_frame_done_latch <= 1'b0;
+                            state           <= ctrl_cam_imm ? ST_CAM_WAIT : ST_CAM_FRAME_WAIT;
                         end
                         else
                         begin
@@ -493,7 +610,9 @@ begin
                     else if (ctrl_mode == MODE_MEM2VRAM)
                     begin
                         // Drain line_buf into VRAMPX one byte per cycle.
+                        // When LUT is enabled, takes 2 cycles/byte (pipeline).
                         spi_byte_idx <= 6'd0;
+                        lut_phase    <= 1'b0;
                         state        <= ST_M2V_DRAIN;
                     end
                     else
@@ -534,7 +653,8 @@ begin
                     end
                     else if (ctrl_mode == MODE_CAM2MEM)
                     begin
-                        // Camera line committed to SDRAM.
+                        // CAM2MEM: advance dst, loop back to wait for
+                        // next camera cache line or finish.
                         dst_cur         <= dst_cur + 32'd32;
                         bytes_remaining <= bytes_remaining - 32'd32;
                         if (bytes_remaining == 32'd32)
@@ -802,51 +922,130 @@ begin
             end
 
             // ---- MEM2VRAM drain: emit 32 line_buf bytes to VRAMPX ----
+            // With optional LUT (auto-contrast) and/or dithering (4-shade
+            // or 8-shade). When LUT is enabled, drain takes 2 cycles per
+            // byte: phase 0 issues the BRAM read, phase 1 writes to VRAMPX.
+            // Without LUT, drain takes 1 cycle per byte (direct write).
+            //
+            // When 2× upscale is enabled, each source byte produces 4
+            // VRAMPX writes (2×2 pixel doubling). The upscale_phase
+            // register cycles 0→1→2→3 per source byte. Source byte
+            // advancement only happens after phase 3.
+            //
             // vp_we / vp_addr / vp_data are combinational (see assigns at
             // the bottom of the module). This block only advances the
             // engine's bookkeeping when the FIFO actually accepts the
             // byte, i.e. when !vp_full this same cycle.
             ST_M2V_DRAIN:
             begin
-                if (!vp_full)
+                if (ctrl_lut_en && !lut_phase)
                 begin
-                    dst_cur <= dst_cur + 32'd1;
-                    if (spi_byte_idx == 6'd31)
+                    // Phase 0: LUT read address driven combinationally
+                    // by drain_raw_byte (see wire below). Wait 1 cycle
+                    // for M9K to produce the output.
+                    lut_phase <= 1'b1;
+                end
+                else if (!vp_full)
+                begin
+                    if (ctrl_upscale_2x && upscale_phase != 2'd3)
                     begin
-                        // Whole line emitted. Advance and either fetch
-                        // the next line or finish.
-                        src_cur         <= src_cur + 32'd32;
-                        bytes_remaining <= bytes_remaining - 32'd32;
-                        if (bytes_remaining == 32'd32)
-                            state <= ST_DONE;
-                        else
-                            state <= ST_RD_REQ;
+                        // 2× upscale: phases 0-2 write pixel copies,
+                        // phase 3 is handled below with source advancement.
+                        // Only track min/max on phase 0 (once per source byte).
+                        if (upscale_phase == 2'd0) begin
+                            if (drain_raw_byte < drain_min) drain_min <= drain_raw_byte;
+                            if (drain_raw_byte > drain_max) drain_max <= drain_raw_byte;
+                        end
+                        // Need LUT re-read for each phase? No — LUT output
+                        // stays valid as long as drain_raw_byte doesn't change.
+                        // We keep lut_phase=1 to suppress re-read.
+                        lut_phase <= ctrl_lut_en ? 1'b1 : 1'b0;
+                        upscale_phase <= upscale_phase + 2'd1;
                     end
                     else
                     begin
-                        spi_byte_idx <= spi_byte_idx + 6'd1;
+                        // Normal mode: single write per source byte.
+                        // Or upscale phase 3: last write + advance source.
+                        lut_phase <= 1'b0;
+                        upscale_phase <= 2'd0;
+
+                        // Track min/max of raw byte values (for auto-contrast)
+                        if (!ctrl_upscale_2x) begin
+                            if (drain_raw_byte < drain_min) drain_min <= drain_raw_byte;
+                            if (drain_raw_byte > drain_max) drain_max <= drain_raw_byte;
+                        end
+
+                        // Advance source pixel position for dither matrix indexing
+                        if (ctrl_upscale_2x) begin
+                            // Upscale: source is 160 wide, 120 tall
+                            if (drain_x == 9'd159) begin
+                                drain_x <= 9'd0;
+                                drain_y <= drain_y + 8'd1;
+                                upscale_row_addr <= upscale_row_addr + 17'd640;
+                            end else begin
+                                drain_x <= drain_x + 9'd1;
+                            end
+                        end else begin
+                            // Normal: source is 320 wide
+                            if (drain_x == 9'd319) begin
+                                drain_x <= 9'd0;
+                                drain_y <= drain_y + 8'd1;
+                            end else begin
+                                drain_x <= drain_x + 9'd1;
+                            end
+                        end
+
+                        dst_cur <= dst_cur + 32'd1;
+                        if (spi_byte_idx == 6'd31)
+                        begin
+                            // Whole line emitted. Advance and either fetch
+                            // the next line or finish.
+                            src_cur         <= src_cur + 32'd32;
+                            bytes_remaining <= bytes_remaining - 32'd32;
+                            if (bytes_remaining == 32'd32)
+                                state <= ST_DONE;
+                            else if (ctrl_mode == MODE_CAM2VRAM)
+                                state <= ST_CAM_WAIT;
+                            else
+                                state <= ST_RD_REQ;
+                        end
+                        else
+                        begin
+                            spi_byte_idx <= spi_byte_idx + 6'd1;
+                        end
                     end
                 end
             end
 
-            // ---- CAM2MEM: wait for camera cache line ----
+            // ---- CAM2MEM/CAM2VRAM: wait for camera cache line ----
             ST_CAM_WAIT:
             begin
                 if (cam_line_ready)
                 begin
                     line_buf     <= cam_line_data;
                     cam_line_ack <= 1'b1;
-                    state        <= ST_WR_REQ;
+                    if (ctrl_mode == MODE_CAM2VRAM)
+                    begin
+                        // Drain directly to VRAMPX (with optional LUT + dither)
+                        spi_byte_idx <= 6'd0;
+                        lut_phase    <= 1'b0;
+                        state        <= ST_M2V_DRAIN;
+                    end
+                    else
+                    begin
+                        // CAM2MEM: write to SDRAM
+                        state <= ST_WR_REQ;
+                    end
                 end
             end
 
-            // ---- CAM2MEM: wait for VSYNC (new frame) before capture ----
+            // ---- CAM2MEM: wait for VSYNC boundary before starting capture ----
             ST_CAM_FRAME_WAIT:
             begin
                 if (cam_frame_done || cam_frame_done_latch)
                 begin
                     cam_frame_done_latch <= 1'b0;
-                    state                <= ST_CAM_WAIT;
+                    state <= ST_CAM_WAIT;
                 end
             end
 
@@ -877,13 +1076,17 @@ begin
     end
 end
 
-// ---- VRAMPX peer-port combinational drives ----
-// Drive vp_we / vp_addr / vp_data combinationally from the engine state so
-// the FIFO write_enable lines up with the FIFO's own !full check the same
-// cycle. (See the long comment on the vp_we port declaration.)
-assign vp_we   = (state == ST_M2V_DRAIN) && !vp_full;
-assign vp_addr = dst_cur[16:0];
-assign vp_data =
+// ---- LUT BRAM: 256×8 auto-contrast lookup table (M9K) ----
+// Write port: software writes via reg_addr 6 ({addr[15:8], data[7:0]}).
+// Read port: drain logic reads during MEM2VRAM (1-cycle latency).
+always @(posedge clk) begin
+    if (lut_wr_en)
+        lut_mem[lut_wr_addr] <= lut_wr_data;
+    lut_rd_data <= lut_mem[drain_raw_byte];
+end
+
+// ---- Raw byte extraction from line_buf (shared by drain + LUT read) ----
+wire [7:0] drain_raw_byte =
     (spi_byte_idx == 6'd0)  ? line_buf[  7:  0] :
     (spi_byte_idx == 6'd1)  ? line_buf[ 15:  8] :
     (spi_byte_idx == 6'd2)  ? line_buf[ 23: 16] :
@@ -916,5 +1119,51 @@ assign vp_data =
     (spi_byte_idx == 6'd29) ? line_buf[239:232] :
     (spi_byte_idx == 6'd30) ? line_buf[247:240] :
                               line_buf[255:248];
+
+// ---- Dithering combinational logic ----
+// Input: either LUT output (when LUT enabled) or raw byte
+wire [7:0] dith_input = ctrl_lut_en ? lut_rd_data : drain_raw_byte;
+
+// 4×4 dither matrix index from pixel position
+wire [3:0] dither_mi = {drain_y[1:0], drain_x[1:0]};
+
+// 4-shade ordered dither: compare against 3 thresholds
+wire [7:0] dth0 = thresh_0[dither_mi];
+wire [7:0] dth1 = thresh_1[dither_mi];
+wire [7:0] dth2 = thresh_2[dither_mi];
+wire [7:0] dith_4shade = (dith_input < dth0) ? 8'd0 :
+                          (dith_input < dth1) ? 8'd1 :
+                          (dith_input < dth2) ? 8'd2 : 8'd3;
+
+// 8-shade Bayer dither: (pixel + offset*2 + 1) >> 5, clamped to 7
+wire [7:0] boff = bayer_off[dither_mi];
+wire [8:0] bsum = {1'b0, dith_input} + {4'b0000, boff[3:0], 1'b0} + 9'd1;
+wire [3:0] bval = bsum[8:5];
+wire [7:0] dith_8shade = bval[3] ? 8'd7 : {5'd0, bval[2:0]};
+
+// Final output byte: dithered (if enabled) or LUT/raw pass-through
+wire [7:0] drain_out_byte = ctrl_dither_en ?
+    (ctrl_dither_mode ? dith_8shade : dith_4shade) :
+    dith_input;
+
+// ---- VRAMPX peer-port combinational drives ----
+// Drive vp_we / vp_addr / vp_data combinationally from the engine state so
+// the FIFO write_enable lines up with the FIFO's own !full check the same
+// cycle. (See the long comment on the vp_we port declaration.)
+// When LUT is enabled, only write during phase 1 (LUT output ready).
+assign vp_we   = (state == ST_M2V_DRAIN) && !vp_full
+                 && (!ctrl_lut_en || lut_phase);
+
+// VRAMPX address: normal mode uses dst_cur; upscale mode computes from
+// source position + phase to produce 2×2 pixel doubling.
+// Phase 0: (2*sx,   2*sy)     Phase 1: (2*sx+1, 2*sy)
+// Phase 2: (2*sx,   2*sy+1)   Phase 3: (2*sx+1, 2*sy+1)
+wire [16:0] upscale_addr = upscale_row_addr
+                         + {7'd0, drain_x, 1'b0}      // + drain_x * 2
+                         + {7'd0, upscale_phase[0]}    // + 1 for phases 1,3
+                         + (upscale_phase[1] ? 17'd320 : 17'd0);  // + 320 for phases 2,3
+
+assign vp_addr = ctrl_upscale_2x ? upscale_addr : dst_cur[16:0];
+assign vp_data = drain_out_byte;
 
 endmodule
