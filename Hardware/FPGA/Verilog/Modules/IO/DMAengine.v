@@ -92,6 +92,12 @@ module DMAengine (
     output wire [7:0]   vp_data,
     input  wire         vp_full,
 
+    // ---- Camera cache-line handshake (from CameraCapture) ----
+    input  wire         cam_line_ready,   // CameraCapture has a 256-bit line ready
+    input  wire [255:0] cam_line_data,    // The cache-line pixel data
+    output reg          cam_line_ack = 1'b0, // Acknowledge (consume the line)
+    input  wire         cam_frame_done,   // Frame-complete pulse from CameraCapture
+
     // ---- Interrupt to InterruptController bit 6 (INT_ID_DMA = 7) ----
     output reg          irq       = 1'b0
 );
@@ -112,6 +118,7 @@ localparam MODE_MEM2VRAM      = 4'd3;
 localparam MODE_MEM2IO        = 4'd4;
 localparam MODE_IO2MEM        = 4'd5;
 localparam MODE_SPI2MEM_QSPI  = 4'd6;   // SPI1 only (QSPIflash)
+localparam MODE_CAM2MEM       = 4'd7;   // Camera → SDRAM (cache-line handshake)
 
 // ---- Register backing storage ----
 reg [31:0] dma_src       = 32'd0;
@@ -148,23 +155,25 @@ reg [23:0] qspi_addr_cur = 24'd0;
 reg        qspi_burst_open = 1'b0;
 
 localparam
-    ST_IDLE          = 4'd0,
-    ST_RD_REQ        = 4'd1,   // MEM2MEM / MEM2SPI: SDRAM read request
-    ST_RD_WAIT       = 4'd2,
-    ST_WR_REQ        = 4'd3,   // MEM2MEM / SPI2MEM: SDRAM write request
-    ST_WR_WAIT       = 4'd4,
-    ST_DONE          = 4'd5,
-    ST_ERROR         = 4'd6,
-    ST_S2M_BURST     = 4'd7,   // SPI2MEM: kick off 32-byte SPI burst (dummy)
-    ST_S2M_BWAIT     = 4'd8,   // SPI2MEM: wait for burst done
-    ST_S2M_DRAIN     = 4'd9,   // SPI2MEM: drain 32 RX bytes into line_buf
-    ST_M2S_FILL      = 4'd10,  // MEM2SPI: push 32 line_buf bytes into TX FIFO
-    ST_M2S_BURST     = 4'd11,  // MEM2SPI: kick off 32-byte SPI burst
-    ST_M2S_BWAIT     = 4'd12,  // MEM2SPI: wait for burst done
-    ST_M2S_DRAIN     = 4'd13,  // MEM2SPI: drain 32 RX bytes (discarded)
-    ST_M2V_DRAIN     = 4'd14;  // MEM2VRAM: emit 32 bytes from line_buf to vp_*
+    ST_IDLE          = 5'd0,
+    ST_RD_REQ        = 5'd1,   // MEM2MEM / MEM2SPI: SDRAM read request
+    ST_RD_WAIT       = 5'd2,
+    ST_WR_REQ        = 5'd3,   // MEM2MEM / SPI2MEM: SDRAM write request
+    ST_WR_WAIT       = 5'd4,
+    ST_DONE          = 5'd5,
+    ST_ERROR         = 5'd6,
+    ST_S2M_BURST     = 5'd7,   // SPI2MEM: kick off 32-byte SPI burst (dummy)
+    ST_S2M_BWAIT     = 5'd8,   // SPI2MEM: wait for burst done
+    ST_S2M_DRAIN     = 5'd9,   // SPI2MEM: drain 32 RX bytes into line_buf
+    ST_M2S_FILL      = 5'd10,  // MEM2SPI: push 32 line_buf bytes into TX FIFO
+    ST_M2S_BURST     = 5'd11,  // MEM2SPI: kick off 32-byte SPI burst
+    ST_M2S_BWAIT     = 5'd12,  // MEM2SPI: wait for burst done
+    ST_M2S_DRAIN     = 5'd13,  // MEM2SPI: drain 32 RX bytes (discarded)
+    ST_M2V_DRAIN     = 5'd14,  // MEM2VRAM: emit 32 bytes from line_buf to vp_*
+    ST_CAM_WAIT      = 5'd15,  // CAM2MEM: wait for camera cache line
+    ST_CAM_FRAME_WAIT= 5'd16;  // CAM2MEM: wait for VSYNC before capture
 
-reg [3:0] state = ST_IDLE;
+reg [4:0] state = ST_IDLE;
 
 // ---- Combinatorial read mux ----
 always @(*)
@@ -231,6 +240,15 @@ wire mem2vram_args_aligned =
     (dma_dst        >= 32'h1EC00000) &&
     ((dma_dst + dma_count) <= 32'h1EC20000);
 
+// CAM2MEM: destination must be SDRAM-line-aligned, count line-aligned and > 0.
+wire cam2mem_args_aligned =
+    (dma_dst[4:0]   == 5'd0) &&
+    (dma_count[4:0] == 5'd0) &&
+    (dma_count      != 32'd0);
+
+// Latch cam_frame_done so a single-cycle pulse is not missed.
+reg cam_frame_done_latch = 1'b0;
+
 // SPI0 (Flash 1), SPI1 (Flash 2 / BRFS via QSPI), SPI4 (Ethernet) and SPI5
 // (SD card) are the four controllers wired through MemoryUnit's DMA burst
 // port. Reject other SPI ids cleanly.
@@ -282,6 +300,8 @@ begin
         dma_burst_qspi_addr <= 24'd0;
         qspi_addr_cur    <= 24'd0;
         qspi_burst_open  <= 1'b0;
+        cam_line_ack     <= 1'b0;
+        cam_frame_done_latch <= 1'b0;
         state           <= ST_IDLE;
     end
     else
@@ -292,6 +312,11 @@ begin
         dma_burst_start  <= 1'b0;
         dma_burst_we     <= 1'b0;
         dma_burst_re_rx  <= 1'b0;
+        cam_line_ack     <= 1'b0;
+
+        // Latch cam_frame_done globally (single-cycle pulse from CameraCapture)
+        if (cam_frame_done)
+            cam_frame_done_latch <= 1'b1;
 
         // ---- Register writes from MemoryUnit ----
         // Note: while busy, software is not supposed to scribble on
@@ -422,6 +447,21 @@ begin
                             state <= ST_ERROR;
                         end
                     end
+                    else if (ctrl_mode == MODE_CAM2MEM)
+                    begin
+                        if (cam2mem_args_aligned)
+                        begin
+                            dst_cur              <= dma_dst;
+                            bytes_remaining      <= dma_count;
+                            cam_frame_done_latch <= 1'b0;
+                            // Wait for VSYNC before starting capture
+                            state                <= ST_CAM_FRAME_WAIT;
+                        end
+                        else
+                        begin
+                            state <= ST_ERROR;
+                        end
+                    end
                     else
                     begin
                         // MEM2IO / IO2MEM not implemented yet.
@@ -491,6 +531,16 @@ begin
                             state <= ST_DONE;
                         else
                             state <= ST_RD_REQ;
+                    end
+                    else if (ctrl_mode == MODE_CAM2MEM)
+                    begin
+                        // Camera line committed to SDRAM.
+                        dst_cur         <= dst_cur + 32'd32;
+                        bytes_remaining <= bytes_remaining - 32'd32;
+                        if (bytes_remaining == 32'd32)
+                            state <= ST_DONE;
+                        else
+                            state <= ST_CAM_WAIT;
                     end
                     else
                     begin
@@ -776,6 +826,27 @@ begin
                     begin
                         spi_byte_idx <= spi_byte_idx + 6'd1;
                     end
+                end
+            end
+
+            // ---- CAM2MEM: wait for camera cache line ----
+            ST_CAM_WAIT:
+            begin
+                if (cam_line_ready)
+                begin
+                    line_buf     <= cam_line_data;
+                    cam_line_ack <= 1'b1;
+                    state        <= ST_WR_REQ;
+                end
+            end
+
+            // ---- CAM2MEM: wait for VSYNC (new frame) before capture ----
+            ST_CAM_FRAME_WAIT:
+            begin
+                if (cam_frame_done || cam_frame_done_latch)
+                begin
+                    cam_frame_done_latch <= 1'b0;
+                    state                <= ST_CAM_WAIT;
                 end
             end
 

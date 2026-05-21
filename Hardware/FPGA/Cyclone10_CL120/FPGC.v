@@ -1,11 +1,12 @@
 /*
- * FPGC Top-Level — Cyclone 10 CL120
+ * FPGC Top-Level — Cyclone 10 CL120 (FPGC-Camera build)
  *
  * Same design as the Cyclone IV EP4CE40, except:
  *   - Two 16-bit SDRAM chips (separate data buses, shared control signals)
  *   - No external SRAM — pixel framebuffer uses internal BRAM (76,800 bytes)
- *   - GPU uses FSX (BRAM PixelEngine) instead of FSX_SRAM
- *   - No half_res mode
+ *   - GPU outputs to SPI display (ILI9341 320×240) instead of HDMI
+ *   - OV7670 camera capture subsystem
+ *   - Dedicated button input module
  */
 module FPGC (
     // Clocks
@@ -52,15 +53,24 @@ module FPGC (
     input  wire         usb2_miso,
     input  wire         usb2_nint,
 
-    // HDMI
-    output wire         HDMI_CLK_P,
-    output wire         HDMI_CLK_N,
-    output wire         HDMI_D0_P,
-    output wire         HDMI_D0_N,
-    output wire         HDMI_D1_P,
-    output wire         HDMI_D1_N,
-    output wire         HDMI_D2_P,
-    output wire         HDMI_D2_N,
+    // SPI Display (ILI9341)
+    output wire         spi_disp_clk,
+    output wire         spi_disp_mosi,
+    output wire         spi_disp_cs_n,
+    output wire         spi_disp_dc,
+    output wire         spi_disp_rst_n,
+    output wire         spi_disp_bl,
+
+    // Camera (OV7670)
+    input  wire [7:0]   cam_data,       // D0–D7 parallel data
+    input  wire         cam_vsync,      // Frame sync
+    input  wire         cam_href,       // Line valid
+    input  wire         cam_pclk,       // Pixel clock from sensor
+    output wire         cam_xclk,       // 25 MHz master clock to sensor
+    output wire         cam_reset_n,    // Active-low reset
+    output wire         cam_pwdn,       // Power down (active-high)
+    output wire         cam_scl,        // SCCB clock (push-pull)
+    inout  wire         cam_sda,        // SCCB data (open-drain)
 
     // SPI Flash 1
     output wire         flash1_cs,
@@ -116,25 +126,7 @@ module FPGC (
 
     // Buttons
     input wire          reset_n,
-
-    // Display header
-    output wire         disp_1,
-    output wire         disp_2,
-    output wire         disp_3,
-    output wire         disp_4,
-    output wire         disp_5,
-    output wire         disp_6,
-
-    // GPIO Header (currently defined as inputs only until they are used)
-    input wire          gpio_1,
-    input wire          gpio_2,
-    input wire          gpio_3,
-    input wire          gpio_4,
-    input wire          gpio_5,
-    input wire          gpio_6,
-    input wire          gpio_7,
-    input wire          gpio_8,
-    input wire          gpio_9
+    input wire [7:0]    btn             // 8 active-low camera control buttons
 );
 
 /******************************************************************************
@@ -160,13 +152,9 @@ assign sd_data2_nc = 1'b1;
 // Audio DAC not used yet
 assign audio_dac_data = 8'd0;
 
-// Display header not used yet
-assign disp_1 = 1'b0;
-assign disp_2 = 1'b0;
-assign disp_3 = 1'b0;
-assign disp_4 = 1'b0;
-assign disp_5 = 1'b0;
-assign disp_6 = 1'b0;
+// Camera static assignments
+assign cam_pwdn    = 1'b0;       // Power on
+assign cam_reset_n = ~reset;     // Release reset when system is up
 
 /******************************************************************************
  * Dip switch
@@ -178,17 +166,19 @@ wire boot_mode = dipsw[3];
  ******************************************************************************/
 wire clk100;        // CPU and main logic (100MHz)
 wire clkSDRAM;      // 100MHz Phase-shifted for SDRAM
-wire clkGPU;        // GPU clock (25MHz)
-wire clkTMDShalf;   // Half of TMDS clock for HDMI (125MHz)
+wire clk25;         // 25 MHz for camera XCLK
 
 pll1 main_pll_inst (
     .inclk0(sys_clk_50),
     .c0(),              // 50MHz (unused)
     .c1(clk100),        // 100MHz
     .c2(clkSDRAM),      // 100MHz with phase shift
-    .c3(clkGPU),        // 25MHz
-    .c4(clkTMDShalf)    // 125MHz
+    .c3(clk25),         // 25MHz (camera XCLK)
+    .c4()               // 125MHz (unused, was TMDS)
 );
+
+// Camera master clock
+assign cam_xclk = clk25;
 
 /******************************************************************************
  * SDRAM — two 16-bit chips, shared control signals
@@ -304,7 +294,7 @@ ActivityLED #(
 
 assign led_user = led_user_state;
 
-assign led_gpu_activity = vram32_cpu_we | vram8_cpu_we | vramPX_w_we;
+assign led_gpu_activity = vramPX_w_we;
 
 // UART line activity detection
 reg uart_rx_prev = 1'b1;
@@ -369,6 +359,8 @@ wire [31:0] vram32_cpu_q;
 // GPU will not write to VRAM
 assign vram32_gpu_we = 1'b0;
 assign vram32_gpu_d  = 32'd0;
+// BGW renderer removed (SPI display uses only VRAMpx)
+assign vram32_gpu_addr = 11'd0;
 
 VRAM #(
     .WIDTH(32),
@@ -384,7 +376,7 @@ VRAM #(
     .cpu_q   (vram32_cpu_q),
 
     //GPU port
-    .gpu_clk (clkGPU),
+    .gpu_clk (clk100),
     .gpu_d   (vram32_gpu_d),
     .gpu_addr(vram32_gpu_addr),
     .gpu_we  (vram32_gpu_we),
@@ -407,6 +399,7 @@ wire [7:0]  vram8_cpu_q;
 // GPU will not write to VRAM
 assign vram8_gpu_we = 1'b0;
 assign vram8_gpu_d  = 8'd0;
+assign vram8_gpu_addr = 14'd0;
 
 VRAM #(
     .WIDTH(8),
@@ -422,7 +415,7 @@ VRAM #(
     .cpu_q   (vram8_cpu_q),
 
     // GPU port
-    .gpu_clk (clkGPU),
+    .gpu_clk (clk100),
     .gpu_d   (vram8_gpu_d),
     .gpu_addr(vram8_gpu_addr),
     .gpu_we  (vram8_gpu_we),
@@ -471,7 +464,7 @@ VRAM #(
     .cpu_q   (vramPX_cpu_q),
 
     // GPU read port
-    .gpu_clk (clkGPU),
+    .gpu_clk (clk100),
     .gpu_d   (vramPX_gpu_d),
     .gpu_addr(vramPX_gpu_addr),
     .gpu_we  (vramPX_gpu_we),
@@ -723,7 +716,7 @@ SDRAMarbiter sdram_arb (
 );
 
 /******************************************************************************
- * FSX GPU — BRAM-based (no external SRAM)
+ * FSX GPU — SPI Display (ILI9341 320×240)
  ******************************************************************************/
 wire frameDrawn;
 
@@ -733,28 +726,16 @@ wire [7:0]  palette_cpu_addr;
 wire [23:0] palette_cpu_wdata;
 
 FSX fsx (
-    // Clocks
-    .clk_pixel(clkGPU),
-    .clk_tmds_half(clkTMDShalf),
-    .clk_sys(clk100),
+    .clk(clk100),
+    .reset(reset),
 
-    // HDMI
-    .tmds_clk_p(HDMI_CLK_P),
-    .tmds_clk_n(HDMI_CLK_N),
-    .tmds_d0_p (HDMI_D0_P),
-    .tmds_d0_n (HDMI_D0_N),
-    .tmds_d1_p (HDMI_D1_P),
-    .tmds_d1_n (HDMI_D1_N),
-    .tmds_d2_p (HDMI_D2_P),
-    .tmds_d2_n (HDMI_D2_N),
-
-    // VRAM32
-    .vram32_addr(vram32_gpu_addr),
-    .vram32_q   (vram32_gpu_q),
-
-    // VRAM8
-    .vram8_addr(vram8_gpu_addr),
-    .vram8_q   (vram8_gpu_q),
+    // SPI display output
+    .spi_clk       (spi_disp_clk),
+    .spi_mosi      (spi_disp_mosi),
+    .spi_cs_n      (spi_disp_cs_n),
+    .spi_dc        (spi_disp_dc),
+    .lcd_rst_n     (spi_disp_rst_n),
+    .lcd_backlight (spi_disp_bl),
 
     // VRAMPX (BRAM)
     .vramPX_addr(vramPX_gpu_addr),
@@ -765,7 +746,7 @@ FSX fsx (
     .palette_addr(palette_cpu_addr),
     .palette_wdata(palette_cpu_wdata),
 
-    // Interrupt signal
+    // Status
     .frame_drawn(frameDrawn)
 );
 
@@ -777,6 +758,27 @@ wire [31:0] mu_addr;
 wire [31:0] mu_data;
 wire        mu_we;
 wire [31:0] mu_q;
+
+// Forward declarations for camera, I2C, and button wires
+// (modules instantiated after DMA engine, but MemoryUnit needs the wires)
+wire        cam_ctrl_enable;
+wire [20:0] cam_ctrl_base_buf0;
+wire [20:0] cam_ctrl_base_buf1;
+wire        cam_frame_done;
+wire        cam_current_buf;
+wire [2:0]  cam_dbg_state;
+wire [15:0] cam_dbg_write_count;
+reg         cam_vsync_sync;
+reg         cam_href_sync;
+wire        mu_i2c_start;
+wire [7:0]  mu_i2c_reg_addr;
+wire [7:0]  mu_i2c_wr_data;
+wire        i2c_busy;
+wire [31:0] btn_state;
+wire        btn_irq;
+wire [255:0] cam_line_data;
+wire         cam_line_ready;
+wire         cam_line_ack;
 wire        mu_done;
 
 // Interrupt outputs
@@ -887,7 +889,27 @@ MemoryUnit memory_unit (
     .dma_reg_addr(dma_reg_addr),
     .dma_reg_we(dma_reg_we),
     .dma_reg_data(dma_reg_data),
-    .dma_reg_q(dma_reg_q)
+    .dma_reg_q(dma_reg_q),
+
+    // Camera
+    .cam_ctrl_enable(cam_ctrl_enable),
+    .cam_ctrl_base_buf0(cam_ctrl_base_buf0),
+    .cam_ctrl_base_buf1(cam_ctrl_base_buf1),
+    .cam_frame_done(cam_frame_done),
+    .cam_current_buf(cam_current_buf),
+    .cam_vsync_raw(cam_vsync_sync),
+    .cam_href_raw(cam_href_sync),
+    .cam_dbg_state(cam_dbg_state),
+    .cam_dbg_write_count(cam_dbg_write_count),
+
+    // I2C/SCCB
+    .i2c_start(mu_i2c_start),
+    .i2c_reg_addr(mu_i2c_reg_addr),
+    .i2c_wr_data(mu_i2c_wr_data),
+    .i2c_busy(i2c_busy),
+
+    // Buttons
+    .btn_state(btn_state)
 );
 
 /******************************************************************************
@@ -939,25 +961,115 @@ DMAengine dma_engine (
     .dma_burst_busy(dma_burst_busy),
     .dma_burst_done(dma_burst_done),
 
-    .irq(dma_irq)
+    .irq(dma_irq),
+
+    // Camera cache-line handshake
+    .cam_line_ready(cam_line_ready),
+    .cam_line_data(cam_line_data),
+    .cam_line_ack(cam_line_ack),
+    .cam_frame_done(cam_frame_done)
+);
+
+/******************************************************************************
+ * Camera Subsystem (OV7670)
+ ******************************************************************************/
+
+// Camera data synchronizers (2-stage, into clk100 domain)
+reg [7:0]   cam_data_s1  = 8'd0,  cam_data_sync  = 8'd0;
+reg         cam_vsync_s1 = 1'b0;
+reg         cam_href_s1  = 1'b0;
+
+always @(posedge clk100) begin
+    cam_data_s1  <= cam_data;   cam_data_sync  <= cam_data_s1;
+    cam_vsync_s1 <= cam_vsync;  cam_vsync_sync <= cam_vsync_s1;
+    cam_href_s1  <= cam_href;   cam_href_sync  <= cam_href_s1;
+end
+
+CameraCapture camera_capture (
+    .clk          (clk100),
+    .reset        (reset),
+    .cam_pclk     (cam_pclk),
+    .cam_vsync    (cam_vsync_sync),
+    .cam_href     (cam_href_sync),
+    .cam_data     (cam_data_sync),
+    .line_data    (cam_line_data),
+    .line_ready   (cam_line_ready),
+    .line_ack     (cam_line_ack),
+    .ctrl_enable  (cam_ctrl_enable),
+    .frame_done   (cam_frame_done),
+    .current_buf  (cam_current_buf),
+    .dbg_state    (cam_dbg_state),
+    .dbg_write_count(cam_dbg_write_count)
+);
+
+// ---- SCCB / I2C Configuration ----
+
+// CameraConfigure: auto-init OV7670 on reset
+wire cam_configure_done;
+wire cam_configure_sioc_oe;
+wire cam_configure_siod_oe;
+
+CameraConfigure camera_configure (
+    .clk     (clk100),
+    .reset   (reset),
+    .sioc_oe (cam_configure_sioc_oe),
+    .siod_oe (cam_configure_siod_oe),
+    .done    (cam_configure_done)
+);
+
+// I2C master for runtime SCCB writes from CPU
+wire        i2c_scl_oe;
+wire        i2c_sda_oe;
+
+I2C_master #(
+    .CLK_FREQ(100_000_000),
+    .I2C_FREQ(100_000)
+) i2c_master_inst (
+    .clk      (clk100),
+    .reset    (reset),
+    .start    (mu_i2c_start),
+    .rw       (1'b0),           // Write only for OV7670
+    .dev_addr (7'h21),          // OV7670 I2C address
+    .reg_addr (mu_i2c_reg_addr),
+    .wr_data  (mu_i2c_wr_data),
+    .rd_data  (),               // Not used (write-only)
+    .busy     (i2c_busy),
+    .scl_oe   (i2c_scl_oe),
+    .sda_oe   (i2c_sda_oe),
+    .sda_in   (cam_sda)
+);
+
+// SCCB bus mux: CameraConfigure owns bus until done, then I2C_master
+// SCL is push-pull (master-only bus), SDA is open-drain
+assign cam_scl = (cam_configure_done) ?
+                 (i2c_scl_oe ? 1'b0 : 1'b1) :
+                 (cam_configure_sioc_oe ? 1'b0 : 1'b1);
+assign cam_sda = (cam_configure_done) ?
+                 (i2c_sda_oe ? 1'b0 : 1'bz) :
+                 (cam_configure_siod_oe ? 1'b0 : 1'bz);
+
+/******************************************************************************
+ * Button Input
+ ******************************************************************************/
+ButtonInput #(
+    .NUM_BUTTONS(8),
+    .CLK_FREQ(100_000_000),
+    .DEBOUNCE_MS(20)
+) button_input (
+    .clk         (clk100),
+    .reset       (reset),
+    .btn_pins    (btn),
+    .btn_state   (btn_state),
+    .btn_changed (btn_irq)
 );
 
 /******************************************************************************
  * CPU
  ******************************************************************************/
-// Convert frameDrawn to CPU clock domain
-wire frameDrawn_CPU;
-reg frameDrawn_ff1, frameDrawn_ff2;
+// FSX runs on clk100 (same as CPU), no domain crossing needed
+wire frameDrawn_CPU = frameDrawn;
 
-always @(posedge clk100)
-begin
-    frameDrawn_ff1 <= frameDrawn;
-    frameDrawn_ff2 <= frameDrawn_ff1;
-end
-
-assign frameDrawn_CPU = frameDrawn_ff2;
-
-B32P3 cpu (
+B32P3 #(.NUM_INTERRUPTS(8)) cpu (
     // Clock and reset
     .clk(clk100),
     .reset(reset),
@@ -1031,8 +1143,8 @@ B32P3 cpu (
     .mu_done(mu_done),
 
     // Interrupts, right is highest priority
-    // bit0=UART, bit1=OST1, bit2=OST2, bit3=OST3, bit4=FrameDrawn, bit5=ENC28J60_RX, bit6=DMA
-    .interrupts({dma_irq, ~eth_nint, frameDrawn_CPU, OST3_int, OST2_int, OST1_int, uart_irq})
+    // bit0=UART, bit1=OST1, bit2=OST2, bit3=OST3, bit4=FrameDrawn, bit5=ENC28J60_RX, bit6=DMA, bit7=ButtonChange
+    .interrupts({btn_irq, dma_irq, ~eth_nint, frameDrawn_CPU, OST3_int, OST2_int, OST1_int, uart_irq})
 );
 
 endmodule

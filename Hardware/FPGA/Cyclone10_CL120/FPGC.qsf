@@ -137,14 +137,8 @@ set_location_assignment PIN_C18 -to SDRAM1_DQ[13]
 set_location_assignment PIN_C17 -to SDRAM1_DQ[14]
 set_location_assignment PIN_B19 -to SDRAM1_DQ[15]
 
-set_location_assignment PIN_E1 -to HDMI_CLK_P
-set_location_assignment PIN_D2 -to HDMI_CLK_N
-set_location_assignment PIN_B1 -to HDMI_D0_P
-set_location_assignment PIN_B2 -to HDMI_D0_N
-set_location_assignment PIN_A5 -to HDMI_D1_P
-set_location_assignment PIN_A4 -to HDMI_D1_N
-set_location_assignment PIN_B7 -to HDMI_D2_P
-set_location_assignment PIN_A7 -to HDMI_D2_N
+# SPI display, camera, and button pin assignments are TBD
+# (will be assigned when PCB is designed)
 
 
 
@@ -239,15 +233,6 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_DQ
 
 
 
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_CLK_P
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_CLK_N
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_D0_P
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_D0_N
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_D1_P
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_D1_N
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_D2_P
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_D2_N
-
 set_global_assignment -name CYCLONEII_RESERVE_NCEO_AFTER_CONFIGURATION "USE AS REGULAR IO"
 
 set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
@@ -286,15 +271,22 @@ set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/OStimer.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/MicrosCounter.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/ActivityLED.v
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/DTRreset.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/ButtonInput.v
 
-# GPU
-set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/HDMI/TMDSenc.v
-set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/HDMI/RGB2HDMI.v
-set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/TimingGenerator.v
-set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/PixelPalette.v
-set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/PixelEngine.v
+# Camera
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/CameraCapture.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/CameraConfigure.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/SCCB_master.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/OV7670_config_rom.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/IO/I2C_master.v
+
+# GPU (SPI display)
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/FSX.v
-set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/BGWrenderer.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/SPIDisplayController.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/FrameScanEngine.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/ILI9341_Init.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/SPIMaster.v
+set_global_assignment -name VERILOG_FILE ../Verilog/Modules/GPU/PixelPalette.v
 
 # CPU
 set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/MultiCycleAluOps/IDivider.v
@@ -320,6 +312,7 @@ set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/ALU.v
 # PLL and DDR IP
 set_global_assignment -name QIP_FILE pll1.qip
 set_global_assignment -name QIP_FILE ddr.qip
+
 
 
 

@@ -134,6 +134,26 @@ module MemoryUnit (
     output reg  [31:0]  dma_reg_data = 32'd0,
     input  wire [31:0]  dma_reg_q
 
+    // ---- Camera interface (directly wired to CameraCapture) ----
+    ,output reg          cam_ctrl_enable = 1'b0,
+    output reg  [20:0]  cam_ctrl_base_buf0 = 21'h100000,   // Default SDRAM line addr for buf0
+    output reg  [20:0]  cam_ctrl_base_buf1 = 21'h100960,   // Default SDRAM line addr for buf1
+    input  wire         cam_frame_done,
+    input  wire         cam_current_buf,
+    input  wire         cam_vsync_raw,
+    input  wire         cam_href_raw,
+    input  wire [2:0]   cam_dbg_state,
+    input  wire [15:0]  cam_dbg_write_count,
+
+    // ---- I2C/SCCB interface (for runtime OV7670 register writes) ----
+    output reg          i2c_start = 1'b0,
+    output reg  [7:0]   i2c_reg_addr = 8'd0,
+    output reg  [7:0]   i2c_wr_data = 8'd0,
+    input  wire         i2c_busy,
+
+    // ---- Button input ----
+    input  wire [31:0]  btn_state
+
     // TODO: GPIO
 );
 
@@ -157,6 +177,9 @@ assign iop_done = iop_done_r;
 assign iop_q    = iop_q_r;
 
 reg         cpu_req_pending = 1'b0;
+
+// Camera frame_done latch: set by cam_frame_done pulse, cleared on CAM_STATUS read
+reg         cam_frame_done_latch = 1'b0;
 // VRAMPX DMA pass-through (muxed with the CPU port at the FPGA top-level in step 8).
 assign vramPX_dma_we   = vp_we;
 assign vramPX_dma_addr = vp_addr;
@@ -518,7 +541,14 @@ localparam
     ADDR_DMA_CTRL        = 32'h1C00007C, // DMA control: [3:0] mode, [4] irq_en, [7:5] sub-target, [31] start
     ADDR_DMA_STATUS      = 32'h1C000080, // DMA status: [0] busy, [1] done, [2] error (sticky, read-clear)
     ADDR_DMA_QSPI_ADDR   = 32'h1C000084, // DMA QSPI Fast Read source address (24-bit byte offset into flash)
-    ADDR_OOB             = 32'h1C000084; // All addresses >= this are out of bounds
+    ADDR_CAM_CTRL        = 32'h1C000088, // Camera control: [0] enable capture
+    ADDR_CAM_STATUS      = 32'h1C00008C, // Camera status: [0] frame_done (read-clear), [1] current_buf
+    ADDR_CAM_SCCB        = 32'h1C000090, // Camera SCCB: W={[15:8] reg_addr, [7:0] data}; R=[0] I2C ready
+    ADDR_CAM_BUF0        = 32'h1C000094, // Camera buffer 0 SDRAM line address (21-bit)
+    ADDR_CAM_BUF1        = 32'h1C000098, // Camera buffer 1 SDRAM line address (21-bit)
+    ADDR_CAM_DBG         = 32'h1C00009C, // Camera debug: [2:0] state, [18:3] write_count
+    ADDR_BTN_STATE       = 32'h1C0000A0, // Button state: 32 bits, 1 per button (read-only)
+    ADDR_OOB             = 32'h1C0000A4; // All addresses >= this are out of bounds
 
 // ---- State encoding ----
 localparam
@@ -613,6 +643,14 @@ always @(posedge clk) begin
         dma_reg_we   <= 1'b0;
         dma_reg_data <= 32'd0;
 
+        cam_ctrl_enable      <= 1'b0;
+        cam_ctrl_base_buf0   <= 21'h100000;
+        cam_ctrl_base_buf1   <= 21'h100960;
+        cam_frame_done_latch <= 1'b0;
+        i2c_start            <= 1'b0;
+        i2c_reg_addr         <= 8'd0;
+        i2c_wr_data          <= 8'd0;
+
         iop_done_r <= 1'b0;
         iop_q_r    <= 32'd0;
         iop_active <= 1'b0;
@@ -658,6 +696,11 @@ always @(posedge clk) begin
         SPI3_start <= 1'b0;
         SPI4_start <= 1'b0;
         SPI5_start <= 1'b0;
+
+        // Camera: default-clear I2C start pulse, latch frame_done
+        i2c_start <= 1'b0;
+        if (cam_frame_done)
+            cam_frame_done_latch <= 1'b1;
 
         case (state)
             STATE_IDLE:
@@ -923,6 +966,62 @@ always @(posedge clk) begin
                         dma_reg_data <= data;
                         state        <= STATE_RETURN_DMA_REG;
                     end
+
+                    // ---- Camera registers ----
+                    else if (addr == ADDR_CAM_CTRL)
+                    begin
+                        if (we)
+                            cam_ctrl_enable <= data[0];
+                        q    <= {31'd0, cam_ctrl_enable};
+                        done <= 1'b1;
+                    end
+                    else if (addr == ADDR_CAM_STATUS)
+                    begin
+                        // Read-only; reading clears frame_done latch
+                        q    <= {30'd0, cam_current_buf, cam_frame_done_latch};
+                        cam_frame_done_latch <= 1'b0;
+                        done <= 1'b1;
+                    end
+                    else if (addr == ADDR_CAM_SCCB)
+                    begin
+                        if (we)
+                        begin
+                            // Write: trigger I2C write {reg_addr, data}
+                            i2c_reg_addr <= data[15:8];
+                            i2c_wr_data  <= data[7:0];
+                            i2c_start    <= 1'b1;
+                        end
+                        q    <= {31'd0, ~i2c_busy};  // Read: [0] = ready
+                        done <= 1'b1;
+                    end
+                    else if (addr == ADDR_CAM_BUF0)
+                    begin
+                        if (we)
+                            cam_ctrl_base_buf0 <= data[20:0];
+                        q    <= {11'd0, cam_ctrl_base_buf0};
+                        done <= 1'b1;
+                    end
+                    else if (addr == ADDR_CAM_BUF1)
+                    begin
+                        if (we)
+                            cam_ctrl_base_buf1 <= data[20:0];
+                        q    <= {11'd0, cam_ctrl_base_buf1};
+                        done <= 1'b1;
+                    end
+                    else if (addr == ADDR_CAM_DBG)
+                    begin
+                        // Read-only debug register
+                        q    <= {13'd0, cam_dbg_write_count, cam_dbg_state};
+                        done <= 1'b1;
+                    end
+
+                    // ---- Button state ----
+                    else if (addr == ADDR_BTN_STATE)
+                    begin
+                        q    <= btn_state;
+                        done <= 1'b1;
+                    end
+
                     else
                     begin
                         // Out of range or unhandled address
