@@ -1,0 +1,493 @@
+{
+	"partitions" : [
+		{
+			"name" : "Top",
+			"pins" : [
+				{
+					"name" : "SDRAM0_WE_N",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_CAS_N",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_RAS_N",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_ADDR[0]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_ADDR[1]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_ADDR[2]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_ADDR[3]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_ADDR[4]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_ADDR[5]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_ADDR[6]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_ADDR[7]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_ADDR[8]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_ADDR[9]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_ADDR[10]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_ADDR[11]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_ADDR[12]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_BA[0]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_BA[1]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_LDQM",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_UDQM",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_WE_N",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_CAS_N",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_RAS_N",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_ADDR[0]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_ADDR[1]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_ADDR[2]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_ADDR[3]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_ADDR[4]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_ADDR[5]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_ADDR[6]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_ADDR[7]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_ADDR[8]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_ADDR[9]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_ADDR[10]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_ADDR[11]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_ADDR[12]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_BA[0]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_BA[1]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_LDQM",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_UDQM",
+					"strict" : false
+				},
+				{
+					"name" : "usb1_cs",
+					"strict" : false
+				},
+				{
+					"name" : "usb1_clk",
+					"strict" : false
+				},
+				{
+					"name" : "usb1_mosi",
+					"strict" : false
+				},
+				{
+					"name" : "usb2_cs",
+					"strict" : false
+				},
+				{
+					"name" : "usb2_clk",
+					"strict" : false
+				},
+				{
+					"name" : "usb2_mosi",
+					"strict" : false
+				},
+				{
+					"name" : "HDMI_CLK_P",
+					"strict" : false
+				},
+				{
+					"name" : "HDMI_CLK_N",
+					"strict" : false
+				},
+				{
+					"name" : "HDMI_D0_P",
+					"strict" : false
+				},
+				{
+					"name" : "HDMI_D0_N",
+					"strict" : false
+				},
+				{
+					"name" : "HDMI_D1_P",
+					"strict" : false
+				},
+				{
+					"name" : "HDMI_D1_N",
+					"strict" : false
+				},
+				{
+					"name" : "HDMI_D2_P",
+					"strict" : false
+				},
+				{
+					"name" : "HDMI_D2_N",
+					"strict" : false
+				},
+				{
+					"name" : "flash1_cs",
+					"strict" : false
+				},
+				{
+					"name" : "flash1_clk",
+					"strict" : false
+				},
+				{
+					"name" : "flash1_mosi",
+					"strict" : false
+				},
+				{
+					"name" : "flash2_cs",
+					"strict" : false
+				},
+				{
+					"name" : "flash2_clk",
+					"strict" : false
+				},
+				{
+					"name" : "uart_tx",
+					"strict" : false
+				},
+				{
+					"name" : "sd_cs",
+					"strict" : false
+				},
+				{
+					"name" : "sd_clk",
+					"strict" : false
+				},
+				{
+					"name" : "sd_mosi",
+					"strict" : false
+				},
+				{
+					"name" : "eth_cs",
+					"strict" : false
+				},
+				{
+					"name" : "eth_clk",
+					"strict" : false
+				},
+				{
+					"name" : "eth_mosi",
+					"strict" : false
+				},
+				{
+					"name" : "led_gpu",
+					"strict" : false
+				},
+				{
+					"name" : "led_flash",
+					"strict" : false
+				},
+				{
+					"name" : "led_usb",
+					"strict" : false
+				},
+				{
+					"name" : "led_eth",
+					"strict" : false
+				},
+				{
+					"name" : "led_user",
+					"strict" : false
+				},
+				{
+					"name" : "led_uart_rx",
+					"strict" : false
+				},
+				{
+					"name" : "led_uart_tx",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_DQ[0]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_DQ[1]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_DQ[2]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_DQ[3]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_DQ[4]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_DQ[5]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_DQ[6]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_DQ[7]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_DQ[8]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_DQ[9]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_DQ[10]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_DQ[11]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_DQ[12]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_DQ[13]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_DQ[14]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM0_DQ[15]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_DQ[0]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_DQ[1]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_DQ[2]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_DQ[3]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_DQ[4]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_DQ[5]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_DQ[6]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_DQ[7]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_DQ[8]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_DQ[9]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_DQ[10]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_DQ[11]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_DQ[12]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_DQ[13]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_DQ[14]",
+					"strict" : false
+				},
+				{
+					"name" : "SDRAM1_DQ[15]",
+					"strict" : false
+				},
+				{
+					"name" : "flash2_mosi",
+					"strict" : false
+				},
+				{
+					"name" : "flash2_miso",
+					"strict" : false
+				},
+				{
+					"name" : "flash2_wp_n",
+					"strict" : false
+				},
+				{
+					"name" : "flash2_hold_n",
+					"strict" : false
+				},
+				{
+					"name" : "uart_rx",
+					"strict" : false
+				},
+				{
+					"name" : "reset_n",
+					"strict" : false
+				},
+				{
+					"name" : "uart_dtr_n",
+					"strict" : false
+				},
+				{
+					"name" : "dipsw[3]",
+					"strict" : false
+				},
+				{
+					"name" : "eth_nint",
+					"strict" : false
+				},
+				{
+					"name" : "usb2_nint",
+					"strict" : false
+				},
+				{
+					"name" : "usb1_nint",
+					"strict" : false
+				},
+				{
+					"name" : "usb2_miso",
+					"strict" : false
+				},
+				{
+					"name" : "usb1_miso",
+					"strict" : false
+				},
+				{
+					"name" : "flash1_miso",
+					"strict" : false
+				},
+				{
+					"name" : "sd_miso",
+					"strict" : false
+				},
+				{
+					"name" : "eth_miso",
+					"strict" : false
+				}
+			]
+		}
+	]
+}
