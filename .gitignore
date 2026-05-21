@@ -17,6 +17,20 @@ Hardware/FPGA/CycloneIV_EP4CE40/*.summary
 Hardware/FPGA/CycloneIV_EP4CE40/*.jdi
 Hardware/FPGA/CycloneIV_EP4CE40/*.sld
 
+Hardware/FPGA/Cyclone10_CL120/db
+Hardware/FPGA/Cyclone10_CL120/incremental_db
+Hardware/FPGA/Cyclone10_CL120/greybox_tmp
+Hardware/FPGA/Cyclone10_CL120/.qsys_edit
+Hardware/FPGA/Cyclone10_CL120/output_files
+Hardware/FPGA/Cyclone10_CL120/*.bak
+Hardware/FPGA/Cyclone10_CL120/*.qws
+Hardware/FPGA/Cyclone10_CL120/*.rpt
+Hardware/FPGA/Cyclone10_CL120/*.htm
+Hardware/FPGA/Cyclone10_CL120/*.sof
+Hardware/FPGA/Cyclone10_CL120/*.summary
+Hardware/FPGA/Cyclone10_CL120/*.jdi
+Hardware/FPGA/Cyclone10_CL120/*.sld
+
 Hardware/FPGA/CycloneIV_EP4CE40/timing_setup_paths.txt
 Hardware/FPGA/CycloneIV_EP4CE40/timing_summary.txt
 
