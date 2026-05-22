@@ -287,6 +287,77 @@ int running;
 
 char filepath[128];
 char filename[20];
+// ----------------------------------------------------------------------
+// Shadow buffer for diff rendering
+// ----------------------------------------------------------------------
+struct shadow_cell {
+    unsigned char tile;     // last-rendered character (0 = uninitialized)
+    unsigned char palette;  // last-rendered palette index
+};
+
+static struct shadow_cell shadow[SCREEN_HEIGHT][SCREEN_WIDTH];
+static int shadow_initialized = 0;
+
+void shadow_init(void)
+{
+    int y, x;
+    for (y = 0; y < SCREEN_HEIGHT; y++)
+    {
+        for (x = 0; x < SCREEN_WIDTH; x++)
+        {
+            shadow[y][x].tile = 0;
+            shadow[y][x].palette = 0;
+        }
+    }
+    shadow_initialized = 1;
+}
+
+void shadow_invalidate_text_area(void)
+{
+    int y, x;
+    for (y = 1; y <= TEXT_ROWS; y++)
+    {
+        for (x = 0; x < SCREEN_WIDTH; x++)
+        {
+            shadow[y][x].tile = 0;
+        }
+    }
+}
+
+void shadow_update(int x, int y, int ch, int palette)
+{
+    if (x < 0 || y < 0 || x >= SCREEN_WIDTH || y >= SCREEN_HEIGHT) return;
+    shadow[y][x].tile = (unsigned char)ch;
+    shadow[y][x].palette = (unsigned char)(palette & 0xFF);
+}
+
+void put_cell(int x, int y, int ch, int palette)
+{
+    char b;
+
+    if (x < 0 || y < 0) return;
+    /* Glyphs that overlap C0 control codes would confuse libterm's
+     * ANSI parser — substitute a printable placeholder. The editor
+     * normally only renders ASCII text and the ' ' / '~' markers. */
+    if (ch < 0x20 || ch == 0x7F) {
+        b = '?';
+    } else {
+        b = (char)ch;
+    }
+    ansi_set_palette(palette & 0xFF);
+    ansi_goto(x, y);
+    out_write(&b, 1);
+}
+void put_cell_diff(int x, int y, int ch, int palette)
+{
+    if (x < 0 || y < 0 || x >= SCREEN_WIDTH || y >= SCREEN_HEIGHT) return;
+    if (!shadow_initialized) { put_cell(x, y, ch, palette); return; }
+    if (shadow[y][x].tile == (unsigned char)ch && shadow[y][x].palette == (unsigned char)(palette & 0xFF))
+        return;
+    put_cell(x, y, ch, palette);
+    shadow[y][x].tile = (unsigned char)ch;
+    shadow[y][x].palette = (unsigned char)(palette & 0xFF);
+}
 
 // ============================================================================
 // Line navigation helpers
@@ -372,206 +443,170 @@ void clamp_cursor_col(void)
 // Rendering
 // ============================================================================
 
-void put_cell(int x, int y, int ch, int palette)
+void render_header_diff(void)
 {
-  char b;
+    int i;
+    int c;
 
-  if (x < 0 || y < 0) return;
-  /* Glyphs that overlap C0 control codes would confuse libterm's
-   * ANSI parser — substitute a printable placeholder. The editor
-   * normally only renders ASCII text and the ' ' / '~' markers. */
-  if (ch < 0x20 || ch == 0x7F) {
-    b = '?';
-  } else {
-    b = (char)ch;
-  }
-  ansi_set_palette(palette & 0xFF);
-  ansi_goto(x, y);
-  out_write(&b, 1);
-}
-
-void render_header(void)
-{
-  int i;
-  int c;
-
-  for (i = 0; i < SCREEN_WIDTH; i++)
-  {
-    put_cell(i, HEADER_ROW, ' ', PAL_HEADER);
-  }
-
-  i = 1;
-  c = 0;
-  while (filename[c] != 0 && i < 20)
-  {
-    put_cell(i, HEADER_ROW, filename[c], PAL_HEADER);
-    i++;
-    c++;
-  }
-
-  if (modified)
-  {
-    put_cell(22, HEADER_ROW, '[', PAL_HEADER);
-    put_cell(23, HEADER_ROW, 'm', PAL_HEADER);
-    put_cell(24, HEADER_ROW, 'o', PAL_HEADER);
-    put_cell(25, HEADER_ROW, 'd', PAL_HEADER);
-    put_cell(26, HEADER_ROW, ']', PAL_HEADER);
-  }
-
-  {
-    char numbuf[8];
-    int pos;
-    int j;
-
-    pos = 30;
-
-    edit_int_to_str(cursor_line + 1, numbuf);
-    j = 0;
-    while (numbuf[j] != 0 && pos < 35)
+    for (i = 0; i < SCREEN_WIDTH; i++)
     {
-      put_cell(pos, HEADER_ROW, numbuf[j], PAL_HEADER);
-      pos++;
-      j++;
+        put_cell_diff(i, HEADER_ROW, ' ', PAL_HEADER);
     }
 
-    put_cell(pos, HEADER_ROW, ':', PAL_HEADER);
-    pos++;
-
-    edit_int_to_str(cursor_col + 1, numbuf);
-    j = 0;
-    while (numbuf[j] != 0 && pos < SCREEN_WIDTH)
+    i = 1;
+    c = 0;
+    while (filename[c] != 0 && i < 20)
     {
-      put_cell(pos, HEADER_ROW, numbuf[j], PAL_HEADER);
-      pos++;
-      j++;
+        put_cell_diff(i, HEADER_ROW, filename[c], PAL_HEADER);
+        i++;
+        c++;
     }
-  }
-}
 
-void render_status(void)
-{
-  char *msg = "^S Save  Esc Quit";
-  int i;
-
-  for (i = 0; i < SCREEN_WIDTH; i++)
-  {
-    put_cell(i, STATUS_ROW, ' ', PAL_STATUS);
-  }
-
-  i = 1;
-  while (*msg != 0 && i < SCREEN_WIDTH)
-  {
-    put_cell(i, STATUS_ROW, *msg, PAL_STATUS);
-    msg++;
-    i++;
-  }
-}
-
-void render_text(void)
-{
-  int screen_row;
-  int doc_line;
-  int line_off;
-  int line_len;
-  int col;
-  int doc_col;
-  int ch;
-  int len_doc;
-  int pos;
-
-  len_doc = gap_content_length();
-
-  line_off = line_start_offset(scroll_y);
-
-  for (screen_row = 0; screen_row < TEXT_ROWS; screen_row++)
-  {
-    doc_line = scroll_y + screen_row;
-
-    if (doc_line < total_lines)
+    if (modified)
     {
-      line_len = 0;
-      pos = line_off;
-      while (pos < len_doc && gap_char_at(pos) != '\n')
-      {
-        line_len++;
-        pos++;
-      }
+        put_cell_diff(22, HEADER_ROW, '[', PAL_HEADER);
+        put_cell_diff(23, HEADER_ROW, 'm', PAL_HEADER);
+        put_cell_diff(24, HEADER_ROW, 'o', PAL_HEADER);
+        put_cell_diff(25, HEADER_ROW, 'd', PAL_HEADER);
+        put_cell_diff(26, HEADER_ROW, ']', PAL_HEADER);
+    }
 
-      for (col = 0; col < SCREEN_WIDTH; col++)
-      {
-        doc_col = scroll_x + col;
-        if (doc_col < line_len)
+    {
+        char numbuf[8];
+        int pos;
+        int j;
+
+        pos = 30;
+
+        edit_int_to_str(cursor_line + 1, numbuf);
+        j = 0;
+        while (numbuf[j] != 0 && pos < 35)
         {
-          ch = gap_char_at(line_off + doc_col);
-          put_cell(col, screen_row + 1, ch, PAL_DEFAULT);
+            put_cell_diff(pos, HEADER_ROW, numbuf[j], PAL_HEADER);
+            pos++;
+            j++;
+        }
+
+        put_cell_diff(pos, HEADER_ROW, ':', PAL_HEADER);
+        pos++;
+
+        edit_int_to_str(cursor_col + 1, numbuf);
+        j = 0;
+        while (numbuf[j] != 0 && pos < SCREEN_WIDTH)
+        {
+            put_cell_diff(pos, HEADER_ROW, numbuf[j], PAL_HEADER);
+            pos++;
+            j++;
+        }
+    }
+}
+
+void render_status_diff(void)
+{
+    char *msg = "^S Save  Esc Quit";
+    int i;
+
+    for (i = 0; i < SCREEN_WIDTH; i++)
+    {
+        put_cell_diff(i, STATUS_ROW, ' ', PAL_STATUS);
+    }
+
+    i = 1;
+    while (*msg != 0 && i < SCREEN_WIDTH)
+    {
+        put_cell_diff(i, STATUS_ROW, *msg, PAL_STATUS);
+        msg++;
+        i++;
+    }
+}
+
+void render_text_diff(void)
+{
+    int screen_row;
+    int doc_line;
+    int line_off;
+    int line_len;
+    int col;
+    int doc_col;
+    int ch;
+    int palette;
+    int len_doc;
+    int pos;
+
+    len_doc = gap_content_length();
+
+    line_off = line_start_offset(scroll_y);
+
+    for (screen_row = 0; screen_row < TEXT_ROWS; screen_row++)
+    {
+        doc_line = scroll_y + screen_row;
+
+        if (doc_line < total_lines)
+        {
+            line_len = 0;
+            pos = line_off;
+            while (pos < len_doc && gap_char_at(pos) != '\n')
+            {
+                line_len++;
+                pos++;
+            }
+
+            for (col = 0; col < SCREEN_WIDTH; col++)
+            {
+                doc_col = scroll_x + col;
+                if (doc_col < line_len)
+                {
+                    ch = gap_char_at(line_off + doc_col);
+                }
+                else
+                {
+                    ch = ' ';
+                }
+
+                // Cursor integration: use PAL_CURSOR for the cursor cell
+                if (screen_row == (cursor_line - scroll_y) && col == (cursor_col - scroll_x))
+                    palette = PAL_CURSOR;
+                else
+                    palette = PAL_DEFAULT;
+
+                put_cell_diff(col, screen_row + 1, ch, palette);
+            }
+
+            if (pos < len_doc)
+            {
+                line_off = pos + 1;
+            }
+            else
+            {
+                line_off = pos;
+            }
         }
         else
         {
-          put_cell(col, screen_row + 1, ' ', PAL_DEFAULT);
+            put_cell_diff(0, screen_row + 1, '~', PAL_LINENUM);
+            for (col = 1; col < SCREEN_WIDTH; col++)
+            {
+                put_cell_diff(col, screen_row + 1, ' ', PAL_DEFAULT);
+            }
         }
-      }
-
-      if (pos < len_doc)
-      {
-        line_off = pos + 1;
-      }
-      else
-      {
-        line_off = pos;
-      }
     }
-    else
-    {
-      put_cell(0, screen_row + 1, '~', PAL_LINENUM);
-      for (col = 1; col < SCREEN_WIDTH; col++)
-      {
-        put_cell(col, screen_row + 1, ' ', PAL_DEFAULT);
-      }
-    }
-  }
 }
 
-void render_cursor(void)
-{
-  int screen_row;
-  int screen_col;
-  int ch;
-  int off;
-  int line_len;
 
-  screen_row = cursor_line - scroll_y;
-  screen_col = cursor_col - scroll_x;
-
-  if (screen_row < 0 || screen_row >= TEXT_ROWS)
-  {
-    return;
-  }
-  if (screen_col < 0 || screen_col >= SCREEN_WIDTH)
-  {
-    return;
-  }
-
-  line_len = line_length(cursor_line);
-
-  if (cursor_col < line_len)
-  {
-    off = line_col_to_offset(cursor_line, cursor_col);
-    ch = gap_char_at(off);
-  }
-  else
-  {
-    ch = ' ';
-  }
-
-  put_cell(screen_col, screen_row + 1, ch, PAL_CURSOR);
-}
-
+static void ensure_cursor_visible(void);
 void render_all(void)
 {
-  render_header();
-  render_text();
-  render_cursor();
-  render_status();
+    int old_scroll_y = scroll_y;
+    int old_scroll_x = scroll_x;
+
+    ensure_cursor_visible();
+
+    if (scroll_y != old_scroll_y || scroll_x != old_scroll_x)
+        shadow_invalidate_text_area();
+
+    render_header_diff();
+    render_text_diff();
+    render_status_diff();
 }
 
 // ============================================================================
@@ -614,7 +649,6 @@ void move_left(void)
     cursor_line--;
     cursor_col = line_length(cursor_line);
   }
-  ensure_cursor_visible();
 }
 
 void move_right(void)
@@ -631,7 +665,6 @@ void move_right(void)
     cursor_line++;
     cursor_col = 0;
   }
-  ensure_cursor_visible();
 }
 
 void move_up(void)
@@ -641,7 +674,6 @@ void move_up(void)
     cursor_line--;
     clamp_cursor_col();
   }
-  ensure_cursor_visible();
 }
 
 void move_down(void)
@@ -651,19 +683,16 @@ void move_down(void)
     cursor_line++;
     clamp_cursor_col();
   }
-  ensure_cursor_visible();
 }
 
 void move_home(void)
 {
   cursor_col = 0;
-  ensure_cursor_visible();
 }
 
 void move_end(void)
 {
   cursor_col = line_length(cursor_line);
-  ensure_cursor_visible();
 }
 
 void page_up(void)
@@ -678,7 +707,6 @@ void page_up(void)
     }
   }
   clamp_cursor_col();
-  ensure_cursor_visible();
 }
 
 void page_down(void)
@@ -693,7 +721,6 @@ void page_down(void)
     }
   }
   clamp_cursor_col();
-  ensure_cursor_visible();
 }
 
 // ============================================================================
@@ -715,7 +742,6 @@ void do_insert_char(int ch)
   cursor_col++;
   modified = 1;
   total_lines = count_lines();
-  ensure_cursor_visible();
 }
 
 void do_insert_newline(void)
@@ -726,7 +752,6 @@ void do_insert_newline(void)
   cursor_col = 0;
   modified = 1;
   total_lines = count_lines();
-  ensure_cursor_visible();
 }
 
 void do_backspace(void)
@@ -750,7 +775,6 @@ void do_backspace(void)
     modified = 1;
   }
   total_lines = count_lines();
-  ensure_cursor_visible();
 }
 
 void do_delete(void)
@@ -932,18 +956,18 @@ int confirm(char *prompt)
 
   for (i = 0; i < SCREEN_WIDTH; i++)
   {
-    put_cell(i, STATUS_ROW, ' ', PAL_STATUS);
+    put_cell_diff(i, STATUS_ROW, ' ', PAL_STATUS);
   }
   i = 1;
   while (*prompt != 0 && i < SCREEN_WIDTH)
   {
-    put_cell(i, STATUS_ROW, *prompt, PAL_STATUS);
+    put_cell_diff(i, STATUS_ROW, *prompt, PAL_STATUS);
     prompt++;
     i++;
   }
 
   key = wait_key();
-  render_status();
+  render_status_diff();
 
   if (key == 'y' || key == 'Y')
   {
@@ -1130,6 +1154,7 @@ int main(void)
   /* Clear the alt screen and home the cursor. */
   ansi_write("\x1b[2J\x1b[H");
   last_palette = -1;
+  shadow_init();
   render_all();
 
   while (running)
@@ -1195,30 +1220,30 @@ int main(void)
         int si;
         for (si = 0; si < SCREEN_WIDTH; si++)
         {
-          put_cell(si, STATUS_ROW, ' ', PAL_STATUS);
+          put_cell_diff(si, STATUS_ROW, ' ', PAL_STATUS);
         }
-        put_cell(1, STATUS_ROW, 'S', PAL_STATUS);
-        put_cell(2, STATUS_ROW, 'a', PAL_STATUS);
-        put_cell(3, STATUS_ROW, 'v', PAL_STATUS);
-        put_cell(4, STATUS_ROW, 'e', PAL_STATUS);
-        put_cell(5, STATUS_ROW, 'd', PAL_STATUS);
-        put_cell(6, STATUS_ROW, '!', PAL_STATUS);
+        put_cell_diff(1, STATUS_ROW, 'S', PAL_STATUS);
+        put_cell_diff(2, STATUS_ROW, 'a', PAL_STATUS);
+        put_cell_diff(3, STATUS_ROW, 'v', PAL_STATUS);
+        put_cell_diff(4, STATUS_ROW, 'e', PAL_STATUS);
+        put_cell_diff(5, STATUS_ROW, 'd', PAL_STATUS);
+        put_cell_diff(6, STATUS_ROW, '!', PAL_STATUS);
       }
       else
       {
         int si;
         for (si = 0; si < SCREEN_WIDTH; si++)
         {
-          put_cell(si, STATUS_ROW, ' ', PAL_STATUS);
+          put_cell_diff(si, STATUS_ROW, ' ', PAL_STATUS);
         }
-        put_cell(1, STATUS_ROW, 'S', PAL_STATUS);
-        put_cell(2, STATUS_ROW, 'a', PAL_STATUS);
-        put_cell(3, STATUS_ROW, 'v', PAL_STATUS);
-        put_cell(4, STATUS_ROW, 'e', PAL_STATUS);
-        put_cell(5, STATUS_ROW, ' ', PAL_STATUS);
-        put_cell(6, STATUS_ROW, 'E', PAL_STATUS);
-        put_cell(7, STATUS_ROW, 'R', PAL_STATUS);
-        put_cell(8, STATUS_ROW, 'R', PAL_STATUS);
+        put_cell_diff(1, STATUS_ROW, 'S', PAL_STATUS);
+        put_cell_diff(2, STATUS_ROW, 'a', PAL_STATUS);
+        put_cell_diff(3, STATUS_ROW, 'v', PAL_STATUS);
+        put_cell_diff(4, STATUS_ROW, 'e', PAL_STATUS);
+        put_cell_diff(5, STATUS_ROW, ' ', PAL_STATUS);
+        put_cell_diff(6, STATUS_ROW, 'E', PAL_STATUS);
+        put_cell_diff(7, STATUS_ROW, 'R', PAL_STATUS);
+        put_cell_diff(8, STATUS_ROW, 'R', PAL_STATUS);
       }
       continue;
     }
@@ -1242,7 +1267,8 @@ int main(void)
     }
     else if (key == CTRL_L)
     {
-      // Refresh screen
+      shadow_init();
+      render_all();
     }
     else if (key >= 32 && key < 127)
     {
