@@ -34,6 +34,7 @@ void      editor_insert_newline(editor_t *ed);
 void      editor_insert_tab(editor_t *ed);
 void      editor_backspace(editor_t *ed);
 void      editor_delete(editor_t *ed);
+void      ensure_cursor_visible(editor_t *ed);
 int       editor_is_modified(editor_t *ed);
 void      editor_set_modified(editor_t *ed, int val);
 

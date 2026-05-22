@@ -209,6 +209,42 @@ void editor_delete(editor_t *ed)
     }
 }
 
+/* Ensure the cursor is visible within the text area by adjusting scroll_y/x. */
+void ensure_cursor_visible(editor_t *ed)
+{
+    int total_lines = lt_line_count(ed->lt);
+
+    /* Clamp cursor to valid document range first. */
+    if (ed->cursor_line >= total_lines)
+        ed->cursor_line = total_lines - 1;
+    if (ed->cursor_line < 0)
+        ed->cursor_line = 0;
+
+    /* Vertical: cursor must be within rows 1..TEXT_ROWS on screen. */
+    {
+        int cursor_screen_row = ed->cursor_line - ed->scroll_y;
+        if (cursor_screen_row < 0) {
+            ed->scroll_y = ed->cursor_line;
+        } else if (cursor_screen_row >= EDITOR_TEXT_ROWS) {
+            ed->scroll_y = ed->cursor_line - EDITOR_TEXT_ROWS + 1;
+        }
+    }
+
+    /* Horizontal: cursor column must be within 0..SCREEN_WIDTH-1. */
+    {
+        int line_len = lt_line_length(ed->lt, ed->cursor_line, gapbuf_len(ed->gb));
+        if (ed->cursor_col > line_len)
+            ed->cursor_col = line_len;
+
+        int cursor_screen_col = ed->cursor_col - ed->scroll_x;
+        if (cursor_screen_col < 0) {
+            ed->scroll_x = ed->cursor_col;
+        } else if (cursor_screen_col >= 40) {
+            ed->scroll_x = ed->cursor_col - 39;
+        }
+    }
+}
+
 /* --- State queries --- */
 
 int editor_is_modified(editor_t *ed)
