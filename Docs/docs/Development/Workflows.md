@@ -23,10 +23,15 @@ This is CI-safe and will exit with a non-zero status if any check fails.
 | Component | Test Command | Debug Command |
 |-----------|--------------|---------------|
 | Verilog (CPU) | `make test-cpu` | `make debug-cpu file=<test>` |
-| Verilog (GPU) | - | `make sim-gpu` |
 | Verilog (SDRAM) | - | `make sim-sdram` |
+| Verilog (Bootloader) | - | `make sim-bootloader` |
 | ASMPY Assembler | `make test-asmpy` | - |
 | C Compiler (cproc+QBE) | `make test-c` | `make test-c-single file=<test>` |
+| Kernel (BDOS) | `make compile-kernel` | `make run-kernel` |
+| User programs | `make compile-userbdos file=<name>` | `make run-userbdos file=<name>` |
+| Host tests (libterm) | `make test-host` | - |
+| ASM-link tests | `make test-asm-link` | - |
+| CPP tests | `make test-cpp` | - |
 | **All checks** | `make check` | - |
 
 ---
@@ -80,19 +85,15 @@ Assembles a single CPU test, runs the simulation, and opens GTKWave for waveform
 make sim-cpu
 ```
 
-Builds `Software/ASM/Simulation/sim_rom.asm` (ROM), `sim_ram.asm` (RAM), and `sim_spiflash1.asm` (SPI Flash 1), runs the simulation, and opens GTKWave with preconfigured views. To simulate running a program via the UART bootloader (`sim_uartprog.asm`), use `make sim-cpu-uart`.
+Builds `Software/ASM/Simulation/sim_rom.asm` (ROM), `sim_ram.asm` (RAM), and `sim_spiflash1.asm` (SPI Flash 1), runs the simulation, and opens GTKWave with preconfigured views.
 
-**GPU-only simulation:**
+**Bootloader simulation:**
 
 ```bash
-make sim-gpu
+make sim-bootloader
 ```
 
-Runs the GPU testbench, opens GTKWave, and outputs PPM images of each rendered frame for visual verification.
-
-To test the pixel output of the GPU in simulation, GTKWave is not very useful as it does not show the resulting image that would display on the screen assuming the display connection works. To verify the pixel output the GPU contains some verilog code that creates a new ppm file each vsync pulse and writes the color values per pixel to that file. The ppm file format is an easy way to create an image by just using text in a structured way. Ubuntu supports viewing this image format out of the box. See below for an example frame for a partially completed test signal. Note that you do need to simulate for an entire frame duration to create a complete frame, which can take multiple seconds depending on the included files to simulate. Also, you might have to adjust the GPU clock speed in simulation if you want to avoid partially drawn frames like below.
-
-![gpuframe](../images/gpuframe.png)
+Compiles the bootloader with `--simulate` and runs it in the CPU simulation.
 
 **SDRAM controller:**
 
@@ -201,6 +202,11 @@ make test-c-single file=01_return/my_test.c
 - `13_*`: recursion
 - `14_*`: type casts
 - `15_*`: fixed-point
+- `16_*`: compiler builtins
+- `17_*`: register pressure
+- `18_*`: spill bugs
+- `30_*`: fixed-point (extended)
+- `40_*`: FP64 coprocessor
 
 ---
 
@@ -223,3 +229,161 @@ make docs-deploy
 ```
 
 Deploys to my personal server (requires SSH access).
+
+---
+
+## Kernel (BDOS)
+
+The kernel lives in `Software/C/kernel/` with hardware drivers in `Software/C/libfpgc/`.
+
+**Compile:**
+
+```bash
+make compile-kernel
+```
+
+**Compile and upload via UART:**
+
+```bash
+make run-kernel
+```
+
+**Flash to SPI flash (persistent):**
+
+```bash
+make flash-kernel
+```
+
+After any change to files under `Software/C/kernel/` or `Software/C/libfpgc/`, always run `make compile-kernel` to verify the build.
+
+---
+
+## User Programs (userBDOS)
+
+User programs live in `Software/C/userBDOS/`. They link against `Software/C/userlib/` for syscall wrappers.
+
+**Compile a single program:**
+
+```bash
+make compile-userbdos file=snake
+```
+
+**Compile all programs:**
+
+```bash
+make compile-userbdos-all
+```
+
+**Compile, upload over Ethernet, and run:**
+
+```bash
+make run-userbdos file=snake
+```
+
+**Upload only (no run):**
+
+```bash
+make fnp-upload-userbdos file=snake
+```
+
+**Debug (compile, upload, run, and capture UART output):**
+
+```bash
+make fnp-debug-userbdos file=snake
+```
+
+---
+
+## Host Tests
+
+Host-side unit tests run natively on the development machine (no simulation needed).
+
+**Run all host tests:**
+
+```bash
+make test-host
+```
+
+**Run libterm tests only:**
+
+```bash
+make test-term
+```
+
+**Run assembler/linker regression tests:**
+
+```bash
+make test-asm-link
+```
+
+**Run C preprocessor regression tests:**
+
+```bash
+make test-cpp
+```
+
+---
+
+## FNP Deployment
+
+FNP (FPGC Network Protocol) enables development iteration over Ethernet without reflashing.
+
+**Sync filesystem to device:**
+
+```bash
+make fnp-sync-files
+```
+
+Uploads the contents of `Files/BRFS-init/` to the device's filesystem.
+
+**Interactive keyboard streaming:**
+
+```bash
+make fnp-keyboard
+```
+
+**Run a shell command remotely:**
+
+```bash
+make fnp-run cmd="ls /bin"
+```
+
+See [FNP](../Software/FNP.md) for protocol details.
+
+---
+
+## Self-Hosting
+
+The toolchain can compile itself to run natively on the FPGC.
+
+**Cross-compile QBE and cproc for on-device use:**
+
+```bash
+make selfhost-all
+```
+
+**Stage the complete on-device C toolchain:**
+
+```bash
+make stage-cc-toolchain
+```
+
+This lays out `cc`, `libc-build`, cached `.asm` files, and the compiler binaries in `Files/BRFS-init/`, ready to push to the device with `make fnp-sync-files`.
+
+---
+
+## SD Card Tools
+
+Python scripts for reading/writing the BRFS filesystem on an SD card from the host PC.
+
+**Read BRFS from SD card:**
+
+```bash
+make sd-read-brfs dev=/dev/sdX
+```
+
+**Write BRFS to SD card:**
+
+```bash
+make sd-write-brfs dev=/dev/sdX
+```

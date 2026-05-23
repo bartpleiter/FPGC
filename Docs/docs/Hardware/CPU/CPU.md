@@ -155,11 +155,12 @@ All memory and I/O is mapped into a flat byte-addressed space. The CPU starts ex
 | Address Range | Region | Size | Description |
 |---|---|---|---|
 | `0x0000000` - `0x03FFFFFF` | SDRAM | 64 MiB | Main working memory, accessed through L1I/L1D caches |
-| `0x1C000000` - `0x1C00006F` | I/O | 28 registers | UART, SPI, Timers, GPIO, etc. |
+| `0x1C000000` - `0x1C000084` | I/O | 34 registers | UART, SPI, Timers, GPIO, DMA, etc. |
 | `0x1E000000` - `0x1E000FFF` | ROM | 4 KiB (1 KiW) | Boot ROM (also the initial PC value) |
 | `0x1E400000` - `0x1E40107C` | VRAM32 | 32-bit entries | Tile patterns and palettes |
 | `0x1E800000` - `0x1E808004` | VRAM8 | 8-bit entries | Tile maps, scroll registers |
-| `0x1EC00000` - `0x1EC4AFFC` | VRAMpixel | 8-bit entries | 320x240 pixel framebuffer (external SRAM) |
+| `0x1EC00000` - `0x1EC1FFFF` | VRAMpixel | 8-bit entries | 320x240 pixel framebuffer (external SRAM) |
+| `0x1EC80000` - `0x1EC803FF` | Pixel palette | 32-bit entries | 256-entry color palette (24-bit RGB) |
 | `0x1F000000` - `0x1F000004` | CPU Internal I/O | 2 registers | PC Backup (`0x00`), Stack Pointer (`0x04`) |
 
 SDRAM is the main working memory. It's accessed through L1 instruction (L1I) and data (L1D) caches, so most reads complete in a single cycle on cache hits. Only SDRAM and ROM can be used as instruction memory.
@@ -170,7 +171,7 @@ I/O devices are accessed through the Memory Unit, which is a separate module tha
 
 ## Interrupts
 
-The CPU supports 8 interrupt lines, priority-encoded (lower index = higher priority). Interrupts are edge-triggered with CDC synchronization.
+The CPU supports 7 interrupt lines, priority-encoded (lower index = higher priority). Interrupts are edge-triggered with CDC synchronization.
 
 When an interrupt fires:
 1. The current PC is saved to `PC_backup` (readable/writable at `0x1F000000`)
@@ -190,7 +191,6 @@ The handler uses INTID to determine which interrupt fired, handles it, then exec
 | 4 | 5 | Frame Drawn | GPU vblank signal |
 | 5 | 6 | ENC28J60 RX | Ethernet packet received (inverted `~INT` pin) |
 | 6 | 7 | DMA Done | DMA engine transfer complete (or error) |
-| 7 | 8 | *(unused)* | — |
 
 An important constraint: interrupts only fire when a jump or branch is being taken in the MEM stage. This greatly simplifies pipeline hazard handling during interrupt delivery, at the cost of slightly delayed interrupt response. In practice, most code has enough jumps (function calls, loops) that the latency is negligible.
 

@@ -13,7 +13,8 @@ The CPU sees a flat byte-addressed space. Different address ranges route to diff
 | `0x1E000000` - `0x1E000FFF` | ROM (4 KiB) | Direct BRAM | 1 cycle |
 | `0x1E400000` - `0x1E40107C` | VRAM32 | Direct BRAM | 1 cycle |
 | `0x1E800000` - `0x1E808004` | VRAM8 | Direct BRAM | 1 cycle |
-| `0x1EC00000` - `0x1EC4AFFC` | VRAMpixel | External SRAM + FIFO | 1 cycle (writes buffered) |
+| `0x1EC00000` - `0x1EC1FFFF` | VRAMpixel | External SRAM + FIFO | 1 cycle (writes buffered) |
+| `0x1EC80000` - `0x1EC803FF` | Pixel palette | Direct BRAM | 1 cycle |
 | `0x1F000000` - `0x1F000004` | CPU internal I/O | Direct registers | Immediate |
 
 SDRAM reads and instruction fetches go through L1 caches. Everything else bypasses the caches entirely.
@@ -156,20 +157,21 @@ A complete cache miss (with no dirty eviction) takes roughly 12 cycles: 2 for ac
 
 ## I/O Access (Memory Unit)
 
-Addresses in the range `0x7000000` to `0x77FFFFF` route to the Memory Unit, which provides a simple request/done interface to slow peripherals. The pipeline stalls until the Memory Unit signals completion.
+Addresses in the range `0x1C000000` to `0x1DFFFFFF` route to the Memory Unit, which provides a simple request/done interface to slow peripherals. The pipeline stalls until the Memory Unit signals completion.
 
 ### Peripherals
 
 | Address | Peripheral | Notes |
 |---|---|---|
-| `0x7000000` | UART TX | Write a byte |
-| `0x7000001` | UART RX | Read received byte |
-| `0x7000002` - `0x7000007` | Timers 1-3 | Value and trigger registers |
-| `0x7000008` - `0x7000016` | SPI 0-5 | Data and chip-select for Flash, USB, Ethernet, SD |
-| `0x7000019` | Boot mode | Read: hardware boot switch |
-| `0x700001A` | Microsecond counter | Read: free-running counter |
-| `0x700001B` | User LED | Write: control LED |
+| `0x1C000000` | UART TX | Write a byte |
+| `0x1C000004` | UART RX | Read received byte |
+| `0x1C000008` - `0x1C00001C` | Timers 1-3 | Value and trigger registers |
+| `0x1C000020` - `0x1C000058` | SPI 0-5 | Data, chip-select, and interrupt pins for Flash, USB, Ethernet, SD |
+| `0x1C000064` | Boot mode | Read: hardware boot switch |
+| `0x1C000068` | Microsecond counter | Read: free-running counter |
+| `0x1C00006C` | User LED | Write: control LED |
+| `0x1C000070` - `0x1C000084` | DMA | Source, destination, count, control, status, QSPI address |
 
 The Memory Unit instantiates all the SPI masters, UART controllers, and timer modules internally. SPI transfers run at either 25 MHz or 12.5 MHz depending on the peripheral (Flash and SD use 25 MHz, USB and Ethernet use 12.5 MHz).
 
-Each I/O access stalls the pipeline for the duration of the peripheral operation. For SPI, this is roughly 16 cycles per byte (8 bits at half the clock rate). For UART, it depends on the baud rate. These are intentionally simple peripherals. There is no DMA or interrupt-driven transfer; the CPU busy-waits for each byte.
+Each I/O access stalls the pipeline for the duration of the peripheral operation. For SPI, this is roughly 16 cycles per byte (8 bits at half the clock rate). For UART, it depends on the baud rate. For bulk data movement, the [DMA engine](../DMA.md) can transfer data between SDRAM, SPI peripherals, and the pixel framebuffer without stalling the CPU.

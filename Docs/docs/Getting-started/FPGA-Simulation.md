@@ -54,10 +54,10 @@ This assembles three files from `Software/ASM/Simulation/`:
 
 Edit these files to change what the simulated FPGC runs. After simulation, GTKWave opens with a preconfigured view showing key signals.
 
-To simulate booting via the UART bootloader instead:
+To simulate booting via the bootloader:
 
 ```bash
-make sim-cpu-uart
+make sim-bootloader
 ```
 
 ## Running Tests
@@ -134,15 +134,3 @@ make debug-cpu file=1_load.asm
 ```
 
 This runs the simulation and opens GTKWave. The `.gtkw` configuration files in the Verilog simulation directory provide useful pre-selected signals.
-
-## GPU Simulation
-
-```bash
-make sim-gpu
-```
-
-This runs the GPU testbench and opens GTKWave. The GPU also outputs PPM image files (one per vsync pulse) for visual verification of the rendered frame. Ubuntu can view PPM files natively.
-
-You need to simulate for an entire frame duration to get a complete image, which can take several seconds. You might need to adjust the GPU clock speed in the testbench to avoid partially drawn frames.
-
-![GPU frame output](../images/gpuframe.png)

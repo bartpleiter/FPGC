@@ -322,8 +322,8 @@ The reasoning: if interrupts could fire at any time, the pipeline would need to 
 When an interrupt fires:
 
 1. **Validation**: `interrupt_valid` checks all conditions (pending interrupt, not disabled, running from SDRAM, jump executing in MEM).
-2. **PC backup**: The current `ex_mem_pc` is saved to `pc_backup` (accessible at `0x7C00000`).
-3. **Redirect**: PC jumps to the interrupt handler address (`0x0000001`).
+2. **PC backup**: The current `ex_mem_pc` is saved to `pc_backup` (accessible at `0x1F000000`).
+3. **Redirect**: PC jumps to the interrupt handler address (`0x0000004`).
 4. **Disable**: `int_disabled` is set, preventing nested interrupts.
 5. **Flush**: IF/ID, ID/EX, and EX/MEM are all flushed (same flushes as a normal branch).
 

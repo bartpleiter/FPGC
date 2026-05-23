@@ -64,4 +64,4 @@ GPIO mode (`0x1C00005C`) and state (`0x1C000060`) registers are declared in the 
 
 ## Design Philosophy
 
-The Memory Unit is intentionally simple. There is no DMA, no interrupt-driven transfers, and no buffering. The CPU busy-waits for every byte of every SPI or UART transfer. This keeps the hardware straightforward and the software predictable. For the peripherals the FPGC uses (bootloader flashing, SD card file access, Ethernet packets), the overhead of busy-waiting is acceptable.
+The Memory Unit is intentionally simple for per-byte I/O. There is no interrupt-driven transfer or buffering at the MU level. The CPU busy-waits for every individual SPI or UART byte that goes through the MU. For bulk data movement (sector reads, Ethernet packets, framebuffer presents), the [DMA engine](DMA.md) offloads entire transfers without involving the MU or stalling the CPU. The DMA registers (`0x1C000070` – `0x1C000084`) are routed through the MU's address decoder but the actual data path bypasses it.

@@ -16,7 +16,7 @@ A quick-reference summary of the FPGC's hardware and software specifications.
 | ALU | Add, sub, logic, shift, multiply, divide, fixed-point multiply/divide |
 | L1I cache | 128 lines × 8 words, direct-mapped, next-line prefetch |
 | L1D cache | 128 lines × 8 words, direct-mapped, write-back with dirty bit |
-| Interrupts | 8 hardware interrupts, vectored through address 4 |
+| Interrupts | 7 hardware interrupts, vectored through address 4 |
 
 ## GPU (FSX)
 
@@ -47,13 +47,12 @@ A quick-reference summary of the FPGC's hardware and software specifications.
 | UART | 1 | USB via CH340C, 1 Mbaud |
 | SPI | 6 | 2× Flash, 2× USB Host (CH376T), 1× Ethernet (ENC28J60), 1× SD Card |
 | Timer | 3 | One-shot, interrupt on trigger |
-| GPIO | 8 pins | General-purpose |
 
 ## FPGA
 
 | Spec | Value |
 |---|---|
-| Device | Cyclone IV EP4CE40F23I7N |
+| Device | Cyclone IV EP4CE40F23I7 |
 | Logic elements | 39,600 |
 | Block RAM | 1.1 Mbit |
 | Multipliers | 116 |
@@ -64,7 +63,8 @@ A quick-reference summary of the FPGC's hardware and software specifications.
 | Component | Description |
 |---|---|
 | ASMPY | Python assembler for B32P3 ISA |
-| cproc + QBE | C11 compiler toolchain, targets B32P3 assembly |
-| BDOS | Custom OS with shell, syscalls, program loading |
-| BRFS | FAT-based filesystem, RAM-cached with SPI Flash persistence |
+| cproc + QBE | C11 compiler toolchain, targets B32P3 assembly. Self-hosting on BDOS |
+| BDOS | Custom OS: cooperative multitasking (up to 16 processes), VFS with device nodes, POSIX-style syscalls, USB keyboard, Ethernet |
+| Shell | Bourne-style interactive shell with pipes, redirection, control flow, tab completion |
+| BRFS | FAT-based filesystem, RAM-cached with SPI Flash and SD card backends |
 | FNP | Custom Layer 2 Ethernet protocol for file transfer and remote input |
