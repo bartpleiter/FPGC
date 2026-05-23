@@ -61,10 +61,13 @@ int main(void)
         /* 2. Service TCP connections (send pending data) */
         tcp_service();
 
-        /* 3. Push SSE events if cluster state changed */
+        /* 3. Send deferred FNP messages (e.g. mandelbrot render) */
+        cluster_poll();
+
+        /* 4. Push SSE events if cluster state changed */
         cluster_push_sse();
 
-        /* 4. Periodic maintenance */
+        /* 5. Periodic maintenance */
         poll_count++;
         if (poll_count >= 10000)
         {
@@ -73,7 +76,7 @@ int main(void)
             arp_send_request(my_ip);
         }
 
-        /* 5. Yield to other processes */
+        /* 6. Yield to other processes */
         sys_yield();
     }
 
