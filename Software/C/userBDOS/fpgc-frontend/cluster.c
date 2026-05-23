@@ -169,41 +169,42 @@ static void push_mbrot_sse(struct tcp_conn *conn)
 {
     char buf[800];
     int pos;
-    int chunk_idx;
     int offset;
     int pixel_count;
+    int received_pixels;
+    int total_pixels;
     int i;
 
     if (!mbrot_state.rendering)
         return;
 
-    /* Stream one new chunk per tick as pixel data */
-    chunk_idx = mbrot_state.last_sent_chunk;
-    if (chunk_idx >= mbrot_state.chunks_received)
-        return;  /* no new data */
+    /* How many pixels have been received so far? */
+    received_pixels = mbrot_state.chunks_received * MBROT_CHUNK_SIZE;
+    if (received_pixels > MBROT_PIXELS)
+        received_pixels = MBROT_PIXELS;
 
-    offset = chunk_idx * MBROT_CHUNK_SIZE;
-    pixel_count = MBROT_PIXELS - offset;
-    if (pixel_count > MBROT_CHUNK_SIZE)
-        pixel_count = MBROT_CHUNK_SIZE;
-    if (pixel_count <= 0)
-        return;
+    offset = mbrot_state.last_sent_offset;
+    if (offset >= received_pixels)
+        return;  /* no new data to stream */
 
-    /* Build JSON: {"type":"chunk","idx":N,"total":N,"pixels":"hex..."} */
+    pixel_count = received_pixels - offset;
+    if (pixel_count > 350)
+        pixel_count = 350; /* 350 * 2 = 700 hex chars fits in buf */
+
+    total_pixels = MBROT_PIXELS;
+
+    /* Build JSON: {"type":"chunk","idx":N,"total":N,"off":N,"len":N,"pixels":"hex..."} */
     pos = 0;
-    memcpy(buf + pos, "{\"type\":\"chunk\",\"idx\":", 21); pos += 21;
-    pos += simple_itoa(chunk_idx, buf + pos);
+    memcpy(buf + pos, "{\"type\":\"chunk\",\"idx\":", 22); pos += 22;
+    pos += simple_itoa(offset / 350, buf + pos);
     memcpy(buf + pos, ",\"total\":", 9); pos += 9;
-    pos += simple_itoa(mbrot_state.total_chunks, buf + pos);
+    pos += simple_itoa((total_pixels + 349) / 350, buf + pos);
     memcpy(buf + pos, ",\"off\":", 7); pos += 7;
     pos += simple_itoa(offset, buf + pos);
     memcpy(buf + pos, ",\"len\":", 7); pos += 7;
     pos += simple_itoa(pixel_count, buf + pos);
     memcpy(buf + pos, ",\"pixels\":\"", 11); pos += 11;
 
-    /* Hex-encode pixels — limit to keep buffer safe */
-    if (pixel_count > 350)
-        pixel_count = 350; /* 350 * 2 = 700 hex chars fits in buf */
     for (i = 0; i < pixel_count; i++)
     {
         hex_byte(mbrot_state.pixels[offset + i], buf + pos);
@@ -214,10 +215,10 @@ static void push_mbrot_sse(struct tcp_conn *conn)
     buf[pos++] = '}';
 
     sse_send_event(conn, buf, pos);
-    mbrot_state.last_sent_chunk = chunk_idx + 1;
+    mbrot_state.last_sent_offset = offset + pixel_count;
 
-    /* Send done event when all chunks received and streamed */
-    if (mbrot_state.last_sent_chunk >= mbrot_state.total_chunks
+    /* Send done event when all pixels received and streamed */
+    if (mbrot_state.last_sent_offset >= MBROT_PIXELS
         && mbrot_state.chunks_received >= mbrot_state.total_chunks)
     {
         char done[32];
@@ -548,7 +549,7 @@ void cluster_handle_render_request(struct tcp_conn *conn, const char *body)
     mbrot_state.height = MBROT_HEIGHT;
     mbrot_state.chunks_received = 0;
     mbrot_state.total_chunks = MBROT_TOTAL_CHUNKS;
-    mbrot_state.last_sent_chunk = 0;
+    mbrot_state.last_sent_offset = 0;
     mbrot_state.updated = 1;
 
     /* Store params for deferred send from main loop */

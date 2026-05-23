@@ -39,7 +39,7 @@ struct mbrot_state {
     int height;
     int chunks_received;
     int total_chunks;
-    int last_sent_chunk; /* last chunk index streamed to SSE */
+    int last_sent_offset; /* next pixel offset to stream via SSE */
     int send_pending;    /* 1 = need to send PARAMS+ASSIGN to worker */
     unsigned int params[7]; /* center_re hi/lo, center_im hi/lo, scale hi/lo, max_iter */
     unsigned char pixels[MBROT_PIXELS];
