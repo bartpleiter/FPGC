@@ -35,7 +35,7 @@ CPROC_OUTPUT = $(CPROC_DIR)/output/cproc-qbe
 .PHONY: test-cpu test-cpu-single debug-cpu quartus-timing
 .PHONY: test-c test-c-single
 .PHONY: compile-asm compile-bootloader compile-c-baremetal compile-kernel compile-sdcard-init-test compile-sdcard-rw-test compile-sdcard-multi-test compile-sdcard-brfs-storage-test compile-format-spi-flash1
-.PHONY: compile-userbdos compile-userbdos-all compile-doom compile-edit compile-user-all
+.PHONY: compile-userbdos compile-userbdos-all compile-doom compile-edit compile-fpgc-frontend compile-user-all
 .PHONY: run-uart uart-monitor run-asm-uart run-c-baremetal-uart run-kernel run-format-spi-flash1
 .PHONY: compile-spi1-dma-test run-spi1-dma-test
 .PHONY: run-userbdos run-doom
@@ -675,6 +675,32 @@ compile-edit: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	@cp Software/ASM/Output/code.bin Files/BRFS-init/bin/edit
 	@echo "Binary copied to Files/BRFS-init/bin/edit"
 
+# --- fpgc-frontend build (multi-file web server + cluster) ---
+
+FRONTEND_DIR = Software/C/userBDOS/fpgc-frontend
+
+FRONTEND_SOURCES = \
+	$(FRONTEND_DIR)/net.c \
+	$(FRONTEND_DIR)/arp.c \
+	$(FRONTEND_DIR)/ip.c \
+	$(FRONTEND_DIR)/tcp.c \
+	$(FRONTEND_DIR)/http.c \
+	$(FRONTEND_DIR)/cluster.c \
+	$(FRONTEND_DIR)/main.c
+
+FRONTEND_FLAGS = --libc -I Software/C/userlib/include -I $(FRONTEND_DIR) -h -i
+
+compile-fpgc-frontend: $(QBE_OUTPUT) $(CPROC_OUTPUT)
+	@mkdir -p Software/ASM/Output
+	./Scripts/BCC/compile_modern_c.sh \
+		$(USERLIB_SOURCES) \
+		$(FRONTEND_SOURCES) \
+		$(FRONTEND_FLAGS) \
+		-o Software/ASM/Output/code.bin
+	@mkdir -p Files/BRFS-init/bin
+	@cp Software/ASM/Output/code.bin Files/BRFS-init/bin/fpgc-frontend
+	@echo "Binary copied to Files/BRFS-init/bin/fpgc-frontend"
+
 compile-userbdos: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	@if [ -z "$(file)" ]; then \
 		echo "Usage: make compile-userbdos file=<c_filename_in_userBDOS_dir_without_extension>"; \
@@ -725,7 +751,7 @@ compile-userbdos-all: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	fi; \
 	echo "============================================================"
 	
-compile-user-all: compile-userbdos-all compile-doom compile-edit stage-cc-toolchain
+compile-user-all: compile-userbdos-all compile-doom compile-edit compile-fpgc-frontend stage-cc-toolchain
 
 # =============================================================================
 # Hardware Programming
@@ -1188,6 +1214,7 @@ help:
 	@echo "  compile-userbdos-all - Compile ALL userBDOS programs"
 	@echo "  compile-doom        - Compile Doom"
 	@echo "  compile-edit        - Compile edit (text editor)"
+	@echo "  compile-fpgc-frontend - Compile fpgc-frontend (web server + cluster)"
 	@echo "  stage-cc-toolchain  - Build cproc/qbe/cpp/asm-link + libc/userlib .asm,"
 	@echo "                        and lay them out under Files/BRFS-init/ (lib/, bin/cc, user/hello.c)"
 	@echo "                        for an on-device 'cc <src.c> <name>' compile flow."
