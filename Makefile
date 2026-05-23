@@ -35,7 +35,7 @@ CPROC_OUTPUT = $(CPROC_DIR)/output/cproc-qbe
 .PHONY: test-cpu test-cpu-single debug-cpu quartus-timing
 .PHONY: test-c test-c-single
 .PHONY: compile-asm compile-bootloader compile-c-baremetal compile-kernel compile-sdcard-init-test compile-sdcard-rw-test compile-sdcard-multi-test compile-sdcard-brfs-storage-test compile-format-spi-flash1
-.PHONY: compile-userbdos compile-userbdos-all compile-doom compile-edit2 compile-user-all
+.PHONY: compile-userbdos compile-userbdos-all compile-doom compile-edit compile-user-all
 .PHONY: run-uart uart-monitor run-asm-uart run-c-baremetal-uart run-kernel run-format-spi-flash1
 .PHONY: compile-spi1-dma-test run-spi1-dma-test
 .PHONY: run-userbdos run-doom
@@ -648,29 +648,6 @@ compile-doom: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	@mkdir -p Files/BRFS-init/bin
 	@cp Software/ASM/Output/code.bin Files/BRFS-init/bin/doom
 	@echo "Binary copied to Files/BRFS-init/bin/doom"
-# --- edit2 build (multi-file userBDOS program) ---
-
-EDIT2_DIR = Software/C/userBDOS/edit2
-
-EDIT2_SOURCES = \
-	$(EDIT2_DIR)/gapbuf.c \
-	$(EDIT2_DIR)/line_table.c \
-	$(EDIT2_DIR)/editor.c \
-	$(EDIT2_DIR)/render.c \
-	$(EDIT2_DIR)/fileio.c \
-	$(EDIT2_DIR)/input.c \
-	$(EDIT2_DIR)/main.c
-
-compile-edit2: $(QBE_OUTPUT) $(CPROC_OUTPUT)
-	@mkdir -p Software/ASM/Output
-	./Scripts/BCC/compile_modern_c.sh \
-		$(USERLIB_SOURCES) \
-		$(EDIT2_SOURCES) \
-		--libc -I Software/C/userlib/include -I $(EDIT2_DIR) -h -i \
-		-o Software/ASM/Output/code.bin
-	@mkdir -p Files/BRFS-init/bin
-	@cp Software/ASM/Output/code.bin Files/BRFS-init/bin/edit2
-	@echo "Binary copied to Files/BRFS-init/bin/edit2"
 
 # --- edit build (multi-file editor) ---
 
@@ -748,7 +725,7 @@ compile-userbdos-all: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	fi; \
 	echo "============================================================"
 	
-compile-user-all: compile-userbdos-all compile-doom compile-edit2 stage-cc-toolchain
+compile-user-all: compile-userbdos-all compile-doom compile-edit stage-cc-toolchain
 
 # =============================================================================
 # Hardware Programming
@@ -1210,7 +1187,7 @@ help:
 	@echo "                        Usage: make compile-userbdos file=<filename>"
 	@echo "  compile-userbdos-all - Compile ALL userBDOS programs"
 	@echo "  compile-doom        - Compile Doom"
-	@echo "  compile-edit2       - Compile edit2 (text editor)"
+	@echo "  compile-edit        - Compile edit (text editor)"
 	@echo "  stage-cc-toolchain  - Build cproc/qbe/cpp/asm-link + libc/userlib .asm,"
 	@echo "                        and lay them out under Files/BRFS-init/ (lib/, bin/cc, user/hello.c)"
 	@echo "                        for an on-device 'cc <src.c> <name>' compile flow."
