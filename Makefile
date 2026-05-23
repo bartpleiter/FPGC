@@ -649,6 +649,32 @@ compile-doom: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	@cp Software/ASM/Output/code.bin Files/BRFS-init/bin/doom
 	@echo "Binary copied to Files/BRFS-init/bin/doom"
 
+# --- edit build (multi-file editor) ---
+
+EDIT_DIR = Software/C/userBDOS/edit
+
+EDIT_SOURCES = \
+	$(EDIT_DIR)/gapbuf.c \
+	$(EDIT_DIR)/line_table.c \
+	$(EDIT_DIR)/editor.c \
+	$(EDIT_DIR)/render.c \
+	$(EDIT_DIR)/input.c \
+	$(EDIT_DIR)/fileio.c \
+	$(EDIT_DIR)/main.c
+
+EDIT_FLAGS = --libc -I Software/C/userlib/include -I $(EDIT_DIR) -h -i
+
+compile-edit: $(QBE_OUTPUT) $(CPROC_OUTPUT)
+	@mkdir -p Software/ASM/Output
+	./Scripts/BCC/compile_modern_c.sh \
+		$(USERLIB_SOURCES) \
+		$(EDIT_SOURCES) \
+		$(EDIT_FLAGS) \
+		-o Software/ASM/Output/code.bin
+	@mkdir -p Files/BRFS-init/bin
+	@cp Software/ASM/Output/code.bin Files/BRFS-init/bin/edit
+	@echo "Binary copied to Files/BRFS-init/bin/edit"
+
 compile-userbdos: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	@if [ -z "$(file)" ]; then \
 		echo "Usage: make compile-userbdos file=<c_filename_in_userBDOS_dir_without_extension>"; \
