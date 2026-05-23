@@ -517,8 +517,7 @@ localparam
     ADDR_DMA_COUNT       = 32'h1C000078, // DMA byte count
     ADDR_DMA_CTRL        = 32'h1C00007C, // DMA control: [3:0] mode, [4] irq_en, [7:5] sub-target, [31] start
     ADDR_DMA_STATUS      = 32'h1C000080, // DMA status: [0] busy, [1] done, [2] error (sticky, read-clear)
-    ADDR_DMA_QSPI_ADDR   = 32'h1C000084, // DMA QSPI Fast Read source address (24-bit byte offset into flash)
-    ADDR_OOB             = 32'h1C000084; // All addresses >= this are out of bounds
+    ADDR_DMA_QSPI_ADDR   = 32'h1C000084; // DMA QSPI Fast Read source address (24-bit byte offset into flash)
 
 // ---- State encoding ----
 localparam
