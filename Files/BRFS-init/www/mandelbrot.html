@@ -1,0 +1,247 @@
+<html>
+<head>
+<title>Mandelbrot - FPGC</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#111;color:#ccc;font-family:'Courier New',monospace;padding:20px}
+h1{color:#0f0;font-size:20px;margin-bottom:12px}
+h2{color:#0a0;font-size:14px;margin:12px 0 6px;border-bottom:1px solid #333;padding-bottom:4px}
+.wrap{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap}
+.col{display:flex;flex-direction:column;gap:8px}
+canvas{border:2px solid #444;background:#000}
+.panel{background:#1a1a1a;border:1px solid #333;padding:10px;border-radius:4px}
+label{display:block;color:#888;font-size:12px;margin:4px 0 2px}
+input[type=text]{background:#222;color:#0ff;border:1px solid #444;padding:4px 6px;font-family:inherit;font-size:12px;width:120px}
+button{background:#0a0;color:#000;border:none;padding:6px 16px;font-family:inherit;font-size:13px;cursor:pointer;margin-top:8px}
+button:hover{background:#0c0}
+button:disabled{background:#333;color:#666;cursor:default}
+#status{color:#555;font-size:11px;margin-top:8px}
+.progress{background:#222;height:12px;border:1px solid #444;margin-top:6px}
+.progress-bar{background:#0a0;height:100%;width:0;transition:width 0.2s}
+table{border-collapse:collapse;font-size:13px}
+td{padding:2px 8px}
+td:first-child{color:#888}
+td:last-child{color:#ff0;text-align:right}
+</style>
+</head>
+<body>
+<h1>FPGC Mandelbrot</h1>
+<div class="wrap">
+
+<div class="col">
+<canvas id="canvas" width="320" height="240"></canvas>
+<div class="progress"><div class="progress-bar" id="pbar"></div></div>
+<div id="status">Ready</div>
+</div>
+
+<div class="col">
+<div class="panel">
+<h2>View</h2>
+<label>Re</label>
+<input type="text" id="f_re" value="-0.75">
+<label>Im</label>
+<input type="text" id="f_im" value="0.0">
+<label>Zoom</label>
+<input type="text" id="f_zoom" value="1">
+<label>Iterations</label>
+<input type="text" id="f_iter" value="100">
+<button id="render_btn" onclick="doRender()">Render</button>
+</div>
+<div class="panel">
+<h2>Presets</h2>
+<button onclick="preset(0)">Default</button>
+<button onclick="preset(1)">Seahorse</button>
+<button onclick="preset(2)">Spiral</button>
+<button onclick="preset(3)">Julia</button>
+</div>
+<div class="panel">
+<h2>Status</h2>
+<table>
+<tr><td>Chunks</td><td id="chunks">0 / 0</td></tr>
+<tr><td>Palette</td><td id="pal_name">Ultra</td></tr>
+</table>
+</div>
+<div class="panel">
+<h2>Palette</h2>
+<button onclick="setPal(0)">Classic</button>
+<button onclick="setPal(1)">Fire</button>
+<button onclick="setPal(2)">Ice</button>
+<button onclick="setPal(3)">Ultra</button>
+<button onclick="setPal(4)">Mono</button>
+</div>
+</div>
+
+</div>
+<script>
+var W=320,H=240;
+var ctx=document.getElementById('canvas').getContext('2d');
+var imgData=ctx.createImageData(W,H);
+var pixels=new Uint8Array(W*H);
+var palNames=['Classic','Fire','Ice','Ultra','Mono'];
+var curPal=3;
+var sse=null;
+var rendering=false;
+
+function el(id){return document.getElementById(id)}
+
+/* Convert a float to Q32.32 fixed-point {hi, lo} */
+function toQ32(val){
+  var hi=Math.floor(val);
+  var lo=(val-hi)*4294967296;
+  return{hi:(hi>>>0),lo:(lo>>>0)};
+}
+
+/* Convert zoom level to scale Q32.32: scale = 4.0 / zoom */
+function zoomToScale(zoom){
+  if(zoom<1)zoom=1;
+  return toQ32(4.0/zoom);
+}
+
+/* Format unsigned 32-bit int as 0xHEX string */
+function toHex(v){return'0x'+('00000000'+(v>>>0).toString(16)).slice(-8).toUpperCase()}
+
+/* Palette generation (matches mbroth.c) */
+function lerp(c0,c1,t){
+  var r0=(c0>>16)&0xFF,g0=(c0>>8)&0xFF,b0=c0&0xFF;
+  var r1=(c1>>16)&0xFF,g1=(c1>>8)&0xFF,b1=c1&0xFF;
+  var r=r0+((r1-r0)*t/255)|0;
+  var g=g0+((g1-g0)*t/255)|0;
+  var b=b0+((b1-b0)*t/255)|0;
+  return(r<<16)|(g<<8)|b;
+}
+function buildGrad(pos,col){
+  var p=new Array(256);
+  p[0]=0;
+  for(var i=1;i<256;i++){
+    var s=0;
+    while(s<pos.length-2&&i>pos[s+1])s++;
+    var sl=pos[s],se=pos[s+1],sd=se-sl;
+    var t=sd>0?((i-sl)*255/sd)|0:0;
+    p[i]=lerp(col[s],col[s+1],t);
+  }
+  return p;
+}
+var palettes=[
+  buildGrad([1,51,102,153,204,255],[0x000080,0x00FFFF,0x00FF00,0xFFFF00,0xFF0000,0x000000]),
+  buildGrad([1,64,128,192,255],[0x200000,0xAA0000,0xFF6600,0xFFFF00,0xFFFFFF]),
+  buildGrad([1,85,170,255],[0x000020,0x0000CC,0x00CCFF,0xFFFFFF]),
+  buildGrad([1,42,85,128,170,213,255],[0x000764,0x206BCB,0xEDFFFF,0xFFAA00,0x310230,0x000764,0x000764]),
+  (function(){var p=new Array(256);p[0]=0;for(var i=1;i<256;i++)p[i]=(i<<16)|(i<<8)|i;return p})()
+];
+
+function setPal(idx){
+  curPal=idx;
+  el('pal_name').textContent=palNames[idx];
+  redraw();
+}
+
+function redraw(){
+  var pal=palettes[curPal];
+  var d=imgData.data;
+  for(var y=0;y<H;y++){
+    for(var x=0;x<W;x++){
+      var src=(H-1-y)*W+x;
+      var dst=(y*W+x)*4;
+      var c=pal[pixels[src]&0xFF]||0;
+      d[dst]=  (c>>16)&0xFF;
+      d[dst+1]=(c>>8)&0xFF;
+      d[dst+2]=c&0xFF;
+      d[dst+3]=255;
+    }
+  }
+  ctx.putImageData(imgData,0,0);
+}
+
+function preset(n){
+  var p=[
+    {re:-0.5,   im:0.0,   zoom:1,    iter:100},
+    {re:-0.743517833,  im:0.127094578,   zoom:280,   iter:450},
+    {re:-0.343806077,  im:-0.61127804, zoom:5000,  iter:1200},
+    {re:-1.768778833, im:0.001738996,   zoom:4000000,  iter:800}
+  ];
+  if(n>=0&&n<p.length){
+    el('f_re').value=p[n].re;
+    el('f_im').value=p[n].im;
+    el('f_zoom').value=p[n].zoom;
+    el('f_iter').value=p[n].iter;
+  }
+}
+
+function doRender(){
+  if(rendering)return;
+  rendering=true;
+  el('render_btn').disabled=true;
+  el('status').textContent='Sending render request...';
+  el('pbar').style.width='0%';
+  pixels.fill(0);
+  redraw();
+
+  var re=parseFloat(el('f_re').value)||0;
+  var im=parseFloat(el('f_im').value)||0;
+  var zoom=parseInt(el('f_zoom').value)||1;
+  var iter=parseInt(el('f_iter').value)||100;
+
+  var qre=toQ32(re);
+  var qim=toQ32(im);
+  var qsc=zoomToScale(zoom);
+
+  var body='center_re_hi='+toHex(qre.hi)
+    +'&center_re_lo='+toHex(qre.lo)
+    +'&center_im_hi='+toHex(qim.hi)
+    +'&center_im_lo='+toHex(qim.lo)
+    +'&scale_hi='+toHex(qsc.hi)
+    +'&scale_lo='+toHex(qsc.lo)
+    +'&max_iter='+iter;
+
+  var xhr=new XMLHttpRequest();
+  xhr.open('POST','/api/mbrot',true);
+  xhr.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
+  xhr.onload=function(){
+    if(xhr.status===200){
+      el('status').textContent='Rendering...';
+      startSSE();
+    }else{
+      el('status').textContent='Error: '+xhr.status;
+      rendering=false;
+      el('render_btn').disabled=false;
+    }
+  };
+  xhr.onerror=function(){
+    el('status').textContent='Request failed';
+    rendering=false;
+    el('render_btn').disabled=false;
+  };
+  xhr.send(body);
+}
+
+function startSSE(){
+  if(sse)sse.close();
+  sse=new EventSource('/api/mbrot');
+  sse.onmessage=function(e){
+    var d=JSON.parse(e.data);
+    if(d.type==='chunk'){
+      var off=d.off||0;
+      var hex=d.pixels||'';
+      for(var i=0;i<hex.length;i+=2){
+        pixels[off+i/2]=parseInt(hex.substr(i,2),16);
+      }
+      el('chunks').textContent=(d.idx+1)+' / '+d.total;
+      var pct=((d.idx+1)*100/d.total)|0;
+      el('pbar').style.width=pct+'%';
+      redraw();
+    }else if(d.type==='done'){
+      el('status').textContent='Done';
+      rendering=false;
+      el('render_btn').disabled=false;
+      if(sse){sse.close();sse=null;}
+    }
+  };
+  sse.onerror=function(){
+    el('status').textContent='SSE disconnected';
+    rendering=false;
+    el('render_btn').disabled=false;
+  };
+}
+</script>
+</body>
+</html>
