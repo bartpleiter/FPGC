@@ -41,6 +41,8 @@ FPGC devices use MAC prefix `02:B4:B4:00:00:xx` where `xx` identifies the device
 | `0x12` | FILE_END | `[Checksum (4)]` | End transfer; checksum = 32-bit sum of all words |
 | `0x13` | FILE_ABORT | (empty) | Abort in-progress transfer |
 | `0x20` | KEYCODE | `[Keycode (2)]` | HID keycode input |
+| `0x21` | MKDIR | `[Path String]` | Create a directory on the device |
+| `0x22` | SYNC | (empty) | Flush filesystem to storage |
 | `0x30` | MESSAGE | Application-defined | FPGC-to-FPGC messaging |
 
 ### File Transfer Flow

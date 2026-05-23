@@ -78,6 +78,7 @@ Hardware abstraction. Headers in `include/`:
 | `src/dev_null.c` | /dev/null |
 | `src/dev_pixpal.c` | /dev/pixpal GPU palette DAC |
 | `src/dev_uart.c` | /dev/uart raw serial device |
+| `src/dev_uart_mirror.c` | /dev/uart-mirror terminal UART mirror control |
 | `src/dev_random.c` | /dev/random LFSR pseudo-random device |
 | `src/dev_proc.c` | /proc virtual filesystem (uptime, meminfo, ps, df) |
 | `src/fs.c` | BRFS mount/format/sync for SPI flash and SD card |
@@ -182,6 +183,8 @@ struct proc {
     unsigned int heap_base, heap_break;  /* sbrk heap tracking */
     unsigned int saved_regs[16];         /* r0–r15 */
     unsigned int saved_pc;
+    unsigned int saved_hw_sp;            /* hardware stack pointer */
+    unsigned int saved_hw_stack[256];    /* hardware stack contents */
     int fds[16];                         /* per-process fd table */
     char name[32], cwd[128];
     int argc; char *argv[32];
@@ -275,6 +278,7 @@ dispatch.
 | null | `/dev/null` | Bit bucket |
 | pixpal | `/dev/pixpal` | 256-entry GPU pixel-palette DAC |
 | uart | `/dev/uart` | Raw UART serial TX/RX |
+| uart-mirror | `/dev/uart-mirror` | Terminal UART mirror control |
 | random | `/dev/random` | LFSR pseudo-random bytes |
 | proc | `/proc/*` | Virtual files: uptime, meminfo, ps, df |
 
@@ -295,7 +299,8 @@ Custom L2 protocol over ENC28J60 (EtherType `0xB4B4`).
 - MAC derived from SPI flash 0 unique ID (`02:B4:B4:00:00:XX`).
 - Message types: `FILE_START`/`FILE_DATA`/`FILE_END`/`FILE_ABORT`
   (file transfer with checksum + ACK/NACK), `KEYCODE` (remote
-  keyboard input), `MESSAGE`.
+  keyboard input), `MKDIR` (create directory), `SYNC` (flush FS),
+  `MESSAGE`.
 - `fnp_poll()` runs each kernel-loop iteration.
 - Ethernet ring buffer: 64-slot kernel-managed buffer, filled by ISR.
 - User programs that call `NET_SEND`/`NET_RECV` read from the ring
@@ -341,6 +346,9 @@ value. Dispatched in `syscall_dispatch()` (`syscall.c`).
 | 23 | `RENAME` | `oldpath, newpath` | 0 ok |
 | 24 | `STAT` | `path, stat_buf` | 0 ok |
 | 25 | `SYNC` | — | 0 |
+| 26 | `TRUNCATE` | `path, size` | 0 ok |
+| 27 | `FORMAT` | `blocks, bpb, label` | 0 ok |
+| 28 | `SD_FORMAT` | `blocks, bpb, label` | 0 ok |
 | 30 | `CHDIR` | `path` | 0 |
 | 31 | `GETCWD` | `buf, size` | buf pointer |
 | 32 | `ARGC` | — | argc |

@@ -8,7 +8,7 @@ ANSI escape parser. Everything else (the shell, user programs, libc
 
 It lives in two files:
 
-- `Software/C/libfpgc/term/term.c` (~870 LOC) — implementation.
+- `Software/C/libfpgc/term/term.c` (~980 LOC) — implementation.
 - `Software/C/libfpgc/include/term.h` — public API.
 
 The legacy `term.c` shim was deleted in Phase E; all callers now use the
@@ -95,17 +95,17 @@ removals in Phase E).
 
 ```c
 void term_init(int width, int height,
-                term_render_cb_t render,
-                term_uart_cb_t uart);
+                term_render_cell_fn render_cell,
+                term_uart_mirror_fn uart_mirror);
 
 /* High-level character / string output. Goes through the parser. */
-void term_putchar(int c);
+void term_putchar(char c);
 void term_puts   (const char *s);
 void term_write  (const char *buf, int len);
 
 /* Convenience formatters used by BDOS panic / boot output. */
 void term_putint (int v);
-void term_puthex (unsigned int v);
+void term_puthex (unsigned int v, int prefix); /* hex, with optional "0x" prefix */
 
 /* Direct cell access (bypasses the parser; for kernel use). */
 void term_put_cell(int x, int y, unsigned char tile, unsigned char palette);
@@ -114,18 +114,45 @@ void term_get_cell(int x, int y, unsigned char *tile, unsigned char *palette);
 /* Cursor + display state. */
 void term_set_cursor(int x, int y);
 void term_get_cursor(int *x, int *y);
+void term_set_cursor_visible(int visible);
 int  term_get_cursor_visible(void);
 void term_clear(void);
+void term_clear_to_eol(void);
+void term_clear_to_eos(void);
+void term_get_size(int *w, int *h);
+
+/* Scroll region + scrolling. */
+void term_set_scroll_region(int top, int bot);
+void term_scroll_up(int n);
+void term_scroll_down(int n);
+
+/* Alternate screen. */
+void term_alt_enter(void);
+void term_alt_leave(void);
+int  term_in_alt_screen(void);
 
 /* Scrollback view. */
-void term_scroll_view_up(int lines);
-void term_scroll_view_down(int lines);
+int  term_scroll_view_up(void);   /* returns 1 if scrolled, 0 if at top */
+int  term_scroll_view_down(void); /* returns 1 if scrolled, 0 if at bottom */
 int  term_is_scrolled_back(void);
+void term_snap_to_bottom(void);
+
+/* Repaint entire screen via render_cell callback. */
+void term_repaint(void);
 
 /* Misc. */
-void term_set_palette       (int index);
+void term_set_palette       (unsigned char palette);
+unsigned char term_get_palette(void);
 void term_set_uart_mirror   (int enabled);
 int  term_get_uart_mirror   (void);
+
+/* Input / line discipline. */
+void term_set_input_source(term_input_pop_fn pop);
+void term_set_cooked(int cooked);
+int  term_get_cooked(void);
+void term_set_echo(int echo);
+int  term_get_echo(void);
+int  term_read(char *buf, int max, int blocking);
 ```
 
 `TERM_WIDTH`, `TERM_HEIGHT`, `TERM_HISTORY_LINES`, and `TAB_WIDTH` are

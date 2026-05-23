@@ -221,7 +221,7 @@ Two storage backends via `brfs_storage_t` vtable:
 
 | Backend | Mount point | Cache | Driver |
 |---------|------------|-------|--------|
-| SPI flash | `/` (root) | 16 MiB direct-mapped | `brfs_storage_spi_flash.c` |
+| SPI flash | `/` (root) | 28 MiB direct-mapped | `brfs_storage_spi_flash.c` |
 | SD card | `/sdcard` | 4 MiB LRU | `brfs_storage_sdcard.c` |
 
 - LE on disk; magic `BRF2`; superblock version `2`.

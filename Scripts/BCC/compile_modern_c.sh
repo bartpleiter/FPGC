@@ -13,7 +13,7 @@
 #   ./compile_modern_c.sh Software/ASM/crt0/crt0_ubdos.asm program.c -h -i -o output.bin
 #
 #   # BDOS kernel (with syscall vector):
-#   ./compile_modern_c.sh Software/ASM/crt0/crt0_bdos.asm src1.c src2.c -h -s -o output.bin
+#   ./compile_modern_c.sh Software/ASM/crt0/crt0_kernel.asm src1.c src2.c -h -s -o output.bin
 #
 #   # Raw C (no startup, e.g. for testing):
 #   ./compile_modern_c.sh program.c -o output.bin

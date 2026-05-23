@@ -52,7 +52,7 @@ The FPGC ships with a minimal freestanding C standard library at `Software/C/lib
 |--------|-----------|
 | `<string.h>` | `memcpy`, `memmove`, `memset`, `memcmp`, `strlen`, `strcmp`, `strncmp`, `strcpy`, `strncpy`, `strcat`, `strncat`, `strstr`, `strchr`, `strrchr`, `strtok` |
 | `<stdlib.h>` | `atoi`, `strtol`, `strtoul`, `abs`, `qsort`, `bsearch`, `rand`, `srand`, `malloc`, `free`, `realloc` |
-| `<stdio.h>` | `printf`, `sprintf`, `snprintf`, `vsnprintf`, `puts`, `putchar`, `getchar`, `fopen`, `fclose`, `fread`, `fwrite`, `fgets`, `fprintf`, `fseek`, `ftell`, `feof` |
+| `<stdio.h>` | `printf`, `sprintf`, `snprintf`, `vsnprintf`, `vprintf`, `vfprintf`, `vsprintf`, `puts`, `putchar`, `putc`, `fputc`, `fputs`, `getchar`, `fgetc`, `ungetc`, `fopen`, `freopen`, `fclose`, `fread`, `fwrite`, `fprintf`, `fseek`, `ftell`, `feof`, `ferror`, `clearerr`, `rewind`, `fflush`, `scanf`, `sscanf`, `fscanf`, `remove`, `rename` |
 | `<ctype.h>` | `isalpha`, `isdigit`, `isalnum`, `isspace`, `toupper`, `tolower`, etc. |
 | `<stddef.h>`, `<stdint.h>`, `<stdbool.h>`, `<limits.h>`, `<errno.h>`, `<stdarg.h>`, `<assert.h>` | Standard types and macros |
 
@@ -69,6 +69,8 @@ The hardware abstraction library at `Software/C/libfpgc/` provides drivers for a
 | `io/uart.c` | UART TX/RX with interrupt-driven receive ring buffer |
 | `io/timer.c` | 3 hardware timers with callbacks, periodic mode, `delay()` |
 | `io/spi_flash.c` | SPI flash read/write/erase operations |
+| `io/sd.c` | SD card SPI-mode driver (init, read/write blocks) |
+| `io/dma.c` | DMA engine driver (7 modes, cache coherency) |
 | `io/ch376.c` | CH376 USB host controller driver |
 | `io/enc28j60.c` | ENC28J60 Ethernet controller driver |
 | `gfx/gpu_hal.c` | GPU VRAM access (tile map, palette, sprite, pixel planes) |
@@ -76,7 +78,10 @@ The hardware abstraction library at `Software/C/libfpgc/` provides drivers for a
 | `gfx/gpu_data_ascii.c` | 32 color palettes + 256 ASCII tile patterns |
 | `term/term.c` | 40×25 terminal emulator on the window tile plane |
 | `mem/debug.c` | Hex dump utility |
-| `fs/brfs.c` | BRFS filesystem driver |
+| `fs/brfs.c` | BRFS v2 filesystem core |
+| `fs/brfs_cache.c` | BRFS block cache (linear-pinned and LRU modes) |
+| `fs/brfs_storage_spi_flash.c` | SPI flash storage backend for BRFS |
+| `fs/brfs_storage_sdcard.c` | SD card storage backend for BRFS |
 
 All memory-mapped I/O uses compiler builtins that emit inline `write`/`read` instructions: `__builtin_store(addr, value)`, `__builtin_storeb(addr, value)`, `__builtin_load(addr)`, `__builtin_loadb(addr)`. These bypass the lack of `volatile` support in cproc with zero function call overhead.
 

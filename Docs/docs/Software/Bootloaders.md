@@ -33,6 +33,9 @@ The UART bootloader needs to run from RAM, as it needs the UART RX interrupt han
 
 There are scripts in `Scripts/Programmer/UART` to flash code via UART using this bootloader.
 
-## OS Bootloaders
+## Program Loading from OS
 
-TODO: once BDOS has implemented booting from SD Card and Network, document how this is done, or move this section to the BDOS documentation.
+Once BDOS is running, programs can be loaded from several sources without reflashing:
+
+- **Filesystem (SPI flash / SD card)**: Programs stored in `/bin/` on the BRFS filesystem are loaded by the shell via `SYS_SPAWN`. The kernel reads the binary from BRFS, applies relocations, and starts the process. See [OS — Program Loading](OS.md#program-loading-and-execution) for details.
+- **Network (FNP)**: Programs can be uploaded to the FPGC over Ethernet using the FNP protocol. The host-side tool `fnp_tool.py` sends a binary to a specified path on the device's filesystem. See [FNP](FNP.md) for protocol details and `make fnp-upload-userbdos file=<name>` for the typical workflow.

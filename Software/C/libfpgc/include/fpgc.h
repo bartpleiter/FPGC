@@ -108,33 +108,40 @@
 
 /*========================================================================
  * Memory Layout Constants
+ *
+ * These mirror the authoritative layout in kernel/include/mem.h.
+ * v4 memory map (64 MiB SDRAM):
+ *   0x000000  – 0x0FFFFF   Kernel code + BSS (1 MiB)
+ *   0x100000  – 0x10FFFF   Kernel stacks (64 KiB: main, syscall, int)
+ *   0x110000  – 0x1FFFFF   Kernel heap (~960 KiB)
+ *   0x200000  – 0x1FFFFFF   Process memory pool (30 MiB)
+ *   0x2000000 – 0x23FFFFF  BRFS SD cache (4 MiB)
+ *   0x2400000 – 0x3FFFFFF  BRFS SPI flash cache (28 MiB)
  *======================================================================*/
 
 /* Physical memory (64 MiB SDRAM) */
 #define FPGC_MEM_START           0x0000000
 #define FPGC_MEM_END             0x4000000
 
-/* Kernel region */
+/* Kernel region (code + BSS + stacks) */
 #define FPGC_KERNEL_START        0x000000
-#define FPGC_KERNEL_END          0x400000
-#define FPGC_KERNEL_STACK_TOP    0x3DFFFC
-#define FPGC_SYSCALL_STACK_TOP   0x3EFFFC
-#define FPGC_INT_STACK_TOP       0x3FFFFC
+#define FPGC_KERNEL_END          0x100000
+#define FPGC_KERNEL_STACK_TOP    0x107FFC
+#define FPGC_SYSCALL_STACK_TOP   0x10BFFC
+#define FPGC_INT_STACK_TOP       0x10FFFC
 
 /* Kernel heap */
-#define FPGC_HEAP_START          0x400000
-#define FPGC_HEAP_END            0x2000000
+#define FPGC_HEAP_START          0x110000
+#define FPGC_HEAP_END            0x200000
 
-/* User program region */
-#define FPGC_PROGRAM_START       0x2000000
-#define FPGC_PROGRAM_END         0x2C00000
-#define FPGC_SLOT_SIZE           0x200000
-#define FPGC_SLOT_COUNT          6
+/* Process memory pool (variable-size free-list allocator) */
+#define FPGC_PROGRAM_START       0x200000
+#define FPGC_PROGRAM_END         0x2000000
 
 /* BRFS cache */
-#define FPGC_BRFS_SD_START       0x2C00000
-#define FPGC_BRFS_SD_END         0x3000000
-#define FPGC_BRFS_START          0x3000000
+#define FPGC_BRFS_SD_START       0x2000000
+#define FPGC_BRFS_SD_END         0x2400000
+#define FPGC_BRFS_START          0x2400000
 #define FPGC_BRFS_END            0x4000000
 
 /*========================================================================

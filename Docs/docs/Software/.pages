@@ -3,5 +3,7 @@ nav:
     - C-compiler.md
     - Bootloaders.md
     - OS.md
+    - Shell.md
+    - Terminal.md
     - BRFS.md
     - FNP.md

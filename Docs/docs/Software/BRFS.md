@@ -84,11 +84,12 @@ The superblock is 16 words (64 bytes):
 
 | Field | Size (words) | Description |
 |-------|--------------|-------------|
+| `magic` | 1 | Magic number (`0x32465242` = `BRF2` in little-endian) |
 | `total_blocks` | 1 | Total number of data blocks |
 | `words_per_block` | 1 | Words per block (e.g. `1024` = 4 KiB) |
 | `label` | 10 | Volume label (one ASCII char per word, NUL-terminated) |
 | `brfs_version` | 1 | Filesystem version (`2` for BRFS v2) |
-| `reserved` | 3 | Reserved for future use |
+| `reserved` | 2 | Reserved for future use |
 
 ### File Allocation Table (FAT)
 
@@ -148,7 +149,7 @@ the full filesystem fits in the cache buffer.
 When `superblock + FAT + all_data ≤ buf_words`, the cache uses a
 single contiguous buffer that mirrors the entire on-disk image. Every
 block is permanently resident. This is the mode used for the SPI-flash
-filesystem (4 MiB partition in a 16 MiB cache buffer).
+filesystem (4 MiB partition in a 28 MiB cache buffer).
 
 ### LRU mode
 
@@ -228,8 +229,8 @@ There are two ways to invoke it from a running system:
   a system that does not yet have an FS to load `/bin/format` from.
 - **`/bin/format` userBDOS program.** From a healthy system,
   `format <blocks> <bytes-per-block> <label>` runs the same code path
-  via `SYSCALL_FS_FORMAT` (40). This replaces the v1 in-shell `format`
-  built-in.
+  via `SYS_FORMAT` (27). For the SD card, use `/bin/sdformat` which
+  calls `SYS_SD_FORMAT` (28).
 
 For a 4 MiB partition the proper settings are
 `1024` blocks × `4096` bytes per block.

@@ -2,7 +2,7 @@
 
 BDOS (Bart's Drive Operating System) is the custom operating system for the FPGC. It provides cooperative multitasking (up to 16 processes), a POSIX-aligned syscall interface, a virtual filesystem with device nodes, USB keyboard input, Ethernet networking, and the ability to run user programs. BDOS is loaded from SPI flash by the bootloader on startup and allows the FPGC to be used as a standalone computer.
 
-BDOS is written in C using the [modern C toolchain](C-compiler.md) (cproc + QBE) and consists of 18 C source files, 1 context-switch assembly file, and links against the standard library (`libc`) and hardware abstraction library (`libfpgc`). The full build produces a ~224 KiB binary. It can be compiled and flashed with:
+BDOS is written in C using the [modern C toolchain](C-compiler.md) (cproc + QBE) and consists of 19 C source files, 1 context-switch assembly file, and links against the standard library (`libc`) and hardware abstraction library (`libfpgc`). The full build produces a ~224 KiB binary. It can be compiled and flashed with:
 
 ```bash
 make compile-kernel   # Compile only
@@ -111,6 +111,7 @@ All I/O goes through the VFS layer (`Software/C/kernel/src/vfs.c`). The VFS main
 | null | `/dev/null` | Discards writes, returns EOF on reads |
 | pixpal | `/dev/pixpal` | 256-entry GPU pixel-palette DAC (1024 bytes, `0x00RRGGBB`). `lseek` sets byte cursor; writes autoincrement one entry |
 | uart | `/dev/uart` | Raw UART serial TX/RX |
+| uart-mirror | `/dev/uart-mirror` | Mirror of terminal output to UART (read returns mirror state, write controls enable/disable) |
 | random | `/dev/random` | LFSR pseudo-random bytes |
 | proc | `/proc/*` | Virtual files: `uptime`, `meminfo`, `ps`, `df` |
 
@@ -171,6 +172,9 @@ User programs communicate with the kernel through a software syscall mechanism. 
 | 23 | `RENAME` | `old, new` | 0 | Rename file |
 | 24 | `STAT` | `path, buf` | 0 | Get file info |
 | 25 | `SYNC` | — | 0 | Flush filesystem to storage |
+| 26 | `TRUNCATE` | `path, size` | 0 | Truncate file to size |
+| 27 | `FORMAT` | `blocks, bpb, label` | 0 | Format SPI flash BRFS |
+| 28 | `SD_FORMAT` | `blocks, bpb, label` | 0 | Format SD card BRFS |
 | 30 | `CHDIR` | `path` | 0 | Change working directory |
 | 31 | `GETCWD` | `buf, size` | pointer | Get working directory |
 | 32 | `ARGC` | — | argc | Get argument count |

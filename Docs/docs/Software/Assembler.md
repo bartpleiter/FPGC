@@ -111,6 +111,7 @@ The following table provides a complete overview of all B32P3 instructions suppo
 | `reti` | - | - | - | Return from interrupt |
 | `readintid` | R | - | - | Store interrupt ID from CPU to Arg1 |
 | `ccache` | - | - | - | Clear L1 instruction/data cache |
+| `ccached` | - | - | - | Clear L1 data cache only |
 | `read` | C16 | R | R | Read word from addr in Arg2 with 16-bit signed byte offset from Arg1, write to Arg3 |
 | `readb` | C16 | R | R | Read byte (sign-extended) from addr in Arg2 with byte offset from Arg1, write to Arg3 |
 | `readbu` | C16 | R | R | Read byte (zero-extended) from addr in Arg2 with byte offset from Arg1, write to Arg3 |
@@ -187,7 +188,7 @@ The following table provides a complete overview of all B32P3 instructions suppo
 Multiple data entries can be defined in a single directive by separating them with spaces.
 
 !!! note
-    The modern C compiler toolchain (cproc + QBE) uses ELF-style directives (`.eint`, `.ebyte`, `.eshort`, `.eascii`, `.efill`) which are packed into 32-bit words by the assembler. The legacy `.dw` and `.dsw` directives are also supported for hand-written assembly.
+    The modern C compiler toolchain (cproc + QBE) uses ELF-style directives (`.int`, `.byte`, `.short`, `.ascii`, `.fill`) which are packed into 32-bit words by the assembler. The legacy `.dw` and `.dsw` directives are also supported for hand-written assembly.
 
 | Directive | Description | Example |
 |-----------|-------------|---------|
@@ -198,6 +199,11 @@ Multiple data entries can be defined in a single directive by separating them wi
 | `.dbw` | Bytes as separate 32-bit words | `.dbw 0x12 0x34` |
 | `.ddw` | 16-bit values as separate 32-bit words | `.ddw 0x1234 0x5678` |
 | `.dsw` | String as separate 32-bit words (1 char per word) | `.dsw \"Hi\"` |
+| `.int` | ELF-style 32-bit word (packed, used by C toolchain) | `.int 0x12345678` |
+| `.byte` | ELF-style byte (packed into words, used by C toolchain) | `.byte 0x12` |
+| `.short` | ELF-style 16-bit value (packed into words, used by C toolchain) | `.short 0x1234` |
+| `.ascii` | ELF-style string (packed into words, used by C toolchain) | `.ascii "Hello"` |
+| `.fill` | ELF-style fill / padding (packed into words, used by C toolchain) | `.fill 8, 1, 0` |
 
 ### Section Directives
 
