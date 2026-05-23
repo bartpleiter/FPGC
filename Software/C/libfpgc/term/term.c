@@ -49,6 +49,7 @@ typedef struct {
     int scroll_bot;      /* 0-based inclusive */
     int cursor_visible;
     int wrap_mode;       /* DECAWM: 1 = auto-wrap on, 0 = clamp at last column */
+    int pending_wrap;    /* deferred wrap: next printable triggers wrap */
 } term_screen_t;
 
 static int g_width  = 40;
@@ -247,11 +248,20 @@ static void emit_printable(unsigned char c) {
 
     if (g_uart && g_uart_mirror_enabled) g_uart((char)c);
 
+    /* Deferred wrap: if a previous char set pending_wrap, fire it now. */
+    if (s->pending_wrap && s->wrap_mode) {
+        s->pending_wrap = 0;
+        newline();
+    }
+
     put_at(s->cursor_x, s->cursor_y, c, s->palette);
     s->cursor_x++;
     if (s->cursor_x >= g_width) {
         if (s->wrap_mode) {
-            newline();
+            /* Deferred wrap: stay at last column, set pending flag.
+               The actual wrap fires on the next printable or LF. */
+            s->cursor_x = g_width - 1;
+            s->pending_wrap = 1;
         } else {
             /* DECAWM off: clamp at last column. The next printable
                character overwrites the last cell. */
@@ -293,10 +303,11 @@ static void parser_step(unsigned char c) {
             return;
         }
         /* Control characters */
-        if (c == '\n') { newline(); return; }
-        if (c == '\r') { s->cursor_x = 0; return; }
-        if (c == '\b') { if (s->cursor_x > 0) s->cursor_x--; return; }
+        if (c == '\n') { s->pending_wrap = 0; newline(); return; }
+        if (c == '\r') { s->pending_wrap = 0; s->cursor_x = 0; return; }
+        if (c == '\b') { s->pending_wrap = 0; if (s->cursor_x > 0) s->cursor_x--; return; }
         if (c == '\t') {
+            s->pending_wrap = 0;
             int next = (s->cursor_x + 4) & ~3;
             if (next >= g_width) { newline(); }
             else                 { s->cursor_x = next; }
@@ -323,6 +334,18 @@ static void parser_step(unsigned char c) {
             s->cursor_x = s->saved_cx;
             s->cursor_y = s->saved_cy;
             s->palette  = s->saved_palette;
+            s->pending_wrap = 0;
+            g_pstate = PS_NORMAL;
+            return;
+        }
+        if (c == 'M') { /* RI — reverse index */
+            s->pending_wrap = 0;
+            if (s->cursor_y <= s->scroll_top) {
+                scroll_down_in_region(1);
+                s->cursor_y = s->scroll_top;
+            } else if (s->cursor_y > 0) {
+                s->cursor_y--;
+            }
             g_pstate = PS_NORMAL;
             return;
         }
@@ -384,21 +407,35 @@ static void parser_dispatch_csi(unsigned char final) {
     switch (final) {
     case 'A': /* CUU — cursor up */
         n = csi_param_or(0, 1);
-        s->cursor_y -= n;
-        if (s->cursor_y < 0) s->cursor_y = 0;
+        s->pending_wrap = 0;
+        {
+            int min_y = 0;
+            if (s->cursor_y >= s->scroll_top && s->cursor_y <= s->scroll_bot)
+                min_y = s->scroll_top;
+            s->cursor_y -= n;
+            if (s->cursor_y < min_y) s->cursor_y = min_y;
+        }
         return;
     case 'B': /* CUD — cursor down */
         n = csi_param_or(0, 1);
-        s->cursor_y += n;
-        if (s->cursor_y >= g_height) s->cursor_y = g_height - 1;
+        s->pending_wrap = 0;
+        {
+            int max_y = g_height - 1;
+            if (s->cursor_y >= s->scroll_top && s->cursor_y <= s->scroll_bot)
+                max_y = s->scroll_bot;
+            s->cursor_y += n;
+            if (s->cursor_y > max_y) s->cursor_y = max_y;
+        }
         return;
     case 'C': /* CUF — cursor forward */
         n = csi_param_or(0, 1);
+        s->pending_wrap = 0;
         s->cursor_x += n;
         if (s->cursor_x >= g_width) s->cursor_x = g_width - 1;
         return;
     case 'D': /* CUB — cursor back */
         n = csi_param_or(0, 1);
+        s->pending_wrap = 0;
         s->cursor_x -= n;
         if (s->cursor_x < 0) s->cursor_x = 0;
         return;
@@ -412,6 +449,7 @@ static void parser_dispatch_csi(unsigned char final) {
         if (p2 > g_width)  p2 = g_width;
         s->cursor_y = p1 - 1;
         s->cursor_x = p2 - 1;
+        s->pending_wrap = 0;
         return;
     case 'J': /* ED */
         n = csi_param(0, 0);
@@ -498,6 +536,7 @@ static void parser_dispatch_csi(unsigned char final) {
             s->scroll_bot = p2 - 1;
             s->cursor_x = 0;
             s->cursor_y = s->scroll_top;
+            s->pending_wrap = 0;
         }
         return;
     case 's': /* save cursor */
@@ -509,6 +548,7 @@ static void parser_dispatch_csi(unsigned char final) {
         s->cursor_x = s->saved_cx;
         s->cursor_y = s->saved_cy;
         s->palette  = s->saved_palette;
+        s->pending_wrap = 0;
         return;
     case 'S': /* SU — scroll up n lines (no cursor change) */
         scroll_up_in_region(csi_param_or(0, 1));
@@ -550,6 +590,7 @@ void term_init(int width, int height,
         g_screens[i].scroll_bot = g_height - 1;
         g_screens[i].cursor_visible = 1;
         g_screens[i].wrap_mode = 1;
+        g_screens[i].pending_wrap = 0;
     }
     g_hist_head = 0;
     g_hist_count = 0;
@@ -642,6 +683,7 @@ void term_set_cursor(int x, int y) {
     if (y >= g_height) y = g_height - 1;
     s->cursor_x = x;
     s->cursor_y = y;
+    s->pending_wrap = 0;
 }
 
 void term_get_cursor(int *x, int *y) {
@@ -704,6 +746,7 @@ void term_alt_enter(void) {
         a->scroll_bot = g_height - 1;
         a->cursor_visible = 1;
         a->wrap_mode = 1;
+        a->pending_wrap = 0;
     }
     term_repaint();
 }
