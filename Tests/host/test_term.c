@@ -64,9 +64,12 @@ static void test_newline_wrap(void) {
     for (i = 0; i < WIDTH; i++) term_putchar('A');
     int cx, cy;
     term_get_cursor(&cx, &cy);
-    CHECK(cx == 0 && cy == 1, "wrap: cursor=(%d,%d)", cx, cy);
-    /* writing one more should land on row 1 col 0 */
+    /* Deferred wrap: cursor stays at last column with pending_wrap set */
+    CHECK(cx == WIDTH - 1 && cy == 0, "deferred wrap: cursor=(%d,%d)", cx, cy);
+    /* writing one more should trigger the deferred wrap, then land on row 1 col 0 */
     term_putchar('B');
+    term_get_cursor(&cx, &cy);
+    CHECK(cx == 1 && cy == 1, "after 41st char: cursor=(%d,%d)", cx, cy);
     CHECK(g_render_tiles[1][0] == 'B', "wrap tile=%d", g_render_tiles[1][0]);
 }
 
@@ -441,6 +444,210 @@ static void test_no_input_source(void) {
     CHECK(ev == -1, "no source event = -1, got %d", ev);
 }
 
+/* ------------- Phase 0: scroll region clamping tests ------------ */
+
+static void test_cuu_clamps_to_scroll_region(void) {
+    reset();
+    /* Set scroll region to rows 5–20 (1-based) = 4–19 (0-based) */
+    puts_str("\033[5;20r");
+    /* Cursor is now at (0, 4) = top of region */
+    int cx, cy;
+    term_get_cursor(&cx, &cy);
+    CHECK(cy == 4, "DECSTBM initial cy=%d", cy);
+    /* Move cursor down a bit */
+    puts_str("\033[3B"); /* CUD 3 → row 7 */
+    term_get_cursor(&cx, &cy);
+    CHECK(cy == 7, "after CUD cy=%d", cy);
+    /* Now CUU 10 should clamp to scroll_top (4), not row 0 */
+    puts_str("\033[10A");
+    term_get_cursor(&cx, &cy);
+    CHECK(cy == 4, "CUU clamp to scroll_top: cy=%d", cy);
+}
+
+static void test_cud_clamps_to_scroll_region(void) {
+    reset();
+    /* Set scroll region to rows 5–20 (1-based) = 4–19 (0-based) */
+    puts_str("\033[5;20r");
+    /* CUD 50 should clamp to scroll_bot (19), not row 24 */
+    puts_str("\033[50B");
+    int cx, cy;
+    term_get_cursor(&cx, &cy);
+    CHECK(cy == 19, "CUD clamp to scroll_bot: cy=%d", cy);
+}
+
+static void test_cuu_outside_region_clamps_to_screen(void) {
+    reset();
+    /* Set scroll region to rows 5–20 */
+    puts_str("\033[5;20r");
+    /* CUP to row 3 (outside the region, above it) */
+    puts_str("\033[3;1H");
+    int cx, cy;
+    term_get_cursor(&cx, &cy);
+    CHECK(cy == 2, "CUP outside region cy=%d", cy);
+    /* CUU 10 should clamp to row 0 (screen boundary, not region) */
+    puts_str("\033[10A");
+    term_get_cursor(&cx, &cy);
+    CHECK(cy == 0, "CUU outside region clamps to 0: cy=%d", cy);
+}
+
+static void test_cud_outside_region_clamps_to_screen(void) {
+    reset();
+    /* Set scroll region to rows 5–10 */
+    puts_str("\033[5;10r");
+    /* CUP to row 22 (outside region, below it) */
+    puts_str("\033[22;1H");
+    int cx, cy;
+    term_get_cursor(&cx, &cy);
+    CHECK(cy == 21, "CUP below region cy=%d", cy);
+    /* CUD 10 should clamp to row 24 (screen boundary, not region) */
+    puts_str("\033[10B");
+    term_get_cursor(&cx, &cy);
+    CHECK(cy == HEIGHT - 1, "CUD outside region clamps to bottom: cy=%d", cy);
+}
+
+/* -------------------- Reverse Index (RI) tests -------------------- */
+
+static void test_ri_mid_screen(void) {
+    reset();
+    /* Move cursor to row 5 */
+    puts_str("\033[6;1H");
+    /* RI should just move cursor up */
+    puts_str("\033M");
+    int cx, cy;
+    term_get_cursor(&cx, &cy);
+    CHECK(cy == 4, "RI mid-screen cy=%d", cy);
+}
+
+static void test_ri_at_scroll_top(void) {
+    reset();
+    /* Set scroll region rows 5–10 */
+    puts_str("\033[5;10r");
+    /* Cursor at scroll_top (row 4) */
+    int cx, cy;
+    term_get_cursor(&cx, &cy);
+    CHECK(cy == 4, "at scroll_top cy=%d", cy);
+    /* Write content on rows 4–9 */
+    puts_str("AAAAAA");
+    puts_str("\033[5;1H"); /* back to top of region */
+    /* RI should scroll content down (insert blank line at top of region) */
+    puts_str("\033M");
+    term_get_cursor(&cx, &cy);
+    CHECK(cy == 4, "RI at top stays at top: cy=%d", cy);
+    /* Row 4 should now be blank (scrolled down) */
+    CHECK(g_render_tiles[4][0] == 0, "RI scrolled: row4=%d", g_render_tiles[4][0]);
+}
+
+static void test_ri_at_row_zero_no_region(void) {
+    reset();
+    /* Default scroll region (full screen). Cursor at row 0. */
+    puts_str("\033[1;1H");
+    puts_str("TOP");
+    puts_str("\033[1;1H");
+    puts_str("\033M");
+    int cx, cy;
+    term_get_cursor(&cx, &cy);
+    CHECK(cy == 0, "RI at row 0 stays: cy=%d", cy);
+    /* Content should have scrolled down, row 0 blank */
+    CHECK(g_render_tiles[0][0] == 0, "RI scroll down row0=%d", g_render_tiles[0][0]);
+    /* 'TOP' should now be on row 1 */
+    CHECK(g_render_tiles[1][0] == 'T', "RI scroll down row1=%d", g_render_tiles[1][0]);
+}
+
+/* ------------------- Deferred wrap tests ----------------------- */
+
+static void test_deferred_wrap_40_chars(void) {
+    reset();
+    /* Write exactly 40 chars — cursor should NOT wrap yet */
+    int i;
+    for (i = 0; i < WIDTH; i++) term_putchar('X');
+    int cx, cy;
+    term_get_cursor(&cx, &cy);
+    CHECK(cx == WIDTH - 1 && cy == 0, "deferred: cursor=(%d,%d)", cx, cy);
+}
+
+static void test_deferred_wrap_41st_char(void) {
+    reset();
+    int i;
+    for (i = 0; i < WIDTH; i++) term_putchar('X');
+    /* 41st character should trigger wrap + write on next row */
+    term_putchar('Y');
+    int cx, cy;
+    term_get_cursor(&cx, &cy);
+    CHECK(cx == 1 && cy == 1, "41st char: cursor=(%d,%d)", cx, cy);
+    CHECK(g_render_tiles[1][0] == 'Y', "41st char tile=%d", g_render_tiles[1][0]);
+}
+
+static void test_deferred_wrap_cancelled_by_cup(void) {
+    reset();
+    int i;
+    for (i = 0; i < WIDTH; i++) term_putchar('X');
+    /* pending_wrap is set; CUP should cancel it */
+    puts_str("\033[1;5H"); /* row 1, col 5 → (4, 0) */
+    int cx, cy;
+    term_get_cursor(&cx, &cy);
+    CHECK(cx == 4 && cy == 0, "CUP cancelled wrap: cursor=(%d,%d)", cx, cy);
+    /* Write another char — should NOT wrap */
+    term_putchar('Z');
+    term_get_cursor(&cx, &cy);
+    CHECK(cx == 5 && cy == 0, "after Z: cursor=(%d,%d)", cx, cy);
+    CHECK(g_render_tiles[0][4] == 'Z', "Z placed correctly=%d", g_render_tiles[0][4]);
+}
+
+static void test_deferred_wrap_cancelled_by_cub(void) {
+    reset();
+    int i;
+    for (i = 0; i < WIDTH; i++) term_putchar('X');
+    /* CUB 1 should cancel pending_wrap and move cursor back */
+    puts_str("\033[1D");
+    int cx, cy;
+    term_get_cursor(&cx, &cy);
+    CHECK(cx == WIDTH - 2 && cy == 0, "CUB cancelled wrap: cursor=(%d,%d)", cx, cy);
+}
+
+static void test_deferred_wrap_bottom_right_no_scroll(void) {
+    reset();
+    /* Move to last row (row 24, 1-based = row 25) */
+    puts_str("\033[25;1H");
+    /* Write exactly 40 chars — should NOT scroll */
+    int i;
+    for (i = 0; i < WIDTH; i++) term_putchar('Z');
+    int cx, cy;
+    term_get_cursor(&cx, &cy);
+    CHECK(cy == HEIGHT - 1, "bottom row no scroll: cy=%d", cy);
+    /* Row 0 should be untouched (no scroll happened) */
+    CHECK(g_render_tiles[0][0] == 0, "row 0 intact=%d", g_render_tiles[0][0]);
+}
+
+static void test_deferred_wrap_bottom_right_scroll_on_41st(void) {
+    reset();
+    /* Put marker on row 0 */
+    puts_str("TOP");
+    /* Move to last row */
+    puts_str("\033[25;1H");
+    /* Write 40 chars + 1 more — the 41st should trigger scroll */
+    int i;
+    for (i = 0; i < WIDTH; i++) term_putchar('Z');
+    term_putchar('!');
+    int cx, cy;
+    term_get_cursor(&cx, &cy);
+    /* After scroll, cursor should be on the last row */
+    CHECK(cy == HEIGHT - 1, "after scroll cy=%d", cy);
+    /* 'TOP' should have scrolled from row 0 to gone into history */
+    /* Row 0 now contains whatever was on row 1 (empty) */
+}
+
+static void test_deferred_wrap_newline_fires_wrap(void) {
+    reset();
+    int i;
+    for (i = 0; i < WIDTH; i++) term_putchar('A');
+    /* pending_wrap is set. LF should clear pending_wrap and move to next line. */
+    term_putchar('\n');
+    int cx, cy;
+    term_get_cursor(&cx, &cy);
+    /* LF subsumes the pending wrap: cursor goes to (0,1) */
+    CHECK(cx == 0 && cy == 1, "LF after wrap: cursor=(%d,%d)", cx, cy);
+}
+
 /* ---------------------------------------------------------------- */
 
 #define RUN(t) do { printf("  %s\n", #t); t(); } while (0)
@@ -474,6 +681,23 @@ int main(void) {
     RUN(test_raw_event);
     RUN(test_raw_read_drops_special);
     RUN(test_no_input_source);
+    /* Phase 0: scroll region clamping */
+    RUN(test_cuu_clamps_to_scroll_region);
+    RUN(test_cud_clamps_to_scroll_region);
+    RUN(test_cuu_outside_region_clamps_to_screen);
+    RUN(test_cud_outside_region_clamps_to_screen);
+    /* Phase 0: reverse index */
+    RUN(test_ri_mid_screen);
+    RUN(test_ri_at_scroll_top);
+    RUN(test_ri_at_row_zero_no_region);
+    /* Phase 0: deferred wrap */
+    RUN(test_deferred_wrap_40_chars);
+    RUN(test_deferred_wrap_41st_char);
+    RUN(test_deferred_wrap_cancelled_by_cup);
+    RUN(test_deferred_wrap_cancelled_by_cub);
+    RUN(test_deferred_wrap_bottom_right_no_scroll);
+    RUN(test_deferred_wrap_bottom_right_scroll_on_41st);
+    RUN(test_deferred_wrap_newline_fires_wrap);
     printf("\n");
     if (g_failures == 0) {
         printf("OK — all tests passed\n");
