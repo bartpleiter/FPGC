@@ -15,13 +15,13 @@ applyTo: '**'
 - Designated initializers with out-of-order fields
 
 ## Runtime features that don't exist
-- `malloc`/`free` in kernel code → use static arrays or preallocated regions from `fpgc.h`
+- `malloc`/`free` in kernel code → use static arrays or preallocated regions from `mem.h`
 - `printf` → use `uart_print_str()` / `uart_print_hex()` for debug output
 - Standard library headers (no libc) → use `libfpgc` equivalents
 - Threads/pthreads → single-foreground execution model with job slots
 
 ## Common mistakes
-- Never hardcode memory addresses → use constants from `fpgc.h` (`FPGC_KERNEL_*`, `FPGC_PROGRAM_*`, etc.)
+- Never hardcode memory addresses → use constants from `mem.h` for memory layout or `fpgc.h` for MMIO
 - Don't assume x86/ARM conventions → `int` is 4 bytes, `char` is 1 byte, pointers are 4 bytes
 - Don't use `restrict` keyword → not supported by cproc
 - Don't create `.h` files with function implementations → cproc processes each translation unit separately

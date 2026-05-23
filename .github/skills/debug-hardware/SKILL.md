@@ -20,7 +20,7 @@ uart_print_hex(register_value);
 uart_print_str("\n");
 ```
 
-**UART is on SPI0 MMIO registers** (`FPGC_UART_TX`, `FPGC_UART_RX`),
+**UART uses its own MMIO registers** (`FPGC_UART_TX`, `FPGC_UART_RX`),
 not an SPI bus. It's always available and doesn't conflict with other
 peripherals.
 
@@ -41,8 +41,8 @@ This opens a terminal showing real-time UART output from the FPGC.
 4. Check if another driver is holding the bus (SPI is shared)
 
 ### DMA transfer fails
-1. Check alignment: source and destination must be word-aligned (4-byte)
-2. Check count is in words (not bytes)
+1. Check alignment: source, destination, and count must be 32-byte aligned
+2. Check count is in bytes (not words) and > 0
 3. Verify the DMA mode matches the transfer direction
 4. Check `FPGC_DMA_STATUS` for error flag after transfer
 5. If using IRQ mode: verify interrupt handler is registered

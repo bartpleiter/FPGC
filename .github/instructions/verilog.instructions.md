@@ -29,9 +29,9 @@ Debug with GTKWave: `make debug-cpu file=<test_file>`
 
 ## Conventions
 - All MMIO registers are at addresses `0x1C000000`–`0x1C000084`
-- New MMIO registers must be added to the address decoder in `FPGC.v`
+- New MMIO registers must be added to the address decoder in `MemoryUnit.v`
   AND to `Software/C/libfpgc/include/fpgc.h`
-- Clock domain: single 50 MHz clock (no CDC unless interfacing external async signals)
+- Clock domains: 100 MHz CPU/SDRAM, 25 MHz GPU, 125 MHz TMDS, all from a single PLL
 
 ## Ripple effects
 - Adding a new MMIO register → also update `fpgc.h`, `Docs/context/Project-context.md`

@@ -27,6 +27,7 @@ After any change: `make compile-kernel`
 | `dev_null.c` | /dev/null device |
 | `dev_pixpal.c` | /dev/pixpal GPU palette device |
 | `dev_uart.c` | /dev/uart raw serial device |
+| `dev_uart_mirror.c` | UART mirror output device |
 | `dev_random.c` | /dev/random LFSR pseudo-random device |
 | `dev_proc.c` | /proc virtual filesystem (uptime, meminfo, ps, df) |
 
@@ -53,7 +54,7 @@ Numbers defined in `include/syscall_nums.h`:
 - Hardware (40–43): GET_KEY_STATE, IOCTL, SLEEP, GET_MICROS
 - Network (50–53): NET_SEND, NET_RECV, NET_PACKET_COUNT, NET_GET_MAC
 
-## Memory layout (from fpgc.h)
+## Memory layout (from mem.h)
 - `0x000000–0x0FFFFF` — Kernel code (1 MiB)
 - `0x100000–0x10FFFF` — Kernel stacks (64 KiB)
 - `0x110000–0x1FFFFF` — Kernel heap (~960 KiB)
@@ -64,7 +65,7 @@ Numbers defined in `include/syscall_nums.h`:
 ## Ripple effects
 - Adding a syscall → also update `syscall_nums.h`, userlib `syscall.c`, userlib `syscall.h`
 - Changing VFS behavior → may affect all userBDOS programs
-- Changing memory layout → update `fpgc.h` constants
+- Changing memory layout → update `mem.h` constants
 - Changing boot sequence → test on real hardware
 
 ## Reference implementations

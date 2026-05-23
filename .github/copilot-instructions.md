@@ -64,7 +64,7 @@ All MMIO addresses are defined in `Software/C/libfpgc/include/fpgc.h`.
 
 ## Dangerous areas — ask the user before changing
 
-- Memory layout constants in `fpgc.h` (FPGC_KERNEL_*, FPGC_PROGRAM_*, etc.)
+- Memory layout constants in `mem.h` / `fpgc.h` (kernel memory regions, process pool, caches)
 - Interrupt handler dispatch in `Software/C/kernel/src/main.c`
 - BRFS on-disk format in `Software/C/libfpgc/fs/brfs.c`
 - SPI bus assignments in `fpgc.h`
