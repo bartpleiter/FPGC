@@ -61,7 +61,7 @@
 /* Connection limits */
 #define ARP_TABLE_SIZE  8
 #define MAX_CONNECTIONS 8
-#define HTTP_REQ_SIZE   512
+#define HTTP_REQ_SIZE   1024
 #define HTTP_PATH_SIZE  128
 
 /* Shared frame buffers */

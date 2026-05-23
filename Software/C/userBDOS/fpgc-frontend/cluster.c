@@ -301,7 +301,7 @@ void cluster_push_sse(void)
         if (sse_clients[i].type == SSE_TETRIS && tetris_state.updated)
             push_tetris_sse(sse_clients[i].conn);
 
-        if (sse_clients[i].type == SSE_MANDELBROT && mbrot_state.updated)
+        if (sse_clients[i].type == SSE_MANDELBROT && mbrot_state.rendering)
             push_mbrot_sse(sse_clients[i].conn);
     }
 
@@ -313,17 +313,41 @@ void cluster_push_sse(void)
 void cluster_handle(const char *frame, int len)
 {
     int msg_type;
+    int rx_flags;
     int payload_len;
     const char *payload;
 
     if (len < FNP_HDR_DATA) return;
 
     msg_type = (int)(unsigned char)frame[FNP_HDR_TYPE];
+    rx_flags = (int)(unsigned char)frame[FNP_HDR_FLAGS];
     payload_len = (int)read_u16(frame + FNP_HDR_LEN);
     payload = frame + FNP_HDR_DATA;
 
     if (FNP_HDR_DATA + payload_len > len)
         payload_len = len - FNP_HDR_DATA;
+
+    /* Send ACK if the sender requested one */
+    if (rx_flags & 0x02) /* FNP_FLAG_REQUIRES_ACK */
+    {
+        int src_mac[6];
+        char ack_data[2];
+        int seq_hi;
+        int seq_lo;
+        int i;
+
+        for (i = 0; i < 6; i++)
+            src_mac[i] = (int)(unsigned char)frame[6 + i];
+
+        seq_hi = (int)(unsigned char)frame[FNP_HDR_SEQ];
+        seq_lo = (int)(unsigned char)frame[FNP_HDR_SEQ + 1];
+        ack_data[0] = (char)seq_hi;
+        ack_data[1] = (char)seq_lo;
+
+        fnp_send(src_mac, 0x01 /* FNP_TYPE_ACK */, fnp_tx_seq, 0,
+                 ack_data, 2, fnp_frame_buf);
+        fnp_tx_seq++;
+    }
 
     switch (msg_type)
     {
