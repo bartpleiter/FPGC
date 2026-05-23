@@ -49,27 +49,7 @@ unsigned int cam_last_frame_addr(void)
     return CAM_BUF1_BYTE_ADDR;
 }
 
-void cam_sccb_write(int reg_addr, int data)
-{
-    int val;
-    int ready;
-    /* Wait for SCCB master to be ready */
-    ready = __builtin_load(FPGC_CAM_SCCB);
-    while (!(ready & 1))
-    {
-        ready = __builtin_load(FPGC_CAM_SCCB);
-    }
-    /* Write: {[15:8] reg_addr, [7:0] data} */
-    val = ((reg_addr & 0xFF) << 8) | (data & 0xFF);
-    __builtin_store(FPGC_CAM_SCCB, val);
-}
-
 int cam_read_ctrl(void)
 {
     return __builtin_load(FPGC_CAM_CTRL);
-}
-
-int cam_sccb_ready_raw(void)
-{
-    return __builtin_load(FPGC_CAM_SCCB) & 1;
 }

@@ -71,6 +71,28 @@
 #define FPGC_DMA_STATUS     0x1C000080
 #define FPGC_DMA_QSPI_ADDR  0x1C000084
 
+/* Camera subsystem registers */
+#define FPGC_CAM_CTRL       0x1C000088  /* [0] enable, [1] byte_phase */
+#define FPGC_CAM_STATUS     0x1C00008C  /* [0] frame_done, [1] cur_buf, [2] 1, [3] vsync, [4] href */
+#define FPGC_I2C_DBG        0x1C000090  /* [4:0] i2c_state, [5] start, [6] pending, [7] busy */
+#define FPGC_CAM_BUF0       0x1C000094  /* Debug: [16:0] frame_pixels, [25:17] line_count */
+#define FPGC_CAM_BUF1       0x1C000098  /* Debug: [11:0] cache_lines, [19:12] partial_drops */
+#define FPGC_CAM_DBG        0x1C00009C  /* Debug: [2:0] state, [3] arb_busy */
+
+/* I2C master registers */
+#define FPGC_I2C_CMD        0x1C0000A0  /* W: {[23:17] dev_addr, [16] rw, [15:8] reg, [7:0] data} */
+#define FPGC_I2C_DATA       0x1C0000A4  /* R: {24'd0, rd_data[7:0]} */
+
+/* GPU status register */
+#define FPGC_GPU_STATUS     0x1C0000A8  /* [0] vblank, [12:1] v_count */
+
+/* DMA LUT and dither table registers */
+#define FPGC_DMA_LUT        0x1C0000AC  /* Write: {addr[15:8], data[7:0]} */
+#define FPGC_DMA_DITHER     0x1C0000B0  /* Write: {table[13:12], mi[11:8], data[7:0]} */
+
+/* Button input */
+#define FPGC_BTN_STATE      0x1C0000B4  /* [31:0] debounced button state (read-only) */
+
 /* DMA_CTRL bit fields */
 #define FPGC_DMA_MODE_MEM2MEM   0
 #define FPGC_DMA_MODE_MEM2SPI   1
@@ -79,7 +101,14 @@
 #define FPGC_DMA_MODE_MEM2IO    4
 #define FPGC_DMA_MODE_IO2MEM    5
 #define FPGC_DMA_MODE_SPI2MEM_QSPI 6
+#define FPGC_DMA_MODE_CAM2MEM   7
+#define FPGC_DMA_MODE_CAM2VRAM  8
 #define FPGC_DMA_CTRL_IRQ_EN    (1u << 4)
+#define FPGC_DMA_CTRL_CAM_IMM   (1u << 8)   /* CAM2MEM: skip frame_done wait */
+#define FPGC_DMA_CTRL_LUT_EN    (1u << 9)   /* MEM2VRAM: apply 256-entry LUT */
+#define FPGC_DMA_CTRL_DITHER_EN (1u << 10)  /* MEM2VRAM: apply dithering */
+#define FPGC_DMA_CTRL_DITHER_8  (1u << 11)  /* MEM2VRAM dither: 0=4-shade, 1=8-shade */
+#define FPGC_DMA_CTRL_UPSCALE2X (1u << 12)  /* MEM2VRAM/CAM2VRAM: 2x pixel doubling */
 #define FPGC_DMA_CTRL_SPI_SHIFT 5
 #define FPGC_DMA_CTRL_START     (1u << 31)
 

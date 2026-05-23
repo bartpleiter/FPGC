@@ -4,15 +4,16 @@
 /*
  * DMA driver for the FPGC DMAengine.
  *
- * Supports memory-to-memory copies, SPI<->memory bursts (SPI0, SPI1,
- * SPI4, SPI5), QSPI Fast Read from SPI1, and memory-to-VRAMPX blits.
+ * Currently supports memory-to-memory copies and SPI<->memory bursts on
+ * SPI0 (Flash 1) and SPI4 (Ethernet). The other modes (MEM2VRAM, MEM2IO,
+ * IO2MEM) will be added later.
  *
  * All transfers must be 32-byte (cache-line) aligned in both the
  * memory addresses they touch and the byte count.
  *
- * Coherency: dma_copy() and dma_blit_to_vram() flush/invalidate the
- * L1 data cache around the transfer with the `ccached` instruction,
- * so callers do not need to do that themselves.
+ * Coherency: dma_copy() flushes/invalidates the L1 data cache around the
+ * transfer with the `ccached` instruction, so callers do not need to do
+ * that themselves.
  */
 
 #include "fpgc.h"
@@ -25,7 +26,9 @@ typedef enum {
     DMA_MEM2VRAM = FPGC_DMA_MODE_MEM2VRAM,
     DMA_MEM2IO   = FPGC_DMA_MODE_MEM2IO,
     DMA_IO2MEM   = FPGC_DMA_MODE_IO2MEM,
-    DMA_SPI2MEM_QSPI = FPGC_DMA_MODE_SPI2MEM_QSPI
+    DMA_SPI2MEM_QSPI = FPGC_DMA_MODE_SPI2MEM_QSPI,
+    DMA_CAM2MEM  = FPGC_DMA_MODE_CAM2MEM,
+    DMA_CAM2VRAM = FPGC_DMA_MODE_CAM2VRAM
 } dma_mode_t;
 
 /*
@@ -98,6 +101,33 @@ void dma_start_spi(dma_mode_t mode, int spi_id, unsigned int dst,
 void dma_start_spi_qspi_read(int spi_id, unsigned int dst,
                              unsigned int qspi_addr, unsigned int count);
 
+/*
+ * Asynchronous camera-to-memory DMA transfer.
+ *
+ * The DMA engine waits for CameraCapture to produce 256-bit cache lines
+ * and writes them to SDRAM at `dst`, advancing by 32 bytes each time.
+ * `count` is the total byte count (must be 32-byte aligned, >0).
+ * For a QVGA frame: dst = buffer address, count = 76800 (320×240 Y bytes).
+ *
+ * No cache flushing is performed; the camera writes bypass the CPU cache.
+ */
+void dma_start_cam(unsigned int dst, unsigned int count);
+void dma_start_cam_immediate(unsigned int dst, unsigned int count);
+
+/*
+ * Asynchronous camera-to-VRAMPX DMA transfer.
+ *
+ * Captures Y bytes from CameraCapture and writes them directly to VRAMPX,
+ * bypassing SDRAM entirely. Optional LUT and dithering are applied inline.
+ * `dst` must lie in VRAMPX range (0x1EC00000..0x1EC20000).
+ * `flags`: OR of FPGC_DMA_CTRL_LUT_EN, FPGC_DMA_CTRL_DITHER_EN,
+ *          FPGC_DMA_CTRL_DITHER_8.
+ */
+void dma_start_cam2vram(unsigned int dst, unsigned int count,
+                        unsigned int flags);
+void dma_start_cam2vram_immediate(unsigned int dst, unsigned int count,
+                                  unsigned int flags);
+
 /* Returns non-zero while the engine is busy. */
 int dma_busy(void);
 
@@ -106,6 +136,43 @@ int dma_busy(void);
  * bits, so callers should typically only read it once per transfer.
  */
 unsigned int dma_status(void);
+
+/*
+ * Load one entry into the DMA's 256×8 auto-contrast LUT.
+ * addr = input pixel value (0-255), data = output pixel value.
+ * Call 256 times to fill the entire table.
+ */
+void dma_lut_write(int addr, int data);
+
+/*
+ * Load a 4-shade dither threshold table entry.
+ * table = 0 (thresh_0), 1 (thresh_1), 2 (thresh_2).
+ * mi = matrix index (0-15), value = threshold byte.
+ */
+void dma_dither_thresh_write(int table, int mi, int value);
+
+/*
+ * Load an 8-shade Bayer offset table entry.
+ * mi = matrix index (0-15), value = offset byte.
+ */
+void dma_dither_bayer_write(int mi, int value);
+
+/*
+ * Read the hardware min/max pixel values from the last MEM2VRAM or CAM2VRAM
+ * drain. Returns packed {drain_max[15:8], drain_min[7:0]}.
+ * Use DMA_DRAIN_MIN(v) and DMA_DRAIN_MAX(v) to extract.
+ */
+unsigned int dma_drain_stats(void);
+#define DMA_DRAIN_MIN(v) ((v) & 0xFF)
+#define DMA_DRAIN_MAX(v) (((v) >> 8) & 0xFF)
+
+/*
+ * Asynchronous MEM2VRAM with optional LUT and/or dithering.
+ * flags: OR of FPGC_DMA_CTRL_LUT_EN, FPGC_DMA_CTRL_DITHER_EN,
+ *        FPGC_DMA_CTRL_DITHER_8.
+ */
+void dma_start_mem2vram_ex(unsigned int dst, unsigned int src,
+                           unsigned int count, unsigned int flags);
 
 /*
  * Flush + invalidate the L1 data cache (ccached instruction). Used by

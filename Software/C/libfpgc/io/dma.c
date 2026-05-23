@@ -1,28 +1,3 @@
-/*
- * DMA engine driver
- *
- * Registers: FPGC_DMA_SRC (0x70), DST (0x74), COUNT (0x78),
- *            CTRL (0x7C), STATUS (0x80), QSPI_ADDR (0x84)
- * Interrupt: INTID_DMA (7) when IRQ_EN bit is set
- *
- * 7 transfer modes:
- *   MEM2MEM(0)  MEM2SPI(1)  SPI2MEM(2)  MEM2VRAM(3)
- *   MEM2IO(4)   IO2MEM(5)   SPI2MEM_QSPI(6)
- *
- * Public API:
- *   dma_busy()                              -> int (0/1)
- *   dma_status()                            -> uint status bits
- *   dma_start_mem2mem(dst, src, count)       -> void
- *   dma_start_mem2vram(dst, src, count)      -> void
- *   dma_start_spi2mem(dst, spi, count)       -> void
- *   dma_start_mem2spi(spi, src, count)       -> void
- *   dma_start_spi2mem_qspi(dst, spi, count, flash_addr) -> void
- *   dma_transfer_blocking(...)               -> void
- *
- * Count is in WORDS (4 bytes each). Addresses must be word-aligned.
- * Dependencies: fpgc.h
- * Build: part of libfpgc (make compile-kernel)
- */
 #include "dma.h"
 #include "fpgc.h"
 
@@ -140,4 +115,83 @@ dma_blit_to_vram(unsigned int dst, unsigned int src, unsigned int count)
         return -1;
     }
     return 0;
+}
+
+void
+dma_start_cam(unsigned int dst, unsigned int count)
+{
+    __builtin_store(FPGC_DMA_DST,   (int)dst);
+    __builtin_store(FPGC_DMA_COUNT, (int)count);
+    __builtin_store(FPGC_DMA_CTRL,
+        (int)(FPGC_DMA_CTRL_START | (unsigned int)FPGC_DMA_MODE_CAM2MEM));
+}
+
+void
+dma_start_cam_immediate(unsigned int dst, unsigned int count)
+{
+    __builtin_store(FPGC_DMA_DST,   (int)dst);
+    __builtin_store(FPGC_DMA_COUNT, (int)count);
+    __builtin_store(FPGC_DMA_CTRL,
+        (int)(FPGC_DMA_CTRL_START | FPGC_DMA_CTRL_CAM_IMM
+              | (unsigned int)FPGC_DMA_MODE_CAM2MEM));
+}
+
+void
+dma_lut_write(int addr, int data)
+{
+    __builtin_store(FPGC_DMA_LUT, (addr << 8) | (data & 0xFF));
+}
+
+void
+dma_dither_thresh_write(int table, int mi, int value)
+{
+    __builtin_store(FPGC_DMA_DITHER,
+        (table << 12) | (mi << 8) | (value & 0xFF));
+}
+
+void
+dma_dither_bayer_write(int mi, int value)
+{
+    __builtin_store(FPGC_DMA_DITHER,
+        (3 << 12) | (mi << 8) | (value & 0xFF));
+}
+
+unsigned int
+dma_drain_stats(void)
+{
+    return (unsigned int)__builtin_load(FPGC_DMA_LUT);
+}
+
+void
+dma_start_cam2vram(unsigned int dst, unsigned int count,
+                   unsigned int flags)
+{
+    __builtin_store(FPGC_DMA_DST,   (int)dst);
+    __builtin_store(FPGC_DMA_COUNT, (int)count);
+    __builtin_store(FPGC_DMA_CTRL,
+        (int)(FPGC_DMA_CTRL_START | (unsigned int)FPGC_DMA_MODE_CAM2VRAM
+              | flags));
+}
+
+void
+dma_start_cam2vram_immediate(unsigned int dst, unsigned int count,
+                             unsigned int flags)
+{
+    __builtin_store(FPGC_DMA_DST,   (int)dst);
+    __builtin_store(FPGC_DMA_COUNT, (int)count);
+    __builtin_store(FPGC_DMA_CTRL,
+        (int)(FPGC_DMA_CTRL_START | FPGC_DMA_CTRL_CAM_IMM
+              | (unsigned int)FPGC_DMA_MODE_CAM2VRAM | flags));
+}
+
+void
+dma_start_mem2vram_ex(unsigned int dst, unsigned int src,
+                      unsigned int count, unsigned int flags)
+{
+    __builtin_store(FPGC_DMA_SRC,   (int)src);
+    __builtin_store(FPGC_DMA_DST,   (int)dst);
+    __builtin_store(FPGC_DMA_COUNT, (int)count);
+    __builtin_store(FPGC_DMA_CTRL,
+        (int)(FPGC_DMA_CTRL_START | (unsigned int)FPGC_DMA_MODE_MEM2VRAM
+              | flags));
 }

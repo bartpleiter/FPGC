@@ -34,7 +34,7 @@ CPROC_OUTPUT = $(CPROC_DIR)/output/cproc-qbe
 .PHONY: sim-cpu sim-sdram sim-bootloader
 .PHONY: test-cpu test-cpu-single debug-cpu quartus-timing
 .PHONY: test-c test-c-single
-.PHONY: compile-asm compile-bootloader compile-c-baremetal compile-kernel compile-sdcard-init-test compile-sdcard-rw-test compile-sdcard-multi-test compile-sdcard-brfs-storage-test compile-format-spi-flash1
+.PHONY: compile-asm compile-bootloader compile-c-baremetal compile-camera compile-kernel compile-sdcard-init-test compile-sdcard-rw-test compile-sdcard-multi-test compile-sdcard-brfs-storage-test compile-format-spi-flash1
 .PHONY: compile-userbdos compile-userbdos-all compile-doom compile-user-all
 .PHONY: run-uart uart-monitor run-asm-uart run-c-baremetal-uart run-kernel run-format-spi-flash1
 .PHONY: compile-spi1-dma-test run-spi1-dma-test
@@ -450,6 +450,48 @@ compile-c-baremetal: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 	fi
 	@mkdir -p Software/ASM/Output
 	./Scripts/BCC/compile_modern_c.sh Software/ASM/crt0/crt0_baremetal.asm Software/C/bareMetal/$(file).c -h -o Software/ASM/Output/code.bin
+
+compile-camera: $(QBE_OUTPUT) $(CPROC_OUTPUT)
+	@mkdir -p Software/ASM/Output
+	./Scripts/BCC/compile_modern_c.sh \
+		Software/ASM/crt0/crt0_baremetal.asm \
+		Software/C/libc/sys/_exit.asm \
+		Software/C/libc/sys/syscalls.c \
+		Software/C/libc/string/string.c \
+		Software/C/libc/stdlib/stdlib.c \
+		Software/C/libc/stdlib/malloc.c \
+		Software/C/libc/ctype/ctype.c \
+		Software/C/libc/stdio/stdio.c \
+		Software/C/libfpgc/sys/sys_asm.asm \
+		Software/C/libfpgc/sys/sys.c \
+		Software/C/libfpgc/io/uart.c \
+		Software/C/libfpgc/io/timer.c \
+		Software/C/libfpgc/io/dma_asm.asm \
+		Software/C/libfpgc/io/dma.c \
+		Software/C/libfpgc/io/i2c.c \
+		Software/C/libfpgc/io/spi.c \
+		Software/C/libfpgc/io/ch376.c \
+		Software/C/libfpgc/io/sd.c \
+		Software/C/libfpgc/gfx/gpu_hal.c \
+		Software/C/libfpgc/gfx/gpu_data_ascii.c \
+		Software/C/libfpgc/fs/brfs.c \
+		Software/C/libfpgc/fs/brfs_cache.c \
+		Software/C/libfpgc/fs/brfs_storage_sdcard.c \
+		Software/C/camera/cam_driver.c \
+		Software/C/camera/ov7670_init.c \
+		Software/C/camera/image_proc.c \
+		Software/C/camera/settings.c \
+		Software/C/camera/hud.c \
+		Software/C/camera/storage.c \
+		Software/C/camera/bmp.c \
+		Software/C/camera/gallery.c \
+		Software/C/camera/viewfinder.c \
+		Software/C/camera/main.c \
+		--libc \
+		-I Software/C/libfpgc/include \
+		-I Software/C/camera \
+		-h \
+		-o Software/ASM/Output/code.bin
 
 KERNEL_SOURCES = \
 	Software/ASM/crt0/crt0_kernel.asm \
