@@ -235,7 +235,37 @@ void tcp_handle(const char *frame, int len, unsigned int src_ip)
                 if (conn->http_state == HTTP_RECV_REQ &&
                     strstr(conn->request, "\r\n\r\n"))
                 {
-                    http_handle_request(conn);
+                    /* For POST requests, wait until full body arrives */
+                    char *hdr_end;
+                    int ready;
+                    ready = 1;
+                    hdr_end = strstr(conn->request, "\r\n\r\n");
+                    if (conn->request[0] == 'P') /* POST */
+                    {
+                        char *cl;
+                        cl = strstr(conn->request, "Content-Length: ");
+                        if (!cl)
+                            cl = strstr(conn->request, "content-length: ");
+                        if (cl)
+                        {
+                            int clen;
+                            int hdr_len;
+                            int body_len;
+                            cl += 16; /* skip "Content-Length: " */
+                            clen = 0;
+                            while (*cl >= '0' && *cl <= '9')
+                            {
+                                clen = clen * 10 + (*cl - '0');
+                                cl++;
+                            }
+                            hdr_len = (int)(hdr_end - conn->request) + 4;
+                            body_len = conn->request_len - hdr_len;
+                            if (body_len < clen)
+                                ready = 0; /* body not complete yet */
+                        }
+                    }
+                    if (ready)
+                        http_handle_request(conn);
                 }
             }
         }

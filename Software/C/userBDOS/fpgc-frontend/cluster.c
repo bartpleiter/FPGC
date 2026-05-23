@@ -537,8 +537,6 @@ void cluster_handle_render_request(struct tcp_conn *conn, const char *body)
     const char *resp;
     int resp_len;
 
-    sys_putstr("[MBROT] render request\n");
-
     /* Parse form fields — use defaults matching mbroth.c reset_view */
     center_re_hi = 0xFFFFFFFF; /* -1 */
     center_re_lo = 0x41A1BEB0;

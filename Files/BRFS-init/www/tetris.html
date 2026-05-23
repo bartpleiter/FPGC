@@ -1,0 +1,200 @@
+<html>
+<head>
+<title>Tetris GA - FPGC</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#111;color:#ccc;font-family:'Courier New',monospace;padding:20px}
+h1{color:#0f0;font-size:20px;margin-bottom:12px}
+h2{color:#0a0;font-size:14px;margin:12px 0 6px;border-bottom:1px solid #333;padding-bottom:4px}
+.wrap{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap}
+.col{display:flex;flex-direction:column;gap:8px}
+canvas{border:2px solid #444;background:#000}
+.panel{background:#1a1a1a;border:1px solid #333;padding:10px;border-radius:4px}
+table{border-collapse:collapse;font-size:13px}
+td{padding:2px 8px}
+td:first-child{color:#888}
+td:last-child{color:#ff0;text-align:right}
+.gene-name{color:#888}
+.gene-val{color:#0ff}
+#status{color:#555;font-size:11px;margin-top:8px}
+.chart{border:1px solid #333;background:#0a0a0a}
+</style>
+</head>
+<body>
+<h1>FPGC Tetris GA</h1>
+<div class="wrap">
+
+<div class="col">
+<canvas id="board" width="200" height="400"></canvas>
+<div id="status">Connecting...</div>
+</div>
+
+<div class="col">
+<div class="panel">
+<h2>Current Game</h2>
+<table>
+<tr><td>Score</td><td id="score">-</td></tr>
+<tr><td>Lines</td><td id="lines">-</td></tr>
+</table>
+</div>
+<div class="panel">
+<h2>GA Status</h2>
+<table>
+<tr><td>Generation</td><td id="gen">-</td></tr>
+<tr><td>Player</td><td id="player">-</td></tr>
+<tr><td>Best Ever</td><td id="best">-</td></tr>
+<tr><td>Avg Score</td><td id="avg">-</td></tr>
+<tr><td>Mutations</td><td id="mut">-</td></tr>
+</table>
+</div>
+<div class="panel">
+<h2>Best Genes (Q16.16)</h2>
+<table>
+<tr><td class="gene-name">Lines Cleared</td><td class="gene-val" id="g0">-</td></tr>
+<tr><td class="gene-name">Delta Height</td><td class="gene-val" id="g1">-</td></tr>
+<tr><td class="gene-name">Holes</td><td class="gene-val" id="g2">-</td></tr>
+<tr><td class="gene-name">Big Wells</td><td class="gene-val" id="g3">-</td></tr>
+<tr><td class="gene-name">Max Hole Dist</td><td class="gene-val" id="g4">-</td></tr>
+<tr><td class="gene-name">Bumpiness</td><td class="gene-val" id="g5">-</td></tr>
+</table>
+</div>
+</div>
+
+<div class="col">
+<div class="panel">
+<h2>Best Score History</h2>
+<canvas id="chart-best" class="chart" width="300" height="150"></canvas>
+</div>
+<div class="panel">
+<h2>Avg Score History</h2>
+<canvas id="chart-avg" class="chart" width="300" height="150"></canvas>
+</div>
+<div class="panel">
+<h2>Mutations History</h2>
+<canvas id="chart-mut" class="chart" width="300" height="150"></canvas>
+</div>
+</div>
+
+</div>
+<script>
+var COLS=10,ROWS=20,CELL=20;
+var colors=['#000','#00ffff','#0000ff','#ff8800','#ffff00','#00ff00','#aa00ff','#ff0000'];
+var ctx=document.getElementById('board').getContext('2d');
+
+var bestHistory=[0];
+var avgHistory=[0];
+var mutHistory=[0];
+var lastGen=-1;
+
+function el(id){return document.getElementById(id)}
+
+function draw(hex){
+  var i,r,c,v;
+  for(i=0;i<200;i++){
+    v=parseInt(hex.substr(i*2,2),16);
+    r=ROWS-1-(i/COLS|0);
+    c=i%COLS;
+    ctx.fillStyle=colors[v&7];
+    ctx.fillRect(c*CELL,r*CELL,CELL-1,CELL-1);
+  }
+}
+
+function q16(v){
+  if(v===0)return' 0.00';
+  var neg=v<0;
+  var a=neg?-v:v;
+  var i=a>>>16;
+  var f=((a&0xFFFF)*100)>>>16;
+  return(neg?'-':' ')+i+'.'+(''+f).padStart(2,'0');
+}
+
+function drawChart(canvasId,data,color,label){
+  var c=document.getElementById(canvasId);
+  var cx=c.getContext('2d');
+  var w=c.width,h=c.height;
+  var pad=40,bot=20,n=data.length;
+  var plotW=w-pad,plotH=h-bot;
+  cx.clearRect(0,0,w,h);
+  if(n<2){
+    cx.fillStyle='#444';cx.font='12px monospace';
+    cx.fillText('Waiting for data...',60,h/2);
+    return;
+  }
+  var max=Math.max.apply(null,data)||1;
+  /* Axes */
+  cx.strokeStyle='#333';cx.lineWidth=1;
+  cx.beginPath();cx.moveTo(pad,0);cx.lineTo(pad,plotH);cx.lineTo(w,plotH);cx.stroke();
+  cx.fillStyle='#666';cx.font='9px monospace';
+  /* Y-axis: 5 ticks */
+  var yTicks=5,yi;
+  for(yi=0;yi<=yTicks;yi++){
+    var val=Math.round(max*yi/yTicks);
+    var yy=plotH-plotH*yi/yTicks;
+    cx.fillText(val,1,yy+3);
+    if(yi>0&&yi<yTicks){cx.strokeStyle='#222';cx.beginPath();cx.moveTo(pad,yy);cx.lineTo(w,yy);cx.stroke();}
+  }
+  /* X-axis: up to 5 gen ticks */
+  var xTicks=Math.min(n-1,5),xi;
+  for(xi=0;xi<=xTicks;xi++){
+    var gi=Math.round((n-1)*xi/xTicks);
+    var xx=pad+plotW*gi/(n-1);
+    cx.fillStyle='#666';cx.fillText(gi,xx-4,h-4);
+  }
+  /* Data line */
+  cx.strokeStyle=color;cx.lineWidth=1.5;cx.beginPath();
+  for(var i=0;i<n;i++){
+    var x=pad+plotW*i/(n-1);
+    var y=plotH-plotH*data[i]/max;
+    if(i===0)cx.moveTo(x,y);else cx.lineTo(x,y);
+  }
+  cx.stroke();
+}
+
+function redrawCharts(){
+  drawChart('chart-best',bestHistory,'#e00');
+  drawChart('chart-avg',avgHistory,'#0c0');
+  drawChart('chart-mut',mutHistory,'#ff0');
+}
+
+var es=new EventSource('/api/tetris');
+es.onmessage=function(e){
+  var d=JSON.parse(e.data);
+
+  /* History replay from server */
+  if(d.type==='hist'){
+    if(d.b)for(var i=0;i<d.b.length;i++)bestHistory.push(d.b[i]);
+    if(d.a)for(var i=0;i<d.a.length;i++)avgHistory.push(d.a[i]);
+    if(d.m)for(var i=0;i<d.m.length;i++)mutHistory.push(d.m[i]);
+    redrawCharts();
+    el('status').textContent='Loading history...';
+    return;
+  }
+
+  /* Live update */
+  if(d.board)draw(d.board);
+  if(d.score!==undefined)el('score').textContent=d.score;
+  if(d.lines!==undefined)el('lines').textContent=d.lines;
+  if(d.gen!==undefined)el('gen').textContent=d.gen;
+  if(d.player!==undefined&&d.pop!==undefined)el('player').textContent=d.player+'/'+d.pop;
+  if(d.best!==undefined)el('best').textContent=d.best;
+  if(d.avg!==undefined)el('avg').textContent=d.avg;
+  if(d.mut!==undefined)el('mut').textContent=d.mut;
+  if(d.genes){
+    for(var i=0;i<6;i++){
+      el('g'+i).textContent=q16(d.genes[i]);
+    }
+  }
+  /* Append to history when generation changes */
+  if(d.gen!==undefined&&d.gen!==lastGen&&d.gen>0){
+    lastGen=d.gen;
+    if(d.best!==undefined)bestHistory.push(d.best);
+    if(d.avg!==undefined)avgHistory.push(d.avg);
+    if(d.mut!==undefined)mutHistory.push(d.mut);
+    redrawCharts();
+  }
+  el('status').textContent='Connected';
+};
+es.onerror=function(){el('status').textContent='Disconnected';};
+</script>
+</body>
+</html>
