@@ -191,7 +191,7 @@ extern int keyboard_poll(void);
 extern void keyboard_check_connect(void);
 
 /* Current resolution mode */
-static int res_mode = RES_QVGA;
+int res_mode = RES_QVGA;
 
 /* Cached remaining image count (updated on capture/delete/res change) */
 static int cached_remaining = 0;
@@ -359,6 +359,7 @@ static void do_capture(void)
  * stopped. This is a design convention for clean frame boundaries.
  */
 static int pending_action = 0;
+static int menu_reopen = 0;  /* re-open menu after resolution switch */
 
 static int handle_key(int key)
 {
@@ -373,7 +374,8 @@ static int handle_key(int key)
         }
         pending_action = menu_handle_key(key);
         if (pending_action == 6) {
-            /* Resolution change — close menu first */
+            /* Resolution change — set reopen flag, close menu, exit loop */
+            menu_reopen = 1;
             menu_close();
             while (dma_busy()) { }
             if (res_mode == RES_QVGA) res_mode = RES_QQVGA;
@@ -607,6 +609,12 @@ static int viewfinder_qvga(void)
 
     hud_update(last_fps, cached_remaining);
 
+    /* Re-open menu if we came from a resolution switch */
+    if (menu_reopen) {
+        menu_reopen = 0;
+        menu_open();
+    }
+
     while (1) {
         unsigned int t_start;
         unsigned int t_end;
@@ -699,6 +707,12 @@ static int viewfinder_qqvga(void)
     }
 
     hud_update(last_fps, cached_remaining);
+
+    /* Re-open menu if we came from a resolution switch */
+    if (menu_reopen) {
+        menu_reopen = 0;
+        menu_open();
+    }
 
     while (1) {
         unsigned int t_start;

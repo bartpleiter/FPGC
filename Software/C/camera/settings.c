@@ -92,7 +92,7 @@ static void ov_wr(int reg, int val)
 
 void settings_init(void)
 {
-    cam_settings.shoot_mode = SHOOT_AUTO;
+    cam_settings.shoot_mode = SHOOT_M;
     cam_settings.shutter = SHUTTER_FAST;
     cam_settings.exposure = EXPOSURE_FULL;
     cam_settings.iso = ISO_100;
@@ -103,7 +103,7 @@ void settings_init(void)
     cam_settings.flip = 0;
     cam_settings.show_hud = 1;
     cam_settings.auto_contrast = 0;  /* Off by default */
-    cam_settings.sharpness = SHARPNESS_OFF;
+    cam_settings.sharpness = SHARPNESS_LOW;
     cam_settings.gamma_preset = GAMMA_STANDARD;
 
     /* Apply all settings to sensor */
