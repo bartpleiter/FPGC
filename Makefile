@@ -485,6 +485,7 @@ compile-camera: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 		Software/C/camera/storage.c \
 		Software/C/camera/bmp.c \
 		Software/C/camera/gallery.c \
+		Software/C/camera/menu.c \
 		Software/C/camera/viewfinder.c \
 		Software/C/camera/main.c \
 		--libc \

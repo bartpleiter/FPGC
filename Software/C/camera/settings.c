@@ -29,6 +29,16 @@
 #define REG_ADVFL   0x9D
 #define REG_ADVFH   0x9E
 
+/* Sharpness registers */
+#define REG_EDGE    0x3F
+#define REG75       0x75
+#define REG76       0x76
+
+/* Gamma registers */
+#define REG_SLOP    0x7A
+#define REG_GAM1    0x7B
+#define REG_COM13   0x3D
+
 /* Global settings */
 camera_settings_t cam_settings;
 
@@ -55,6 +65,25 @@ static const int iso_ceiling[ISO_COUNT] = { 0x08, 0x18, 0x18, 0x38, 0x38, 0x48 }
 /* Night mode COM11 values */
 static const int night_com11[] = { 0x0A, 0x2A, 0x4A, 0xEA };
 
+/* Sharpness preset tables: {EDGE, REG75, REG76} */
+static const int sharp_edge[SHARPNESS_COUNT]  = { 0x00, 0x02, 0x06, 0x0F };
+static const int sharp_reg75[SHARPNESS_COUNT] = { 0x00, 0x03, 0x05, 0x08 };
+static const int sharp_reg76[SHARPNESS_COUNT] = { 0x00, 0x63, 0xA5, 0xE5 };
+
+/* Gamma preset tables — 16 values per preset: SLOP + GAM1..GAM15 */
+static const int gamma_standard[16] = {
+    0x20, 0x10, 0x1E, 0x35, 0x5A, 0x69, 0x76, 0x80,
+    0x88, 0x8F, 0x96, 0xA3, 0xAF, 0xC4, 0xD7, 0xE8
+};
+static const int gamma_hicontrast[16] = {
+    0x10, 0x20, 0x38, 0x50, 0x68, 0x78, 0x84, 0x8E,
+    0x96, 0x9C, 0xA0, 0xA8, 0xB0, 0xC0, 0xD0, 0xE0
+};
+static const int gamma_lowlight[16] = {
+    0x08, 0x30, 0x48, 0x60, 0x74, 0x82, 0x8C, 0x94,
+    0x9A, 0xA0, 0xA4, 0xAC, 0xB4, 0xC4, 0xD4, 0xE4
+};
+
 /* Helper: write OV7670 register (short form) */
 static void ov_wr(int reg, int val)
 {
@@ -66,7 +95,7 @@ void settings_init(void)
     cam_settings.shoot_mode = SHOOT_AUTO;
     cam_settings.shutter = SHUTTER_FAST;
     cam_settings.exposure = EXPOSURE_FULL;
-    cam_settings.iso = ISO_800;
+    cam_settings.iso = ISO_100;
     cam_settings.brightness = 0;
     cam_settings.contrast = 0x40;
     cam_settings.night_mode = NIGHT_EIGHTH;
@@ -74,12 +103,16 @@ void settings_init(void)
     cam_settings.flip = 0;
     cam_settings.show_hud = 1;
     cam_settings.auto_contrast = 0;  /* Off by default */
+    cam_settings.sharpness = SHARPNESS_OFF;
+    cam_settings.gamma_preset = GAMMA_STANDARD;
 
     /* Apply all settings to sensor */
     settings_apply_mode();
     settings_apply_brightness();
     settings_apply_contrast();
     settings_apply_orientation();
+    settings_apply_sharpness();
+    settings_apply_gamma();
 }
 
 void settings_apply_mode(void)
@@ -123,6 +156,8 @@ void settings_reapply(void)
     settings_apply_brightness();
     settings_apply_contrast();
     settings_apply_orientation();
+    settings_apply_sharpness();
+    settings_apply_gamma();
 }
 
 void settings_apply_shutter(void)
@@ -294,6 +329,69 @@ void settings_toggle_auto_contrast(void)
     cam_settings.auto_contrast = !cam_settings.auto_contrast;
 }
 
+void settings_apply_sharpness(void)
+{
+    int idx;
+    idx = cam_settings.sharpness;
+    if (idx < 0) idx = 0;
+    if (idx >= SHARPNESS_COUNT) idx = SHARPNESS_COUNT - 1;
+    ov_wr(REG_EDGE, sharp_edge[idx]);
+    ov_wr(REG75, sharp_reg75[idx]);
+    ov_wr(REG76, sharp_reg76[idx]);
+}
+
+void settings_apply_gamma(void)
+{
+    int idx;
+    const int *g;
+    int i;
+    int com13;
+
+    idx = cam_settings.gamma_preset;
+    if (idx < 0) idx = 0;
+    if (idx >= GAMMA_COUNT) idx = GAMMA_COUNT - 1;
+
+    if (idx == GAMMA_LINEAR) {
+        /* Disable gamma correction: clear COM13 bit 7 */
+        com13 = 0x40;  /* UV sat auto on, gamma off */
+        ov_wr(REG_COM13, com13);
+        return;
+    }
+
+    /* Enable gamma correction: set COM13 bit 7 */
+    ov_wr(REG_COM13, 0xC0);  /* gamma enable + UV sat auto */
+
+    /* Select gamma curve table */
+    if (idx == GAMMA_HICONTRAST)
+        g = gamma_hicontrast;
+    else if (idx == GAMMA_LOWLIGHT)
+        g = gamma_lowlight;
+    else
+        g = gamma_standard;
+
+    /* Write SLOP (0x7A) + GAM1..GAM15 (0x7B..0x89) */
+    ov_wr(REG_SLOP, g[0]);
+    for (i = 1; i < 16; i++) {
+        ov_wr(REG_GAM1 + (i - 1), g[i]);
+    }
+}
+
+void settings_adjust_sharpness(int direction)
+{
+    cam_settings.sharpness = cam_settings.sharpness + direction;
+    if (cam_settings.sharpness < 0) cam_settings.sharpness = 0;
+    if (cam_settings.sharpness >= SHARPNESS_COUNT)
+        cam_settings.sharpness = SHARPNESS_COUNT - 1;
+}
+
+void settings_adjust_gamma(int direction)
+{
+    cam_settings.gamma_preset = cam_settings.gamma_preset + direction;
+    if (cam_settings.gamma_preset < 0) cam_settings.gamma_preset = 0;
+    if (cam_settings.gamma_preset >= GAMMA_COUNT)
+        cam_settings.gamma_preset = GAMMA_COUNT - 1;
+}
+
 const char *settings_mode_str(void)
 {
     switch (cam_settings.shoot_mode) {
@@ -336,5 +434,38 @@ const char *settings_iso_str(void)
     case ISO_1600: return "1600";
     case ISO_3200: return "3200";
     default:       return "?";
+    }
+}
+
+const char *settings_sharpness_str(void)
+{
+    switch (cam_settings.sharpness) {
+    case SHARPNESS_OFF:    return "Off";
+    case SHARPNESS_LOW:    return "Lo";
+    case SHARPNESS_MEDIUM: return "Md";
+    case SHARPNESS_HIGH:   return "Hi";
+    default:               return "?";
+    }
+}
+
+const char *settings_gamma_str(void)
+{
+    switch (cam_settings.gamma_preset) {
+    case GAMMA_LINEAR:     return "Lin";
+    case GAMMA_STANDARD:   return "Std";
+    case GAMMA_HICONTRAST: return "HiC";
+    case GAMMA_LOWLIGHT:   return "LoL";
+    default:               return "?";
+    }
+}
+
+const char *settings_night_str(void)
+{
+    switch (cam_settings.night_mode) {
+    case NIGHT_OFF:     return "Off";
+    case NIGHT_HALF:    return "1/2";
+    case NIGHT_QUARTER: return "1/4";
+    case NIGHT_EIGHTH:  return "1/8";
+    default:            return "?";
     }
 }

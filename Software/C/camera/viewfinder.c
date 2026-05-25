@@ -22,6 +22,7 @@
 #include "bmp.h"
 #include "gallery.h"
 #include "gpu_data_ascii.h"
+#include "menu.h"
 
 /* Sensor dimensions */
 #define SENS_W  320
@@ -363,6 +364,26 @@ static int handle_key(int key)
 {
     if (key == 0) return 0;
 
+    /* When menu is open, route keys there (except TAB which we handle) */
+    if (menu_is_open()) {
+        if (key == '\t') {
+            menu_close();
+            hud_update(last_fps, cached_remaining);
+            return 0;
+        }
+        pending_action = menu_handle_key(key);
+        if (pending_action == 6) {
+            /* Resolution change — close menu first */
+            menu_close();
+            while (dma_busy()) { }
+            if (res_mode == RES_QVGA) res_mode = RES_QQVGA;
+            else res_mode = RES_QVGA;
+            update_remaining();
+            return 1;
+        }
+        return 0;
+    }
+
     /* Display mode keys (palette only, no I2C) */
     if (key == 'r' || key == 'R') {
         set_mode(MODE_RAW);
@@ -451,6 +472,22 @@ static int handle_key(int key)
         if (cam_settings.contrast > 127) cam_settings.contrast = 127;
         pending_action = 5;
     }
+    /* Sharpness (deferred) */
+    else if (key == '5') {
+        settings_adjust_sharpness(-1);
+        pending_action = 5;
+    } else if (key == '6') {
+        settings_adjust_sharpness(1);
+        pending_action = 5;
+    }
+    /* Gamma (deferred) */
+    else if (key == '3') {
+        settings_adjust_gamma(-1);
+        pending_action = 5;
+    } else if (key == '4') {
+        settings_adjust_gamma(1);
+        pending_action = 5;
+    }
     /* Mirror / Flip (deferred) */
     else if (key == 'x' || key == 'X') {
         cam_settings.mirror = !cam_settings.mirror;
@@ -472,6 +509,15 @@ static int handle_key(int key)
     /* Reset all settings to defaults (deferred) */
     else if (key == '`' || key == '~') {
         pending_action = 4;
+    }
+    /* Settings menu toggle */
+    else if (key == '\t') {
+        if (menu_is_open()) {
+            menu_close();
+            hud_update(last_fps, cached_remaining);
+        } else {
+            menu_open();
+        }
     }
     /* Capture (space bar) — deferred */
     else if (key == ' ') {
@@ -515,10 +561,12 @@ static void apply_pending(void)
     case 4:  /* Full reset */
         settings_init();
         break;
-    case 5:  /* brightness/contrast/orientation */
+    case 5:  /* brightness/contrast/orientation/sharpness/gamma */
         settings_apply_brightness();
         settings_apply_contrast();
         settings_apply_orientation();
+        settings_apply_sharpness();
+        settings_apply_gamma();
         break;
     }
 

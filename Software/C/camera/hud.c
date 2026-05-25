@@ -139,6 +139,12 @@ void hud_update(int fps, int remaining)
         hud_puts(13, HUD_TOP_ROW, settings_exposure_str(), HUD_PAL);
     }
 
+    /* Sharpness + Gamma indicators (center of top row) */
+    hud_puts(19, HUD_TOP_ROW, "Sh:", HUD_PAL);
+    hud_puts(22, HUD_TOP_ROW, settings_sharpness_str(), HUD_PAL);
+    hud_puts(26, HUD_TOP_ROW, "G:", HUD_PAL);
+    hud_puts(28, HUD_TOP_ROW, settings_gamma_str(), HUD_PAL);
+
     /* Auto-contrast indicator (right side of top row) */
     if (cam_settings.auto_contrast) {
         hud_puts(37, HUD_TOP_ROW, "AC", HUD_PAL_HIGHLIGHT);

@@ -43,6 +43,20 @@
 #define NIGHT_QUARTER 2  /* 1/4 min frame rate */
 #define NIGHT_EIGHTH 3   /* 1/8 min frame rate */
 
+/* Sharpness presets */
+#define SHARPNESS_OFF    0
+#define SHARPNESS_LOW    1
+#define SHARPNESS_MEDIUM 2
+#define SHARPNESS_HIGH   3
+#define SHARPNESS_COUNT  4
+
+/* Gamma presets */
+#define GAMMA_LINEAR     0
+#define GAMMA_STANDARD   1
+#define GAMMA_HICONTRAST 2
+#define GAMMA_LOWLIGHT   3
+#define GAMMA_COUNT      4
+
 /* Camera settings state */
 typedef struct {
     int shoot_mode;       /* SHOOT_AUTO / SHOOT_M */
@@ -56,6 +70,8 @@ typedef struct {
     int flip;             /* 0 or 1 */
     int show_hud;         /* 0 or 1 */
     int auto_contrast;    /* 0 or 1: LUT auto-contrast stretch */
+    int sharpness;        /* SHARPNESS_OFF .. SHARPNESS_HIGH */
+    int gamma_preset;     /* GAMMA_LINEAR .. GAMMA_LOWLIGHT */
 } camera_settings_t;
 
 /* Global settings instance */
@@ -93,6 +109,12 @@ void settings_apply_night(void);
 /* Apply mirror/flip */
 void settings_apply_orientation(void);
 
+/* Apply sharpness preset to sensor */
+void settings_apply_sharpness(void);
+
+/* Apply gamma preset to sensor */
+void settings_apply_gamma(void);
+
 /* Toggle shooting mode: Auto ↔ Manual */
 void settings_cycle_mode(void);
 
@@ -126,10 +148,19 @@ void settings_toggle_hud(void);
 /* Toggle auto-contrast LUT */
 void settings_toggle_auto_contrast(void);
 
+/* Adjust sharpness: direction = +1 or -1 */
+void settings_adjust_sharpness(int direction);
+
+/* Adjust gamma preset: direction = +1 or -1 */
+void settings_adjust_gamma(int direction);
+
 /* Get human-readable strings for HUD display */
 const char *settings_mode_str(void);
 const char *settings_shutter_str(void);
 const char *settings_exposure_str(void);
 const char *settings_iso_str(void);
+const char *settings_sharpness_str(void);
+const char *settings_gamma_str(void);
+const char *settings_night_str(void);
 
 #endif /* SETTINGS_H */
