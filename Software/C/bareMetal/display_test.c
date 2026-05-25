@@ -12,12 +12,10 @@
 /* ---- MMIO addresses (from fpgc.h) ---- */
 #define VRAMPX_BASE         0x1EC00000  /* 76800 bytes: 320x240 indexed */
 #define PIXEL_PALETTE_BASE  0x1EC80000  /* 256 entries x 4 bytes (RGB24) */
-#define VRAM32_BASE         0x1E400000  /* 1056 words: patterns + palettes */
-#define VRAM8_BASE          0x1E800000  /* 8194 bytes: tile + color maps */
-#define WIN_TILE_BASE       0x1E804000  /* Window tile map (40x30) */
-#define WIN_COLOR_BASE      0x1E806000  /* Window color map (40x30) */
-#define PATTERN_TABLE       0x1E400000  /* Tile patterns (256 tiles x 4 words) */
-#define PALETTE_TABLE       0x1E401000  /* Tile palettes (32 palettes x 1 word) */
+#define WIN_TILE_BASE       0x1E804000  /* Window tile map: word-addressed */
+#define WIN_COLOR_BASE      0x1E806000  /* Window color map: word-addressed */
+#define PATTERN_TABLE       0x1E400000  /* Tile patterns: word-addressed */
+#define PALETTE_TABLE       0x1E401000  /* Tile palettes: word-addressed */
 #define UART_TX             0x1C000000
 #define USER_LED            0x1C00006C
 
@@ -102,162 +100,99 @@ fill_gradient(void)
     }
 }
 
-/* ---- 5x5 font for letters H, E, L, O (1-bit, packed into rows) ---- */
-/* Each letter is 5 rows of 5 pixels. Stored as 5 bytes, MSB-first.     */
-/* Pattern format: 2-bit per pixel, 8 pixels wide, 8 rows.              */
-/* We'll use a simple 5x5 font centered in the 8x8 tile.                */
-
-/* Write a single 8x8 tile pattern into VRAM32.                         */
-/* tile_index: which tile (0-255)                                        */
-/* rows: array of 8 bytes, each byte has 8 pixels (1-bit, MSB=left)      */
-void
-write_tile_pattern(int tile_index, int *rows)
-{
-    int word_addr;
-    int row;
-    int word;
-    int px;
-    int bit;
-    int half;
-
-    /* Each tile = 4 words in VRAM32. Each word = 2 rows of 8 pixels x 2 bits */
-    word_addr = PATTERN_TABLE + tile_index * 4 * 4;
-
-    for (row = 0; row < 8; row = row + 2) {
-        /* Pack two rows into one 32-bit word */
-        /* Even row in upper 16 bits, odd row in lower 16 bits */
-        /* Each pixel: 2 bits. Pixel 0 at MSB end. */
-        /* We use pattern_bits 01 for "on" (foreground) */
-        word = 0;
-
-        /* Even row (upper 16 bits) */
-        half = 0;
-        for (px = 0; px < 8; px++) {
-            bit = (rows[row] >> (7 - px)) & 1;
-            if (bit)
-                half = half | (1 << ((7 - px) * 2));
-        }
-        word = half << 16;
-
-        /* Odd row (lower 16 bits) */
-        half = 0;
-        for (px = 0; px < 8; px++) {
-            bit = (rows[row + 1] >> (7 - px)) & 1;
-            if (bit)
-                half = half | (1 << ((7 - px) * 2));
-        }
-        word = word | half;
-
-        store(word_addr + (row / 2) * 4, word);
-    }
-}
-
-/* ---- Define letter tile patterns ---- */
+/*
+ * Load font patterns for H, E, L, O into the pattern table.
+ * Uses the exact data from gpu_data_ascii.c (known working).
+ * Each tile = 4 words at PATTERN_TABLE + ascii_code * 16.
+ * VRAM32 is word-addressed: each word at addr + i*4.
+ */
 void
 define_font_tiles(void)
 {
-    int rows[8];
+    int base;
 
-    /* Tile 1: 'H' */
-    rows[0] = 0x88; /* 10001000 */
-    rows[1] = 0x88;
-    rows[2] = 0x88;
-    rows[3] = 0xF8; /* 11111000 */
-    rows[4] = 0x88;
-    rows[5] = 0x88;
-    rows[6] = 0x88;
-    rows[7] = 0x00;
-    write_tile_pattern(1, rows);
+    /* 'E' (ASCII 69) — 4 words */
+    base = PATTERN_TABLE + 69 * 16;
+    store(base + 0, 0xFFFC3C0C);
+    store(base + 4, 0x3CC03FC0);
+    store(base + 8, 0x3CC03C0C);
+    store(base + 12, 0xFFFC0000);
 
-    /* Tile 2: 'E' */
-    rows[0] = 0xF8; /* 11111000 */
-    rows[1] = 0x80;
-    rows[2] = 0x80;
-    rows[3] = 0xF0; /* 11110000 */
-    rows[4] = 0x80;
-    rows[5] = 0x80;
-    rows[6] = 0xF8;
-    rows[7] = 0x00;
-    write_tile_pattern(2, rows);
+    /* 'H' (ASCII 72) — 4 words */
+    base = PATTERN_TABLE + 72 * 16;
+    store(base + 0, 0xF0F0F0F0);
+    store(base + 4, 0xF0F0FFF0);
+    store(base + 8, 0xF0F0F0F0);
+    store(base + 12, 0xF0F00000);
 
-    /* Tile 3: 'L' */
-    rows[0] = 0x80; /* 10000000 */
-    rows[1] = 0x80;
-    rows[2] = 0x80;
-    rows[3] = 0x80;
-    rows[4] = 0x80;
-    rows[5] = 0x80;
-    rows[6] = 0xF8;
-    rows[7] = 0x00;
-    write_tile_pattern(3, rows);
+    /* 'L' (ASCII 76) — 4 words */
+    base = PATTERN_TABLE + 76 * 16;
+    store(base + 0, 0xFF003C00);
+    store(base + 4, 0x3C003C00);
+    store(base + 8, 0x3C0C3C3C);
+    store(base + 12, 0xFFFC0000);
 
-    /* Tile 4: 'O' */
-    rows[0] = 0x70; /* 01110000 */
-    rows[1] = 0x88;
-    rows[2] = 0x88;
-    rows[3] = 0x88;
-    rows[4] = 0x88;
-    rows[5] = 0x88;
-    rows[6] = 0x70;
-    rows[7] = 0x00;
-    write_tile_pattern(4, rows);
+    /* 'O' (ASCII 79) — 4 words */
+    base = PATTERN_TABLE + 79 * 16;
+    store(base + 0, 0x0FC03CF0);
+    store(base + 4, 0xF03CF03C);
+    store(base + 8, 0xF03C3CF0);
+    store(base + 12, 0x0FC00000);
 }
 
-/* ---- Set up window tile palette ---- */
+/*
+ * Set up tile palette 0 (white on transparent black).
+ * Format: [31:24]=color0, [23:16]=color1, [15:8]=color2, [7:0]=color3
+ * Pattern 2'b00 → color0 (bg), 2'b11 → color3 (fg in default font).
+ * 0x0000FFFF: color0=0x00 (black/transparent), color3=0xFF (white).
+ */
 void
 setup_tile_palette(void)
 {
-    int palette_word;
-
-    /* Palette 0: used for transparent tiles (all zeros = transparent) */
-    store(PALETTE_TABLE, 0x00000000);
-
-    /* Palette 1: white text on transparent background */
-    /* Color 0 (bg) = 0x00 (transparent: RRRGGGBB=0, high byte=0) */
-    /* Color 1 (fg) = 0xFF (white: RRR=7, GGG=7, BB=3) */
-    /* Color 2      = 0x00 */
-    /* Color 3      = 0x00 */
-    /* Packed: [31:24]=color0, [23:16]=color1, [15:8]=color2, [7:0]=color3 */
-    palette_word = 0x00FF0000;
-    store(PALETTE_TABLE + 1 * 4, palette_word);
+    /* Palette 0: white on transparent black (same as gpu_default_palette[0]) */
+    store(PALETTE_TABLE + 0 * 4, 0x0000FFFF);
 }
 
-/* ---- Place "HELLO" in the center of the window tile layer ---- */
+/*
+ * Place "HELLO" in the center of the window tile layer.
+ * VRAM8 is word-addressed: each entry at addr + idx * 4.
+ * Tile indices use ASCII codes matching the pattern table.
+ */
 void
 draw_hello(void)
 {
     int tile_y;
     int tile_x;
-    int offset;
+    int idx;
 
-    /* Center: row 15, starting at column 17 (40 cols, 5 letters = start at 17) */
+    /* Center: row 15, starting at column 17 */
     tile_y = 15;
     tile_x = 17;
 
     /* H */
-    offset = tile_y * 40 + tile_x;
-    store(WIN_TILE_BASE + offset, 1);
-    store(WIN_COLOR_BASE + offset, 1);
+    idx = tile_y * 40 + tile_x;
+    store(WIN_TILE_BASE + idx * 4, 72);
+    store(WIN_COLOR_BASE + idx * 4, 0);
 
     /* E */
-    offset = tile_y * 40 + tile_x + 1;
-    store(WIN_TILE_BASE + offset, 2);
-    store(WIN_COLOR_BASE + offset, 1);
+    idx = tile_y * 40 + tile_x + 1;
+    store(WIN_TILE_BASE + idx * 4, 69);
+    store(WIN_COLOR_BASE + idx * 4, 0);
 
     /* L */
-    offset = tile_y * 40 + tile_x + 2;
-    store(WIN_TILE_BASE + offset, 3);
-    store(WIN_COLOR_BASE + offset, 1);
+    idx = tile_y * 40 + tile_x + 2;
+    store(WIN_TILE_BASE + idx * 4, 76);
+    store(WIN_COLOR_BASE + idx * 4, 0);
 
     /* L */
-    offset = tile_y * 40 + tile_x + 3;
-    store(WIN_TILE_BASE + offset, 3);
-    store(WIN_COLOR_BASE + offset, 1);
+    idx = tile_y * 40 + tile_x + 3;
+    store(WIN_TILE_BASE + idx * 4, 76);
+    store(WIN_COLOR_BASE + idx * 4, 0);
 
     /* O */
-    offset = tile_y * 40 + tile_x + 4;
-    store(WIN_TILE_BASE + offset, 4);
-    store(WIN_COLOR_BASE + offset, 1);
+    idx = tile_y * 40 + tile_x + 4;
+    store(WIN_TILE_BASE + idx * 4, 79);
+    store(WIN_COLOR_BASE + idx * 4, 0);
 }
 
 /* ---- Interrupt handler (required by crt0) ---- */
@@ -279,10 +214,11 @@ main(void)
     store(USER_LED, 1);
 
     /* Step 0: Clear window tile layer (remove bootloader splash remnants) */
+    /* VRAM8 is word-addressed: each entry at addr + i*4 */
     uart_puts("Clearing window tiles...\n");
     for (i = 0; i < 1200; i++) {
-        store(WIN_TILE_BASE + i, 0);
-        store(WIN_COLOR_BASE + i, 0);
+        store(WIN_TILE_BASE + i * 4, 0);
+        store(WIN_COLOR_BASE + i * 4, 0);
     }
     /* Clear palette entry 0 in VRAM32 (ensure transparency) */
     store(PALETTE_TABLE, 0x00000000);
