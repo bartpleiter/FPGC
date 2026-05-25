@@ -376,7 +376,7 @@ static void do_capture(void)
  *
  * Keys that require I2C writes set a pending flag — the viewfinder
  * loop applies them after the current DMA completes with the camera
- * stopped. This avoids bus contention between DMA and I2C.
+ * stopped. This is a design convention for clean frame boundaries.
  */
 static int pending_action = 0;
 

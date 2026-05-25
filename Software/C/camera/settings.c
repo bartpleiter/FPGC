@@ -231,7 +231,7 @@ void settings_adjust_shutter(int direction)
     cam_settings.shutter = cam_settings.shutter + direction;
     if (cam_settings.shutter < 0) cam_settings.shutter = 0;
     if (cam_settings.shutter >= SHUTTER_COUNT) cam_settings.shutter = SHUTTER_COUNT - 1;
-    /* Caller must call settings_apply_shutter() with camera stopped */
+    /* Caller should call settings_apply_shutter() with camera stopped (convention) */
 }
 
 void settings_adjust_iso(int direction)
@@ -242,7 +242,7 @@ void settings_adjust_iso(int direction)
     cam_settings.iso = cam_settings.iso + direction;
     if (cam_settings.iso < 0) cam_settings.iso = 0;
     if (cam_settings.iso >= ISO_COUNT) cam_settings.iso = ISO_COUNT - 1;
-    /* Caller must call settings_apply_iso() with camera stopped */
+    /* Caller should call settings_apply_iso() with camera stopped (convention) */
 }
 
 void settings_adjust_exposure(int direction)
@@ -253,7 +253,7 @@ void settings_adjust_exposure(int direction)
     cam_settings.exposure = cam_settings.exposure + direction;
     if (cam_settings.exposure < 0) cam_settings.exposure = 0;
     if (cam_settings.exposure >= EXPOSURE_COUNT) cam_settings.exposure = EXPOSURE_COUNT - 1;
-    /* Caller must call settings_apply_exposure() with camera stopped */
+    /* Caller should call settings_apply_exposure() with camera stopped (convention) */
 }
 
 void settings_adjust_brightness(int direction)
