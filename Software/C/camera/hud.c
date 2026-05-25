@@ -178,8 +178,8 @@ void hud_update(int fps, int remaining)
 
     /* Remaining images (center) */
     if (storage_ready) {
-        hud_putint(23, HUD_BOTTOM_ROW, remaining, 4, HUD_PAL);
-        hud_puts(27, HUD_BOTTOM_ROW, "img", HUD_PAL);
+        hud_putint(24, HUD_BOTTOM_ROW, remaining, 5, HUD_PAL);
+        hud_puts(29, HUD_BOTTOM_ROW, "img", HUD_PAL);
     }
 
     /* FPS (right) */

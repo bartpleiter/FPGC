@@ -32,7 +32,7 @@ typedef void (*brfs_progress_callback_t)(const char *phase, unsigned int current
 #define BRFS_MAX_PATH_LENGTH    127
 #define BRFS_MAX_FILENAME_LENGTH 16
 #define BRFS_MAX_OPEN_FILES     16
-#define BRFS_MAX_BLOCKS         65536
+#define BRFS_MAX_BLOCKS         262144
 
 /* SPI Flash layout addresses (in bytes) */
 #define BRFS_FLASH_SUPERBLOCK_ADDR 0x00000

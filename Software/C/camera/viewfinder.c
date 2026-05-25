@@ -171,7 +171,7 @@ void load_dither_tables(void)
 
 /* ---- Capture: save current frame to BRFS ---- */
 
-static int next_image_num = 1;
+static int next_image_num = 0;
 
 /* Last measured FPS (for HUD) — declared early for do_capture */
 static int last_fps = 0;
@@ -179,29 +179,7 @@ static int last_fps = 0;
 /* SDRAM buffer for captured frames (below BRFS cache at 0x2800000) */
 #define CAPTURE_BUF_ADDR  0x2600000
 
-/* Build filename: /DCIM/IMG_NNNN.BMP */
-static void build_filename(int num, char *buf)
-{
-    buf[0] = '/';
-    buf[1] = 'D';
-    buf[2] = 'C';
-    buf[3] = 'I';
-    buf[4] = 'M';
-    buf[5] = '/';
-    buf[6] = 'I';
-    buf[7] = 'M';
-    buf[8] = 'G';
-    buf[9] = '_';
-    buf[10] = '0' + ((num / 1000) % 10);
-    buf[11] = '0' + ((num / 100) % 10);
-    buf[12] = '0' + ((num / 10) % 10);
-    buf[13] = '0' + (num % 10);
-    buf[14] = '.';
-    buf[15] = 'B';
-    buf[16] = 'M';
-    buf[17] = 'P';
-    buf[18] = 0;
-}
+/* Build filename: /DCIM/IMG_NNNN.BMP — REMOVED, now uses storage_next_image() */
 
 /* ---- Viewfinder loop (forward declarations) ---- */
 
@@ -239,7 +217,7 @@ static unsigned char shade8_lut[8] = { 0, 36, 73, 109, 146, 182, 219, 255 };
 
 static void do_capture(void)
 {
-    char path[24];
+    char path[40];
     int rc;
     int cap_bytes;
     int cap_w;
@@ -315,7 +293,8 @@ static void do_capture(void)
         }
 
         /* Save from processed buffer */
-        build_filename(next_image_num, path);
+        next_image_num = storage_next_image(path, 40);
+        if (next_image_num < 0) { cam_enable_phase(1); return; }
         rc = bmp_save(&cam_brfs, path, (unsigned int)PROCESS_BUF_ADDR,
                       cap_w, cap_h);
     } else {
@@ -331,7 +310,8 @@ static void do_capture(void)
             }
         }
 
-        build_filename(next_image_num, path);
+        next_image_num = storage_next_image(path, 40);
+        if (next_image_num < 0) { cam_enable_phase(1); return; }
         rc = bmp_save(&cam_brfs, path, (unsigned int)CAPTURE_BUF_ADDR,
                       cap_w, cap_h);
     }
@@ -339,7 +319,6 @@ static void do_capture(void)
     if (rc == 0) {
         /* Sync to SD card */
         storage_sync();
-        next_image_num++;
         update_remaining();
     }
 
@@ -744,10 +723,7 @@ void viewfinder_run(int initial_mode)
     res_mode = RES_QVGA;
     set_mode(initial_mode);
 
-    /* Initialize next image number from BRFS */
-    if (storage_ready) {
-        next_image_num = storage_next_image_number();
-    }
+    /* Image counter is loaded by storage_init() */
 
     update_remaining();
 

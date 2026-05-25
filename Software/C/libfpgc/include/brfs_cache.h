@@ -37,7 +37,7 @@ typedef void (*brfs_progress_callback_t)(const char *phase,
                                          unsigned int total);
 #endif
 
-#define BRFS_CACHE_MAX_BLOCKS 65536  /* matches BRFS_MAX_BLOCKS */
+#define BRFS_CACHE_MAX_BLOCKS 262144  /* matches BRFS_MAX_BLOCKS */
 
 #define BRFS_LRU_SLOT_NONE   0xFFFFFFFFu
 #define BRFS_LRU_BLOCK_NONE  0xFFFFFFFFu
