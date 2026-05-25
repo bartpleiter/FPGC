@@ -30,6 +30,14 @@ module SPIDisplayController (
     input  wire        pixel_sram_data_valid,
     output wire        pixel_reading,
 
+    // VRAM8 read interface (tile/color maps for window layer)
+    output wire [13:0] vram8_addr,
+    input  wire [7:0]  vram8_q,
+
+    // VRAM32 read interface (patterns/palettes for window layer)
+    output wire [10:0] vram32_addr,
+    input  wire [31:0] vram32_q,
+
     // Palette CPU write port (directly from MemoryUnit)
     input  wire        palette_we,
     input  wire [7:0]  palette_addr,
@@ -64,6 +72,10 @@ module SPIDisplayController (
     wire [16:0] scan_sram_addr;
     wire        scan_sram_read;
 
+    // VRAM interface from scan engine
+    wire [13:0] scan_vram8_addr;
+    wire [10:0] scan_vram32_addr;
+
     // Palette interface from scan engine
     wire [7:0]  scan_palette_idx;
     wire [23:0] palette_rgb;
@@ -84,6 +96,10 @@ module SPIDisplayController (
     // SRAM interface
     assign pixel_sram_addr = scan_sram_addr;
     assign pixel_reading = scan_sram_read;
+
+    // VRAM interfaces (pass through to scan engine)
+    assign vram8_addr = scan_vram8_addr;
+    assign vram32_addr = scan_vram32_addr;
 
     // Status
     assign frame_drawn = scan_frame_done;
@@ -136,6 +152,10 @@ module SPIDisplayController (
         .sram_data(pixel_sram_data),
         .sram_data_valid(pixel_sram_data_valid),
         .sram_read(scan_sram_read),
+        .vram8_addr(scan_vram8_addr),
+        .vram8_q(vram8_q),
+        .vram32_addr(scan_vram32_addr),
+        .vram32_q(vram32_q),
         .palette_idx(scan_palette_idx),
         .palette_rgb(palette_rgb),
         .spi_tx_data(scan_spi_tx_data),

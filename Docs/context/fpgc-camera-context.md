@@ -459,15 +459,11 @@ the Cyclone 10 target.
 
 ## SPI display limitations
 
-The Cyclone 10 SPI display controller implements **only the pixel
-framebuffer (VRAMPX)** — there is no tile-based window layer. The
-current HUD overlay uses the GPU window tile layer (40×25 text grid
-with transparency), which does not exist on the SPI display.
-
-**Porting required:** The HUD must be rewritten to render directly
-into VRAMPX (pixel-based text rendering) instead of using the
-tile-based window layer. This means drawing font glyphs as pixels
-into the framebuffer rather than writing tile indices.
+The Cyclone 10 SPI display controller currently implements **only the
+pixel framebuffer (VRAMPX)** — the window tile layer is not yet
+composited. Adding window layer support to FrameScanEngine is planned
+(see `Docs/plans/fpgc-camera-spi-hud.md`). The Cyclone IV prototype
+keeps HDMI with the existing tile-based HUD and does not need changes.
 
 ## Key differences: Cyclone IV vs Cyclone 10
 
@@ -547,9 +543,15 @@ dual USB ports).
    during CAM2VRAM transfers. Zero CPU cost for live preview
    processing.
 
-3. **Double-buffered capture:** CameraCapture alternates between two
-   SDRAM buffers on each VSYNC. Software reads the completed buffer
-   while hardware fills the next.
+3. **Streaming capture (no double buffering):** `CAM2VRAM` streams
+   sensor pixels directly into VRAMPX via the DMA handshake — there
+   is no intermediate full-frame SDRAM buffer. The `current_buf`
+   toggle in CameraCapture.v is metadata only (used by `CAM2MEM` to
+   pick a buffer address). This is intentional: it avoids frame
+   latency at low FPS settings and produces a visible rolling
+   shutter effect that gives immediate visual feedback of the
+   sensor's exposure. For still captures, `CAM2MEM` writes a
+   complete frame to SDRAM before processing.
 
 4. **Deferred I2C pattern:** All OV7670 register writes are deferred
    to the gap between DMA completion and next frame start. This is a

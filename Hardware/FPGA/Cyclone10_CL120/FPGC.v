@@ -7,11 +7,16 @@
  *   - GPU outputs to SPI display (ILI9341 320×240) instead of HDMI
  *   - OV7670 camera capture subsystem
  *   - Dedicated button input module
+ *
+ * Core module test configuration:
+ *   Only SPI display, UART, single LED, and reset are connected.
+ *   All other peripherals are tied off internally.
+ *   Uncomment the port declarations below when full camera PCB is designed.
  */
 module FPGC (
     // Clocks
     input wire          sys_clk_50,
-    input wire          sys_clk_header,
+    // input wire       sys_clk_header,  // Uncomment for camera PCB
 
     // SDRAM0
     output wire         SDRAM0_CLK,
@@ -39,19 +44,20 @@ module FPGC (
     output wire         SDRAM1_UDQM,
     inout wire  [15:0]  SDRAM1_DQ,
 
-    // USB Host 1
-    output wire         usb1_cs,
-    output wire         usb1_clk,
-    output wire         usb1_mosi,
-    input  wire         usb1_miso,
-    input  wire         usb1_nint,
-
-    // USB Host 2
-    output wire         usb2_cs,
-    output wire         usb2_clk,
-    output wire         usb2_mosi,
-    input  wire         usb2_miso,
-    input  wire         usb2_nint,
+    // Uncomment for camera PCB:
+    // // USB Host 1
+    // output wire      usb1_cs,
+    // output wire      usb1_clk,
+    // output wire      usb1_mosi,
+    // input  wire      usb1_miso,
+    // input  wire      usb1_nint,
+    //
+    // // USB Host 2
+    // output wire      usb2_cs,
+    // output wire      usb2_clk,
+    // output wire      usb2_mosi,
+    // input  wire      usb2_miso,
+    // input  wire      usb2_nint,
 
     // SPI Display (ILI9341)
     output wire         spi_disp_clk,
@@ -61,73 +67,145 @@ module FPGC (
     output wire         spi_disp_rst_n,
     output wire         spi_disp_bl,
 
-    // Camera (OV7670)
-    input  wire [7:0]   cam_data,       // D0–D7 parallel data
-    input  wire         cam_vsync,      // Frame sync
-    input  wire         cam_href,       // Line valid
-    input  wire         cam_pclk,       // Pixel clock from sensor
-    output wire         cam_xclk,       // 25 MHz master clock to sensor
-    output wire         cam_reset_n,    // Active-low reset
-    output wire         cam_pwdn,       // Power down (active-high)
-    output wire         cam_scl,        // SCCB clock (push-pull)
-    inout  wire         cam_sda,        // SCCB data (open-drain)
-
-    // SPI Flash 1
-    output wire         flash1_cs,
-    output wire         flash1_clk,
-    output wire         flash1_mosi,
-    input  wire         flash1_miso,
-    output wire         flash1_wp_n,
-    output wire         flash1_hold_n,
-
-    // SPI Flash 2 (QSPI-capable)
-    output wire         flash2_cs,
-    output wire         flash2_clk,
-    inout  wire         flash2_mosi,
-    inout  wire         flash2_miso,
-    inout  wire         flash2_wp_n,
-    inout  wire         flash2_hold_n,
+    // Uncomment for camera PCB:
+    // // Camera (OV7670)
+    // input  wire [7:0] cam_data,
+    // input  wire       cam_vsync,
+    // input  wire       cam_href,
+    // input  wire       cam_pclk,
+    // output wire       cam_xclk,
+    // output wire       cam_reset_n,
+    // output wire       cam_pwdn,
+    // output wire       cam_scl,
+    // inout  wire       cam_sda,
+    //
+    // // SPI Flash 1
+    // output wire       flash1_cs,
+    // output wire       flash1_clk,
+    // output wire       flash1_mosi,
+    // input  wire       flash1_miso,
+    // output wire       flash1_wp_n,
+    // output wire       flash1_hold_n,
+    //
+    // // SPI Flash 2 (QSPI-capable)
+    // output wire       flash2_cs,
+    // output wire       flash2_clk,
+    // inout  wire       flash2_mosi,
+    // inout  wire       flash2_miso,
+    // inout  wire       flash2_wp_n,
+    // inout  wire       flash2_hold_n,
 
     // UART
     input wire          uart_rx,
     output wire         uart_tx,
-    input wire          uart_rts_n,
+    // input wire       uart_rts_n,      // Uncomment for camera PCB
     input wire          uart_dtr_n,
 
-    // Micro SD Card
-    output wire         sd_cs,
-    output wire         sd_clk,
-    output wire         sd_mosi,
-    input  wire         sd_miso,
-    output wire         sd_data2_nc,
-    input wire          sd_data1_nc,
+    // Uncomment for camera PCB:
+    // // Micro SD Card
+    // output wire       sd_cs,
+    // output wire       sd_clk,
+    // output wire       sd_mosi,
+    // input  wire       sd_miso,
+    // output wire       sd_data2_nc,
+    // input wire        sd_data1_nc,
+    //
+    // // Dipswitch
+    // input wire [3:0]  dipsw,
+    //
+    // // Audio DAC
+    // output wire [7:0] audio_dac_data,
+    //
+    // // Ethernet
+    // output wire       eth_cs,
+    // output wire       eth_clk,
+    // output wire       eth_mosi,
+    // input  wire       eth_miso,
+    // input  wire       eth_nint,
+    //
+    // // LEDs (accent LEDs on camera PCB)
+    // output wire       led_gpu,
+    // output wire       led_flash,
+    // output wire       led_usb,
+    // output wire       led_eth,
+    // output wire       led_user,
+    // output wire       led_uart_rx,
+    // output wire       led_uart_tx,
 
-    // Dipswitch
-    input wire [3:0]    dipsw,
+    // LED (single LED on core module)
+    output wire         led,
 
-    // Audio DAC
-    output wire [7:0]   audio_dac_data,
-
-    // Ethernet
-    output wire         eth_cs,
-    output wire         eth_clk,
-    output wire         eth_mosi,
-    input  wire         eth_miso,
-    input  wire         eth_nint,
-
-    // LEDs
-    output wire         led_gpu,
-    output wire         led_flash,
-    output wire         led_usb,
-    output wire         led_eth,
-    output wire         led_user,
-    output wire         led_uart_rx,
-    output wire         led_uart_tx,
-
-    // Buttons
-    input wire          reset_n,
-    input wire [7:0]    btn             // 8 active-low camera control buttons
+    // Reset
+    input wire          reset_n
+    // Uncomment for camera PCB:
+    // input wire [7:0]  btn              // 8 active-low camera control buttons
 );
+
+/******************************************************************************
+ * Tie-offs for peripherals not connected on core module
+ *
+ * When the full camera PCB is designed, uncomment the port declarations
+ * in the module header and remove these internal wire declarations.
+ ******************************************************************************/
+
+// USB Host 1 — no device on core module
+wire usb1_cs, usb1_clk, usb1_mosi;
+wire usb1_miso = 1'b1;     // MISO idle high
+wire usb1_nint = 1'b1;     // No interrupt (active-low)
+
+// USB Host 2 — no device on core module
+wire usb2_cs, usb2_clk, usb2_mosi;
+wire usb2_miso = 1'b1;
+wire usb2_nint = 1'b1;
+
+// SPI Display backlight — directly from FSX (active on core module via AB19)
+// (no internal tie-off needed, spi_disp_bl is a real port)
+
+// Camera — no device on core module
+wire [7:0] cam_data  = 8'd0;
+wire       cam_vsync = 1'b0;
+wire       cam_href  = 1'b0;
+wire       cam_pclk  = 1'b0;
+wire       cam_xclk;           // Driven by PLL output
+wire       cam_reset_n;        // Driven by reset logic
+wire       cam_pwdn;           // Driven by static assign
+wire       cam_scl;            // Driven by I2C master
+wire       cam_sda_in = 1'b1;  // SDA reads high (no device on bus)
+
+// SPI Flash 1 — no device on core module
+wire flash1_cs, flash1_clk, flash1_mosi;
+wire flash1_miso = 1'b1;
+wire flash1_wp_n, flash1_hold_n;
+
+// SPI Flash 2 (QSPI) — no device on core module
+wire flash2_cs, flash2_clk;
+
+// UART RTS — not connected on core module
+wire uart_rts_n = 1'b1;
+
+// SD Card — no device on core module
+wire sd_cs, sd_clk, sd_mosi;
+wire sd_miso     = 1'b1;
+wire sd_data2_nc;
+wire sd_data1_nc = 1'b1;
+
+// Dipswitches — boot via UART (boot_mode=dipsw[3]=0 → UART bootloader from ROM)
+wire [3:0] dipsw = 4'b0000;
+
+// Audio DAC — not connected
+wire [7:0] audio_dac_data;
+
+// Ethernet — no device on core module
+wire eth_cs, eth_clk, eth_mosi;
+wire eth_miso = 1'b1;
+wire eth_nint = 1'b1;
+
+// Individual LEDs — only one LED on core module
+wire led_gpu, led_flash, led_usb, led_eth, led_uart_rx, led_uart_tx;
+wire led_user;
+
+// Buttons — all released (active-low), no button header on core module
+wire [7:0] btn = 8'hFF;
 
 /******************************************************************************
  * Static Assignments
@@ -136,15 +214,11 @@ module FPGC (
 assign flash1_wp_n   = 1'b1;
 assign flash1_hold_n = 1'b1;
 
-// Flash 2 (BRFS) QSPI bidirectional bus — same as Cyclone IV
+// Flash 2 (BRFS) QSPI — no device, all inputs read high
+// flash2_io_out and flash2_io_oe are driven by MemoryUnit but unused
 wire [3:0] flash2_io_out;
 wire [3:0] flash2_io_oe;
-wire [3:0] flash2_io_in;
-assign flash2_mosi   = flash2_io_oe[0] ? flash2_io_out[0] : 1'bz;
-assign flash2_miso   = flash2_io_oe[1] ? flash2_io_out[1] : 1'bz;
-assign flash2_wp_n   = flash2_io_oe[2] ? flash2_io_out[2] : 1'bz;
-assign flash2_hold_n = flash2_io_oe[3] ? flash2_io_out[3] : 1'bz;
-assign flash2_io_in  = { flash2_hold_n, flash2_wp_n, flash2_miso, flash2_mosi };
+wire [3:0] flash2_io_in = 4'hF;
 
 // SD Card is in SPI mode
 assign sd_data2_nc = 1'b1;
@@ -155,6 +229,9 @@ assign audio_dac_data = 8'd0;
 // Camera static assignments
 assign cam_pwdn    = 1'b0;       // Power on
 assign cam_reset_n = ~reset;     // Release reset when system is up
+
+// Single LED output — directly from user LED state
+assign led = led_user_state;
 
 /******************************************************************************
  * Dip switch
@@ -356,11 +433,12 @@ wire [31:0] vram32_cpu_d;
 wire        vram32_cpu_we;
 wire [31:0] vram32_cpu_q;
 
-// GPU will not write to VRAM
+// GPU will not write to VRAM32 (read-only for window tile layer)
 assign vram32_gpu_we = 1'b0;
 assign vram32_gpu_d  = 32'd0;
-// BGW renderer removed (SPI display uses only VRAMpx)
-assign vram32_gpu_addr = 11'd0;
+// GPU read address driven by FSX window tile compositing
+wire [10:0] fsx_vram32_addr;
+assign vram32_gpu_addr = fsx_vram32_addr;
 
 VRAM #(
     .WIDTH(32),
@@ -396,10 +474,12 @@ wire [7:0]  vram8_cpu_d;
 wire        vram8_cpu_we;
 wire [7:0]  vram8_cpu_q;
 
-// GPU will not write to VRAM
+// GPU will not write to VRAM8 (read-only for window tile layer)
 assign vram8_gpu_we = 1'b0;
 assign vram8_gpu_d  = 8'd0;
-assign vram8_gpu_addr = 14'd0;
+// GPU read address driven by FSX window tile compositing
+wire [13:0] fsx_vram8_addr;
+assign vram8_gpu_addr = fsx_vram8_addr;
 
 VRAM #(
     .WIDTH(8),
@@ -744,6 +824,12 @@ FSX fsx (
     .vramPX_addr(vramPX_gpu_addr),
     .vramPX_q   (vramPX_gpu_q),
 
+    // VRAM8/VRAM32 for window tile layer
+    .vram8_addr (fsx_vram8_addr),
+    .vram8_q    (vram8_gpu_q),
+    .vram32_addr(fsx_vram32_addr),
+    .vram32_q   (vram32_gpu_q),
+
     // Palette CPU write port
     .palette_we(palette_cpu_we),
     .palette_addr(palette_cpu_addr),
@@ -1057,14 +1143,14 @@ I2C_master #(
     .ack_err  (i2c_ack_err),
     .scl_oe   (i2c_scl_oe),
     .sda_oe   (i2c_sda_oe),
-    .sda_in   (cam_sda),
+    .sda_in   (cam_sda_in),
     .dbg_state_out(i2c_dbg_state)
 );
 
 // SCL: push-pull (OV7670 doesn't clock-stretch)
-// SDA: open-drain (bidirectional)
+// SDA: open-drain (bidirectional) — no device on core module, sda_in tied high above
 assign cam_scl = i2c_scl_oe ? 1'b0 : 1'b1;
-assign cam_sda = i2c_sda_oe ? 1'b0 : 1'bz;
+// cam_sda not driven (no bidir pin on core module)
 
 /******************************************************************************
  * Button Input

@@ -1,19 +1,21 @@
 /*
  * FrameScanEngine
  * Scans the 320×240 pixel framebuffer and streams pixels over SPI
+ * with window tile layer compositing.
  *
  * Continuously streams pixel data after init sends RAMWR.
  * The ILI9341 address counter auto-wraps at the window boundary
  * (set once during init), so no per-frame CASET/PASET/RAMWR is needed.
  *
  * Pixel pipeline:
- *   SRAM read (1 cycle) → wait for SRAM settle (8 cycles) →
- *   palette lookup (1 cycle) → RGB565 convert →
+ *   SRAM read (1 cycle) → wait for SRAM settle + tile fetch (8 cycles) →
+ *   composite + palette lookup (1 cycle) → RGB565 convert →
  *   SPI byte 1 (high) → SPI byte 2 (low)
  *
- * The 8-cycle wait in S_PIXEL_PAL covers the worst case where a write
- * races with S_PIXEL_READ: 3 cycles write completion + 2 cycles bus
- * settling + 2 cycles for SRAM access time and PCB routing delays.
+ * During the 8-cycle wait, the engine fetches window tile data from
+ * VRAM8 (tile/color maps) and VRAM32 (patterns/palettes) to composite
+ * a text overlay on top of the pixel framebuffer. Transparent window
+ * tiles (pattern==0 and palette color 0==0) show the pixel layer through.
  *
  * Clocked at 100 MHz.
  */
@@ -22,11 +24,19 @@ module FrameScanEngine (
     input  wire        reset,
     input  wire        enable,     // Start scanning (asserted after init)
 
-    // SRAM read interface
+    // SRAM read interface (pixel framebuffer)
     output reg  [16:0] sram_addr,
     input  wire [7:0]  sram_data,  // Pixel data from SRAM arbiter
     input  wire        sram_data_valid, // HIGH when sram_data is correct for sram_addr
     output reg         sram_read,  // Asserted when reading from SRAM
+
+    // VRAM8 read interface (tile/color maps)
+    output reg  [13:0] vram8_addr,
+    input  wire [7:0]  vram8_q,
+
+    // VRAM32 read interface (patterns/palettes)
+    output reg  [10:0] vram32_addr,
+    input  wire [31:0] vram32_q,
 
     // Palette read interface
     output reg  [7:0]  palette_idx,
@@ -49,9 +59,55 @@ module FrameScanEngine (
     reg [8:0] pixel_x = 9'd0;  // 0–319
     reg [7:0] pixel_y = 8'd0;  // 0–239
 
-    // ---- RGB565 conversion (combinational from palette output) ----
-    wire [7:0] pixel_hi = {palette_rgb[23:19], palette_rgb[15:13]};
-    wire [7:0] pixel_lo = {palette_rgb[12:10], palette_rgb[7:3]};
+    // ---- Window tile coordinate derivation ----
+    wire [5:0] tile_x = pixel_x[8:3];      // pixel_x / 8 (0-39)
+    wire [4:0] tile_y = pixel_y[7:3];      // pixel_y / 8 (0-29)
+    wire [2:0] col_in_tile = pixel_x[2:0]; // pixel_x % 8
+    wire [2:0] line_in_tile = pixel_y[2:0]; // pixel_y % 8
+
+    // Window tile address: tile_y * 40 + tile_x
+    // 40 = 32 + 8, so tile_y * 40 = (tile_y << 5) + (tile_y << 3)
+    wire [10:0] win_tile_linear = ({6'd0, tile_y} << 5) + ({6'd0, tile_y} << 3) + {5'd0, tile_x};
+
+    // ---- Window tile layer state ----
+    reg [7:0]  win_tile_index    = 8'd0;   // Tile index from VRAM8
+    reg [7:0]  win_color_index   = 8'd0;   // Color/palette index from VRAM8
+    reg [15:0] win_pattern_half  = 16'd0;  // 16-bit pattern (1 row of 8 pixels × 2 bits)
+    reg [31:0] win_palette_word  = 32'd0;  // 4-color palette (4 × 8-bit RRRGGGBB)
+    reg        win_transparent   = 1'b1;   // Window pixel is transparent
+    reg [23:0] win_rgb24         = 24'd0;  // Window pixel RGB24 (from tile palette)
+
+    // ---- Combinational pattern extraction ----
+    // Pattern layout: pixel 0 at [15:14], pixel 7 at [1:0]
+    // For col_in_tile=0 we want bits [15:14], for col_in_tile=7 we want [1:0]
+    // shift_amount = (7 - col_in_tile) * 2
+    wire [3:0] pattern_shift = ({1'b0, (3'd7 - col_in_tile)} << 1);
+    wire [1:0] pattern_bits  = win_pattern_half[pattern_shift +: 2];
+
+    // ---- Combinational palette color extraction ----
+    // Palette word: color 0 at [31:24], color 1 at [23:16], etc.
+    // Each color is 8-bit RRRGGGBB
+    reg [7:0] win_color_byte;
+    always @(*) begin
+        case (pattern_bits)
+            2'b00: win_color_byte = win_palette_word[31:24];
+            2'b01: win_color_byte = win_palette_word[23:16];
+            2'b10: win_color_byte = win_palette_word[15:8];
+            2'b11: win_color_byte = win_palette_word[7:0];
+        endcase
+    end
+
+    // Expand RRRGGGBB to RGB24 (replicate MSBs into lower bits)
+    wire [23:0] win_color_rgb24 = {
+        win_color_byte[7:5], win_color_byte[7:5], win_color_byte[7:6],  // R: 3→8 bits
+        win_color_byte[4:2], win_color_byte[4:2], win_color_byte[4:3],  // G: 3→8 bits
+        win_color_byte[1:0], win_color_byte[1:0], win_color_byte[1:0], win_color_byte[1:0]  // B: 2→8 bits
+    };
+
+    // ---- Composited RGB565 (muxes pixel palette RGB or window tile RGB) ----
+    wire [23:0] final_rgb24     = win_transparent ? palette_rgb : win_rgb24;
+    wire [7:0]  pixel_hi        = {final_rgb24[23:19], final_rgb24[15:13]};
+    wire [7:0]  pixel_lo        = {final_rgb24[12:10], final_rgb24[7:3]};
 
     // ---- Main state machine ----
     //
@@ -63,7 +119,7 @@ module FrameScanEngine (
         S_IDLE         = 3'd0,
         // Pixel streaming
         S_PIXEL_READ   = 3'd1,  // Issue SRAM read
-        S_PIXEL_PAL    = 3'd2,  // Wait for palette data
+        S_PIXEL_PAL    = 3'd2,  // Wait for SRAM settle + fetch window tile data
         S_PIXEL_HI     = 3'd3,  // Send RGB565 high byte
         S_PIXEL_LO     = 3'd4,  // Send RGB565 low byte
         S_WAIT_SPI     = 3'd5;  // Wait for SPI byte to complete
@@ -71,7 +127,10 @@ module FrameScanEngine (
     reg [2:0] state = S_IDLE;
     reg [2:0] return_state = S_IDLE; // Where to go after SPI byte done
     reg       spi_accepted = 1'b0;  // Tracks that tx_ready went low
-    reg [4:0] pal_wait = 5'd0;     // Wait counter for SRAM settle
+    reg [3:0] pal_wait = 4'd0;      // Wait counter for SRAM settle + tile fetch
+
+    // ---- Latched SRAM pixel data ----
+    // (reserved for future use; palette_idx captures sram_data directly)
 
     always @(posedge clk) begin
         if (reset) begin
@@ -84,10 +143,18 @@ module FrameScanEngine (
             spi_cs_n <= 1'b0;
             sram_read <= 1'b0;
             sram_addr <= 17'd0;
+            vram8_addr <= 14'd0;
+            vram32_addr <= 11'd0;
             palette_idx <= 8'd0;
             pixel_x <= 9'd0;
             pixel_y <= 8'd0;
             frame_done <= 1'b0;
+            win_tile_index <= 8'd0;
+            win_color_index <= 8'd0;
+            win_pattern_half <= 16'd0;
+            win_palette_word <= 32'd0;
+            win_transparent <= 1'b1;
+            win_rgb24 <= 24'd0;
         end else begin
             // Defaults
             spi_tx_valid <= 1'b0;
@@ -114,24 +181,91 @@ module FrameScanEngine (
                                + ({9'd0, pixel_y} << 6)
                                + {8'd0, pixel_x};
                     sram_read <= 1'b1;
-                    pal_wait <= 5'd0;
+                    pal_wait <= 4'd0;
                     state <= S_PIXEL_PAL;
                 end
 
                 S_PIXEL_PAL: begin
                     // Keep blocking new writes while waiting for data
                     sram_read <= 1'b1;
-                    // Wait 8 cycles for SRAM data to settle after write→read transition
-                    if (pal_wait == 5'd8) begin
-                        palette_idx <= sram_data;
-                        state <= S_PIXEL_HI;
-                    end else begin
-                        pal_wait <= pal_wait + 5'd1;
-                    end
+
+                    // 10-cycle window: SRAM settle (cycles 0-7) + tile fetch (cycles 0-7 overlapped)
+                    //
+                    // Cycle 0: Present VRAM8 tile index address
+                    // Cycle 1: Latch VRAM8 tile index; present VRAM32 pattern address
+                    // Cycle 2: Latch VRAM32 pattern; present VRAM8 color index address
+                    // Cycle 3: Latch VRAM8 color index; present VRAM32 palette address
+                    // Cycle 4: Latch VRAM32 palette
+                    // Cycle 5: Extract pattern bits, determine transparency
+                    // Cycle 6: Compute window pixel RGB24
+                    // Cycle 7: Latch SRAM data + set palette_idx
+                    // Cycle 8: Palette lookup latency (palette_rgb valid next cycle)
+                    // Cycle 9: Done — composited pixel_hi/pixel_lo ready
+
+                    case (pal_wait)
+                        4'd0: begin
+                            // Request window tile index from VRAM8
+                            vram8_addr <= 14'd4096 + {3'd0, win_tile_linear};
+                        end
+
+                        4'd1: begin
+                            // Latch tile index from VRAM8
+                            win_tile_index <= vram8_q;
+                            // Request pattern data from VRAM32
+                            // Address = tile_index * 4 + line_in_tile / 2
+                            vram32_addr <= ({3'd0, vram8_q} << 2) + {8'd0, line_in_tile[2:1]};
+                        end
+
+                        4'd2: begin
+                            // Latch pattern data from VRAM32 (select correct 16-bit half)
+                            if (line_in_tile[0])
+                                win_pattern_half <= vram32_q[15:0];
+                            else
+                                win_pattern_half <= vram32_q[31:16];
+                            // Request color index from VRAM8
+                            vram8_addr <= 14'd6144 + {3'd0, win_tile_linear};
+                        end
+
+                        4'd3: begin
+                            // Latch color index from VRAM8
+                            win_color_index <= vram8_q;
+                            // Request palette from VRAM32
+                            vram32_addr <= 11'd1024 + {3'd0, vram8_q};
+                        end
+
+                        4'd4: begin
+                            // Latch palette word from VRAM32
+                            win_palette_word <= vram32_q;
+                        end
+
+                        4'd5: begin
+                            // Pattern bits and palette color are available combinationally.
+                            // Register transparency and window RGB24.
+                            win_transparent <= (pattern_bits == 2'b00) && (win_palette_word[31:24] == 8'd0);
+                            win_rgb24 <= win_color_rgb24;
+                        end
+
+                        4'd6: begin
+                            // Latch SRAM pixel data (now settled) and present to pixel palette
+                            palette_idx <= sram_data;
+                        end
+
+                        4'd7: begin
+                            // Palette lookup latency cycle — palette_rgb becomes valid
+                        end
+
+                        4'd8: begin
+                            // Composited pixel_hi/pixel_lo now valid via final_rgb24 mux
+                            state <= S_PIXEL_HI;
+                        end
+                    endcase
+
+                    if (pal_wait != 4'd8)
+                        pal_wait <= pal_wait + 4'd1;
                 end
 
                 S_PIXEL_HI: begin
-                    // Palette RGB is now valid, send high byte of RGB565
+                    // Composited RGB is now valid, send high byte of RGB565
                     if (spi_tx_ready) begin
                         spi_tx_data <= pixel_hi;
                         spi_dc <= 1'b1; // Data

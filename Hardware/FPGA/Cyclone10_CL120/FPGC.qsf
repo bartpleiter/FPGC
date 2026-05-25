@@ -140,6 +140,26 @@ set_location_assignment PIN_B19 -to SDRAM1_DQ[15]
 # SPI display, camera, and button pin assignments are TBD
 # (will be assigned when PCB is designed)
 
+# ---- Core module test setup pin assignments ----
+# SPI Display (ILI9341)
+set_location_assignment PIN_AB15 -to spi_disp_clk
+set_location_assignment PIN_AB16 -to spi_disp_mosi
+set_location_assignment PIN_AB18 -to spi_disp_cs_n
+set_location_assignment PIN_Y15 -to spi_disp_dc
+set_location_assignment PIN_Y17 -to spi_disp_rst_n
+set_location_assignment PIN_AB19 -to spi_disp_bl
+
+# UART (USB-UART bridge)
+set_location_assignment PIN_AA19 -to uart_rx
+set_location_assignment PIN_AA18 -to uart_tx
+set_location_assignment PIN_W17 -to uart_dtr_n
+
+# LED (on-board LED on core module)
+set_location_assignment PIN_U14 -to led
+
+# Reset (active-low pushbutton on core module)
+set_location_assignment PIN_E16 -to reset_n
+
 
 
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to sys_clk_50
@@ -231,6 +251,19 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_DQ[14]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_DQ[15]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_DQ
 
+# IO standards for core module test pins
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to spi_disp_clk
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to spi_disp_mosi
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to spi_disp_cs_n
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to spi_disp_dc
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to spi_disp_rst_n
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to uart_rx
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to uart_tx
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to uart_dtr_n
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to spi_disp_bl
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to reset_n
+
 
 
 set_global_assignment -name CYCLONEII_RESERVE_NCEO_AFTER_CONFIGURATION "USE AS REGULAR IO"
@@ -309,6 +342,7 @@ set_global_assignment -name VERILOG_FILE ../Verilog/Modules/CPU/ALU.v
 # PLL and DDR IP
 set_global_assignment -name QIP_FILE pll1.qip
 set_global_assignment -name QIP_FILE ddr.qip
+
 
 
 

@@ -21,6 +21,14 @@ module FSX (
     output wire [16:0]  vramPX_addr,
     input wire  [7:0]   vramPX_q,
 
+    // VRAM8 read port (tile/color maps for window layer)
+    output wire [13:0]  vram8_addr,
+    input wire  [7:0]   vram8_q,
+
+    // VRAM32 read port (patterns/palettes for window layer)
+    output wire [10:0]  vram32_addr,
+    input wire  [31:0]  vram32_q,
+
     // Palette CPU write port
     input wire          palette_we,
     input wire  [7:0]   palette_addr,
@@ -50,6 +58,12 @@ module FSX (
         .pixel_sram_data (vramPX_q),
         .pixel_sram_data_valid(1'b1), // BRAM: data always valid next cycle
         .pixel_reading   (),
+
+        // VRAM8/VRAM32 for window tile layer
+        .vram8_addr     (vram8_addr),
+        .vram8_q        (vram8_q),
+        .vram32_addr    (vram32_addr),
+        .vram32_q       (vram32_q),
 
         // Palette CPU write port
         .palette_we     (palette_we),
