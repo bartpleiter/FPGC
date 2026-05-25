@@ -213,15 +213,24 @@ main(void)
     /* Turn on user LED */
     store(USER_LED, 1);
 
-    /* Step 0: Clear window tile layer (remove bootloader splash remnants) */
-    /* VRAM8 is word-addressed: each entry at addr + i*4 */
-    uart_puts("Clearing window tiles...\n");
+    /* Step 0: Clear ALL tile layer data (remove bootloader splash remnants) */
+    uart_puts("Clearing VRAM...\n");
+
+    /* Clear VRAM8 tile/color maps (word-addressed) */
     for (i = 0; i < 1200; i++) {
         store(WIN_TILE_BASE + i * 4, 0);
         store(WIN_COLOR_BASE + i * 4, 0);
     }
-    /* Clear palette entry 0 in VRAM32 (ensure transparency) */
-    store(PALETTE_TABLE, 0x00000000);
+
+    /* Clear ALL VRAM32 pattern data (256 tiles × 4 words = 1024 words) */
+    for (i = 0; i < 1024; i++) {
+        store(PATTERN_TABLE + i * 4, 0);
+    }
+
+    /* Clear ALL VRAM32 palette data (32 palettes × 1 word = 32 words) */
+    for (i = 0; i < 32; i++) {
+        store(PALETTE_TABLE + i * 4, 0);
+    }
 
     /* Step 1: Set up pixel palette */
     uart_puts("Setting pixel palette...\n");

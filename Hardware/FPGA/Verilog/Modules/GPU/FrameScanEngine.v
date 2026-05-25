@@ -120,7 +120,7 @@ module FrameScanEngine (
     localparam
         S_IDLE         = 3'd0,
         S_PIXEL_READ   = 3'd1,  // Present VRAMPX + VRAM8 tile addresses
-        S_PIXEL_PAL    = 3'd2,  // 4-cycle tile fetch + palette pipeline
+        S_PIXEL_PAL    = 3'd2,  // 6-cycle tile fetch + palette pipeline
         S_PIXEL_HI     = 3'd3,  // Send RGB565 high byte
         S_PIXEL_LO     = 3'd4,  // Send RGB565 low byte
         S_WAIT_SPI     = 3'd5;  // Wait for SPI byte to complete
@@ -183,16 +183,34 @@ module FrameScanEngine (
                     state <= S_PIXEL_PAL;
                 end
 
-                // ---- Pixel pipeline stages 1–4: tile fetch + palette lookup ----
+                // ---- Pixel pipeline: 6-cycle tile fetch + palette lookup ----
+                //
+                // BRAMs have 2-cycle read latency (address via NBA at cycle T,
+                // data valid at cycle T+2). Each read needs a settle cycle.
+                //
+                // Cycle 0: BRAM settle — VRAMPX + VRAM8 tile addr registered
+                // Cycle 1: sram_data + vram8_q valid — latch pixel + tile index
+                //          Present VRAM32 pattern addr + VRAM8 color addr
+                // Cycle 2: BRAM settle — VRAM32 + VRAM8 registered
+                // Cycle 3: vram32_q + vram8_q valid — latch pattern + color
+                //          Present VRAM32 palette addr
+                //          palette_rgb also valid (from palette_idx at cycle 1)
+                // Cycle 4: BRAM settle — VRAM32 palette registered
+                // Cycle 5: vram32_q valid (palette) — latch + composite
+                //          → S_PIXEL_HI
                 S_PIXEL_PAL: begin
                     sram_read <= 1'b1; // Hold SRAM read active
 
                     case (pal_wait)
                         3'd0: begin
-                            // VRAMPX data valid (sram_data) — start pixel palette lookup
+                            // BRAM settle cycle — data not yet valid
+                        end
+
+                        3'd1: begin
+                            // VRAMPX data valid — start pixel palette lookup
                             palette_idx <= sram_data;
 
-                            // VRAM8 data valid (vram8_q) — tile index
+                            // VRAM8 data valid — tile index
                             // Present VRAM32 pattern address: tile_index * 4 + line_pair
                             vram32_addr <= ({3'd0, vram8_q} << 2) + {8'd0, line_in_tile[2:1]};
 
@@ -200,7 +218,11 @@ module FrameScanEngine (
                             vram8_addr <= 14'd6144 + {3'd0, win_tile_linear};
                         end
 
-                        3'd1: begin
+                        3'd2: begin
+                            // BRAM settle cycle — data not yet valid
+                        end
+
+                        3'd3: begin
                             // VRAM32 data valid — latch pattern half
                             if (line_in_tile[0])
                                 win_pattern_half <= vram32_q[15:0];   // Odd line
@@ -212,26 +234,29 @@ module FrameScanEngine (
                             vram32_addr <= 11'd1024 + {3'd0, vram8_q};
                         end
 
-                        3'd2: begin
-                            // VRAM32 data valid — latch palette word
-                            win_palette_word <= vram32_q;
-                            // palette_rgb also valid now (2 cycles after palette_idx was set)
+                        3'd4: begin
+                            // BRAM settle cycle — data not yet valid
+                            // palette_rgb is also settling (palette_idx set at cycle 1)
                         end
 
-                        3'd3: begin
-                            // All data available — compute composited pixel
-                            // pattern_bits + win_color_byte + win_color_rgb24 are combinational
+                        3'd5: begin
+                            // VRAM32 data valid — latch palette word
+                            win_palette_word <= vram32_q;
+                        end
+
+                        3'd6: begin
+                            // win_palette_word now valid (NBA from cycle 5 applied)
+                            // pattern_bits valid (win_pattern_half set at cycle 3)
+                            // palette_rgb valid (palette_idx set at cycle 1)
+                            // win_color_byte / win_color_rgb24 valid (combinational from above)
                             win_transparent <= (pattern_bits == 2'b00) && (win_palette_word[31:24] == 8'd0);
                             win_rgb24 <= win_color_rgb24;
 
-                            // Transition: final_rgb24/pixel_hi/pixel_lo will be valid
-                            // in S_PIXEL_HI because win_transparent + win_rgb24 are
-                            // registered, and palette_rgb is still stable.
                             state <= S_PIXEL_HI;
                         end
                     endcase
 
-                    if (pal_wait != 3'd3)
+                    if (pal_wait != 3'd6)
                         pal_wait <= pal_wait + 3'd1;
                 end
 
