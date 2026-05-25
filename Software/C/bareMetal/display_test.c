@@ -195,6 +195,38 @@ draw_hello(void)
     store(WIN_COLOR_BASE + idx * 4, 0);
 }
 
+/*
+ * Place tiles in all four corners for alignment validation.
+ * H = top-left (0,0), E = top-right (39,0),
+ * L = bottom-left (0,29), O = bottom-right (39,29).
+ * Tile grid is 40 columns × 30 rows.
+ */
+void
+draw_corners(void)
+{
+    int idx;
+
+    /* Top-left corner: H at tile (0, 0) */
+    idx = 0 * 40 + 0;
+    store(WIN_TILE_BASE + idx * 4, 72);
+    store(WIN_COLOR_BASE + idx * 4, 0);
+
+    /* Top-right corner: E at tile (39, 0) */
+    idx = 0 * 40 + 39;
+    store(WIN_TILE_BASE + idx * 4, 69);
+    store(WIN_COLOR_BASE + idx * 4, 0);
+
+    /* Bottom-left corner: L at tile (0, 29) */
+    idx = 29 * 40 + 0;
+    store(WIN_TILE_BASE + idx * 4, 76);
+    store(WIN_COLOR_BASE + idx * 4, 0);
+
+    /* Bottom-right corner: O at tile (39, 29) */
+    idx = 29 * 40 + 39;
+    store(WIN_TILE_BASE + idx * 4, 79);
+    store(WIN_COLOR_BASE + idx * 4, 0);
+}
+
 /* ---- Interrupt handler (required by crt0) ---- */
 void
 interrupt(void)
@@ -254,6 +286,10 @@ main(void)
     /* Step 5: Draw "HELLO" using window tile layer */
     uart_puts("Drawing HELLO...\n");
     draw_hello();
+
+    /* Step 6: Draw corner tiles for alignment validation */
+    uart_puts("Drawing corner tiles...\n");
+    draw_corners();
 
     uart_puts("Display test complete!\n");
 

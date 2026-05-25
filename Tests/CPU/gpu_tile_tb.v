@@ -70,12 +70,22 @@ module gpu_tile_tb;
     reg [7:0] vrampx_mem [0:76799];
     integer vk;
     initial begin
-        // Fill with gradient (same as display_test.c)
+        // Fill with position-unique values for alignment testing
+        // Each pixel gets a unique palette index based on position
         for (vk = 0; vk < 76800; vk = vk + 1) begin
-            // y = vk / 320, x = vk % 320
-            // pixel = ((y >> 2) << 5) | ((x >> 4) << 2) | 1
-            vrampx_mem[vk] = (((vk / 320) >> 2) << 5) | (((vk % 320) >> 4) << 2) | 1;
+            vrampx_mem[vk] = vk[7:0];  // Low byte of linear address
         end
+        // Override first few positions with distinctive values
+        vrampx_mem[0]   = 8'h10;  // Position (0,0) — expect at pixel_count=0
+        vrampx_mem[1]   = 8'h20;  // Position (1,0) — expect at pixel_count=1
+        vrampx_mem[2]   = 8'h30;  // Position (2,0) — expect at pixel_count=2
+        vrampx_mem[3]   = 8'h40;  // Position (3,0) — expect at pixel_count=3
+        vrampx_mem[4]   = 8'h50;  // Position (4,0) — expect at pixel_count=4
+        vrampx_mem[5]   = 8'h60;  // Position (5,0) — expect at pixel_count=5
+        vrampx_mem[319] = 8'hA0;  // Position (319,0) — last column row 0
+        vrampx_mem[320] = 8'hB0;  // Position (0,1) — first column row 1
+        vrampx_mem[321] = 8'hC0;  // Position (1,1)
+        vrampx_mem[322] = 8'hD0;  // Position (2,1)
     end
 
     reg [7:0] sram_data_r;
@@ -156,6 +166,13 @@ module gpu_tile_tb;
     integer pixel_count = 0;
     integer error_count = 0;
 
+    // Capture palette_idx at composite time for alignment checking
+    reg [7:0] composite_palette_idx = 0;
+    always @(posedge clk) begin
+        if (dut.state == 3'd2 && dut.pal_wait == 3'd6)
+            composite_palette_idx <= palette_idx;
+    end
+
     always @(posedge clk) begin
         if (spi_tx_valid && spi_tx_ready && spi_dc) begin
             if (!got_hi) begin
@@ -166,45 +183,41 @@ module gpu_tile_tb;
                 got_hi <= 0;
                 pixel_count <= pixel_count + 1;
 
-                // Log first 2 pixels (pipeline trace) and HELLO region
-                if (pixel_count < 2 || (pixel_count >= 38536 && pixel_count < 38560)) begin
-                    $display("PIXEL %0d (x=%0d, y=%0d): RGB565 = %02x%02x  hi=%02x lo=%02x",
+                // Log first 6 pixels showing palette index for alignment check
+                if (pixel_count < 6 || (pixel_count >= 319 && pixel_count < 325)) begin
+                    $display("PIXEL %0d (x=%0d, y=%0d): RGB565=%04x  pal_idx=%0d  pixel_x_at_composite=%0d",
                         pixel_count,
                         pixel_count % 320,
                         pixel_count / 320,
-                        captured_hi, spi_tx_data,
-                        captured_hi, spi_tx_data);
+                        {captured_hi, spi_tx_data},
+                        composite_palette_idx,
+                        dut.pixel_x);
+                end
+
+                // Also log HELLO region
+                if (pixel_count >= 38534 && pixel_count < 38548) begin
+                    $display("PIXEL %0d (x=%0d, y=%0d): RGB565=%04x  trans=%b",
+                        pixel_count,
+                        pixel_count % 320,
+                        pixel_count / 320,
+                        {captured_hi, spi_tx_data},
+                        dut.win_transparent);
                 end
             end
         end
     end
 
-    // ---- Pipeline tracing ----
-    // Monitor key signals during tile fetch for interesting pixels
-    always @(posedge clk) begin
-        if (dut.state == 3'd2) begin // S_PIXEL_PAL
-            // Trace first 2 pixels and the HELLO tile region (pixel 38536+ = tile (17,15))
-            if (pixel_count < 2 || (pixel_count >= 38536 && pixel_count < 38550)) begin
-                $display("  t=%0t px=%0d x=%0d y=%0d pal_wait=%0d v8a=%0d v8q=%02x v32a=%0d v32q=%08x",
-                    $time, pixel_count, dut.pixel_x, dut.pixel_y, dut.pal_wait,
-                    vram8_gpu_addr, vram8_gpu_q,
-                    vram32_gpu_addr, vram32_gpu_q);
-            end
-        end
-    end
-
-    // ---- Monitor compositing decisions ----
+    // ---- Pipeline tracing (minimal) ----
     always @(posedge clk) begin
         if (dut.state == 3'd2 && dut.pal_wait == 3'd6) begin
-            if (pixel_count < 2 || (pixel_count >= 38536 && pixel_count < 38550)) begin
-                $display("  COMPOSITE px=%0d x=%0d y=%0d: pat_half=%04x col=%0d pat_bits=%b trans=%b palw=%08x palrgb=%06x",
+            if (pixel_count >= 38534 && pixel_count < 38548) begin
+                $display("  COMPOSITE px=%0d x=%0d y=%0d: pat_half=%04x col=%0d pat_bits=%b trans=%b palw=%08x",
                     pixel_count, dut.pixel_x, dut.pixel_y,
                     dut.win_pattern_half,
                     dut.col_in_tile,
                     dut.pattern_bits,
                     (dut.pattern_bits == 2'b00) && (dut.win_palette_word[31:24] == 8'd0),
-                    dut.win_palette_word,
-                    palette_rgb);
+                    dut.win_palette_word);
             end
         end
     end

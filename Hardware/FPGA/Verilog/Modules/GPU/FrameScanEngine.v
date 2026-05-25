@@ -162,7 +162,7 @@ module FrameScanEngine (
                     spi_cs_n <= 1'b0;
                     spi_dc <= 1'b1; // All data from here on
                     if (enable) begin
-                        pixel_x <= 9'd1; // Compensate for ILI9341 2-pixel column offset
+                        pixel_x <= 9'd0;
                         pixel_y <= 8'd0;
                         state <= S_PIXEL_READ;
                     end
