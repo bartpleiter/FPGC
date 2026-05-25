@@ -48,8 +48,8 @@ void keyboard_check_connect(void)
     int st;
     st = ch376_test_connect(kb_spi);
     if (st == CH376_CONN_CONNECTED && !kb_connected) {
-        /* Device just plugged in — wait for stabilization */
-        delay(1000);
+        /* Device just plugged in — short stabilization (BDOS uses 50ms) */
+        delay(50);
         if (ch376_enumerate_device(kb_spi, &kb_dev) == 1) {
             if (ch376_is_keyboard(&kb_dev)) {
                 kb_connected = 1;
@@ -125,15 +125,16 @@ int main(void)
     /* Init timer subsystem (required for delay() used by CH376) */
     timer_init();
 
-    /* Init USB keyboard */
+    /* Init USB keyboard (chip init only, defer connect to viewfinder) */
     keyboard_init();
-    keyboard_check_connect();
 
     /* Initialize SD card and BRFS filesystem */
     {
         int sd_rc;
         sd_rc = storage_init();
         if (sd_rc == 1) {
+            /* SD card found but no BRFS — connect keyboard for prompt */
+            keyboard_check_connect();
             /* SD card found but no BRFS — ask user to format */
             gpu_write_window_tile(5, 10, 'F', PALETTE_WHITE_ON_BLACK);
             gpu_write_window_tile(6, 10, 'o', PALETTE_WHITE_ON_BLACK);

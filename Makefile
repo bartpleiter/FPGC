@@ -48,7 +48,7 @@ CPROC_OUTPUT = $(CPROC_DIR)/output/cproc-qbe
 .PHONY: fnp-keyboard fnp-detect-iface fnp-sync-files fnp-sync fnp-run
 .PHONY: fnp-debug-userbdos
 .PHONY: convert-w3d-textures
-.PHONY: sd-read-brfs sd-write-brfs
+.PHONY: sd-read-brfs sd-write-brfs sd-scale-photos
 
 # -----------------------------------------------------------------------------
 # Default Target
@@ -1137,6 +1137,30 @@ sd-write-brfs:
 	fi
 	python3 Scripts/BDOS/sd_write_brfs.py "$(dev)" -i Files/BRFS-sd-transfer
 
+sd-scale-photos:
+	@echo "=== Scaling camera photos (nearest-neighbor → PNG) ==="
+	@command -v magick >/dev/null 2>&1 || { echo "Error: ImageMagick 7 (magick) not found. Install with: sudo apt install imagemagick"; exit 1; }
+	@count=0; \
+	for f in $$(find Files/BRFS-sd-transfer -iname '*.bmp' -type f 2>/dev/null); do \
+		dir=$$(dirname "$$f"); \
+		base=$$(basename "$$f" .bmp); \
+		out="$$dir/$${base}.png"; \
+		w=$$(magick identify -format '%w' "$$f" 2>/dev/null); \
+		if [ "$$w" = "320" ]; then \
+			scale=8; \
+		elif [ "$$w" = "160" ]; then \
+			scale=16; \
+		else \
+			echo "  SKIP $$f (unknown width $$w)"; \
+			continue; \
+		fi; \
+		magick "$$f" -filter point -resize "$${scale}00%" "$$out"; \
+		echo "  $${scale}x  $$f → $$out"; \
+		rm "$$f"; \
+		count=$$((count + 1)); \
+	done; \
+	echo "Scaled $$count image(s)."
+
 # =============================================================================
 # Help
 # =============================================================================
@@ -1261,6 +1285,7 @@ help:
 	@echo "                          Usage: make sd-read-brfs dev=/dev/sdX"
 	@echo "  sd-write-brfs         - Write Files/BRFS-sd-transfer/ to SD card BRFS filesystem"
 	@echo "                          Usage: make sd-write-brfs dev=/dev/sdX"
+	@echo "  sd-scale-photos       - Scale camera BMPs to PNG (8x for QVGA, 16x for QQVGA)"
 	@echo ""
 	@echo "==================================================================="
 

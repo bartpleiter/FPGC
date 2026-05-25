@@ -119,6 +119,8 @@ class BRFSReader:
         self.label           = words_to_string(w[3:13])
         self.version         = w[13]
         self.bytes_per_block = self.words_per_block * 4
+        # Compute data region start from FAT size (each entry = 4 bytes)
+        self.data_addr       = FLASH_FAT_ADDR + self.total_blocks * 4
 
     def _read_fat(self):
         self.fat = self._rw(FLASH_FAT_ADDR, self.total_blocks)
@@ -126,7 +128,7 @@ class BRFSReader:
     # -- data blocks --
 
     def _block_addr(self, blk_idx):
-        return FLASH_DATA_ADDR + blk_idx * self.bytes_per_block
+        return self.data_addr + blk_idx * self.bytes_per_block
 
     def _read_block_words(self, blk_idx):
         return self._rw(self._block_addr(blk_idx), self.words_per_block)

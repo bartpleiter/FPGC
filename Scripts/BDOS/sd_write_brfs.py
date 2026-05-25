@@ -129,6 +129,8 @@ class BRFSWriter:
         self.label_words     = w[3:13]
         self.version         = w[13]
         self.sb_words        = w  # keep for re-writing
+        # Compute data region start from FAT size (each entry = 4 bytes)
+        self.data_addr       = FLASH_FAT_ADDR + self.total_blocks * 4
 
     def _alloc_block(self):
         """Allocate a free block, return its index."""
@@ -252,7 +254,7 @@ class BRFSWriter:
         used = len(self.data)
         print(f'Writing {used} data blocks...')
         for blk_idx, words in self.data.items():
-            addr = FLASH_DATA_ADDR + blk_idx * self.bytes_per_block
+            addr = self.data_addr + blk_idx * self.bytes_per_block
             self._ww(addr, words)
 
         # Zero out unused blocks that may have had old data
@@ -260,7 +262,7 @@ class BRFSWriter:
         zeroed = 0
         for blk_idx in range(self.total_blocks):
             if blk_idx not in self.data:
-                addr = FLASH_DATA_ADDR + blk_idx * self.bytes_per_block
+                addr = self.data_addr + blk_idx * self.bytes_per_block
                 self._ww(addr, zero_block)
                 zeroed += 1
                 if zeroed % 100 == 0:
