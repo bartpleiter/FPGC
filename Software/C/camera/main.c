@@ -36,9 +36,9 @@ static int kb_connected;
 
 static void keyboard_init(void)
 {
-    kb_spi = SPI_USB_0;
+    kb_spi = SPI_USB_1;
     kb_connected = 0;
-    spi_deselect(SPI_FLASH_0);  /* clean SPI bus state */
+    spi_deselect(SPI_FLASH_1);  /* clean SPI bus state */
     ch376_host_init(kb_spi);
 }
 

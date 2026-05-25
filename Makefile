@@ -36,10 +36,10 @@ CPROC_OUTPUT = $(CPROC_DIR)/output/cproc-qbe
 .PHONY: test-c test-c-single
 .PHONY: compile-asm compile-bootloader compile-c-baremetal compile-camera compile-kernel compile-sdcard-init-test compile-sdcard-rw-test compile-sdcard-multi-test compile-sdcard-brfs-storage-test compile-format-spi-flash1
 .PHONY: compile-userbdos compile-userbdos-all compile-doom compile-user-all
-.PHONY: run-uart uart-monitor run-asm-uart run-c-baremetal-uart run-kernel run-format-spi-flash1
+.PHONY: run-uart uart-monitor run-asm-uart run-c-baremetal-uart run-camera run-kernel run-format-spi-flash1
 .PHONY: compile-spi1-dma-test run-spi1-dma-test
 .PHONY: run-userbdos run-doom
-.PHONY: flash-c-baremetal-spi flash-kernel
+.PHONY: flash-c-baremetal-spi flash-camera flash-kernel
 .PHONY: qbe clean-qbe
 .PHONY: cproc clean-cproc
 .PHONY: selfhost-qbe selfhost-cproc selfhost-all stage-cc-toolchain
@@ -492,6 +492,8 @@ compile-camera: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 		-I Software/C/camera \
 		-h \
 		-o Software/ASM/Output/code.bin
+
+run-camera: compile-camera run-uart
 
 KERNEL_SOURCES = \
 	Software/ASM/crt0/crt0_kernel.asm \
@@ -985,6 +987,9 @@ flash-c-baremetal-spi: compile-c-baremetal $(QBE_OUTPUT) $(CPROC_OUTPUT)
 flash-kernel: compile-kernel
 	./Scripts/Programmer/flash_bdos.sh
 
+flash-camera: compile-camera
+	./Scripts/Programmer/flash_spi.sh
+
 # =============================================================================
 # Asset Conversion
 # =============================================================================
@@ -1117,6 +1122,7 @@ sd-read-brfs:
 	@echo "=== Reading BRFS from SD card ==="
 	@if [ -z "$(dev)" ]; then \
 		echo "Usage: make sd-read-brfs dev=/dev/sdX"; \
+		echo "You probably want to run sudo chown $(USER) /dev/sdX first to give yourself permissions to read/write the device."; \
 		exit 1; \
 	fi
 	python3 Scripts/BDOS/sd_read_brfs.py "$(dev)" -o Files/BRFS-sd-transfer
@@ -1125,6 +1131,7 @@ sd-write-brfs:
 	@echo "=== Writing BRFS to SD card ==="
 	@if [ -z "$(dev)" ]; then \
 		echo "Usage: make sd-write-brfs dev=/dev/sdX"; \
+		echo "You probably want to run sudo chown $(USER) /dev/sdX first to give yourself permissions to read/write the device."; \
 		exit 1; \
 	fi
 	python3 Scripts/BDOS/sd_write_brfs.py "$(dev)" -i Files/BRFS-sd-transfer

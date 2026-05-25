@@ -104,24 +104,24 @@ module FPGC (
     // Buttons
     input wire          reset_n,
 
-    // Display header
-    output wire         disp_1,
-    output wire         disp_2,
-    output wire         disp_3,
-    output wire         disp_4,
-    output wire         disp_5,
-    output wire         disp_6,
+    // Display header (camera interface)
+    output wire         disp_1,     // XCLK (25 MHz to OV7670)
+    output wire         disp_2,     // PWDN (active high, directly drive low)
+    output wire         disp_3,     // SIOC (SCCB clock)
+    inout  wire         disp_4,     // SIOD (SCCB data, open-drain)
+    output wire         disp_5,     // RESET (active low)
+    input  wire         disp_6,     // HREF from OV7670
 
-    // GPIO Header (currently defined as inputs only until they are used)
-    input wire          gpio_1,
-    input wire          gpio_2,
-    input wire          gpio_3,
-    input wire          gpio_4,
-    input wire          gpio_5,
-    input wire          gpio_6,
-    input wire          gpio_7,
-    input wire          gpio_8,
-    input wire          gpio_9
+    // GPIO Header (camera data bus)
+    input wire          gpio_1,     // cam_data[0]
+    input wire          gpio_2,     // cam_data[1]
+    input wire          gpio_3,     // cam_data[2]
+    input wire          gpio_4,     // cam_data[3]
+    input wire          gpio_5,     // cam_data[4]
+    input wire          gpio_6,     // cam_data[5]
+    input wire          gpio_7,     // cam_data[6]
+    input wire          gpio_8,     // cam_data[7]
+    input wire          gpio_9      // VSYNC from OV7670
 );
 
 /******************************************************************************
@@ -151,13 +151,10 @@ assign sd_data2_nc = 1'b1;
 // Audio DAC is currently not used yet
 assign audio_dac_data = 8'd0;
 
-// Display header is currently not used yet
-assign disp_1 = 1'b0;
-assign disp_2 = 1'b0;
-assign disp_3 = 1'b0;
-assign disp_4 = 1'b0;
-assign disp_5 = 1'b0;
-assign disp_6 = 1'b0;
+// Camera pin assignments (display header + GPIO)
+assign disp_1 = clkGPU;          // XCLK: 25 MHz clock to OV7670
+assign disp_2 = 1'b0;            // PWDN: keep sensor powered on
+assign disp_5 = ~reset;          // RESET: active low, release after system reset
 
 /******************************************************************************
  * Dip switch
@@ -465,6 +462,20 @@ VRAMPXSram vrampx_sram (
 assign vramPX_cpu_q = 8'd0;
 
 /******************************************************************************
+ * GPU VBLANK detection — synchronize 25 MHz GPU timing to 100 MHz CPU domain
+ ******************************************************************************/
+// VBLANK: vertical count >= 480 in the 640x480 timing generator
+wire gpu_vblank_raw = (fsx_v_count >= 12'd480);
+reg gpu_vblank_s1 = 1'b0, gpu_vblank_sync = 1'b0;
+reg [11:0] gpu_v_count_s1 = 12'd0, gpu_v_count_sync = 12'd0;
+always @(posedge clk100) begin
+    gpu_vblank_s1    <= gpu_vblank_raw;
+    gpu_vblank_sync  <= gpu_vblank_s1;
+    gpu_v_count_s1   <= fsx_v_count;
+    gpu_v_count_sync <= gpu_v_count_s1;
+end
+
+/******************************************************************************
  * L1i RAM
  ******************************************************************************/
 wire [270:0] l1i_pipe_d;
@@ -649,6 +660,11 @@ wire            dma_sd_start;
 wire            dma_sd_done;
 wire [255:0]    dma_sd_q;
 
+// Camera capture handshake wires → DMA engine
+wire [255:0]    cam_line_data;
+wire            cam_line_ready;
+wire            cam_line_ack;
+
 wire [2:0]      dma_reg_addr;
 wire            dma_reg_we;
 wire [31:0]     dma_reg_data;
@@ -712,7 +728,10 @@ SDRAMarbiter sdram_arb (
     .sdc_we(sdc_we),
     .sdc_start(sdc_start),
     .sdc_done(sdc_done),
-    .sdc_q(sdc_q)
+    .sdc_q(sdc_q),
+
+    // Debug
+    .dbg_busy(sdram_arb_busy)
 );
 
 /******************************************************************************
@@ -782,6 +801,9 @@ wire        uart_irq;
 wire        OST1_int;
 wire        OST2_int;
 wire        OST3_int;
+
+wire [31:0] btn_state;
+assign btn_state = 32'd0;
 
 MemoryUnit memory_unit (
     .clk(clk100),
@@ -885,8 +907,133 @@ MemoryUnit memory_unit (
     .dma_reg_addr(dma_reg_addr),
     .dma_reg_we(dma_reg_we),
     .dma_reg_data(dma_reg_data),
-    .dma_reg_q(dma_reg_q)
+    .dma_reg_q(dma_reg_q),
+
+    // Camera
+    .cam_ctrl_enable(cam_ctrl_enable),
+    .cam_ctrl_byte_phase(cam_ctrl_byte_phase),
+    .cam_frame_done(cam_frame_done),
+    .cam_current_buf(cam_current_buf),
+    .i2c_start(i2c_start),
+    .i2c_rw(i2c_rw),
+    .i2c_dev_addr(i2c_dev_addr),
+    .i2c_reg_addr(i2c_reg_addr),
+    .i2c_wr_data(i2c_wr_data),
+    .i2c_busy(i2c_busy),
+    .i2c_ack_err(i2c_ack_err),
+    .i2c_rd_data(i2c_rd_data),
+    .i2c_dbg_state(i2c_dbg_state),
+    .cam_vsync_raw(cam_vsync_sync),
+    .cam_href_raw(cam_href_sync),
+    .cam_dbg_state(cam_dbg_state),
+    .cam_dbg_frame_pixels(cam_dbg_frame_pixels),
+    .cam_dbg_line_count(cam_dbg_line_count),
+    .cam_dbg_cache_lines(cam_dbg_cache_lines),
+    .cam_dbg_partial_drops(cam_dbg_partial_drops),
+    .sdram_arb_busy(sdram_arb_busy),
+
+    // GPU timing (synchronized to clk100)
+    .gpu_vblank(gpu_vblank_sync),
+    .gpu_v_count(gpu_v_count_sync),
+
+    // Buttons
+    .btn_state(btn_state)
 );
+
+
+/******************************************************************************
+ * Camera subsystem
+ ******************************************************************************/
+
+// Camera control signals (directly from MMIO registers via MemoryUnit passthrough)
+wire        cam_ctrl_enable;
+wire        cam_ctrl_byte_phase;
+wire        cam_frame_done;
+wire        cam_current_buf;
+
+// I2C master signals (generic, sole bus master)
+wire        i2c_start;
+wire        i2c_rw;
+wire [6:0]  i2c_dev_addr;
+wire [7:0]  i2c_reg_addr;
+wire [7:0]  i2c_wr_data;
+wire        i2c_busy;
+wire        i2c_ack_err;
+wire [7:0]  i2c_rd_data;
+wire        i2c_scl_oe;
+wire        i2c_sda_oe;
+wire [4:0]  i2c_dbg_state;
+
+// Camera data bus from GPIO pins
+wire [7:0] cam_data = {gpio_8, gpio_7, gpio_6, gpio_5, gpio_4, gpio_3, gpio_2, gpio_1};
+
+// Synchronize raw VSYNC and HREF pins into clk100 domain for diagnostics
+reg cam_vsync_s1 = 1'b0, cam_vsync_sync = 1'b0;
+reg cam_href_s1  = 1'b0, cam_href_sync  = 1'b0;
+always @(posedge clk100) begin
+    cam_vsync_s1   <= gpio_9;
+    cam_vsync_sync <= cam_vsync_s1;
+    cam_href_s1    <= disp_6;
+    cam_href_sync  <= cam_href_s1;
+end
+
+// Gate CameraCapture enable: software must configure OV7670 via I2C before
+// enabling capture.
+wire [2:0]  cam_dbg_state;
+wire [16:0] cam_dbg_frame_pixels;
+wire [8:0]  cam_dbg_line_count;
+wire [11:0] cam_dbg_cache_lines;
+wire [7:0]  cam_dbg_partial_drops;
+wire        sdram_arb_busy;
+
+CameraCapture camera_capture (
+    .clk            (clk100),
+    .reset          (reset),
+    .cam_pclk       (sys_clk_header),  // PCLK from sensor
+    .cam_vsync      (gpio_9),          // VSYNC
+    .cam_href       (disp_6),          // HREF
+    .cam_data       (cam_data),
+    .line_data      (cam_line_data),
+    .line_ready     (cam_line_ready),
+    .line_ack       (cam_line_ack),
+    .ctrl_enable    (cam_ctrl_enable),
+    .ctrl_byte_phase(cam_ctrl_byte_phase),
+    .frame_done     (cam_frame_done),
+    .current_buf    (cam_current_buf),
+    .dbg_state          (cam_dbg_state),
+    .dbg_frame_pixels   (cam_dbg_frame_pixels),
+    .dbg_line_count     (cam_dbg_line_count),
+    .dbg_cache_lines    (cam_dbg_cache_lines),
+    .dbg_partial_drops  (cam_dbg_partial_drops)
+);
+
+// Generic I2C master — sole bus master for OV7670 SCCB and any future I2C devices
+I2C_master #(
+    .CLK_FREQ(100_000_000),
+    .I2C_FREQ(100_000)
+) i2c_master (
+    .clk      (clk100),
+    .reset    (reset),
+    .start    (i2c_start),
+    .rw       (i2c_rw),
+    .dev_addr (i2c_dev_addr),
+    .reg_addr (i2c_reg_addr),
+    .wr_data  (i2c_wr_data),
+    .rd_data  (i2c_rd_data),
+    .busy     (i2c_busy),
+    .ack_err  (i2c_ack_err),
+    .scl_oe   (i2c_scl_oe),
+    .sda_oe   (i2c_sda_oe),
+    .sda_in   (disp_4),
+    .dbg_state_out(i2c_dbg_state)
+);
+
+// Open-drain I2C bus — only the I2C master drives SCL/SDA
+assign disp_3 = i2c_scl_oe ? 1'b0 : 1'b1;   // SCL: push-pull (OV7670 doesn't clock-stretch)
+assign disp_4 = i2c_sda_oe ? 1'b0 : 1'bz;   // SDA: open-drain (bidirectional)
+
+// CameraSubArbiter removed — DMA engine now connects directly to
+// SDRAMarbiter and receives camera data via handshake from CameraCapture.
 
 /******************************************************************************
  * DMA engine (step 8)
@@ -937,6 +1084,12 @@ DMAengine dma_engine (
     .dma_burst_busy(dma_burst_busy),
     .dma_burst_done(dma_burst_done),
 
+    // Camera handshake (from CameraCapture)
+    .cam_line_ready(cam_line_ready),
+    .cam_line_data(cam_line_data),
+    .cam_line_ack(cam_line_ack),
+    .cam_frame_done(cam_frame_done),
+
     .irq(dma_irq)
 );
 
@@ -955,7 +1108,7 @@ end
 
 assign frameDrawn_CPU = frameDrawn_ff2;
 
-B32P3 cpu (
+B32P3 #(.NUM_INTERRUPTS(7)) cpu (
     // Clock and reset
     .clk(clk100),
     .reset(reset),
