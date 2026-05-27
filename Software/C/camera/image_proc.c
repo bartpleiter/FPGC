@@ -36,45 +36,6 @@ void downsample_2x2(const unsigned char *in, unsigned char *out,
     }
 }
 
-void auto_contrast(unsigned char *buf, int w, int h)
-{
-    int n;
-    int i;
-    int lo;
-    int hi;
-    int range;
-    unsigned char lut[256];
-
-    n = w * h;
-    lo = 255;
-    hi = 0;
-
-    for (i = 0; i < n; i++) {
-        if (buf[i] < lo) lo = buf[i];
-        if (buf[i] > hi) hi = buf[i];
-    }
-
-    if (hi <= lo) return;
-
-    range = hi - lo;
-
-    /* Precompute 256-entry LUT (256 divisions instead of n) */
-    for (i = 0; i < 256; i++) {
-        if (i <= lo) {
-            lut[i] = 0;
-        } else if (i >= hi) {
-            lut[i] = 255;
-        } else {
-            lut[i] = (unsigned char)(((i - lo) * 255) / range);
-        }
-    }
-
-    /* Apply LUT — no division per pixel */
-    for (i = 0; i < n; i++) {
-        buf[i] = lut[buf[i]];
-    }
-}
-
 /* Dashboy Camera dither threshold matrices (interleaved, 48 bytes) */
 static unsigned char dither_patterns[48] = {
     0x2A, 0x5E, 0x9B, 0x51, 0x8B, 0xCA,

@@ -95,10 +95,48 @@ int keyboard_poll(void)
     return 0;
 }
 
+/* HID keycodes for Fn buttons */
+#define HID_KEY_U  0x18
+#define HID_KEY_O  0x12
+
+/* Check if Fn1 (U) is currently held */
+int keyboard_fn1_held(void)
+{
+    int i;
+    for (i = 0; i < 6; i++) {
+        if (kb_prev.keycode[i] == HID_KEY_U) return 1;
+    }
+    return 0;
+}
+
+/* Check if Fn2 (O) is currently held */
+int keyboard_fn2_held(void)
+{
+    int i;
+    for (i = 0; i < 6; i++) {
+        if (kb_prev.keycode[i] == HID_KEY_O) return 1;
+    }
+    return 0;
+}
+
 /* Switch display mode and update palette */
 void set_mode(int mode)
 {
+    /* Save current brightness/contrast to the mode we're leaving */
+    cam_settings.mode_presets[display_mode].brightness =
+        cam_settings.brightness;
+    cam_settings.mode_presets[display_mode].contrast =
+        cam_settings.contrast;
+
     display_mode = mode;
+
+    /* Load brightness/contrast from the new mode's preset */
+    cam_settings.brightness =
+        cam_settings.mode_presets[mode].brightness;
+    cam_settings.contrast =
+        cam_settings.mode_presets[mode].contrast;
+
+    /* Apply palette for the display mode */
     if (mode == MODE_DITH) {
         setup_palette_4shade();
     } else if (mode == MODE_DITH8) {
@@ -106,6 +144,10 @@ void set_mode(int mode)
     } else {
         setup_palette_greyscale();
     }
+
+    /* Apply the loaded brightness/contrast to sensor */
+    settings_apply_brightness();
+    settings_apply_contrast();
 }
 
 int main(void)
@@ -118,6 +160,9 @@ int main(void)
 
     /* Load font patterns and palettes early (needed for format prompt) */
     hud_init();
+
+    /* Show splash screen during init */
+    hud_splash("FPGC-Camera");
 
     /* Load dither threshold/offset tables into DMA engine hardware */
     load_dither_tables();

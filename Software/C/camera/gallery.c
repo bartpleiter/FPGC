@@ -163,11 +163,11 @@ void gallery_run(void)
     if (gallery_total == 0) {
         gallery_clear_hud();
         gallery_hud_msg(10, 12, "No images found");
-        gallery_hud_msg(10, 14, "Press G to exit");
+        gallery_hud_msg(10, 14, "Press M to exit");
 
         while (1) {
             key = keyboard_poll();
-            if (key == 'g' || key == 'G' || key == 27) {
+            if (key == 'm' || key == 'M') {
                 gallery_clear_hud();
                 return;
             }
@@ -180,11 +180,11 @@ void gallery_run(void)
         /* All images deleted */
         gallery_clear_hud();
         gallery_hud_msg(10, 12, "No images found");
-        gallery_hud_msg(10, 14, "Press G to exit");
+        gallery_hud_msg(10, 14, "Press M to exit");
 
         while (1) {
             key = keyboard_poll();
-            if (key == 'g' || key == 'G' || key == 27) {
+            if (key == 'm' || key == 'M') {
                 gallery_clear_hud();
                 return;
             }
@@ -198,12 +198,12 @@ void gallery_run(void)
         key = keyboard_poll();
         if (key == 0) continue;
 
-        if (key == 'g' || key == 'G' || key == 27) {
+        if (key == 'm' || key == 'M') {
             gallery_clear_hud();
             return;
         }
 
-        if (key == ',' || key == '<') {
+        if (key == 'i' || key == 'I') {
             /* Previous image */
             if (gallery_current > 0) {
                 found = gallery_find_backward(gallery_current - 1);
@@ -212,7 +212,7 @@ void gallery_run(void)
                     gallery_show_image();
                 }
             }
-        } else if (key == '.' || key == '>') {
+        } else if (key == 'k' || key == 'K') {
             /* Next image */
             if (gallery_current < gallery_total - 1) {
                 found = gallery_find_forward(gallery_current + 1);
@@ -221,7 +221,7 @@ void gallery_run(void)
                     gallery_show_image();
                 }
             }
-        } else if (key == 'd' || key == 'D') {
+        } else if (key == ' ') {
             /* Delete current image */
             char dpath[40];
             storage_build_path(gallery_current, dpath, 40);
@@ -239,7 +239,7 @@ void gallery_run(void)
             } else {
                 gallery_clear_hud();
                 gallery_hud_msg(10, 12, "No images found");
-                gallery_hud_msg(10, 14, "Press G to exit");
+                gallery_hud_msg(10, 14, "Press M to exit");
             }
         }
     }

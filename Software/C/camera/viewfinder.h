@@ -26,17 +26,20 @@ void setup_palette_greyscale(void);
 /* Load dither threshold/Bayer tables into DMA hardware (call once) */
 void load_dither_tables(void);
 
-/* Auto-contrast: compute and upload LUT from hardware min/max stats */
-void auto_contrast_from_hw(void);
-
-/* Reset auto-contrast state (call on mode switch) */
-void auto_contrast_reset(void);
-
 /* MEM2VRAM blit helpers (for capture preview or fallback) */
 void blit_raw_dma(unsigned int src_addr);
-void blit_lut_dma(unsigned int src_addr);
-void blit_dithered_dma(unsigned int src_addr, int use_lut);
-void blit_dithered8_dma(unsigned int src_addr, int use_lut);
+void blit_dithered_dma(unsigned int src_addr);
+void blit_dithered8_dma(unsigned int src_addr);
+
+/* Physical button mapping (right-hand 8-key layout) */
+#define BTN_UP      'i'
+#define BTN_DOWN    'k'
+#define BTN_LEFT    'j'
+#define BTN_RIGHT   'l'
+#define BTN_SHUTTER ' '
+#define BTN_MENU    'm'
+#define BTN_FN1     'u'
+#define BTN_FN2     'o'
 
 /* Run the viewfinder loop (does not return) */
 void viewfinder_run(int initial_mode);

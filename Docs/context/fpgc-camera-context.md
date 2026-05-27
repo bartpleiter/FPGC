@@ -93,6 +93,8 @@ or `Software/C/libfpgc/`, always run `make compile-camera` to verify.
 | `debug-camera-writes.md` | SDRAM crash diagnosis + DMA fix |
 | `spidisplay-plan.md` | ILI9341 SPI display replacement |
 
+There are more documents in that folder, they start with "fpgc-camera".
+
 ## Hardware architecture
 
 ### OV7670 sensor

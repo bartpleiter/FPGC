@@ -1,8 +1,8 @@
 /*
- * settings.c — Camera settings state machine and OV7670 runtime controls
+ * settings.c — Camera settings and OV7670 runtime controls
  *
- * Implements the Auto/S/M shooting mode state machine with live
- * OV7670 register adjustments for exposure, gain, brightness, etc.
+ * Manual-only shooting with live OV7670 register adjustments for
+ * shutter, exposure, gain, brightness, contrast, sharpness, gamma.
  */
 #include "settings.h"
 #include "ov7670_init.h"
@@ -19,15 +19,14 @@
 #define REG_COM8    0x13
 #define REG_COM9    0x14
 #define REG_MVFP    0x1E
-#define REG_AEW     0x24
-#define REG_AEB     0x25
-#define REG_VPT     0x26
 #define REG_COM11   0x3B
 #define REG_BRIGHT  0x55
 #define REG_CONTRAS 0x56
-#define REG_DBLV    0x6B
-#define REG_ADVFL   0x9D
-#define REG_ADVFH   0x9E
+
+/* OV7670 brightness/contrast mapping constants */
+#define BRIGHT_STEP      16   /* each offset step = ±16 in register */
+#define CONTRAST_DEFAULT 0x40 /* OV7670 neutral contrast register */
+#define CONTRAST_STEP    8    /* each offset step = ±8 in register */
 
 /* Sharpness registers */
 #define REG_EDGE    0x3F
@@ -42,28 +41,18 @@
 /* Global settings */
 camera_settings_t cam_settings;
 
-/* Shutter speed tables: CLKRC values only (don't touch DBLV/PLL)
- * Empirical: CLKRC prescaler divides by 2*(N+1) on this OV7670.
+/* Shutter speed tables: CLKRC values
  *   0x80 = bypass → ~30fps
  *   0x00 = ÷2     → ~16fps
  *   0x01 = ÷4     → ~8fps
  */
 static const int shutter_clkrc[SHUTTER_COUNT] = { 0x80, 0x00, 0x01, 0x03 };
 
-/* Exposure AEC line counts (Manual mode only)
- * AECH register = lines >> 2, so we store the AECH value directly.
- *   480 lines = 0x78, 240 = 0x3C, 120 = 0x1E, 60 = 0x0F
- */
+/* Exposure AEC line counts: AECH register values */
 static const int exposure_aech[EXPOSURE_COUNT] = { 0x78, 0x3C, 0x1E, 0x0F, 0x07 };
 
 /* ISO gain register values */
 static const int iso_gain[ISO_COUNT] = { 0x00, 0x10, 0x30, 0x70, 0xF0, 0xFF };
-
-/* ISO AGC ceiling (COM9 values) for auto modes */
-static const int iso_ceiling[ISO_COUNT] = { 0x08, 0x18, 0x18, 0x38, 0x38, 0x48 };
-
-/* Night mode COM11 values */
-static const int night_com11[] = { 0x0A, 0x2A, 0x4A, 0xEA };
 
 /* Sharpness preset tables: {EDGE, REG75, REG76} */
 static const int sharp_edge[SHARPNESS_COUNT]  = { 0x00, 0x02, 0x06, 0x0F };
@@ -92,22 +81,29 @@ static void ov_wr(int reg, int val)
 
 void settings_init(void)
 {
-    cam_settings.shoot_mode = SHOOT_M;
     cam_settings.shutter = SHUTTER_FAST;
     cam_settings.exposure = EXPOSURE_FULL;
     cam_settings.iso = ISO_100;
     cam_settings.brightness = 0;
-    cam_settings.contrast = 0x40;
-    cam_settings.night_mode = NIGHT_EIGHTH;
+    cam_settings.contrast = 0;
     cam_settings.mirror = 0;
     cam_settings.flip = 0;
     cam_settings.show_hud = 1;
-    cam_settings.auto_contrast = 0;  /* Off by default */
     cam_settings.sharpness = SHARPNESS_LOW;
     cam_settings.gamma_preset = GAMMA_STANDARD;
 
+    /* Per-mode brightness/contrast defaults */
+    cam_settings.mode_presets[0].brightness = 0;  /* RAW */
+    cam_settings.mode_presets[0].contrast = 0;
+    cam_settings.mode_presets[1].brightness = 0;  /* DITH */
+    cam_settings.mode_presets[1].contrast = 0;
+    cam_settings.mode_presets[2].brightness = 2;  /* DITH8 */
+    cam_settings.mode_presets[2].contrast = 2;
+
     /* Apply all settings to sensor */
-    settings_apply_mode();
+    settings_apply_shutter();
+    settings_apply_exposure();
+    settings_apply_iso();
     settings_apply_brightness();
     settings_apply_contrast();
     settings_apply_orientation();
@@ -115,44 +111,15 @@ void settings_init(void)
     settings_apply_gamma();
 }
 
-void settings_apply_mode(void)
-{
-    switch (cam_settings.shoot_mode) {
-    case SHOOT_AUTO:
-        /* Full sensor re-init for auto mode */
-        ov7670_reset_auto();
-        break;
-
-    case SHOOT_M:
-        /* Proper manual mode transition via sensor driver */
-        ov7670_set_manual();
-        settings_apply_shutter();
-        settings_apply_exposure();
-        settings_apply_iso();
-        break;
-    }
-}
-
 void settings_reapply(void)
 {
-    /* Re-apply current mode overlays after a resolution switch.
+    /* Re-apply settings after a resolution switch.
      * The sensor was just fully re-init'd by ov7670_set_q(q)vga(),
-     * which leaves it in auto mode with night mode ON.
-     * We only write the mode-specific overlay registers here. */
-
-    if (cam_settings.shoot_mode == SHOOT_M) {
-        /* Apply manual mode overrides (without full re-init) */
-        ov_wr(REG_COM11, 0x0A);    /* Night mode OFF */
-        ov_wr(REG_COM8,  0xE0);    /* AEC+AGC off, AWB on */
-        settings_apply_shutter();
-        settings_apply_exposure();
-        settings_apply_iso();
-    } else {
-        /* Auto mode: sensor is already in auto after init_mode.
-         * No additional overlays needed. */
-    }
-
-    /* Common settings */
+     * which leaves it in manual-ready state (AEC/AGC off, night off).
+     * We write all overlay registers here. */
+    settings_apply_shutter();
+    settings_apply_exposure();
+    settings_apply_iso();
     settings_apply_brightness();
     settings_apply_contrast();
     settings_apply_orientation();
@@ -167,13 +134,8 @@ void settings_apply_shutter(void)
     if (idx < 0) idx = 0;
     if (idx >= SHUTTER_COUNT) idx = SHUTTER_COUNT - 1;
 
-    /* Set CLKRC to control frame rate */
     ov_wr(REG_CLKRC, shutter_clkrc[idx]);
-
-    /* In manual mode, also apply the current exposure preset */
-    if (cam_settings.shoot_mode == SHOOT_M) {
-        settings_apply_exposure();
-    }
+    settings_apply_exposure();
 }
 
 void settings_apply_exposure(void)
@@ -183,9 +145,9 @@ void settings_apply_exposure(void)
     if (idx < 0) idx = 0;
     if (idx >= EXPOSURE_COUNT) idx = EXPOSURE_COUNT - 1;
 
-    ov_wr(REG_AECHH, 0x00);               /* AEC[15:10] = 0 */
-    ov_wr(REG_AECH,  exposure_aech[idx]);  /* AEC[9:2] */
-    ov_wr(REG_COM1,  0x00);               /* AEC[1:0] = 0 */
+    ov_wr(REG_AECHH, 0x00);
+    ov_wr(REG_AECH,  exposure_aech[idx]);
+    ov_wr(REG_COM1,  0x00);
 }
 
 void settings_apply_iso(void)
@@ -195,19 +157,13 @@ void settings_apply_iso(void)
     if (idx < 0) idx = 0;
     if (idx >= ISO_COUNT) idx = ISO_COUNT - 1;
 
-    if (cam_settings.shoot_mode == SHOOT_M) {
-        /* Manual: directly set gain register */
-        ov_wr(REG_GAIN, iso_gain[idx]);
-    } else {
-        /* Auto/S: set AGC ceiling */
-        ov_wr(REG_COM9, iso_ceiling[idx]);
-    }
+    ov_wr(REG_GAIN, iso_gain[idx]);
 }
 
 void settings_apply_brightness(void)
 {
     int val;
-    val = cam_settings.brightness;
+    val = cam_settings.brightness * BRIGHT_STEP;
 
     /* OV7670 uses sign-magnitude: bit7=sign, [6:0]=magnitude */
     if (val >= 0) {
@@ -220,19 +176,10 @@ void settings_apply_brightness(void)
 void settings_apply_contrast(void)
 {
     int val;
-    val = cam_settings.contrast;
+    val = CONTRAST_DEFAULT + cam_settings.contrast * CONTRAST_STEP;
     if (val < 0) val = 0;
     if (val > 127) val = 127;
     ov_wr(REG_CONTRAS, val);
-}
-
-void settings_apply_night(void)
-{
-    int idx;
-    idx = cam_settings.night_mode;
-    if (idx < 0) idx = 0;
-    if (idx > 3) idx = 3;
-    ov_wr(REG_COM11, night_com11[idx]);
 }
 
 void settings_apply_orientation(void)
@@ -244,15 +191,6 @@ void settings_apply_orientation(void)
     ov_wr(REG_MVFP, val);
 }
 
-void settings_cycle_mode(void)
-{
-    if (cam_settings.shoot_mode == SHOOT_AUTO)
-        cam_settings.shoot_mode = SHOOT_M;
-    else
-        cam_settings.shoot_mode = SHOOT_AUTO;
-    settings_apply_mode();
-}
-
 void settings_reset(void)
 {
     settings_init();
@@ -260,9 +198,6 @@ void settings_reset(void)
 
 void settings_adjust_shutter(int direction)
 {
-    /* Only adjustable in Manual mode */
-    if (cam_settings.shoot_mode != SHOOT_M) return;
-
     cam_settings.shutter = cam_settings.shutter + direction;
     if (cam_settings.shutter < 0) cam_settings.shutter = 0;
     if (cam_settings.shutter >= SHUTTER_COUNT) cam_settings.shutter = SHUTTER_COUNT - 1;
@@ -271,9 +206,6 @@ void settings_adjust_shutter(int direction)
 
 void settings_adjust_iso(int direction)
 {
-    /* Only adjustable in Manual mode */
-    if (cam_settings.shoot_mode != SHOOT_M) return;
-
     cam_settings.iso = cam_settings.iso + direction;
     if (cam_settings.iso < 0) cam_settings.iso = 0;
     if (cam_settings.iso >= ISO_COUNT) cam_settings.iso = ISO_COUNT - 1;
@@ -282,9 +214,6 @@ void settings_adjust_iso(int direction)
 
 void settings_adjust_exposure(int direction)
 {
-    /* Only adjustable in Manual mode */
-    if (cam_settings.shoot_mode != SHOOT_M) return;
-
     cam_settings.exposure = cam_settings.exposure + direction;
     if (cam_settings.exposure < 0) cam_settings.exposure = 0;
     if (cam_settings.exposure >= EXPOSURE_COUNT) cam_settings.exposure = EXPOSURE_COUNT - 1;
@@ -293,17 +222,17 @@ void settings_adjust_exposure(int direction)
 
 void settings_adjust_brightness(int direction)
 {
-    cam_settings.brightness = cam_settings.brightness + (direction * 16);
-    if (cam_settings.brightness < -128) cam_settings.brightness = -128;
-    if (cam_settings.brightness > 127) cam_settings.brightness = 127;
+    cam_settings.brightness = cam_settings.brightness + direction;
+    if (cam_settings.brightness < -8) cam_settings.brightness = -8;
+    if (cam_settings.brightness > 8) cam_settings.brightness = 8;
     settings_apply_brightness();
 }
 
 void settings_adjust_contrast(int direction)
 {
-    cam_settings.contrast = cam_settings.contrast + (direction * 8);
-    if (cam_settings.contrast < 0) cam_settings.contrast = 0;
-    if (cam_settings.contrast > 127) cam_settings.contrast = 127;
+    cam_settings.contrast = cam_settings.contrast + direction;
+    if (cam_settings.contrast < -8) cam_settings.contrast = -8;
+    if (cam_settings.contrast > 8) cam_settings.contrast = 8;
     settings_apply_contrast();
 }
 
@@ -322,11 +251,6 @@ void settings_toggle_flip(void)
 void settings_toggle_hud(void)
 {
     cam_settings.show_hud = !cam_settings.show_hud;
-}
-
-void settings_toggle_auto_contrast(void)
-{
-    cam_settings.auto_contrast = !cam_settings.auto_contrast;
 }
 
 void settings_apply_sharpness(void)
@@ -392,15 +316,6 @@ void settings_adjust_gamma(int direction)
         cam_settings.gamma_preset = GAMMA_COUNT - 1;
 }
 
-const char *settings_mode_str(void)
-{
-    switch (cam_settings.shoot_mode) {
-    case SHOOT_AUTO: return "A";
-    case SHOOT_M:    return "M";
-    default:         return "?";
-    }
-}
-
 const char *settings_shutter_str(void)
 {
     switch (cam_settings.shutter) {
@@ -459,13 +374,60 @@ const char *settings_gamma_str(void)
     }
 }
 
-const char *settings_night_str(void)
+/* ---- Preset save/load via BRFS ---- */
+#include "storage.h"
+#include "string.h"
+
+static const char *preset_paths[PRESET_COUNT] = {
+    "/preset_1", "/preset_2", "/preset_3"
+};
+
+int settings_save_preset(int slot)
 {
-    switch (cam_settings.night_mode) {
-    case NIGHT_OFF:     return "Off";
-    case NIGHT_HALF:    return "1/2";
-    case NIGHT_QUARTER: return "1/4";
-    case NIGHT_EIGHTH:  return "1/8";
-    default:            return "?";
+    int fd;
+    int rc;
+
+    if (slot < 0 || slot >= PRESET_COUNT) return -1;
+    if (!storage_ready) return -1;
+
+    fd = brfs_open(&cam_brfs, preset_paths[slot]);
+    if (fd < 0) {
+        rc = brfs_create_file(&cam_brfs, preset_paths[slot]);
+        if (rc != 0) return -1;
+        fd = brfs_open(&cam_brfs, preset_paths[slot]);
+        if (fd < 0) return -1;
     }
+    brfs_truncate(&cam_brfs, fd);
+    brfs_seek(&cam_brfs, fd, 0);
+    rc = brfs_write(&cam_brfs, fd,
+                    (const char *)&cam_settings,
+                    (unsigned int)sizeof(camera_settings_t));
+    brfs_close(&cam_brfs, fd);
+    storage_sync();
+    return (rc > 0) ? 0 : -1;
+}
+
+int settings_load_preset(int slot)
+{
+    int fd;
+    int rc;
+    camera_settings_t tmp;
+
+    if (slot < 0 || slot >= PRESET_COUNT) return -1;
+    if (!storage_ready) return -1;
+
+    fd = brfs_open(&cam_brfs, preset_paths[slot]);
+    if (fd < 0) return -1;
+
+    rc = brfs_read(&cam_brfs, fd,
+                   (char *)&tmp,
+                   (unsigned int)sizeof(camera_settings_t));
+    brfs_close(&cam_brfs, fd);
+
+    if (rc < (int)sizeof(camera_settings_t)) return -1;
+
+    /* Apply loaded settings */
+    memcpy(&cam_settings, &tmp, sizeof(camera_settings_t));
+    settings_reapply();
+    return 0;
 }

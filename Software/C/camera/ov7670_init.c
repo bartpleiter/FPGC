@@ -94,9 +94,11 @@ static int ov7670_init_mode(int qqvga)
     err |= ov_write(0x15, 0x00);  /* COM10: VSYNC/HREF positive */
 
     /* ---- AGC / AEC ---- */
-    err |= ov_write(0x13, 0xE0);  /* COM8: fast AEC, step, banding ON */
+    err |= ov_write(0x13, 0xE0);  /* COM8: AEC+AGC off, AWB on */
     err |= ov_write(0x00, 0x00);  /* GAIN: 0 */
-    err |= ov_write(0x10, 0x00);  /* AECH: exposure = 0 */
+    err |= ov_write(0x10, 0x78);  /* AECH: 480 lines exposure (full frame) */
+    err |= ov_write(0x07, 0x00);  /* AECHH: 0 */
+    err |= ov_write(0x04, 0x00);  /* COM1: AEC low bits = 0 */
     err |= ov_write(0x0D, 0x40);  /* COM4 */
     err |= ov_write(0x14, 0x18);  /* COM9: 4x gain ceiling */
     err |= ov_write(0xA5, 0x05);  /* BD50MAX */
@@ -112,10 +114,9 @@ static int ov7670_init_mode(int qqvga)
     err |= ov_write(0xA8, 0xF0);  /* HAECC5 */
     err |= ov_write(0xA9, 0x90);  /* HAECC6 */
     err |= ov_write(0xAA, 0x94);  /* HAECC7 */
-    err |= ov_write(0x13, 0xE7);  /* COM8: AGC + AEC + AWB enabled */
 
-    /* ---- Night mode ---- */
-    err |= ov_write(0x3B, 0xE0);  /* COM11: night mode ON, 1/8 frame rate min */
+    /* ---- Night mode OFF (manual mode default) ---- */
+    err |= ov_write(0x3B, 0x0A);  /* COM11: night mode OFF */
 
     /* ---- Gamma curve ---- */
     err |= ov_write(0x7A, 0x20);
@@ -167,40 +168,4 @@ int ov7670_set_qqvga(void)
 int ov7670_set_qvga(void)
 {
     return ov7670_init_mode(0);
-}
-
-void ov7670_reset_auto(void)
-{
-    /* Full re-init restores all registers to auto defaults,
-     * preserving current resolution (QVGA vs QQVGA) */
-    ov7670_init_mode(current_qqvga);
-}
-
-void ov7670_set_manual(void)
-{
-    /* Full re-init to reset ALL registers (including timing/exposure),
-     * preserving current resolution. */
-    ov7670_init_mode(current_qqvga);
-
-    /* Disable night mode (the init enables it) */
-    ov_write(0x3B, 0x0A);  /* COM11: night mode OFF */
-
-    /* Disable AEC + AGC.  The init set AECH=0x00 (zero exposure)
-     * then enabled AEC which would auto-adjust.  Since we disable
-     * AEC immediately, exposure is still ~0 → black image.
-     * So we must explicitly set exposure after disabling AEC. */
-    ov_write(0x13, 0xE0);  /* COM8: AEC+AGC off, AWB on */
-
-    /* Set exposure to near-maximum for the frame.
-     * QVGA has ~510 total lines; 480 lines ≈ full frame exposure.
-     * AEC = 480 = 0x1E0:
-     *   AECHH[5:0] = AEC[15:10] = 0
-     *   AECH[7:0]  = AEC[9:2]   = 120 (0x78)
-     *   COM1[1:0]  = AEC[1:0]   = 0                     */
-    ov_write(0x07, 0x00);  /* AECHH */
-    ov_write(0x10, 0x78);  /* AECH: 480 lines exposure */
-    ov_write(0x04, 0x00);  /* COM1: AEC low bits = 0 */
-
-    /* Set moderate gain (ISO 400 equiv) */
-    ov_write(0x00, 0x30);  /* GAIN */
 }
