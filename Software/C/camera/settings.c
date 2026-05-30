@@ -10,6 +10,10 @@
 #include "fpgc.h"
 #include "cam_driver.h"
 
+/* External globals synced via presets */
+extern int res_mode;
+extern int display_mode;
+
 /* OV7670 register addresses */
 #define REG_GAIN    0x00
 #define REG_COM1    0x04
@@ -99,6 +103,9 @@ void settings_init(void)
     cam_settings.mode_presets[1].contrast = 0;
     cam_settings.mode_presets[2].brightness = 2;  /* DITH8 */
     cam_settings.mode_presets[2].contrast = 2;
+
+    cam_settings.res_mode = res_mode;
+    cam_settings.display_mode = display_mode;
 
     /* Apply all settings to sensor */
     settings_apply_shutter();
@@ -399,6 +406,9 @@ int settings_save_preset(int slot)
     }
     brfs_truncate(&cam_brfs, fd);
     brfs_seek(&cam_brfs, fd, 0);
+    /* Sync globals into struct before writing */
+    cam_settings.res_mode = res_mode;
+    cam_settings.display_mode = display_mode;
     rc = brfs_write(&cam_brfs, fd,
                     (const char *)&cam_settings,
                     (unsigned int)sizeof(camera_settings_t));
@@ -428,6 +438,9 @@ int settings_load_preset(int slot)
 
     /* Apply loaded settings */
     memcpy(&cam_settings, &tmp, sizeof(camera_settings_t));
+    /* Sync struct fields back to globals */
+    res_mode = cam_settings.res_mode;
+    display_mode = cam_settings.display_mode;
     settings_reapply();
     return 0;
 }

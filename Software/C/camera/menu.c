@@ -17,7 +17,7 @@
 #define MENU_TOP_ROW     1   /* top border */
 #define MENU_TITLE_ROW   2   /* "SETTINGS" */
 #define MENU_FIRST_ITEM  4   /* first selectable item */
-#define MENU_LAST_ITEM  20   /* last selectable item row */
+#define MENU_LAST_ITEM  19   /* last selectable item row (FIRST_ITEM + ITEMS - 1) */
 #define MENU_HINT_ROW1  22
 #define MENU_HINT_ROW2  23
 #define MENU_BOT_ROW    24   /* bottom border */
@@ -95,6 +95,8 @@ static void menu_draw_hline(int y, int left_ch, int right_ch)
 /* Item labels (must match MENU_ITEMS = 16) */
 static const char *item_labels[16] = {
     "Gallery",
+    "Load preset",
+    "Save preset",
     "Shutter",
     "Exposure",
     "ISO",
@@ -107,8 +109,6 @@ static const char *item_labels[16] = {
     "Mirror",
     "Flip",
     "Show HUD",
-    "Load preset",
-    "Save preset",
     "Storage"
 };
 
@@ -120,10 +120,19 @@ static const char *item_value_str(int i)
 {
     switch (i) {
     case 0:  return ">>>";  /* Gallery */
-    case 1:  return settings_shutter_str();
-    case 2:  return settings_exposure_str();
-    case 3:  return settings_iso_str();
-    case 4:
+    case 1:
+    case 2:
+        /* Load/Save preset: show slot number */
+        {
+            static char slot_buf[2];
+            slot_buf[0] = (char)('1' + preset_slot);
+            slot_buf[1] = 0;
+            return slot_buf;
+        }
+    case 3:  return settings_shutter_str();
+    case 4:  return settings_exposure_str();
+    case 5:  return settings_iso_str();
+    case 6:
         /* Brightness offset: show as +3, -2, 0 */
         {
             static char brt_buf[4];
@@ -142,7 +151,7 @@ static const char *item_value_str(int i)
             }
             return brt_buf;
         }
-    case 5:
+    case 7:
         /* Contrast offset: show as +4, -1, 0 */
         {
             static char ctr_buf[4];
@@ -161,30 +170,21 @@ static const char *item_value_str(int i)
             }
             return ctr_buf;
         }
-    case 6:  return settings_sharpness_str();
-    case 7:  return settings_gamma_str();
-    case 8:
+    case 8:  return settings_sharpness_str();
+    case 9:  return settings_gamma_str();
+    case 10:
         switch (display_mode) {
         case 0: return "Full8b";
         case 1: return "Dith2b";
         case 2: return "Dith3b";
         default: return "?";
         }
-    case 9:
+    case 11:
         if (res_mode == RES_QQVGA) return "160x120";
         return "320x240";
-    case 10: return cam_settings.mirror ? "On" : "Off";
-    case 11: return cam_settings.flip ? "On" : "Off";
-    case 12: return cam_settings.show_hud ? "On" : "Off";
-    case 13:
-    case 14:
-        /* Load/Save preset: show slot number */
-        {
-            static char slot_buf[2];
-            slot_buf[0] = (char)('1' + preset_slot);
-            slot_buf[1] = 0;
-            return slot_buf;
-        }
+    case 12: return cam_settings.mirror ? "On" : "Off";
+    case 13: return cam_settings.flip ? "On" : "Off";
+    case 14: return cam_settings.show_hud ? "On" : "Off";
     case 15:
         /* Storage: remaining images */
         {
@@ -244,28 +244,38 @@ static int item_adjust(int direction)
     switch (menu_cursor) {
     case 0:  /* Gallery */
         return 7;  /* signal gallery entry */
-    case 1:  /* Shutter */
+    case 1: /* Load preset — J/L cycles slot */
+        preset_slot = preset_slot + direction;
+        if (preset_slot < 0) preset_slot = PRESET_COUNT - 1;
+        if (preset_slot >= PRESET_COUNT) preset_slot = 0;
+        return 0;
+    case 2: /* Save preset — J/L cycles slot */
+        preset_slot = preset_slot + direction;
+        if (preset_slot < 0) preset_slot = PRESET_COUNT - 1;
+        if (preset_slot >= PRESET_COUNT) preset_slot = 0;
+        return 0;
+    case 3:  /* Shutter */
         settings_adjust_shutter(direction);
         return 3;
-    case 2:  /* Exposure */
+    case 4:  /* Exposure */
         settings_adjust_exposure(direction);
         return 3;
-    case 3:  /* ISO */
+    case 5:  /* ISO */
         settings_adjust_iso(direction);
         return 3;
-    case 4:  /* Brightness */
+    case 6:  /* Brightness */
         settings_adjust_brightness(direction);
         return 5;
-    case 5:  /* Contrast */
+    case 7:  /* Contrast */
         settings_adjust_contrast(direction);
         return 5;
-    case 6:  /* Sharpness */
+    case 8:  /* Sharpness */
         settings_adjust_sharpness(direction);
         return 5;
-    case 7:  /* Gamma */
+    case 9:  /* Gamma */
         settings_adjust_gamma(direction);
         return 5;
-    case 8:  /* Display mode */
+    case 10:  /* Display mode */
         {
             int dm;
             dm = display_mode + direction;
@@ -274,26 +284,16 @@ static int item_adjust(int direction)
             set_mode(dm);
             return 0;
         }
-    case 9: /* Resolution — returns special code */
+    case 11: /* Resolution — returns special code */
         return 6;
-    case 10: /* Mirror */
+    case 12: /* Mirror */
         settings_toggle_mirror();
         return 5;
-    case 11: /* Flip */
+    case 13: /* Flip */
         settings_toggle_flip();
         return 5;
-    case 12: /* Show HUD */
+    case 14: /* Show HUD */
         settings_toggle_hud();
-        return 0;
-    case 13: /* Load preset — J/L cycles slot */
-        preset_slot = preset_slot + direction;
-        if (preset_slot < 0) preset_slot = PRESET_COUNT - 1;
-        if (preset_slot >= PRESET_COUNT) preset_slot = 0;
-        return 0;
-    case 14: /* Save preset — J/L cycles slot */
-        preset_slot = preset_slot + direction;
-        if (preset_slot < 0) preset_slot = PRESET_COUNT - 1;
-        if (preset_slot >= PRESET_COUNT) preset_slot = 0;
         return 0;
     case 15: /* Storage — read-only */
         return 0;
@@ -413,6 +413,15 @@ void menu_draw(void)
     }
     menu_putchar(MENU_RIGHT, MENU_LAST_ITEM + 1, BOX_VERT, MENU_PAL_IDX);
 
+    /* Second blank row */
+    menu_putchar(MENU_LEFT, MENU_LAST_ITEM + 2, BOX_VERT, MENU_PAL_IDX);
+    {
+        int x;
+        for (x = MENU_LEFT + 1; x < MENU_RIGHT; x++)
+            menu_putchar(x, MENU_LAST_ITEM + 2, ' ', MENU_PAL_IDX);
+    }
+    menu_putchar(MENU_RIGHT, MENU_LAST_ITEM + 2, BOX_VERT, MENU_PAL_IDX);
+
     /* Hint rows */
     menu_putchar(MENU_LEFT, MENU_HINT_ROW1, BOX_VERT, MENU_PAL_IDX);
     menu_puts(MENU_LABEL_COL, MENU_HINT_ROW1, "I/K Nav  J/L Adj  Spc Open", MENU_PAL_IDX);
@@ -476,15 +485,14 @@ int menu_handle_key(int key)
             /* Gallery */
             return 7;
         }
-        if (menu_cursor == 13) {
-            /* Load preset */
+        if (menu_cursor == 1) {
+            /* Load preset — always restart viewfinder (res/mode may change) */
             if (settings_load_preset(preset_slot) == 0) {
-                menu_draw();
-                return 5;  /* re-apply all settings */
+                return 1;  /* resolution switch path — full reinit */
             }
             return 0;
         }
-        if (menu_cursor == 14) {
+        if (menu_cursor == 2) {
             /* Save preset */
             settings_save_preset(preset_slot);
             menu_draw();

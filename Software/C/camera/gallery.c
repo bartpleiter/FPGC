@@ -222,24 +222,36 @@ void gallery_run(void)
                 }
             }
         } else if (key == ' ') {
-            /* Delete current image */
-            char dpath[40];
-            storage_build_path(gallery_current, dpath, 40);
-            brfs_delete(&cam_brfs, dpath);
-            storage_sync();
+            /* Delete current image — ask for confirmation */
+            gallery_hud_msg(1, 24, "Delete? Spc=Yes  M=No       ");
+            while (1) {
+                key = keyboard_poll();
+                if (key == 0) continue;
+                if (key == ' ') {
+                    /* Confirmed — delete */
+                    char dpath[40];
+                    storage_build_path(gallery_current, dpath, 40);
+                    brfs_delete(&cam_brfs, dpath);
+                    storage_sync();
 
-            /* Try to show next image, or previous, or show empty */
-            found = gallery_find_forward(gallery_current + 1);
-            if (found < 0) {
-                found = gallery_find_backward(gallery_current - 1);
-            }
-            if (found >= 0) {
-                gallery_current = found;
-                gallery_show_image();
-            } else {
-                gallery_clear_hud();
-                gallery_hud_msg(10, 12, "No images found");
-                gallery_hud_msg(10, 14, "Press M to exit");
+                    /* Try to show next image, or previous, or show empty */
+                    found = gallery_find_forward(gallery_current + 1);
+                    if (found < 0) {
+                        found = gallery_find_backward(gallery_current - 1);
+                    }
+                    if (found >= 0) {
+                        gallery_current = found;
+                        gallery_show_image();
+                    } else {
+                        gallery_clear_hud();
+                        gallery_hud_msg(10, 12, "No images found");
+                        gallery_hud_msg(10, 14, "Press M to exit");
+                    }
+                    break;
+                }
+                /* Any other key = cancel */
+                gallery_update_hud();
+                break;
             }
         }
     }

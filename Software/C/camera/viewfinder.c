@@ -173,9 +173,8 @@ int res_mode = RES_QVGA;
 #define QA_GAMMA       7
 #define QA_COUNT       8
 
-static int qa_current = QA_SHUTTER;
-static int qa_highlight_timer = 0;
-#define QA_HIGHLIGHT_FRAMES  60  /* ~2 seconds at 30fps */
+static int qa_current = QA_MODE;
+static int qa_highlight_timer = 1;  /* always active */
 
 /* Flag: next DMA needs VSYNC re-sync (set after cam_disable) */
 static int need_resync;
@@ -185,7 +184,6 @@ static void qa_cycle(int direction)
     qa_current = qa_current + direction;
     if (qa_current < 0) qa_current = QA_COUNT - 1;
     if (qa_current >= QA_COUNT) qa_current = 0;
-    qa_highlight_timer = QA_HIGHLIGHT_FRAMES;
 }
 
 /* Adjust parameter and return pending_action code:
@@ -197,8 +195,6 @@ static void qa_cycle(int direction)
  */
 static int qa_adjust(int param, int direction)
 {
-    qa_highlight_timer = QA_HIGHLIGHT_FRAMES;
-
     switch (param) {
     case QA_MODE:
         /* Cycle display mode: GREY(0) → DITH(1) → DITH8(2) */
@@ -402,6 +398,13 @@ static int handle_key(int key)
         cam_disable();
         pending_action = menu_handle_key(key);
         need_resync = 1;
+        if (pending_action == 1) {
+            /* Preset load — full reinit (res/mode may have changed) */
+            menu_reopen = 1;
+            menu_close();
+            update_remaining();
+            return 1;
+        }
         if (pending_action == 6) {
             /* Resolution change — set reopen flag, close menu, exit loop */
             menu_reopen = 1;
@@ -606,10 +609,6 @@ static int viewfinder_qvga(void)
         t_end = get_micros();
         fps_frames++;
 
-        /* Quick-adjust highlight countdown */
-        if (qa_highlight_timer > 0)
-            qa_highlight_timer = qa_highlight_timer - 1;
-
         /* Periodic HUD update */
         hud_counter = hud_counter + 1;
         if (hud_counter >= HUD_INTERVAL) {
@@ -707,10 +706,6 @@ static int viewfinder_qqvga(void)
         t_end = get_micros();
         fps_frames++;
 
-        /* Quick-adjust highlight countdown */
-        if (qa_highlight_timer > 0)
-            qa_highlight_timer = qa_highlight_timer - 1;
-
         /* Periodic HUD update */
         hud_counter = hud_counter + 1;
         if (hud_counter >= HUD_INTERVAL) {
@@ -778,6 +773,10 @@ void viewfinder_run(int initial_mode)
             set_mode(display_mode);
             hud_init();
         }
-        /* reason == 1: resolution switch, just loops back */
+        /* reason == 1: resolution/preset switch — update palette for display mode */
+        if (reason == 1) {
+            set_mode(display_mode);
+            hud_init();
+        }
     }
 }

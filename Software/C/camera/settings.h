@@ -64,6 +64,8 @@ typedef struct {
     int sharpness;        /* SHARPNESS_OFF .. SHARPNESS_HIGH */
     int gamma_preset;     /* GAMMA_LINEAR .. GAMMA_LOWLIGHT */
     mode_preset_t mode_presets[3]; /* per-display-mode B/C */
+    int res_mode;         /* RES_QVGA / RES_QQVGA */
+    int display_mode;     /* MODE_RAW / MODE_DITHER / MODE_DITHER8 */
 } camera_settings_t;
 
 /* Global settings instance */
