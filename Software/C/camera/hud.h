@@ -12,8 +12,9 @@ void hud_init(void);
 
 /* Update the full HUD display.
  * qa_active: current quick-adjust parameter index (QA_BRIGHTNESS..QA_GAMMA)
- * qa_highlight: highlight timer (>0 = show bracket markers on active param) */
-void hud_update(int fps, int qa_active, int qa_highlight);
+ * qa_highlight: highlight timer (>0 = show bracket markers on active param)
+ * avg_lum: average luminance 0-255 from hardware pixel sum (-1 = unknown) */
+void hud_update(int fps, int qa_active, int qa_highlight, int avg_lum);
 
 /* Clear the HUD (hide all text) */
 void hud_clear(void);

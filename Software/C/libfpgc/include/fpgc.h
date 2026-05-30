@@ -89,6 +89,7 @@
 /* DMA LUT and dither table registers */
 #define FPGC_DMA_LUT        0x1C0000AC  /* Write: {addr[15:8], data[7:0]} */
 #define FPGC_DMA_DITHER     0x1C0000B0  /* Write: {table[13:12], mi[11:8], data[7:0]} */
+#define FPGC_DMA_PIXEL_SUM  0x1C0000B0  /* Read:  accumulated pixel sum from last drain */
 
 /* Button input */
 #define FPGC_BTN_STATE      0x1C0000B4  /* [31:0] debounced button state (read-only) */

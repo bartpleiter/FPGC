@@ -13,6 +13,9 @@ void cam_enable_phase(int phase)
 {
     /* bit 0 = enable, bit 1 = byte_phase */
     __builtin_store(FPGC_CAM_CTRL, 1 | ((phase & 1) << 1));
+    /* Clear any stale frame_done_latch (read-clear) so subsequent
+     * cam_frame_ready() waits for a fresh frame, not a stale one. */
+    (void)__builtin_load(FPGC_CAM_STATUS);
 }
 
 void cam_disable(void)

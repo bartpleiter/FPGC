@@ -167,6 +167,12 @@ unsigned int dma_drain_stats(void);
 #define DMA_DRAIN_MAX(v) (((v) >> 8) & 0xFF)
 
 /*
+ * Read the hardware pixel sum from the last MEM2VRAM or CAM2VRAM drain.
+ * Divide by the number of source pixels to get average luminance.
+ */
+unsigned int dma_pixel_sum(void);
+
+/*
  * Asynchronous MEM2VRAM with optional LUT and/or dithering.
  * flags: OR of FPGC_DMA_CTRL_LUT_EN, FPGC_DMA_CTRL_DITHER_EN,
  *        FPGC_DMA_CTRL_DITHER_8.

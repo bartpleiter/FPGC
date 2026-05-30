@@ -125,8 +125,26 @@ static int next_image_num = 0;
 /* Last measured FPS (for HUD) — declared early for do_capture */
 static int last_fps = 0;
 
+/* Average luminance from hardware pixel sum (-1 = not yet computed) */
+static int avg_lum = -1;
+
 /* SDRAM buffer for captured frames (below BRFS cache at 0x2800000) */
 #define CAPTURE_BUF_ADDR  0x2600000
+
+/* Pixel counts for avg luminance computation */
+#define QVGA_PIXELS   76800   /* 320 * 240 */
+#define QQVGA_PIXELS  19200   /* 160 * 120 */
+
+/* Update avg_lum from the hardware pixel sum register.
+ * Called on HUD update frames (every HUD_INTERVAL). */
+static void update_avg_lum(unsigned int pixel_count)
+{
+    unsigned int psum;
+    psum = dma_pixel_sum();
+    avg_lum = (int)(psum / pixel_count);
+    if (avg_lum > 255)
+        avg_lum = 255;
+}
 
 /* Build filename: /DCIM/IMG_NNNN.BMP — REMOVED, now uses storage_next_image() */
 
@@ -144,15 +162,18 @@ extern int keyboard_fn2_held(void);
 int res_mode = RES_QVGA;
 
 /* ---- Quick-adjust state ---- */
-#define QA_BRIGHTNESS  0
-#define QA_CONTRAST    1
+/* Order matches visual left-to-right HUD layout */
+#define QA_MODE        0
+#define QA_RES         1
 #define QA_SHUTTER     2
 #define QA_EXPOSURE    3
 #define QA_ISO         4
-#define QA_GAMMA       5
-#define QA_COUNT       6
+#define QA_BRIGHTNESS  5
+#define QA_CONTRAST    6
+#define QA_GAMMA       7
+#define QA_COUNT       8
 
-static int qa_current = QA_BRIGHTNESS;
+static int qa_current = QA_SHUTTER;
 static int qa_highlight_timer = 0;
 #define QA_HIGHLIGHT_FRAMES  60  /* ~2 seconds at 30fps */
 
@@ -164,18 +185,31 @@ static void qa_cycle(int direction)
     qa_highlight_timer = QA_HIGHLIGHT_FRAMES;
 }
 
-/* Adjust parameter and return pending_action code */
+/* Adjust parameter and return pending_action code:
+ *   0 = no action needed
+ *   1 = resolution switch (exit loop)
+ *   2 = mode switch (stop cam, reconfigure, restart)
+ *   3 = shutter/ISO changed (stop cam, apply, restart)
+ *   5 = brightness/contrast/gamma (apply via LUT, no cam restart)
+ */
 static int qa_adjust(int param, int direction)
 {
     qa_highlight_timer = QA_HIGHLIGHT_FRAMES;
 
     switch (param) {
-    case QA_BRIGHTNESS:
-        settings_adjust_brightness(direction);
-        return 5;
-    case QA_CONTRAST:
-        settings_adjust_contrast(direction);
-        return 5;
+    case QA_MODE:
+        /* Cycle display mode: GREY(0) → DITH(1) → DITH8(2) */
+        display_mode = display_mode + direction;
+        if (display_mode < 0) display_mode = 2;
+        if (display_mode > 2) display_mode = 0;
+        return 2;
+    case QA_RES:
+        /* Toggle resolution */
+        if (res_mode == RES_QVGA)
+            res_mode = RES_QQVGA;
+        else
+            res_mode = RES_QVGA;
+        return 1;
     case QA_SHUTTER:
         settings_adjust_shutter(direction);
         return 3;
@@ -185,6 +219,12 @@ static int qa_adjust(int param, int direction)
     case QA_ISO:
         settings_adjust_iso(direction);
         return 3;
+    case QA_BRIGHTNESS:
+        settings_adjust_brightness(direction);
+        return 5;
+    case QA_CONTRAST:
+        settings_adjust_contrast(direction);
+        return 5;
     case QA_GAMMA:
         settings_adjust_gamma(direction);
         return 5;
@@ -319,7 +359,7 @@ static void do_capture(void)
     while (!cam_frame_ready()) { }
 
     /* Update HUD */
-    hud_update(last_fps, qa_current, qa_highlight_timer);
+    hud_update(last_fps, qa_current, qa_highlight_timer, avg_lum);
 }
 
 /* HUD update interval (frames) */
@@ -348,7 +388,7 @@ static int handle_key(int key)
     if (menu_is_open()) {
         if (key == BTN_MENU) {
             menu_close();
-            hud_update(last_fps, qa_current, qa_highlight_timer);
+            hud_update(last_fps, qa_current, qa_highlight_timer, avg_lum);
             return 0;
         }
         pending_action = menu_handle_key(key);
@@ -377,38 +417,46 @@ static int handle_key(int key)
     if (key == BTN_SHUTTER) {
         capture_pending = 1;
     }
-    /* Menu open */
+    /* Menu open — wait for DMA to finish so menu draw has full bus bandwidth */
     else if (key == BTN_MENU) {
+        while (dma_busy()) { }
         menu_open();
     }
-    /* Up/Down: cycle quick-adjust parameter */
-    else if (key == BTN_UP) {
+    /* Left/Right: cycle quick-adjust parameter */
+    else if (key == BTN_LEFT) {
         qa_cycle(-1);
-        hud_update(last_fps, qa_current, qa_highlight_timer);
+        hud_update(last_fps, qa_current, qa_highlight_timer, avg_lum);
     }
-    else if (key == BTN_DOWN) {
+    else if (key == BTN_RIGHT) {
         qa_cycle(1);
-        hud_update(last_fps, qa_current, qa_highlight_timer);
+        hud_update(last_fps, qa_current, qa_highlight_timer, avg_lum);
     }
-    /* Left/Right: adjust current parameter or held shortcut */
-    else if (key == BTN_LEFT || key == BTN_RIGHT) {
+    /* Up/Down: adjust current parameter or held shortcut */
+    else if (key == BTN_UP || key == BTN_DOWN) {
         int dir;
-        dir = (key == BTN_RIGHT) ? 1 : -1;
+        int act;
+        dir = (key == BTN_UP) ? 1 : -1;
 
         if (keyboard_fn1_held() && keyboard_fn2_held()) {
             /* Fn1+Fn2 held: exposure */
-            pending_action = qa_adjust(QA_EXPOSURE, dir);
+            act = qa_adjust(QA_EXPOSURE, dir);
         } else if (keyboard_fn1_held()) {
             /* Fn1 held: brightness */
-            pending_action = qa_adjust(QA_BRIGHTNESS, dir);
+            act = qa_adjust(QA_BRIGHTNESS, dir);
         } else if (keyboard_fn2_held()) {
             /* Fn2 held: contrast */
-            pending_action = qa_adjust(QA_CONTRAST, dir);
+            act = qa_adjust(QA_CONTRAST, dir);
         } else {
             /* No modifier: adjust current quick-adjust param */
-            pending_action = qa_adjust(qa_current, dir);
+            act = qa_adjust(qa_current, dir);
         }
-        hud_update(last_fps, qa_current, qa_highlight_timer);
+        /* Resolution switch exits the loop immediately */
+        if (act == 1) {
+            update_remaining();
+            return 1;
+        }
+        pending_action = act;
+        hud_update(last_fps, qa_current, qa_highlight_timer, avg_lum);
     }
     /* HUD toggle: Fn1 alone (no arrow) */
     else if (key == BTN_FN1) {
@@ -431,6 +479,17 @@ static void apply_pending(void)
     action = pending_action;
     pending_action = 0;
     if (action == 0) return;
+
+    /* Display mode change — palette reload only, no camera restart */
+    if (action == 2) {
+        if (display_mode == MODE_DITH)
+            setup_palette_4shade();
+        else if (display_mode == MODE_DITH8)
+            setup_palette_8shade();
+        else
+            setup_palette_greyscale();
+        return;
+    }
 
     /* Stop camera capture for clean I2C access */
     cam_disable();
@@ -456,7 +515,7 @@ static void apply_pending(void)
     /* Restart camera capture and wait for a clean frame */
     cam_enable_phase(1);
     while (!cam_frame_ready()) { }
-    hud_update(last_fps, qa_current, qa_highlight_timer);
+    hud_update(last_fps, qa_current, qa_highlight_timer, avg_lum);
 }
 
 /* ---- QVGA viewfinder loop (CAM2VRAM direct) ---- */
@@ -482,8 +541,9 @@ static int viewfinder_qvga(void)
     dma_start_cam2vram((unsigned int)FPGC_GPU_PIXEL_DATA,
                        CAM_FRAME_BYTES, cam2vram_flags);
     while (dma_busy()) { }
+    update_avg_lum(QVGA_PIXELS);
 
-    hud_update(last_fps, qa_current, qa_highlight_timer);
+    hud_update(last_fps, qa_current, qa_highlight_timer, avg_lum);
 
     /* Re-open menu if we came from a resolution switch */
     if (menu_reopen) {
@@ -533,7 +593,8 @@ static int viewfinder_qvga(void)
         /* Periodic HUD update */
         hud_counter = hud_counter + 1;
         if (hud_counter >= HUD_INTERVAL) {
-            hud_update(last_fps, qa_current, qa_highlight_timer);
+            update_avg_lum(QVGA_PIXELS);
+            hud_update(last_fps, qa_current, qa_highlight_timer, avg_lum);
             hud_counter = 0;
         }
 
@@ -569,8 +630,9 @@ static int viewfinder_qqvga(void)
     dma_start_cam2vram((unsigned int)FPGC_GPU_PIXEL_DATA,
                        QQVGA_BYTES, cam2vram_flags);
     while (dma_busy()) { }
+    update_avg_lum(QQVGA_PIXELS);
 
-    hud_update(last_fps, qa_current, qa_highlight_timer);
+    hud_update(last_fps, qa_current, qa_highlight_timer, avg_lum);
 
     /* Re-open menu if we came from a resolution switch */
     if (menu_reopen) {
@@ -620,7 +682,8 @@ static int viewfinder_qqvga(void)
         /* Periodic HUD update */
         hud_counter = hud_counter + 1;
         if (hud_counter >= HUD_INTERVAL) {
-            hud_update(last_fps, qa_current, qa_highlight_timer);
+            update_avg_lum(QQVGA_PIXELS);
+            hud_update(last_fps, qa_current, qa_highlight_timer, avg_lum);
             hud_counter = 0;
         }
 
@@ -675,19 +738,10 @@ void viewfinder_run(int initial_mode)
             while (dma_busy()) { }
             cam_disable();
             gallery_run();
-            /* Restore viewfinder: re-init camera for current res */
+            /* Restore viewfinder state — camera re-init happens at loop top */
             update_remaining();
             set_mode(display_mode);
             hud_init();
-            if (res_mode == RES_QQVGA) {
-                ov7670_set_qqvga();
-            } else {
-                ov7670_set_qvga();
-            }
-            settings_reapply();
-            cam_enable_phase(1);
-            while (!cam_frame_ready()) { }
-            first = 0;
         }
         /* reason == 1: resolution switch, just loops back */
     }

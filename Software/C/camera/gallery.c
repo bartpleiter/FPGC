@@ -96,7 +96,7 @@ static void gallery_update_hud(void)
     gallery_hud_msg(0, 0, status);
 
     /* Bottom hint */
-    gallery_hud_msg(1, 24, ",=Prev .=Next D=Del G=Exit");
+    gallery_hud_msg(1, 24, "J=Prev L=Next Spc=Del M=Exit");
 }
 
 /*
@@ -203,7 +203,7 @@ void gallery_run(void)
             return;
         }
 
-        if (key == 'i' || key == 'I') {
+        if (key == 'j' || key == 'J') {
             /* Previous image */
             if (gallery_current > 0) {
                 found = gallery_find_backward(gallery_current - 1);
@@ -212,7 +212,7 @@ void gallery_run(void)
                     gallery_show_image();
                 }
             }
-        } else if (key == 'k' || key == 'K') {
+        } else if (key == 'l' || key == 'L') {
             /* Next image */
             if (gallery_current < gallery_total - 1) {
                 found = gallery_find_forward(gallery_current + 1);

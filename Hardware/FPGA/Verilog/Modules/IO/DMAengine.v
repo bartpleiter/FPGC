@@ -206,6 +206,11 @@ reg [7:0] drain_y = 8'd0;   // 0..239
 reg [7:0] drain_min = 8'hFF;
 reg [7:0] drain_max = 8'h00;
 
+// Hardware pixel sum accumulator: accumulates all raw pixel values
+// during ST_M2V_DRAIN. Software reads via reg_addr 7 after transfer
+// completes. Average luminance = pixel_sum / frame_pixels.
+reg [31:0] pixel_sum = 32'd0;
+
 // 2× upscale state: cycles through 4 VRAMPX writes per source byte
 // Phase 0: (2*sx, 2*sy)   Phase 1: (2*sx+1, 2*sy)
 // Phase 2: (2*sx, 2*sy+1) Phase 3: (2*sx+1, 2*sy+1)
@@ -244,6 +249,7 @@ begin
         3'd4:    reg_q = {29'd0, sticky_error, sticky_done, busy};
         3'd5:    reg_q = dma_qspi_addr;
         3'd6:    reg_q = {16'd0, drain_max, drain_min};  // HW min/max from last drain
+        3'd7:    reg_q = pixel_sum;                      // HW pixel sum from last drain
         default: reg_q = 32'd0;
     endcase
 end
@@ -379,6 +385,7 @@ begin
         lut_phase        <= 1'b0;
         drain_x          <= 9'd0;
         drain_y          <= 8'd0;
+        pixel_sum        <= 32'd0;
     end
     else
     begin
@@ -531,6 +538,7 @@ begin
                             lut_phase       <= 1'b0;
                             drain_min       <= 8'hFF;
                             drain_max       <= 8'h00;
+                            pixel_sum       <= 32'd0;
                             upscale_phase   <= 2'd0;
                             upscale_row_addr <= dma_dst[16:0];
                             // First step: read the SDRAM line, then drain
@@ -569,6 +577,7 @@ begin
                             lut_phase       <= 1'b0;
                             drain_min       <= 8'hFF;
                             drain_max       <= 8'h00;
+                            pixel_sum       <= 32'd0;
                             upscale_phase   <= 2'd0;
                             upscale_row_addr <= dma_dst[16:0];
                             cam_frame_done_latch <= 1'b0;
@@ -951,10 +960,11 @@ begin
                     begin
                         // 2× upscale: phases 0-2 write pixel copies,
                         // phase 3 is handled below with source advancement.
-                        // Only track min/max on phase 0 (once per source byte).
+                        // Only track min/max/sum on phase 0 (once per source byte).
                         if (upscale_phase == 2'd0) begin
                             if (drain_raw_byte < drain_min) drain_min <= drain_raw_byte;
                             if (drain_raw_byte > drain_max) drain_max <= drain_raw_byte;
+                            pixel_sum <= pixel_sum + {24'd0, drain_raw_byte};
                         end
                         // Need LUT re-read for each phase? No — LUT output
                         // stays valid as long as drain_raw_byte doesn't change.
@@ -969,10 +979,11 @@ begin
                         lut_phase <= 1'b0;
                         upscale_phase <= 2'd0;
 
-                        // Track min/max of raw byte values (for auto-contrast)
+                        // Track min/max/sum of raw byte values (for auto-contrast / metering)
                         if (!ctrl_upscale_2x) begin
                             if (drain_raw_byte < drain_min) drain_min <= drain_raw_byte;
                             if (drain_raw_byte > drain_max) drain_max <= drain_raw_byte;
+                            pixel_sum <= pixel_sum + {24'd0, drain_raw_byte};
                         end
 
                         // Advance source pixel position for dither matrix indexing

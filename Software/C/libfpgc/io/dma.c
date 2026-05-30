@@ -162,6 +162,12 @@ dma_drain_stats(void)
     return (unsigned int)__builtin_load(FPGC_DMA_LUT);
 }
 
+unsigned int
+dma_pixel_sum(void)
+{
+    return (unsigned int)__builtin_load(FPGC_DMA_PIXEL_SUM);
+}
+
 void
 dma_start_cam2vram(unsigned int dst, unsigned int count,
                    unsigned int flags)
