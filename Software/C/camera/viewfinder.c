@@ -177,6 +177,9 @@ static int qa_current = QA_SHUTTER;
 static int qa_highlight_timer = 0;
 #define QA_HIGHLIGHT_FRAMES  60  /* ~2 seconds at 30fps */
 
+/* Flag: next DMA needs VSYNC re-sync (set after cam_disable) */
+static int need_resync;
+
 static void qa_cycle(int direction)
 {
     qa_current = qa_current + direction;
@@ -384,19 +387,25 @@ static int handle_key(int key)
 {
     if (key == 0) return 0;
 
-    /* When menu is open, route keys to menu */
+    /* When menu is open, disable camera during redraws to avoid desync */
     if (menu_is_open()) {
         if (key == BTN_MENU) {
+            while (dma_busy()) { }
+            cam_disable();
             menu_close();
             hud_update(last_fps, qa_current, qa_highlight_timer, avg_lum);
+            need_resync = 1;
             return 0;
         }
+        /* Disable camera for any menu key (draw is slow) */
+        while (dma_busy()) { }
+        cam_disable();
         pending_action = menu_handle_key(key);
+        need_resync = 1;
         if (pending_action == 6) {
             /* Resolution change — set reopen flag, close menu, exit loop */
             menu_reopen = 1;
             menu_close();
-            while (dma_busy()) { }
             if (res_mode == RES_QVGA) res_mode = RES_QQVGA;
             else res_mode = RES_QVGA;
             update_remaining();
@@ -417,10 +426,12 @@ static int handle_key(int key)
     if (key == BTN_SHUTTER) {
         capture_pending = 1;
     }
-    /* Menu open — wait for DMA to finish so menu draw has full bus bandwidth */
+    /* Menu open — disable camera to avoid DMA bus contention during draw */
     else if (key == BTN_MENU) {
         while (dma_busy()) { }
+        cam_disable();
         menu_open();
+        need_resync = 1;
     }
     /* Left/Right: cycle quick-adjust parameter */
     else if (key == BTN_LEFT) {
@@ -531,25 +542,25 @@ static int viewfinder_qvga(void)
     fps_frames = 0;
     hud_counter = 0;
 
-    /* First frame: VSYNC-synced CAM2VRAM (no LUT) */
     cam2vram_flags = 0;
     if (display_mode == MODE_DITH)
         cam2vram_flags = FPGC_DMA_CTRL_DITHER_EN;
     else if (display_mode == MODE_DITH8)
         cam2vram_flags = FPGC_DMA_CTRL_DITHER_EN | FPGC_DMA_CTRL_DITHER_8;
 
-    dma_start_cam2vram((unsigned int)FPGC_GPU_PIXEL_DATA,
-                       CAM_FRAME_BYTES, cam2vram_flags);
-    while (dma_busy()) { }
-    update_avg_lum(QVGA_PIXELS);
-
+    /* Draw initial HUD while no DMA is running (no bus contention) */
     hud_update(last_fps, qa_current, qa_highlight_timer, avg_lum);
 
     /* Re-open menu if we came from a resolution switch */
     if (menu_reopen) {
         menu_reopen = 0;
+        cam_disable();
         menu_open();
+        need_resync = 1;
     }
+
+    /* First frame always needs VSYNC sync */
+    need_resync = 1;
 
     while (1) {
         unsigned int t_start;
@@ -564,8 +575,17 @@ static int viewfinder_qvga(void)
         else if (display_mode == MODE_DITH8)
             cam2vram_flags = FPGC_DMA_CTRL_DITHER_EN | FPGC_DMA_CTRL_DITHER_8;
 
-        dma_start_cam2vram_immediate((unsigned int)FPGC_GPU_PIXEL_DATA,
-                                     CAM_FRAME_BYTES, cam2vram_flags);
+        /* Start DMA — use VSYNC-synced version after cam was disabled */
+        if (need_resync) {
+            cam_enable_phase(1);
+            while (!cam_frame_ready()) { }
+            dma_start_cam2vram((unsigned int)FPGC_GPU_PIXEL_DATA,
+                               CAM_FRAME_BYTES, cam2vram_flags);
+            need_resync = 0;
+        } else {
+            dma_start_cam2vram_immediate((unsigned int)FPGC_GPU_PIXEL_DATA,
+                                         CAM_FRAME_BYTES, cam2vram_flags);
+        }
 
         while (dma_busy()) {
             int hk;
@@ -602,7 +622,10 @@ static int viewfinder_qvga(void)
             last_fps = fps_frames;
             fps_frames = 0;
             fps_start = get_micros();
+            /* USB keyboard init can take 50ms+ — disable camera to avoid desync */
+            cam_disable();
             keyboard_check_connect();
+            need_resync = 1;
         }
     }
 }
@@ -620,25 +643,25 @@ static int viewfinder_qqvga(void)
     fps_frames = 0;
     hud_counter = 0;
 
-    /* First frame: VSYNC-synced CAM2VRAM with upscale */
     cam2vram_flags = FPGC_DMA_CTRL_UPSCALE2X;
     if (display_mode == MODE_DITH)
         cam2vram_flags = cam2vram_flags | FPGC_DMA_CTRL_DITHER_EN;
     else if (display_mode == MODE_DITH8)
         cam2vram_flags = cam2vram_flags | FPGC_DMA_CTRL_DITHER_EN | FPGC_DMA_CTRL_DITHER_8;
 
-    dma_start_cam2vram((unsigned int)FPGC_GPU_PIXEL_DATA,
-                       QQVGA_BYTES, cam2vram_flags);
-    while (dma_busy()) { }
-    update_avg_lum(QQVGA_PIXELS);
-
+    /* Draw initial HUD while no DMA is running (no bus contention) */
     hud_update(last_fps, qa_current, qa_highlight_timer, avg_lum);
 
     /* Re-open menu if we came from a resolution switch */
     if (menu_reopen) {
         menu_reopen = 0;
+        cam_disable();
         menu_open();
+        need_resync = 1;
     }
+
+    /* First frame always needs VSYNC sync */
+    need_resync = 1;
 
     while (1) {
         unsigned int t_start;
@@ -653,8 +676,17 @@ static int viewfinder_qqvga(void)
         else if (display_mode == MODE_DITH8)
             cam2vram_flags = cam2vram_flags | FPGC_DMA_CTRL_DITHER_EN | FPGC_DMA_CTRL_DITHER_8;
 
-        dma_start_cam2vram_immediate((unsigned int)FPGC_GPU_PIXEL_DATA,
-                                     QQVGA_BYTES, cam2vram_flags);
+        /* Start DMA — use VSYNC-synced version after cam was disabled */
+        if (need_resync) {
+            cam_enable_phase(1);
+            while (!cam_frame_ready()) { }
+            dma_start_cam2vram((unsigned int)FPGC_GPU_PIXEL_DATA,
+                               QQVGA_BYTES, cam2vram_flags);
+            need_resync = 0;
+        } else {
+            dma_start_cam2vram_immediate((unsigned int)FPGC_GPU_PIXEL_DATA,
+                                         QQVGA_BYTES, cam2vram_flags);
+        }
 
         while (dma_busy()) {
             int hk;
@@ -691,7 +723,10 @@ static int viewfinder_qqvga(void)
             last_fps = fps_frames;
             fps_frames = 0;
             fps_start = get_micros();
+            /* USB keyboard init can take 50ms+ — disable camera to avoid desync */
+            cam_disable();
             keyboard_check_connect();
+            need_resync = 1;
         }
     }
 }
