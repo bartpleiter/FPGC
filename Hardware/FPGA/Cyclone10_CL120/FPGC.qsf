@@ -137,29 +137,63 @@ set_location_assignment PIN_C18 -to SDRAM1_DQ[13]
 set_location_assignment PIN_C17 -to SDRAM1_DQ[14]
 set_location_assignment PIN_B19 -to SDRAM1_DQ[15]
 
-# SPI display, camera, and button pin assignments are TBD
-# (will be assigned when PCB is designed)
-
-# ---- Core module test setup pin assignments ----
-# SPI Display (ILI9341)
-set_location_assignment PIN_AB15 -to spi_disp_clk
-set_location_assignment PIN_AB16 -to spi_disp_mosi
-set_location_assignment PIN_AB18 -to spi_disp_cs_n
-set_location_assignment PIN_Y15 -to spi_disp_dc
-set_location_assignment PIN_Y17 -to spi_disp_rst_n
-set_location_assignment PIN_AB19 -to spi_disp_bl
-
-# UART (USB-UART bridge)
-set_location_assignment PIN_AA19 -to uart_rx
-set_location_assignment PIN_AA18 -to uart_tx
-set_location_assignment PIN_W17 -to uart_dtr_n
-
 # LED (on-board LED on core module)
 set_location_assignment PIN_U14 -to led
 
 # Reset (active-low pushbutton on core module)
 set_location_assignment PIN_E16 -to reset_n
+set_location_assignment PIN_F15 -to bootmode_n
 
+# UART (USB-UART bridge)
+set_location_assignment PIN_B3 -to uart_rx
+set_location_assignment PIN_C4 -to uart_tx
+set_location_assignment PIN_B2 -to uart_dtr_n
+
+# SPI Display (ILI9341)
+set_location_assignment PIN_B17 -to spi_disp_clk
+set_location_assignment PIN_B18 -to spi_disp_mosi
+set_location_assignment PIN_A19 -to spi_disp_cs_n
+set_location_assignment PIN_A17 -to spi_disp_dc
+set_location_assignment PIN_A18 -to spi_disp_rst_n
+set_location_assignment PIN_B16 -to spi_disp_bl
+
+# Input buttons (up down left right shoot menu)
+set_location_assignment PIN_Y17 -to btn[0]
+set_location_assignment PIN_AB19 -to btn[1]
+set_location_assignment PIN_AB18 -to btn[2]
+set_location_assignment PIN_AA19 -to btn[3]
+set_location_assignment PIN_W17 -to btn[4]
+set_location_assignment PIN_AA18 -to btn[5]
+
+# SD card
+set_location_assignment PIN_B10 -to sd_cs
+set_location_assignment PIN_B9 -to sd_mosi
+set_location_assignment PIN_B8 -to sd_clk
+set_location_assignment PIN_B7 -to sd_miso
+
+# SPI Flash
+set_location_assignment PIN_E11 -to flash1_mosi
+set_location_assignment PIN_F11 -to flash1_clk
+set_location_assignment PIN_C8 -to flash1_miso
+set_location_assignment PIN_C7 -to flash1_cs
+
+# OV7670
+set_location_assignment PIN_AB8 -to cam_data[0]
+set_location_assignment PIN_AA8 -to cam_data[1]
+set_location_assignment PIN_Y8 -to cam_data[2]
+set_location_assignment PIN_W8 -to cam_data[3]
+set_location_assignment PIN_AB9 -to cam_data[4]
+set_location_assignment PIN_AA9 -to cam_data[5]
+set_location_assignment PIN_V10 -to cam_data[6]
+set_location_assignment PIN_V9 -to cam_data[7]
+set_location_assignment PIN_V11 -to cam_vsync
+set_location_assignment PIN_V12 -to cam_href
+set_location_assignment PIN_Y10 -to cam_pclk
+set_location_assignment PIN_W10 -to cam_xclk
+set_location_assignment PIN_W7 -to cam_reset_n
+set_location_assignment PIN_Y7 -to cam_pwdn
+set_location_assignment PIN_AA10 -to cam_scl
+set_location_assignment PIN_AB10 -to cam_sda
 
 
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to sys_clk_50

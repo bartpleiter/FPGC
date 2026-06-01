@@ -68,22 +68,22 @@ module FPGC (
     output wire         spi_disp_bl,
 
     // Uncomment for camera PCB:
-    // // Camera (OV7670)
-    // input  wire [7:0] cam_data,
-    // input  wire       cam_vsync,
-    // input  wire       cam_href,
-    // input  wire       cam_pclk,
-    // output wire       cam_xclk,
-    // output wire       cam_reset_n,
-    // output wire       cam_pwdn,
-    // output wire       cam_scl,
-    // inout  wire       cam_sda,
+    // Camera (OV7670)
+    input  wire [7:0] cam_data,
+    input  wire       cam_vsync,
+    input  wire       cam_href,
+    input  wire       cam_pclk,
+    output wire       cam_xclk,
+    output wire       cam_reset_n,
+    output wire       cam_pwdn,
+    output wire       cam_scl,
+    inout  wire       cam_sda,
     //
     // // SPI Flash 1
-    // output wire       flash1_cs,
-    // output wire       flash1_clk,
-    // output wire       flash1_mosi,
-    // input  wire       flash1_miso,
+    output wire       flash1_cs,
+    output wire       flash1_clk,
+    output wire       flash1_mosi,
+    input  wire       flash1_miso,
     // output wire       flash1_wp_n,
     // output wire       flash1_hold_n,
     //
@@ -102,11 +102,11 @@ module FPGC (
     input wire          uart_dtr_n,
 
     // Uncomment for camera PCB:
-    // // Micro SD Card
-    // output wire       sd_cs,
-    // output wire       sd_clk,
-    // output wire       sd_mosi,
-    // input  wire       sd_miso,
+    // Micro SD Card
+    output wire       sd_cs,
+    output wire       sd_clk,
+    output wire       sd_mosi,
+    input  wire       sd_miso,
     // output wire       sd_data2_nc,
     // input wire        sd_data1_nc,
     //
@@ -136,9 +136,13 @@ module FPGC (
     output wire         led,
 
     // Reset
-    input wire          reset_n
+    input wire          reset_n,
+
+    // Boot mode alternative for dispwitch on test board
+    input wire          bootmode_n,
+
     // Uncomment for camera PCB:
-    // input wire [7:0]  btn              // 8 active-low camera control buttons
+    input wire [5:0]  btn              // 6 active-low camera control buttons
 );
 
 /******************************************************************************
@@ -161,31 +165,31 @@ wire usb2_nint = 1'b1;
 // SPI Display backlight — directly from FSX (active on core module via AB19)
 // (no internal tie-off needed, spi_disp_bl is a real port)
 
-// Camera — no device on core module
-wire [7:0] cam_data  = 8'd0;
-wire       cam_vsync = 1'b0;
-wire       cam_href  = 1'b0;
-wire       cam_pclk  = 1'b0;
-wire       cam_xclk;           // Driven by PLL output
-wire       cam_reset_n;        // Driven by reset logic
-wire       cam_pwdn;           // Driven by static assign
-wire       cam_scl;            // Driven by I2C master
-wire       cam_sda_in = 1'b1;  // SDA reads high (no device on bus)
+// // Camera — no device on core module
+// wire [7:0] cam_data  = 8'd0;
+// wire       cam_vsync = 1'b0;
+// wire       cam_href  = 1'b0;
+// wire       cam_pclk  = 1'b0;
+// wire       cam_xclk;           // Driven by PLL output
+// wire       cam_reset_n;        // Driven by reset logic
+// wire       cam_pwdn;           // Driven by static assign
+// wire       cam_scl;            // Driven by I2C master
+// wire       cam_sda_in = 1'b1;  // SDA reads high (no device on bus)
 
 // SPI Flash 1 — no device on core module
-wire flash1_cs, flash1_clk, flash1_mosi;
-wire flash1_miso = 1'b1;
+// wire flash1_cs, flash1_clk, flash1_mosi;
+// wire flash1_miso = 1'b1;
 wire flash1_wp_n, flash1_hold_n;
 
 // SPI Flash 2 (QSPI) — no device on core module
 wire flash2_cs, flash2_clk;
 
 // UART RTS — not connected on core module
-wire uart_rts_n = 1'b1;
+// wire uart_rts_n = 1'b1;
 
 // SD Card — no device on core module
-wire sd_cs, sd_clk, sd_mosi;
-wire sd_miso     = 1'b1;
+// wire sd_cs, sd_clk, sd_mosi;
+// wire sd_miso     = 1'b1;
 wire sd_data2_nc;
 wire sd_data1_nc = 1'b1;
 
@@ -205,7 +209,7 @@ wire led_gpu, led_flash, led_usb, led_eth, led_uart_rx, led_uart_tx;
 wire led_user;
 
 // Buttons — all released (active-low), no button header on core module
-wire [7:0] btn = 8'hFF;
+// wire [7:0] btn = 8'hFF;
 
 /******************************************************************************
  * Static Assignments
@@ -236,7 +240,7 @@ assign led = led_user_state;
 /******************************************************************************
  * Dip switch
  ******************************************************************************/
-wire boot_mode = dipsw[3];
+wire boot_mode = dipsw[3]; // Do not use if no dipswitch
 
 /******************************************************************************
  * Clocks
@@ -916,7 +920,7 @@ MemoryUnit memory_unit (
     .eth_spi_activity(led_eth_activity),
     .user_led_state(led_user_state),
 
-    .boot_mode(boot_mode),
+    .boot_mode(bootmode_n),
 
     // Flash 1
     .SPI0_clk(flash1_clk),
@@ -1143,20 +1147,20 @@ I2C_master #(
     .ack_err  (i2c_ack_err),
     .scl_oe   (i2c_scl_oe),
     .sda_oe   (i2c_sda_oe),
-    .sda_in   (cam_sda_in),
+    .sda_in   (cam_sda),
     .dbg_state_out(i2c_dbg_state)
 );
 
 // SCL: push-pull (OV7670 doesn't clock-stretch)
-// SDA: open-drain (bidirectional) — no device on core module, sda_in tied high above
+// SDA: open-drain (bidirectional)
 assign cam_scl = i2c_scl_oe ? 1'b0 : 1'b1;
-// cam_sda not driven (no bidir pin on core module)
+assign cam_sda = i2c_sda_oe ? 1'b0 : 1'bz;
 
 /******************************************************************************
  * Button Input
  ******************************************************************************/
 ButtonInput #(
-    .NUM_BUTTONS(8),
+    .NUM_BUTTONS(6),
     .CLK_FREQ(100_000_000),
     .DEBOUNCE_MS(20)
 ) button_input (
