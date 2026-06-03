@@ -145,9 +145,13 @@ set_location_assignment PIN_E16 -to reset_n
 set_location_assignment PIN_F15 -to bootmode_n
 
 # UART (USB-UART bridge)
-set_location_assignment PIN_B3 -to uart_rx
+set_location_assignment PIN_B3 -to uart_dtr_n
 set_location_assignment PIN_C4 -to uart_tx
-set_location_assignment PIN_B2 -to uart_dtr_n
+set_location_assignment PIN_B2 -to uart_rx
+
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to uart_rx
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to uart_tx
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to uart_dtr_n
 
 # SPI Display (ILI9341)
 set_location_assignment PIN_B17 -to spi_disp_clk
@@ -157,6 +161,13 @@ set_location_assignment PIN_A17 -to spi_disp_dc
 set_location_assignment PIN_A18 -to spi_disp_rst_n
 set_location_assignment PIN_B16 -to spi_disp_bl
 
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to spi_disp_clk
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to spi_disp_mosi
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to spi_disp_cs_n
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to spi_disp_dc
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to spi_disp_rst_n
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to spi_disp_bl
+
 # Input buttons (up down left right shoot menu)
 set_location_assignment PIN_Y17 -to btn[0]
 set_location_assignment PIN_AB19 -to btn[1]
@@ -165,17 +176,34 @@ set_location_assignment PIN_AA19 -to btn[3]
 set_location_assignment PIN_W17 -to btn[4]
 set_location_assignment PIN_AA18 -to btn[5]
 
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to btn[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to btn[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to btn[2]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to btn[3]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to btn[4]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to btn[5]
+
 # SD card
 set_location_assignment PIN_B10 -to sd_cs
 set_location_assignment PIN_B9 -to sd_mosi
 set_location_assignment PIN_B8 -to sd_clk
 set_location_assignment PIN_B7 -to sd_miso
 
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to sd_cs
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to sd_mosi
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to sd_clk
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to sd_miso
+
 # SPI Flash
 set_location_assignment PIN_E11 -to flash1_mosi
 set_location_assignment PIN_F11 -to flash1_clk
 set_location_assignment PIN_C8 -to flash1_miso
 set_location_assignment PIN_C7 -to flash1_cs
+
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to flash1_mosi
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to flash1_clk
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to flash1_miso
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to flash1_cs
 
 # OV7670
 set_location_assignment PIN_AB8 -to cam_data[0]
@@ -194,6 +222,23 @@ set_location_assignment PIN_W7 -to cam_reset_n
 set_location_assignment PIN_Y7 -to cam_pwdn
 set_location_assignment PIN_AA10 -to cam_scl
 set_location_assignment PIN_AB10 -to cam_sda
+
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to cam_data[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to cam_data[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to cam_data[2]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to cam_data[3]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to cam_data[4]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to cam_data[5]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to cam_data[6]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to cam_data[7]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to cam_vsync
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to cam_href
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to cam_pclk
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to cam_xclk
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to cam_reset_n
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to cam_pwdn
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to cam_scl
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to cam_sda
 
 
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to sys_clk_50
@@ -286,17 +331,9 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_DQ[15]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM1_DQ
 
 # IO standards for core module test pins
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to spi_disp_clk
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to spi_disp_mosi
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to spi_disp_cs_n
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to spi_disp_dc
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to spi_disp_rst_n
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to uart_rx
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to uart_tx
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to uart_dtr_n
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to spi_disp_bl
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to reset_n
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to bootmode_n
 
 
 
@@ -381,6 +418,15 @@ set_global_assignment -name QIP_FILE ddr.qip
 
 
 
+
+
+
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to btn[0]
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to btn[1]
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to btn[2]
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to btn[3]
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to btn[4]
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to btn[5]
 
 
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

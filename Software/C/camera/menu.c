@@ -424,7 +424,7 @@ void menu_draw(void)
 
     /* Hint rows */
     menu_putchar(MENU_LEFT, MENU_HINT_ROW1, BOX_VERT, MENU_PAL_IDX);
-    menu_puts(MENU_LABEL_COL, MENU_HINT_ROW1, "I/K Nav  J/L Adj  Spc Open", MENU_PAL_IDX);
+    menu_puts(MENU_LABEL_COL, MENU_HINT_ROW1, "U/D Nav  L/R Adj  S Open", MENU_PAL_IDX);
     {
         int x;
         for (x = MENU_LABEL_COL + 27; x < MENU_RIGHT; x++)

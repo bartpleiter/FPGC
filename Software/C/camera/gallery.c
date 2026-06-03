@@ -77,7 +77,7 @@ static void gallery_update_hud(void)
     if (gallery_total == 0) {
         gallery_clear_hud();
         gallery_hud_msg(10, 12, "No images found");
-        gallery_hud_msg(10, 14, "Press G to exit");
+        gallery_hud_msg(10, 14, "Press M to exit");
         return;
     }
 
@@ -94,9 +94,6 @@ static void gallery_update_hud(void)
     status[10] = ']';
 
     gallery_hud_msg(0, 0, status);
-
-    /* Bottom hint */
-    gallery_hud_msg(1, 24, "J=Prev L=Next Spc=Del M=Exit");
 }
 
 /*
@@ -223,7 +220,7 @@ void gallery_run(void)
             }
         } else if (key == ' ') {
             /* Delete current image — ask for confirmation */
-            gallery_hud_msg(1, 24, "Delete? Spc=Yes  M=No       ");
+            gallery_hud_msg(1, 24, "Delete? S=Yes  M=No       ");
             while (1) {
                 key = keyboard_poll();
                 if (key == 0) continue;

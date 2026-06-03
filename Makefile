@@ -470,7 +470,6 @@ compile-camera: $(QBE_OUTPUT) $(CPROC_OUTPUT)
 		Software/C/libfpgc/io/dma.c \
 		Software/C/libfpgc/io/i2c.c \
 		Software/C/libfpgc/io/spi.c \
-		Software/C/libfpgc/io/ch376.c \
 		Software/C/libfpgc/io/sd.c \
 		Software/C/libfpgc/gfx/gpu_hal.c \
 		Software/C/libfpgc/gfx/gpu_data_ascii.c \

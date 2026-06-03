@@ -19,7 +19,6 @@
 #include "fpgc.h"
 #include "sys.h"
 #include "spi.h"
-#include "ch376.h"
 #include "timer.h"
 #include "settings.h"
 #include "hud.h"
@@ -28,70 +27,31 @@
 /* Current display mode (shared with viewfinder.c) */
 int display_mode = MODE_RAW;
 
-/* ---- Keyboard input (bare-metal CH376 USB HID) ---- */
-static int kb_spi;
-static usb_device_info_t kb_dev;
-static hid_keyboard_report_t kb_prev;
-static int kb_connected;
-
-static void keyboard_init(void)
-{
-    kb_spi = SPI_USB_1;
-    kb_connected = 0;
-    spi_deselect(SPI_FLASH_1);  /* clean SPI bus state */
-    ch376_host_init(kb_spi);
-}
-
-/* Try to connect to a USB keyboard. Call periodically. */
-void keyboard_check_connect(void)
-{
-    int st;
-    st = ch376_test_connect(kb_spi);
-    if (st == CH376_CONN_CONNECTED && !kb_connected) {
-        /* Device just plugged in — short stabilization (BDOS uses 50ms) */
-        delay(50);
-        if (ch376_enumerate_device(kb_spi, &kb_dev) == 1) {
-            if (ch376_is_keyboard(&kb_dev)) {
-                kb_connected = 1;
-            }
-        }
-    } else if (st == CH376_CONN_DISCONNECTED && kb_connected) {
-        kb_connected = 0;
-        ch376_reset(kb_spi);
-        ch376_host_init(kb_spi);
-    }
-}
+int state_prev = 0;
 
 /* Poll for a newly pressed key. Returns ASCII char or 0. */
 int keyboard_poll(void)
 {
-    hid_keyboard_report_t report;
-    int st;
-    int i;
-    int j;
-    int keycode;
-    int found;
+    int state;
+    state = __builtin_load(FPGC_BTN_STATE);
+    if (state != state_prev) {
+        int bit0_changed = (state ^ state_prev) & 0x1; // Up
+        int bit1_changed = (state ^ state_prev) & 0x2; // Down
+        int bit2_changed = (state ^ state_prev) & 0x4; // Left
+        int bit3_changed = (state ^ state_prev) & 0x8; // Right
+        int bit4_changed = (state ^ state_prev) & 0x10; // Shutter
+        int bit5_changed = (state ^ state_prev) & 0x20; // Menu
 
-    if (!kb_connected) return 0;
-    if (ch376_test_connect(kb_spi) != CH376_CONN_READY) return 0;
+        state_prev = state;
 
-    st = ch376_read_keyboard(kb_spi, &kb_dev, &report);
-    if (st != 1) return 0;
-
-    /* Find newly pressed key */
-    for (i = 0; i < 6; i++) {
-        keycode = report.keycode[i];
-        if (keycode == 0) continue;
-        found = 0;
-        for (j = 0; j < 6; j++) {
-            if (kb_prev.keycode[j] == keycode) found = 1;
-        }
-        if (!found) {
-            kb_prev = report;
-            return ch376_keycode_to_ascii(keycode, report.modifier);
-        }
+        // If any of the bits changed from 0 to 1, return the corresponding key
+        if (bit0_changed && (state & 0x1)) return BTN_UP;
+        if (bit1_changed && (state & 0x2)) return BTN_DOWN;
+        if (bit2_changed && (state & 0x4)) return BTN_LEFT;
+        if (bit3_changed && (state & 0x8)) return BTN_RIGHT;
+        if (bit4_changed && (state & 0x10)) return BTN_SHUTTER;
+        if (bit5_changed && (state & 0x20)) return BTN_MENU;
     }
-    kb_prev = report;
     return 0;
 }
 
@@ -102,20 +62,14 @@ int keyboard_poll(void)
 /* Check if Fn1 (U) is currently held */
 int keyboard_fn1_held(void)
 {
-    int i;
-    for (i = 0; i < 6; i++) {
-        if (kb_prev.keycode[i] == HID_KEY_U) return 1;
-    }
+    // Currently disabled
     return 0;
 }
 
 /* Check if Fn2 (O) is currently held */
 int keyboard_fn2_held(void)
 {
-    int i;
-    for (i = 0; i < 6; i++) {
-        if (kb_prev.keycode[i] == HID_KEY_O) return 1;
-    }
+    // Currently disabled
     return 0;
 }
 
@@ -170,16 +124,12 @@ int main(void)
     /* Init timer subsystem (required for delay() used by CH376) */
     timer_init();
 
-    /* Init USB keyboard (chip init only, defer connect to viewfinder) */
-    keyboard_init();
-
     /* Initialize SD card and BRFS filesystem */
     {
         int sd_rc;
         sd_rc = storage_init();
         if (sd_rc == 1) {
-            /* SD card found but no BRFS — connect keyboard for prompt */
-            keyboard_check_connect();
+
             /* SD card found but no BRFS — ask user to format */
             gpu_write_window_tile(5, 10, 'F', PALETTE_WHITE_ON_BLACK);
             gpu_write_window_tile(6, 10, 'o', PALETTE_WHITE_ON_BLACK);
@@ -191,16 +141,16 @@ int main(void)
             gpu_write_window_tile(13, 10, 'D', PALETTE_WHITE_ON_BLACK);
             gpu_write_window_tile(14, 10, '?', PALETTE_WHITE_ON_BLACK);
             gpu_write_window_tile(16, 10, '(', PALETTE_GREEN_ON_BLACK);
-            gpu_write_window_tile(17, 10, 'Y', PALETTE_GREEN_ON_BLACK);
+            gpu_write_window_tile(17, 10, 'S', PALETTE_GREEN_ON_BLACK);
             gpu_write_window_tile(18, 10, '/', PALETTE_GREEN_ON_BLACK);
-            gpu_write_window_tile(19, 10, 'N', PALETTE_RED_ON_BLACK);
+            gpu_write_window_tile(19, 10, 'M', PALETTE_RED_ON_BLACK);
             gpu_write_window_tile(20, 10, ')', PALETTE_GREEN_ON_BLACK);
 
             /* Wait for Y or N keypress */
             while (1) {
                 int fmt_key;
                 fmt_key = keyboard_poll();
-                if (fmt_key == 'y' || fmt_key == 'Y') {
+                if (fmt_key == BTN_SHUTTER) {
                     /* Show formatting message */
                     gpu_clear_window();
                     gpu_write_window_tile(5, 12, 'F', PALETTE_YELLOW_ON_BLACK);
@@ -219,7 +169,7 @@ int main(void)
                     storage_format();
                     break;
                 }
-                if (fmt_key == 'n' || fmt_key == 'N') {
+                if (fmt_key == BTN_MENU) {
                     break;
                 }
             }

@@ -28,6 +28,9 @@
  * Memory-Mapped I/O Addresses
  *======================================================================*/
 
+/* BTN */
+#define FPGC_BTN_STATE      0x1C0000B4  /* [31:0] debounced button state (read-only) */
+
 /* UART */
 #define FPGC_UART_TX        0x1C000000
 #define FPGC_UART_RX        0x1C000004

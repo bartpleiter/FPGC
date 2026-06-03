@@ -154,7 +154,6 @@ static void update_avg_lum(unsigned int pixel_count)
 extern int display_mode;
 extern void set_mode(int mode);
 extern int keyboard_poll(void);
-extern void keyboard_check_connect(void);
 extern int keyboard_fn1_held(void);
 extern int keyboard_fn2_held(void);
 
@@ -621,10 +620,6 @@ static int viewfinder_qvga(void)
             last_fps = fps_frames;
             fps_frames = 0;
             fps_start = get_micros();
-            /* USB keyboard init can take 50ms+ — disable camera to avoid desync */
-            cam_disable();
-            keyboard_check_connect();
-            need_resync = 1;
         }
     }
 }
@@ -718,10 +713,6 @@ static int viewfinder_qqvga(void)
             last_fps = fps_frames;
             fps_frames = 0;
             fps_start = get_micros();
-            /* USB keyboard init can take 50ms+ — disable camera to avoid desync */
-            cam_disable();
-            keyboard_check_connect();
-            need_resync = 1;
         }
     }
 }
