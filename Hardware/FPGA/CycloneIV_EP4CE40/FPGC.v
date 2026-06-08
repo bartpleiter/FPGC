@@ -105,12 +105,12 @@ module FPGC (
     input wire          reset_n,
 
     // Display header
-    output wire         disp_1,
-    output wire         disp_2,
-    output wire         disp_3,
-    output wire         disp_4,
-    output wire         disp_5,
-    output wire         disp_6,
+    input wire         disp_1,
+    input wire         disp_2,
+    input wire         disp_3,
+    input wire         disp_4,
+    input wire         disp_5,
+    input wire         disp_6,
 
     // GPIO Header (currently defined as inputs only until they are used)
     input wire          gpio_1,
@@ -152,12 +152,12 @@ assign sd_data2_nc = 1'b1;
 assign audio_dac_data = 8'd0;
 
 // Display header is currently not used yet
-assign disp_1 = 1'b0;
-assign disp_2 = 1'b0;
-assign disp_3 = 1'b0;
-assign disp_4 = 1'b0;
-assign disp_5 = 1'b0;
-assign disp_6 = 1'b0;
+//assign disp_1 = 1'b0;
+//assign disp_2 = 1'b0;
+//assign disp_3 = 1'b0;
+//assign disp_4 = 1'b0;
+//assign disp_5 = 1'b0;
+//assign disp_6 = 1'b0;
 
 /******************************************************************************
  * Dip switch
