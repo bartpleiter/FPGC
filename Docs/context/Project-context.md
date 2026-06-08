@@ -305,8 +305,8 @@ Iterate on BDOS and user programs over Ethernet without reflashing:
 | `make fnp-keyboard` | Interactive keyboard streaming to device |
 | `make fnp-run cmd="<cmd>"` | Run shell command on device remotely |
 | `make fnp-debug-userbdos file=<n>` | Compile, upload, run + capture UART debug output |
-| `make run-userbdos file=<n>` | Compile, upload, and run (all-in-one) |
-| `make run-doom` | Compile, upload, and run Doom |
+| `make run-userbdos file=<n>` | Compile, upload, and run via FNP (all-in-one) |
+| `make run-doom` | Compile, upload, and run Doom via FNP |
 
 FNP is a custom L2 protocol over ENC28J60 (EtherType `0xB4B4`).
 Tool: `Scripts/Programmer/Network/fnp_tool.py`.
