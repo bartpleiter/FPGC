@@ -1,0 +1,11 @@
+# Python
+__pycache__
+.venv
+*.egg-info
+.mypy_cache
+.pytest_cache
+.ruff_cache
+.coverage
+
+# Documentation site
+Docs/site

@@ -1,0 +1,51 @@
+site_name: FPGC Wiki
+
+copyright: Copyright &copy; 2027 Bart Pleiter
+
+theme:
+    name: material
+    palette:
+      # Palette toggle for dark mode
+      - scheme: slate
+        toggle:
+          icon: material/brightness-4
+          name: Switch to light mode
+        primary: teal
+
+      # Palette toggle for light mode
+      - scheme: default
+        toggle:
+          icon: material/brightness-7 
+          name: Switch to dark mode
+        primary: teal
+
+      
+
+extra_css:
+  - stylesheets/extra.css
+
+plugins:
+    - search
+    - awesome-pages
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - pymdownx.tasklist:
+      custom_checkbox: False
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+
+repo_name: bartpleiter/FPGC
+repo_url: https://github.com/bartpleiter/fpgc
+
+site_url: https://www.bartpleiter.com/fpgc
+
+edit_uri: edit/master/Documentation/docs/
+
+use_directory_urls: False
