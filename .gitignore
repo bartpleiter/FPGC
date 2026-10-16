@@ -7,5 +7,8 @@ __pycache__
 .ruff_cache
 .coverage
 
-# Documentation site
-Docs/site
+# Build output
+build/
+
+# Scratch files
+Docs/plans

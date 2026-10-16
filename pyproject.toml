@@ -1,19 +1,16 @@
 [project]
 name = "fpgc"
 version = "1.0.0"
-description = "Python environment for running FPGC tools and scripts"
+description = "FPGC project tools"
 readme = "README.md"
 requires-python = ">=3.13"
 authors = [{name = "Bart Pleiter"}]
 dependencies = [
-    "bitstring>=4.4.0",
+    "click>=8.5.0",
     "mkdocs>=1.6.1",
     "mkdocs-awesome-pages-plugin>=2.10.1",
     "mkdocs-material>=9.7.7",
-    "numpy>=2.5.3",
-    "pillow>=12.3.0",
-    "pyserial>=3.5",
-    "tqdm>=4.70.1",
+    "pydantic>=2.14.1",
 ]
 
 [dependency-groups]
@@ -23,6 +20,20 @@ dev = [
     "pytest-cov>=7.1.0",
     "ruff>=0.16.7",
 ]
+
+[project.scripts]
+fpgc = "fpgc.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.11,<0.12"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-root = "Tools"
+module-name = "fpgc"
+
+[tool.ruff]
+src = ["Tools"]
 
 [tool.coverage.report]
 fail_under = 50
