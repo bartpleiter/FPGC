@@ -1,0 +1,6 @@
+/* Teal accent colour, matching the FPGC logo */
+:root {
+  --primary-hue: 177deg;
+  --primary-saturation: 100%;
+  --primary-lightness: 35%;
+}

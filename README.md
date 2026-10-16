@@ -1,6 +1,6 @@
 # FPGC
 
-![FPGC Logo](Docs/docs/images/logo_big_alpha.png)
+![FPGC Logo](Website/static/images/logo.png)
 
 ## Current state
 
@@ -12,10 +12,11 @@ All project tasks should be run using the `fpgc` tool from the repository root:
 
 ```bash
 # Setup
+git submodule update --init  # fetch all subrepositories if you did not clone with --recurse-submodules
 uv sync                      # install dependencies and the fpgc command
 source .venv/bin/activate    # activate the virtual environment
 
 # Usage
 fpgc -h                      # list all commands
-fpgc docs serve              # serve the documentation locally
+fpgc website serve           # serve docs and blog website locally
 ```

@@ -10,9 +10,9 @@ Every project task is a subcommand of one Python command-line tool, `fpgc`:
 
 ```bash
 uv sync                      # install dependencies and the fpgc command (editable)
-source .venv/bin/activate    # put fpgc, mkdocs, pytest, ruff, ... on your PATH
+source .venv/bin/activate    # put fpgc, hugo, pytest, ruff, ... on your PATH
 fpgc -h                      # list all commands
-fpgc docs serve
+fpgc website serve
 ```
 
 Without activating the venv, `uv run fpgc ...` works too. Always run `fpgc` from the repository root.
@@ -27,7 +27,8 @@ Tools/fpgc/
   cli.py           the fpgc group: registers the area groups, plus check, test and clean
   config.py        all settings: one pydantic model per area
   common.py        run()
-  docs.py          fpgc docs ...
+  website.py       fpgc website ...
+Website/           Hugo site with the docs and the blog (see website.md)
 Tests/             system tests for FPGC components (once they exist)
 build/             all generated output; gitignored; `fpgc clean` deletes it
 ```
@@ -35,7 +36,7 @@ build/             all generated output; gitignored; `fpgc clean` deletes it
 ## Rules
 
 1. **Every project task is an `fpgc` command.** No Makefile, no shell scripts, no standalone Python scripts. Vendored projects with their own Makefile (such as QBE) are built by an `fpgc` command that calls `make -C`.
-2. **Commands are `fpgc <area> <action>`**, such as `fpgc docs serve` or `fpgc cpu test`. One module per area, registered with one line in `cli.py`. Only project-wide commands (`check`, `test`, `clean`) sit at the top level.
+2. **Commands are `fpgc <area> <action>`**, such as `fpgc website serve` or `fpgc cpu test`. One module per area, registered with one line in `cli.py`. Only project-wide commands (`check`, `test`, `clean`) sit at the top level.
 3. **Every command has a one-line docstring.** That line is the help text.
 4. **Toolchain programs (assembler, linker, ...) are separate programs**, each with its own package in `Tools/` and its own `[project.scripts]` entry. `fpgc` starts them with `run()` and never imports them.
 5. **External programs are started with `run()`** from `common.py`. It prints the command and stops `fpgc` with the same exit code if the command fails.
@@ -98,7 +99,7 @@ An area is any part of the project that needs commands, such as the CPU, the boo
 3. **Register the group in `cli.py`:** `main.add_command(cpu)`.
 4. **Run `fpgc check`.**
 
-A command that needs another one first calls it with `ctx.invoke(...)`, as `fpgc docs deploy` does with `build`.
+A command that needs another one first calls it with `ctx.invoke(...)`, as `fpgc website deploy` does with `build`.
 
 ## Adding a toolchain program
 

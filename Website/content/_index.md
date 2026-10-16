@@ -1,6 +1,10 @@
-# FPGC
+---
+title: Introduction
+cascade:
+  type: docs
+---
 
-![FPGC Logo](images/logo_big_alpha.png)
+![FPGC Logo](/images/logo.png)
 
 ## What is FPGC?
 

@@ -7,7 +7,7 @@ import click
 
 from fpgc.common import run
 from fpgc.config import CONFIG
-from fpgc.docs import docs
+from fpgc.website import website
 
 
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
@@ -17,7 +17,7 @@ def main() -> None:
         raise click.UsageError("run fpgc from the root of the FPGC repository")
 
 
-main.add_command(docs)
+main.add_command(website)
 
 
 @main.command()

@@ -5,16 +5,17 @@ from pathlib import Path
 from pydantic import BaseModel
 
 
-class DocsConfig(BaseModel):
-    mkdocs_config: Path = Path("Docs/mkdocs.yml")
-    site_dir: Path = Path("build/docs")
+class WebsiteConfig(BaseModel):
+    source_dir: Path = Path("Website")
+    theme_dir: Path = Path("Website/themes/hextra")
+    site_dir: Path = Path("build/website")
     port: int = 8088
     deploy_target: str = "192.168.0.240:/home/bart/NFS/fpgc/"
 
 
 class Config(BaseModel):
     build_dir: Path = Path("build")
-    docs: DocsConfig = DocsConfig()
+    website: WebsiteConfig = WebsiteConfig()
 
 
 CONFIG = Config()

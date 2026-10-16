@@ -1,0 +1,65 @@
+# Hugo site config for fpgc documentation and blog.
+
+baseURL: https://fpgc.bartpleiter.com/
+title: FPGC
+locale: en-US
+theme: hextra
+
+enableGitInfo: true
+enableRobotsTXT: true
+noBuildLock: true
+
+markup:
+  goldmark:
+    renderer:
+      unsafe: true  # allow HTML in our own Markdown
+  highlight:
+    noClasses: false
+
+menu:
+  main:
+    - name: Docs
+      pageRef: /
+      weight: 1
+    - name: Blog
+      pageRef: /blog
+      weight: 2
+    - name: Search
+      weight: 3
+      params:
+        type: search
+    - name: GitHub
+      weight: 4
+      url: https://github.com/bartpleiter/FPGC
+      params:
+        icon: github
+
+params:
+  navbar:
+    displayTitle: false
+    displayLogo: true
+    logo:
+      path: images/logo.png
+      width: 64
+      height: 28
+
+  page:
+    width: wide
+
+  theme:
+    default: system
+    displayToggle: true
+
+  footer:
+    displayPoweredBy: false
+
+  displayUpdatedDate: true
+  dateFormat: "2006-01-02"
+
+  editURL:
+    enable: false
+    base: https://github.com/bartpleiter/FPGC/edit/main/Website/content
+
+  blog:
+    list:
+      displayTags: true
