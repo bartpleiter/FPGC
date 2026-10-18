@@ -20,9 +20,7 @@ def cpu() -> None:
 @click.option(
     "-k", "pattern", default="", help="Only run tests matching this pytest pattern."
 )
-@click.option(
-    "--wave", is_flag=True, help="Dump a waveform for GTKWave."
-)
+@click.option("--wave", is_flag=True, help="Dump a waveform for GTKWave.")
 def test(pattern: str, wave: bool) -> None:
     """Run the CPU tests."""
     flags = ["--wave"] if wave else []

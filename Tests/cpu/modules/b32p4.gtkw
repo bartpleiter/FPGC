@@ -2,7 +2,8 @@
 @28
 tb_b32p4.clk
 tb_b32p4.reset
-@800200
+@200
+-
 -Fetch
 @22
 tb_b32p4.fetch_addr[31:0]
@@ -10,9 +11,8 @@ tb_b32p4.fetch_addr[31:0]
 tb_b32p4.fetch_en
 @22
 tb_b32p4.fetch_word[31:0]
-@1000200
--Fetch
-@800200
+@200
+-
 -Retire
 @28
 tb_b32p4.retire_valid
@@ -23,5 +23,3 @@ tb_b32p4.retire_instr[31:0]
 tb_b32p4.retire_redirect
 @22
 tb_b32p4.retire_target[31:0]
-@1000200
--Retire
