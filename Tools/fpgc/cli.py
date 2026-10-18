@@ -7,6 +7,7 @@ import click
 
 from fpgc.common import run
 from fpgc.config import CONFIG
+from fpgc.cpu import cpu, lint
 from fpgc.website import website
 
 
@@ -17,6 +18,7 @@ def main() -> None:
         raise click.UsageError("run fpgc from the root of the FPGC repository")
 
 
+main.add_command(cpu)
 main.add_command(website)
 
 
@@ -30,12 +32,14 @@ def test(pattern: str) -> None:
 
 
 @main.command()
-def check() -> None:
-    """Check formatting, lint and types."""
+@click.pass_context
+def check(ctx: click.Context) -> None:
+    """Check formatting, lint, types and the RTL, and run all tests."""
     run("ruff", "format", "--check")
     run("ruff", "check")
     run("mypy", "Tools")
-    # TODO: Add run("pytest") here once there are tests
+    ctx.invoke(lint)
+    run("pytest", "-q")
 
 
 @main.command()

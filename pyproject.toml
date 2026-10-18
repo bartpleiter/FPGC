@@ -21,6 +21,8 @@ dev = [
 
 [project.scripts]
 fpgc = "fpgc.cli:main"
+b32asm = "b32asm.cli:main"
+b32sim = "b32sim.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.11,<0.12"]
@@ -28,11 +30,15 @@ build-backend = "uv_build"
 
 [tool.uv.build-backend]
 module-root = "Tools"
-module-name = "fpgc"
+module-name = ["fpgc", "b32asm", "b32sim"]
 
 [tool.ruff]
 src = ["Tools"]
 extend-exclude = ["Website/themes"]
+
+[tool.pytest.ini_options]
+testpaths = ["Tools", "Tests"]
+addopts = ["--import-mode=importlib"]
 
 [tool.coverage.report]
 fail_under = 50

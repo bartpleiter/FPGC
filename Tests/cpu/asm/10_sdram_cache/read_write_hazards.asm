@@ -1,0 +1,24 @@
+; Tests SDRAM memory read/write operations with l1d cache
+; Assumes cache lines of 32 bytes, meaning that byte offset 32 is on the 2nd cache line.
+; Data lives at 0x10000, away from the code.
+Main:
+    ; Semi random read/writes with the goal to create difficult situations
+
+    load32 0x10000 r10 ; data base address
+    load 7 r1 ; r1 = 7
+    load 8 r2 ; r2 = 8
+
+    write 32 r10 r1 ; mem[32] = 7 (2nd cache line)
+    write 36 r10 r2 ; mem[36] = 8
+    read 32 r10 r3 ; r3 = mem[32] = 7
+    add r1 r3 r2 ; r2 = 7+7=14
+    write 68 r10 r2 ; mem[68] = 14 (3rd cache line)
+    read 36 r10 r4 ; r4 = mem[36] = 8
+    multu r2 r4 r5 ; r5 = 14*8=112
+    write 28 r10 r5 ; mem[28] = 112 (1st cache line)
+
+    read 28 r10 r6 ; r6 = mem[28] = 112
+    read 68 r10 r7 ; r7 = mem[68] = 14
+    add r6 r7 r15 ; expected=126
+
+    halt

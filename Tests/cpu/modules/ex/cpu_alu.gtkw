@@ -1,0 +1,21 @@
+[*] GTKWave preset for cpu_alu (fpgc cpu wave cpu_alu)
+@28
+tb_cpu_alu.clk
+@820
+tb_cpu_alu.label[95:0]
+@800200
+-Inputs
+@22
+tb_cpu_alu.dut.op[3:0]
+tb_cpu_alu.dut.a[31:0]
+tb_cpu_alu.dut.b[31:0]
+@1000200
+-Inputs
+@800200
+-Output
+@22
+tb_cpu_alu.dut.y[31:0]
+@424
+tb_cpu_alu.dut.y[31:0]
+@1000200
+-Output

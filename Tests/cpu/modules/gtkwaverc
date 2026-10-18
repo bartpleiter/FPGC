@@ -1,0 +1,3 @@
+# GTKWave settings for the CPU presets, passed by `fpgc cpu wave`.
+# Show signal names without their hierarchy: the presets group them instead.
+hier_max_level 1
