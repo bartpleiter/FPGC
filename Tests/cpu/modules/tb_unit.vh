@@ -5,6 +5,7 @@
 //   1. At a falling edge, it reads the next line of the vector file into the inputs.
 //   2. The rising edge in the middle of the cycle clocks a sequential unit.
 //   3. At the next falling edge, it writes the outputs as one line, then goes to 1.
+//      (The register file's testbench writes them at the rising edge instead.)
 //
 // So the waveform reads from left to right as a list of cases. Plusargs:
 //

@@ -1,0 +1,34 @@
+[*] GTKWave preset for cpu_regfile (fpgc cpu wave cpu_regfile)
+@28
+tb_cpu_regfile.clk
+@820
+tb_cpu_regfile.label[95:0]
+@28
+tb_cpu_regfile.dut.reset
+@200
+-
+-Write port
+@28
+tb_cpu_regfile.dut.writes_dreg
+@24
+tb_cpu_regfile.dut.dreg[3:0]
+@22
+tb_cpu_regfile.dut.dreg_value[31:0]
+@200
+-
+-Read ports
+@24
+tb_cpu_regfile.dut.areg[3:0]
+@22
+tb_cpu_regfile.dut.areg_value[31:0]
+@24
+tb_cpu_regfile.dut.breg[3:0]
+@22
+tb_cpu_regfile.dut.breg_value[31:0]
+@200
+-
+-Registers
+@22
+tb_cpu_regfile.r1[31:0]
+tb_cpu_regfile.r2[31:0]
+tb_cpu_regfile.r15[31:0]
