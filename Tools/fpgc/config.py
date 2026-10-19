@@ -18,6 +18,7 @@ class CpuConfig(BaseModel):
     # The RTL files used in simulation, linting and Quartus
     rtl_files: list[Path] = [
         Path("Hardware/cpu/b32p4.v"),
+        Path("Hardware/cpu/id/cpu_decoder.v"),
         Path("Hardware/cpu/ex/cpu_alu.v"),
     ]
     tests_dir: Path = Path("Tests/cpu")

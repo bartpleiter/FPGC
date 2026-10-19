@@ -15,13 +15,13 @@ module b32p4 (
     output wire        retire_valid,
     output wire [31:0] retire_pc,
     output wire [31:0] retire_instr,
-    output wire        retire_rd_we,
-    output wire [3:0]  retire_rd,
-    output wire [31:0] retire_rd_value,
-    output wire        retire_store,
-    output wire [31:0] retire_store_addr,
-    output wire [31:0] retire_store_data,
-    output wire [3:0]  retire_store_be,
+    output wire        retire_writes_dreg,
+    output wire [3:0]  retire_dreg,
+    output wire [31:0] retire_dreg_value,
+    output wire        retire_write,
+    output wire [31:0] retire_write_addr,
+    output wire [31:0] retire_write_data,
+    output wire [3:0]  retire_write_be,
     output wire        retire_push,
     output wire [31:0] retire_push_value,
     output wire        retire_pop,
@@ -43,23 +43,23 @@ assign fetch_en   = 1'b1;
 always @(posedge clk)
     pc <= fetch_addr;
 
-assign retire_valid      = !reset;
-assign retire_pc         = pc;
-assign retire_instr      = fetch_word;
-assign retire_rd_we      = 1'b0;
-assign retire_rd         = 4'd0;
-assign retire_rd_value   = 32'd0;
-assign retire_store      = 1'b0;
-assign retire_store_addr = 32'd0;
-assign retire_store_data = 32'd0;
-assign retire_store_be   = 4'd0;
-assign retire_push       = 1'b0;
-assign retire_push_value = 32'd0;
-assign retire_pop        = 1'b0;
-assign retire_pop_value  = 32'd0;
-assign retire_redirect   = fetch_word == HALT;
-assign retire_target     = pc;
-assign retire_irq        = 1'b0;
-assign retire_irq_id     = 3'd0;
+assign retire_valid       = !reset;
+assign retire_pc          = pc;
+assign retire_instr       = fetch_word;
+assign retire_writes_dreg = 1'b0;
+assign retire_dreg        = 4'd0;
+assign retire_dreg_value  = 32'd0;
+assign retire_write       = 1'b0;
+assign retire_write_addr  = 32'd0;
+assign retire_write_data  = 32'd0;
+assign retire_write_be    = 4'd0;
+assign retire_push        = 1'b0;
+assign retire_push_value  = 32'd0;
+assign retire_pop         = 1'b0;
+assign retire_pop_value   = 32'd0;
+assign retire_redirect    = fetch_word == HALT;
+assign retire_target      = pc;
+assign retire_irq         = 1'b0;
+assign retire_irq_id      = 3'd0;
 
 endmodule

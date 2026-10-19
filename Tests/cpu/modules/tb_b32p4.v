@@ -33,13 +33,13 @@ reg  [31:0] fetch_word;
 wire        retire_valid;
 wire [31:0] retire_pc;
 wire [31:0] retire_instr;
-wire        retire_rd_we;
-wire [3:0]  retire_rd;
-wire [31:0] retire_rd_value;
-wire        retire_store;
-wire [31:0] retire_store_addr;
-wire [31:0] retire_store_data;
-wire [3:0]  retire_store_be;
+wire        retire_writes_dreg;
+wire [3:0]  retire_dreg;
+wire [31:0] retire_dreg_value;
+wire        retire_write;
+wire [31:0] retire_write_addr;
+wire [31:0] retire_write_data;
+wire [3:0]  retire_write_be;
 wire        retire_push;
 wire [31:0] retire_push_value;
 wire        retire_pop;
@@ -58,13 +58,13 @@ b32p4 dut (
     .retire_valid(retire_valid),
     .retire_pc(retire_pc),
     .retire_instr(retire_instr),
-    .retire_rd_we(retire_rd_we),
-    .retire_rd(retire_rd),
-    .retire_rd_value(retire_rd_value),
-    .retire_store(retire_store),
-    .retire_store_addr(retire_store_addr),
-    .retire_store_data(retire_store_data),
-    .retire_store_be(retire_store_be),
+    .retire_writes_dreg(retire_writes_dreg),
+    .retire_dreg(retire_dreg),
+    .retire_dreg_value(retire_dreg_value),
+    .retire_write(retire_write),
+    .retire_write_addr(retire_write_addr),
+    .retire_write_data(retire_write_data),
+    .retire_write_be(retire_write_be),
     .retire_push(retire_push),
     .retire_push_value(retire_push_value),
     .retire_pop(retire_pop),
@@ -118,11 +118,11 @@ always @(posedge clk) begin
             $fwrite(trace_fd, "%0d %08x %08x", cycle, retire_pc, retire_instr);
             if (retire_irq)
                 $fwrite(trace_fd, " irq %0d", retire_irq_id);
-            if (retire_rd_we)
-                $fwrite(trace_fd, " r%0d=%08x", retire_rd, retire_rd_value);
-            if (retire_store)
-                $fwrite(trace_fd, " store %08x=%08x/%0x",
-                        retire_store_addr, retire_store_data, retire_store_be);
+            if (retire_writes_dreg)
+                $fwrite(trace_fd, " r%0d=%08x", retire_dreg, retire_dreg_value);
+            if (retire_write)
+                $fwrite(trace_fd, " write %08x=%08x/%0x",
+                        retire_write_addr, retire_write_data, retire_write_be);
             if (retire_push)
                 $fwrite(trace_fd, " push %08x", retire_push_value);
             if (retire_pop)

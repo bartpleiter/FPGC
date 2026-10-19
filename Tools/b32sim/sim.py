@@ -126,8 +126,8 @@ class Retired:
 
     pc: int
     word: int
-    rd: tuple[int, int] | None = None  # (register, value)
-    store: tuple[int, int, int] | None = None  # (word address, data, byte enables)
+    dreg: tuple[int, int] | None = None  # (register, value)
+    write: tuple[int, int, int] | None = None  # (word address, data, byte enables)
     push: int | None = None
     pop: int | None = None
     redirect: int | None = None
@@ -137,11 +137,11 @@ class Retired:
         parts = [f"{self.pc:08x} {self.word:08x}"]
         if self.interrupt is not None:
             parts.append(f"irq {self.interrupt}")
-        if self.rd is not None:
-            parts.append(f"r{self.rd[0]}={self.rd[1]:08x}")
-        if self.store is not None:
+        if self.dreg is not None:
+            parts.append(f"r{self.dreg[0]}={self.dreg[1]:08x}")
+        if self.write is not None:
             parts.append(
-                f"store {self.store[0]:08x}={self.store[1]:08x}/{self.store[2]:x}"
+                f"write {self.write[0]:08x}={self.write[1]:08x}/{self.write[2]:x}"
             )
         if self.push is not None:
             parts.append(f"push {self.push:08x}")
@@ -439,7 +439,7 @@ class Machine:
     def _write_reg(self, d: int, value: int, r: Retired) -> None:
         if d != 0:
             self.regs[d] = value
-            r.rd = (d, value)
+            r.dreg = (d, value)
 
     # ---- Memory ----
 
@@ -470,7 +470,7 @@ class Machine:
         enables = ((1 << size) - 1) << (address & 3)
         mask = sum(0xFF << (8 * i) for i in range(4) if enables >> i & 1)
         data = (self.regs[ins["b"]] << shift) & mask
-        r.store = (address & ~3, data, enables)
+        r.write = (address & ~3, data, enables)
         self._store_word(address & ~3, data, mask)
 
     def _address(self, ins: Decoded, size: int) -> int:
