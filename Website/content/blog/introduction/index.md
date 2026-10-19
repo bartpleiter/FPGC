@@ -4,7 +4,7 @@ date: 2026-10-17
 authors:
   - name: Bart Pleiter
     link: https://github.com/bartpleiter
-tags: [Building-FPGC]
+tags: []
 ---
 
 Hi, as I am redesigning the FPGC project again, I want to take this opportunity to start creating a little blog series where I document the journey, challenges and thoughts building the FPGC. In this series I will go chronologically through the entire design, from CPU design and simulations all the way to high level software.
