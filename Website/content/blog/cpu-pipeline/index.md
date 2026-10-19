@@ -1,7 +1,6 @@
 ---
 title: CPU part 1 - Pipeline
 date: 2026-10-19
-draft: true
 authors:
   - name: Bart Pleiter
     link: https://github.com/bartpleiter
