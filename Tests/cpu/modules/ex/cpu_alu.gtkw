@@ -6,8 +6,9 @@ tb_cpu_alu.label[95:0]
 @200
 -
 -Inputs
-@22
+@28
 tb_cpu_alu.dut.op[3:0]
+@22
 tb_cpu_alu.dut.a[31:0]
 tb_cpu_alu.dut.b[31:0]
 @200
