@@ -21,9 +21,7 @@ menu:
     - name: Docs
       pageRef: /
       weight: 1
-    - name: Blog
-      pageRef: /blog
-      weight: 2
+    # Blog is a centered link in the navbar instead (layouts/_partials/navbar-title.html)
     - name: Search
       weight: 3
       params:
@@ -63,3 +61,5 @@ params:
   blog:
     list:
       displayTags: true
+      sortBy: date      # newest first; posts on the same day get a time to keep their order
+      sortOrder: desc

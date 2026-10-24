@@ -1,6 +1,6 @@
 ---
 title: CPU part 3 - Instruction decoder
-date: 2026-10-19
+date: 2026-10-19T12:00:00
 authors:
   - name: Bart Pleiter
     link: https://github.com/bartpleiter

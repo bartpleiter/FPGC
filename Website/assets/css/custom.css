@@ -3,4 +3,40 @@
   --primary-hue: 177deg;
   --primary-saturation: 100%;
   --primary-lightness: 35%;
+
+  /* The accent darkened (light mode) to keep text readable (WCAG AA contrast) */
+  --fpgc-blog-color: hsl(var(--primary-hue) var(--primary-saturation) 24%);
+  --fpgc-blog-on-color: #fff;
+}
+
+.dark {
+  --fpgc-blog-color: hsl(var(--primary-hue) var(--primary-saturation) var(--primary-lightness));
+  --fpgc-blog-on-color: #111;
+}
+
+/* The Blog link in the center of the navbar (layouts/_partials/navbar-title.html).
+   The navbar container is sticky, so this is centered on the page, on every screen size. */
+.fpgc-blog-link {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.25rem 1rem;
+  border: 1.5px solid var(--fpgc-blog-color);
+  border-radius: 9999px;
+  color: var(--fpgc-blog-color);
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.fpgc-blog-link:hover,
+.fpgc-blog-link-active {
+  background-color: var(--fpgc-blog-color);
+  color: var(--fpgc-blog-on-color);
+}
+
+.fpgc-blog-link:focus-visible {
+  outline: 2px solid var(--fpgc-blog-color);
+  outline-offset: 2px;
 }
