@@ -1,4 +1,4 @@
-"""Random CPU test programs: valid, guaranteed to terminate, and dense in hazards.
+"""Random CPU test programs that are valid, guaranteed to terminate, and dense in hazards.
 
 `generate(seed)` returns assembly source. The same seed always gives the same program.
 
@@ -29,7 +29,7 @@ SOURCE_REGS = ["r0", *WORK_REGS]
 CPU_IO_BASE = 0x1F000000
 SP_OFFSET = 4
 
-# SDRAM data: two cache lines at 0x10000, and two that map to the same L1 lines
+# The SDRAM data is two cache lines at 0x10000, and two that map to the same L1 lines
 # 4 KiB further, so accesses cause evictions and write-backs.
 SDRAM_DATA_BASE = 0x10000
 SDRAM_DATA_OFFSETS = [*range(0, 64, 4), *range(0x1000, 0x1040, 4)]
@@ -191,7 +191,7 @@ class _Generator:
             offset += self.rng.randrange(0, 4, READ_OPS[op])
             self.emit(f"{op} {offset} {base} {self.dst()}")
         else:
-            op = self.rng.choice(writes)  # never empty: `write` is allowed
+            op = self.rng.choice(writes)  # never empty, because `write` is allowed
             offset += self.rng.randrange(0, 4, WRITE_OPS[op])
             self.emit(f"{op} {offset} {base} {self.src()}")
 

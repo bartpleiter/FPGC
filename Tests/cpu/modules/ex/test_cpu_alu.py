@@ -17,10 +17,11 @@ BENCH = UnitBench(
     outputs=["y"],
 )
 
-# Operands at the edges: 0, small, the 16-bit boundary, signed max and min, all ones.
+# Operands at the edges, like 0, small numbers, the 16-bit boundary, signed max and
+# min, and all ones.
 EDGES = [0, 1, 2, 31, 32, 0xFFFF, 0x10000, 0x7FFFFFFF, 0x80000000, 0xFFFFFFFE, MASK]
 
-# The demo: one case per operation, with small numbers. Pairs show the difference
+# The demo has one case per operation, with small numbers. Pairs show the difference
 # between shiftr and shiftrs, and between slt and sltu.
 DEMO = [
     ("or", 0xC, 0xA),

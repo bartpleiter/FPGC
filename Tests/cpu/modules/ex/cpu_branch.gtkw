@@ -1,0 +1,25 @@
+[*] GTKWave preset for cpu_branch (fpgc cpu wave cpu_branch)
+@28
+tb_cpu_branch.clk
+@820
+tb_cpu_branch.label[95:0]
+@200
+-
+-Inputs
+@22
+tb_cpu_branch.dut.a[31:0]
+tb_cpu_branch.dut.b[31:0]
+@28
+tb_cpu_branch.dut.branch_op[2:0]
+tb_cpu_branch.dut.branch_signed
+@200
+-
+-Compare
+@28
+tb_cpu_branch.dut.eq
+tb_cpu_branch.dut.lt
+@200
+-
+-Output
+@28
+tb_cpu_branch.dut.taken

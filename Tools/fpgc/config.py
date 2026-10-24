@@ -18,9 +18,17 @@ class CpuConfig(BaseModel):
     # The RTL files used in simulation, linting and Quartus
     rtl_files: list[Path] = [
         Path("Hardware/cpu/b32p4.v"),
+        Path("Hardware/cpu/cpu_hazard.v"),
+        Path("Hardware/cpu/if/cpu_if.v"),
+        Path("Hardware/cpu/id/cpu_id.v"),
         Path("Hardware/cpu/id/cpu_decoder.v"),
         Path("Hardware/cpu/id/cpu_regfile.v"),
+        Path("Hardware/cpu/id/cpu_forward.v"),
+        Path("Hardware/cpu/ex/cpu_ex.v"),
         Path("Hardware/cpu/ex/cpu_alu.v"),
+        Path("Hardware/cpu/ex/cpu_branch.v"),
+        Path("Hardware/cpu/mem/cpu_mem.v"),
+        Path("Hardware/cpu/wb/cpu_wb.v"),
     ]
     tests_dir: Path = Path("Tests/cpu")
     modules_dir: Path = Path("Tests/cpu/modules")
@@ -29,6 +37,7 @@ class CpuConfig(BaseModel):
     wave_dir: Path = Path("build/cpu/wave")
     tool_dirs: list[Path] = [Path("Tools/b32asm"), Path("Tools/b32sim")]
     harness_dir: Path = Path("Hardware/cpu/harness")
+    harness_top: str = "b32p4_harness"
     timing_dir: Path = Path("build/cpu/timing")
     quartus_bin: Path = Path("/home/bart/altera_lite/25.1std/quartus/bin")
     device: str = "EP4CE40F23I7"

@@ -1,0 +1,35 @@
+[*] GTKWave preset for cpu_wb (fpgc cpu wave cpu_wb)
+@28
+tb_b32p4.clk
+tb_b32p4.reset
+@200
+-
+-MEM/WB
+@28
+tb_b32p4.dut.wb_stage.flush_wb
+tb_b32p4.dut.wb_stage.mem_wb_valid
+@22
+tb_b32p4.dut.wb_stage.mem_wb_pc[31:0]
+tb_b32p4.dut.wb_stage.mem_wb_instr[31:0]
+@200
+-
+-Register write
+@28
+tb_b32p4.dut.wb_stage.mem_wb_writes_dreg
+tb_b32p4.dut.wb_stage.wb_writes_dreg
+@24
+tb_b32p4.dut.wb_stage.mem_wb_dreg[3:0]
+@22
+tb_b32p4.dut.wb_stage.mem_wb_value[31:0]
+@200
+-
+-Retire
+@28
+tb_b32p4.dut.wb_stage.retire_valid
+@22
+tb_b32p4.dut.wb_stage.retire_pc[31:0]
+tb_b32p4.dut.wb_stage.retire_instr[31:0]
+@28
+tb_b32p4.dut.wb_stage.retire_redirect
+@22
+tb_b32p4.dut.wb_stage.retire_target[31:0]

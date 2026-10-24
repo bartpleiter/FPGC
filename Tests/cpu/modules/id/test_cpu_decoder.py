@@ -20,7 +20,7 @@ from b32sim.sim import MASK
 
 from ...unit_bench import UnitBench, Vector
 
-# The instruction types: the decoder's one-hot outputs
+# The instruction types, which are the decoder's one-hot outputs
 TYPES = [
     "arith",
     "mult",
@@ -52,7 +52,7 @@ BENCH = UnitBench(
     ],
 )
 
-# The demo: one case per instruction type, plus a few variants and an illegal one.
+# The demo has one case per instruction type, plus a few variants and an illegal one.
 DEMO = [
     ("add", "add r1 r2 r3"),
     ("add const", "add r1 -5 r3"),

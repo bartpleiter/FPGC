@@ -1,7 +1,7 @@
 // Testbench of cpu_regfile. See tb_unit.vh for how the vectors are applied.
 //
 // The outputs are written at the rising edge, just before it
-// clocks the write: that's when ID/EX takes them in the pipeline. So reading the
+// clocks the write, because that's when ID/EX takes them in the pipeline. So reading the
 // register that is being written shows the write-through.
 `timescale 1ns / 1ps
 module tb_cpu_regfile;
@@ -29,7 +29,7 @@ cpu_regfile dut (
     .dreg_value(dreg_value)
 );
 
-// The registers, for the waveform: Icarus doesn't dump arrays.
+// The registers as wires for the waveform, because Icarus doesn't dump arrays.
 wire [31:0] r1 = dut.regs[1], r2 = dut.regs[2], r3 = dut.regs[3], r4 = dut.regs[4], r5 = dut.regs[5],
             r6 = dut.regs[6], r7 = dut.regs[7], r8 = dut.regs[8], r9 = dut.regs[9], r10 = dut.regs[10],
             r11 = dut.regs[11], r12 = dut.regs[12], r13 = dut.regs[13], r14 = dut.regs[14], r15 = dut.regs[15];

@@ -33,7 +33,7 @@ def case(
     }
 
 
-# The demo: writes and reads that show r0, the write-through and the reset.
+# The demo writes and reads to show r0, the write-through and the reset.
 DEMO = [
     case("reset", reset=1),
     case("write r1", 1, 2, write=(1, 0x11111111)),

@@ -19,7 +19,7 @@ module cpu_regfile (
 
 reg [31:0] regs [1:15];
 
-// Write-through: a register that is written in this cycle reads as its new value.
+// A register that is written in this cycle reads as its new value (write-through).
 assign areg_value = areg == 4'd0                ? 32'd0 :
                     writes_dreg && dreg == areg ? dreg_value :
                                                   regs[areg];

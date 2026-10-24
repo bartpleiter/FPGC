@@ -1,6 +1,6 @@
 """Run the CPU test programs on the ISS, from ROM and from SDRAM.
 
-Each program in asm/ ends with `halt` and has an `; expected=N` comment: the value
+Each program in asm/ ends with `halt` and has an `; expected=N` comment with the value
 r15 must have at that point. Programs run in strict mode, so any illegal case fails.
 """
 

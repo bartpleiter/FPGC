@@ -21,9 +21,17 @@ def cpu() -> None:
     "-k", "pattern", default="", help="Only run tests matching this pytest pattern."
 )
 @click.option("--wave", is_flag=True, help="Dump a waveform for GTKWave.")
-def test(pattern: str, wave: bool) -> None:
+@click.option(
+    "--seeds",
+    type=int,
+    default=100,
+    show_default=True,
+    help="The number of random programs compared with the ISS.",
+)
+def test(pattern: str, wave: bool, seeds: int) -> None:
     """Run the CPU tests."""
     flags = ["--wave"] if wave else []
+    flags += ["--seeds", str(seeds)]
     run("pytest", cfg.tests_dir, *cfg.tool_dirs, "-k", pattern, *flags)
 
 
@@ -49,11 +57,16 @@ def lint() -> None:
     required=False,
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
 )
-def wave(module: str, program: Path | None) -> None:
+@click.option(
+    "--view",
+    help="Another preset of MODULE: <module>.<view>.gtkw, such as `--view data`.",
+)
+def wave(module: str, program: Path | None, view: str | None) -> None:
     """Run the demo of MODULE, or PROGRAM, and show it in GTKWave with its preset."""
-    presets = list(cfg.modules_dir.rglob(f"{module}.gtkw"))
+    name = f"{module}.{view}.gtkw" if view else f"{module}.gtkw"
+    presets = list(cfg.modules_dir.rglob(name))
     if not presets:
-        raise click.UsageError(f"there is no {module}.gtkw in {cfg.modules_dir}")
+        raise click.UsageError(f"there is no {name} in {cfg.modules_dir}")
     # The demo tests write the waveform. A failing run still has one, so go on.
     if program is None:
         run("pytest", cfg.modules_dir, "-q", "-k", f"demo and {module}", check=False)
@@ -71,7 +84,6 @@ def wave(module: str, program: Path | None) -> None:
 @click.argument(
     "files",
     nargs=-1,
-    required=True,
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
 )
 @click.option("--top", help="Top-level module. Default: the name of the first file.")
@@ -83,7 +95,13 @@ def wave(module: str, program: Path | None) -> None:
     help="Fitter seed.",
 )
 def timing(files: tuple[Path, ...], top: str | None, seed: int) -> None:
-    """Compile Verilog files in Quartus and report the timing at every corner."""
+    """Compile the CPU in its harness, or Verilog FILES, and report the timing.
+
+    Without FILES, this compiles the CPU's RTL with the harness top level. The timing
+    is reported at every corner.
+    """
+    if not files:
+        files, top = tuple(cfg.rtl_files), top or cfg.harness_top
     top = top or files[0].stem
     compile_and_report(
         cfg.quartus_bin,

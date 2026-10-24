@@ -1,4 +1,4 @@
-"""Quartus timing runs: generate a project, compile it and report every corner.
+"""Quartus timing runs. Generate a project, compile it and report every corner.
 
 The project, the SDC and the STA script are generated into
 the output folder, so there are no hand-maintained Quartus files.
@@ -33,7 +33,7 @@ set_false_path -from [all_inputs] -to [all_registers]
 set_false_path -from [all_registers] -to [all_outputs]
 """
 
-# Writes timing.tsv: per corner the setup and hold summary, the number of failing
+# Writes timing.tsv with, per corner, the setup and hold summary, the number of failing
 # endpoints and the worst setup path to each of the 1000 worst endpoints. The 10
 # worst paths of each corner are also written in full to worst_<corner>.rpt.
 STA_SCRIPT = """\

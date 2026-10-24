@@ -1,6 +1,6 @@
 """Run a program on the RTL and on the ISS, and compare the two retire traces.
 
-The RTL runs in the lockstep testbench (modules/tb_b32p4.v),
+The RTL runs in the testbench modules/tb_b32p4.v,
 compiled once per test session.
 """
 
@@ -12,14 +12,14 @@ from b32sim.sim import ROM_BASE, ROM_SIZE, Machine
 
 from .verilog import BUILD_DIR, MODULES_DIR, REPO, RTL_FILES, compile_tb, run_vvp
 
-LOCKSTEP_DIR = BUILD_DIR / "lockstep"
+COMPARISON_DIR = BUILD_DIR / "iss_comparison"
 CONTEXT = 10  # instructions shown before a mismatch
 
 
 def compile_b32p4() -> Path:
-    """Compile the lockstep testbench with the CPU."""
+    """Compile the ISS comparison testbench with the CPU."""
     return compile_tb(
-        MODULES_DIR / "tb_b32p4.v", RTL_FILES, LOCKSTEP_DIR / "tb_b32p4.vvp"
+        MODULES_DIR / "tb_b32p4.v", RTL_FILES, COMPARISON_DIR / "tb_b32p4.vvp"
     )
 
 
@@ -27,10 +27,10 @@ def compile_b32p4() -> Path:
 class RtlTrace:
     records: list[str]  # one per retired instruction, in the ISS trace format
     cycles: list[int]  # the cycle in which each one retired
-    ending: str  # the testbench's last line: halted, or a timeout
+    ending: str  # the testbench's last line, which says how it ended
 
 
-def run_lockstep(
+def run_iss_comparison(
     vvp: Path,
     source: str,
     name: str,
@@ -39,10 +39,10 @@ def run_lockstep(
 ) -> RtlTrace:
     """Run `source` (assembled at the ROM) on the RTL and the ISS; fail on a difference.
 
-    The files of the run are kept in build/cpu/lockstep/<name>/.
+    The files of the run are kept in build/cpu/iss_comparison/<name>/.
     """
     __tracebackhide__ = True
-    out_dir = LOCKSTEP_DIR / name
+    out_dir = COMPARISON_DIR / name
     out_dir.mkdir(parents=True, exist_ok=True)
     program_file = out_dir / "program.asm"
     program_file.write_text(source)
@@ -81,7 +81,7 @@ def run_lockstep(
 
 def compare(expected: list[str], rtl: RtlTrace, rerun: str) -> None:
     """Fail at the first record where the RTL trace differs from the ISS trace."""
-    __tracebackhide__ = True  # pytest: show the message, not this function
+    __tracebackhide__ = True  # makes pytest show the message, not this function
     pairs = enumerate(zip(expected, rtl.records))
     first = next((i for i, (want, have) in pairs if want != have), None)
     if first is not None:

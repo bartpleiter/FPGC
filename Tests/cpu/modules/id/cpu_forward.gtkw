@@ -1,0 +1,41 @@
+[*] GTKWave preset for cpu_forward (fpgc cpu wave cpu_forward)
+@28
+tb_cpu_forward.clk
+@820
+tb_cpu_forward.label[95:0]
+@200
+-
+-Instruction in ID
+@24
+tb_cpu_forward.dut.areg[3:0]
+@28
+tb_cpu_forward.dut.reads_areg
+@24
+tb_cpu_forward.dut.breg[3:0]
+@28
+tb_cpu_forward.dut.reads_breg
+@200
+-
+-Instruction in EX
+@28
+tb_cpu_forward.dut.ex_writes_dreg
+@24
+tb_cpu_forward.dut.ex_dreg[3:0]
+@28
+tb_cpu_forward.dut.ex_late
+@200
+-
+-Instruction in MEM
+@28
+tb_cpu_forward.dut.mem_writes_dreg
+@24
+tb_cpu_forward.dut.mem_dreg[3:0]
+@200
+-
+-Result
+@28
+tb_cpu_forward.dut.areg_from_mem
+tb_cpu_forward.dut.areg_from_wb
+tb_cpu_forward.dut.breg_from_mem
+tb_cpu_forward.dut.breg_from_wb
+tb_cpu_forward.dut.late_result_stall

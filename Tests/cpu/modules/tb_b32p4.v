@@ -1,5 +1,5 @@
-// The lockstep testbench: runs a program on b32p4 with ideal memories and writes the
-// retire port to a trace file.
+// The testbench of the ISS comparison. It runs a program on b32p4 with ideal memories,
+// and writes the retire port to a trace file.
 //
 // A trace line is the cycle number, then the record in the format of the ISS trace
 // (b32sim's Retired), so pytest can compare the two line by line. The testbench stops
@@ -13,7 +13,7 @@
 //   +max_cycles=<n>    give up after n cycles (default 100000)
 //
 // The ideal instruction memory is the ROM (4 KiB at 0x1E000000), with the timing of a
-// BRAM: the address is registered at the clock edge, and the word is there after it.
+// BRAM. The address is registered at the clock edge, and the word is there after it.
 `timescale 1ns / 1ps
 module tb_b32p4;
 
@@ -82,6 +82,17 @@ reg [31:0] rom [0:1023];
 always @(posedge clk)
     if (fetch_en)
         fetch_word <= rom[fetch_addr[11:2]];
+
+// ---- The registers as wires for the waveform, because Icarus doesn't dump arrays ----
+
+wire [31:0] r1 = dut.id_stage.regfile.regs[1], r2 = dut.id_stage.regfile.regs[2],
+            r3 = dut.id_stage.regfile.regs[3], r4 = dut.id_stage.regfile.regs[4],
+            r5 = dut.id_stage.regfile.regs[5], r6 = dut.id_stage.regfile.regs[6],
+            r7 = dut.id_stage.regfile.regs[7], r8 = dut.id_stage.regfile.regs[8],
+            r9 = dut.id_stage.regfile.regs[9], r10 = dut.id_stage.regfile.regs[10],
+            r11 = dut.id_stage.regfile.regs[11], r12 = dut.id_stage.regfile.regs[12],
+            r13 = dut.id_stage.regfile.regs[13], r14 = dut.id_stage.regfile.regs[14],
+            r15 = dut.id_stage.regfile.regs[15];
 
 // ---- Start ----
 

@@ -1,6 +1,6 @@
-"""Random programs on the ISS: each one must be valid and halt with an empty stack.
+"""Random programs on the ISS. Each one must be valid and halt with an empty stack.
 
-This checks the generator. Once there is RTL, the same programs run in lockstep.
+This checks the generator. The same programs run on the RTL in test_iss_comparison.py.
 """
 
 import pytest

@@ -99,7 +99,7 @@ class Ram:
 
 
 class NullIo:
-    """The I/O region without devices: reads give 0, and writes are recorded."""
+    """The I/O region without devices. Reads give 0, and writes are recorded."""
 
     def __init__(self) -> None:
         self.writes: list[tuple[int, int, int]] = []
@@ -211,7 +211,7 @@ _READ_SIZES = {
 _WRITE_SIZES = {WRITE_OPS["write"]: 4, WRITE_OPS["writeb"]: 1, WRITE_OPS["writeh"]: 2}
 
 
-def _branch_taken(cond: int, s: int, a: int, b: int) -> bool:
+def branch_taken(cond: int, s: int, a: int, b: int) -> bool:
     if s:
         a, b = _signed(a), _signed(b)
     return {
@@ -239,7 +239,7 @@ class Machine:
         self.pc_backup = 0
         self.interrupts_enabled = True
         self.int_id = 0
-        self.pending = 0  # bit n-1 set: interrupt n is pending
+        self.pending = 0  # bit n-1 is set when interrupt n is pending
         self.err_flags = 0
         self.err_first = 0
         self.err_pc = 0
@@ -340,7 +340,7 @@ class Machine:
             if (cond, s) not in _BRANCH_CODES:
                 return None  # reserved: handled as an illegal instruction in _execute
             a, b = self.regs[ins["a"]], self.regs[ins["b"]]
-            return pc + sext(ins["c16"], 16) if _branch_taken(cond, s, a, b) else None
+            return pc + sext(ins["c16"], 16) if branch_taken(cond, s, a, b) else None
         if op == Opcode.HALT:
             return pc
         return None
@@ -540,7 +540,7 @@ class Machine:
     # ---- Illegal cases ----
 
     def _illegal(self, kind: ErrorKind | None, message: str) -> None:
-        """Strict mode: stop. Hardware mode: remember the event and carry on."""
+        """In strict mode, stop. In hardware mode, remember the event and carry on."""
         if self.strict:
             raise IllegalError(kind, self._current_pc, message)
         if kind is not None:

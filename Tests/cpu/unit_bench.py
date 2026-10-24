@@ -77,7 +77,7 @@ class UnitBench:
         labels: list[str] | None = None,
     ) -> None:
         """Run `vectors` and compare each output with `expected`."""
-        __tracebackhide__ = True  # pytest: show the message, not this function
+        __tracebackhide__ = True  # makes pytest show the message, not this function
         _compare(vectors, expected, self.run(vectors, name, labels), labels)
 
     def demo(

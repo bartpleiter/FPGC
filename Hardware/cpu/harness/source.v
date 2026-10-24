@@ -1,11 +1,11 @@
-// Test data for timing runs: W flip-flops that change every cycle in a way Quartus
-// can't predict or simplify, driven by a single input pin.
+// Test data for timing runs. W flip-flops, driven by a single input pin, change every
+// cycle in a way Quartus can't predict or simplify.
 //
 // Each bit becomes the XOR of its two neighbours,
 // so no bit is a plain copy of another one. Plain copies would be merged, and a
 // plain shift register could be turned into a RAM.
 //
-// Use one source per design and take slices of it: two sources of the same width
+// Use one source per design and take slices of it. Two sources of the same width
 // would be identical, and Quartus would merge them into one.
 module source #(
     parameter W = 32

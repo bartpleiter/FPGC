@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from .lockstep import RtlTrace, compare
+from .iss_comparison import RtlTrace, compare
 from .presets import check_preset
 
 ISS = [

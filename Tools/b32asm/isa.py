@@ -59,7 +59,7 @@ MULDIV_OPS = {
     "multuhi": 0b1111,
 }
 
-# Branch conditions: mnemonic -> (field "cond", field "s").
+# Branch conditions, as mnemonic -> (field "cond", field "s").
 BRANCH_OPS = {
     "beq": (0b000, 0),
     "bgt": (0b001, 0),

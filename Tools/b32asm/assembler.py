@@ -58,7 +58,7 @@ class Statement:
 
 @dataclass
 class Program:
-    """The result of assembling: words starting at `base`, and the label addresses."""
+    """The result of assembling, with the words starting at `base` and the label addresses."""
 
     base: int
     words: list[int]
@@ -74,7 +74,7 @@ def assemble(source: str, base: int = 0, filename: str = "<input>") -> Program:
     statements: list[Statement] = []
     labels: dict[str, int] = {}
 
-    # Pass 1: parse, expand and place.
+    # Pass 1 parses, expands and places the instructions.
     for number, text in enumerate(source.splitlines(), start=1):
         location = f"{filename}:{number}"
         code = text.split(";", 1)[0].strip()
@@ -97,7 +97,7 @@ def assemble(source: str, base: int = 0, filename: str = "<input>") -> Program:
     for i, statement in enumerate(statements):
         statement.address = base + 4 * i
 
-    # Pass 2: encode.
+    # Pass 2 encodes them.
     words = []
     for statement in statements:
         try:
@@ -283,7 +283,7 @@ def _encode(st: Statement, labels: dict[str, int]) -> int:
         "reti": (Opcode.RETI, {}),
         "ccache": (Opcode.CCACHE, {}),
         "ccached": (Opcode.CCACHE, {"data_only": 1}),
-        "nop": (Opcode.ARITH, {"op": ALU_OPS["or"]}),  # or r0 r0 r0: the all-zero word
+        "nop": (Opcode.ARITH, {"op": ALU_OPS["or"]}),  # or r0 r0 r0, the all-zero word
     }
     if m in no_operands:
         _check(m, ops)

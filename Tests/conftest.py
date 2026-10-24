@@ -10,12 +10,23 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     group.addoption(
         "--wave",
         action="store_true",
-        help="Dump a waveform of every lockstep run, to build/cpu/wave/.",
+        help="Dump a waveform of every ISS comparison, to build/cpu/wave/.",
     )
     group.addoption(
         "--program",
         action="append",
         default=[],
         type=Path,
-        help="Also run this program as a demo in lockstep, with a waveform.",
+        help="Also run this program as a demo, compared with the ISS, with a waveform.",
     )
+    group.addoption(
+        "--seeds",
+        type=int,
+        default=100,
+        help="The number of random programs compared with the ISS (default 100).",
+    )
+
+
+def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
+    if "random_seed" in metafunc.fixturenames:
+        metafunc.parametrize("random_seed", range(metafunc.config.getoption("seeds")))

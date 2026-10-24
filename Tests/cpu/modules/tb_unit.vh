@@ -9,10 +9,10 @@
 //
 // So the waveform reads from left to right as a list of cases. Plusargs:
 //
-//   +vectors=<file>   the input vectors: one per line, hex columns (required). The
-//                     first column is a label: up to 12 ASCII characters that name the
-//                     case in the waveform, such as the operation.
-//   +outputs=<file>   the outputs: one line per vector, hex columns (required)
+//   +vectors=<file>   the input vectors, one per line in hex columns (required). The
+//                     first column is a label of up to 12 ASCII characters that names
+//                     the case in the waveform, such as the operation.
+//   +outputs=<file>   the outputs, one line per vector in hex columns (required)
 //   +vcd=<file>       also dump a waveform
 //
 // The test (test_<unit>.py) writes the vectors and checks the outputs.
