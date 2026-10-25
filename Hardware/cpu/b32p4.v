@@ -5,20 +5,27 @@ module b32p4 (
     input  wire        clk,
     input  wire        reset,
 
-    // The instruction memory registers fetch_addr at the clock edge when fetch_en is 1,
-    // and fetch_word is the word at that address from then on.
+    // The instruction memory takes a request for the word at fetch_addr at a clock edge
+    // when fetch_en is 1. It answers with fetch_ready, in the cycle after the request at
+    // the earliest, and fetch_word is then the word until the next request.
     output wire [31:0] fetch_addr,
     output wire        fetch_en,
     input  wire [31:0] fetch_word,
+    input  wire        fetch_ready,
 
-    // The data memory registers data_addr at every clock edge, and sdram_word is the
-    // word at that address from then on. With sdram_write, it writes the bytes of
-    // data_write_data that data_byte_enable selects at that edge.
+    // The data memory takes a request for the word at data_addr at a clock edge when
+    // data_req is 1, and answers it in the same way, with data_ready and sdram_word.
+    // On both ports, the CPU only makes a new request once the last one is answered
+    // (apart from reset). A write is done
+    // at the clock edge when sdram_write is 1, which is only once the memory has
+    // answered: it writes the bytes of data_write_data that data_byte_enable selects.
     output wire [31:0] data_addr,
+    output wire        data_req,
     output wire [31:0] data_write_data,
     output wire [3:0]  data_byte_enable,
     output wire        sdram_write,
     input  wire [31:0] sdram_word,
+    input  wire        data_ready,
 
     // A debug port for observing finished (retired) instructions, currently used in simulation only
     output wire        retire_valid,
@@ -79,6 +86,7 @@ cpu_if if_stage (
     .fetch_addr(fetch_addr),
     .fetch_en(fetch_en),
     .fetch_word(fetch_word),
+    .fetch_ready(fetch_ready),
     .pc(pc),
     .if_instr(if_instr),
     .busy_if(busy_if)
@@ -306,10 +314,12 @@ cpu_mem mem_stage (
     .ex_redirect(ex_redirect),
     .ex_target(ex_target),
     .data_addr(data_addr),
+    .data_req(data_req),
     .data_write_data(data_write_data),
     .data_byte_enable(data_byte_enable),
     .sdram_write(sdram_write),
     .sdram_word(sdram_word),
+    .data_ready(data_ready),
     .ex_mem_valid(ex_mem_valid),
     .ex_mem_pc(ex_mem_pc),
     .ex_mem_instr(ex_mem_instr),

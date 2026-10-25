@@ -8,6 +8,7 @@ tb_b32p4.reset
 @28
 tb_b32p4.dut.mem_stage.stall_mem
 tb_b32p4.dut.mem_stage.flush_mem
+tb_b32p4.dut.mem_stage.busy_mem
 tb_b32p4.dut.mem_stage.ex_mem_valid
 @22
 tb_b32p4.dut.mem_stage.ex_mem_pc[31:0]
@@ -15,6 +16,8 @@ tb_b32p4.dut.mem_stage.ex_mem_instr[31:0]
 @200
 -
 -Data memory
+@28
+tb_b32p4.dut.mem_stage.data_req
 @22
 tb_b32p4.dut.mem_stage.data_addr[31:0]
 @28
@@ -25,6 +28,7 @@ tb_b32p4.dut.mem_stage.sdram_write
 tb_b32p4.dut.mem_stage.data_write_data[31:0]
 @28
 tb_b32p4.dut.mem_stage.data_byte_enable[3:0]
+tb_b32p4.dut.mem_stage.data_ready
 @22
 tb_b32p4.dut.mem_stage.sdram_word[31:0]
 @200

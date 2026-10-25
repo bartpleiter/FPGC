@@ -4,7 +4,9 @@
 //
 // For now that's the ROM, as the fetch memory, and one data memory of the size of the
 // future L1D data array (4 KiB, in four byte lanes). Every result can end up in a
-// write, so the data port's outputs going to the sink keeps the whole datapath.
+// write, so the data port's outputs going to the sink keeps the whole datapath. Whether
+// a memory has answered comes from the source, so from a register, as it would from a
+// real memory.
 module b32p4_harness (
     input  wire clk,
     input  wire din,
@@ -14,7 +16,9 @@ module b32p4_harness (
 wire [7:0] random;
 source #(8) src (.clk(clk), .din(din), .q(random));
 
-wire reset = random[0];
+wire reset       = random[0];
+wire fetch_ready = random[1];
+wire data_ready  = random[2];
 
 // The ROM, 4 KiB, filled with arbitrary words so Quartus can't simplify the CPU
 reg [31:0] rom [0:1023];
@@ -30,6 +34,7 @@ always @(posedge clk)
         fetch_word <= rom[fetch_addr[11:2]];
 
 wire [31:0] data_addr;
+wire        data_req;
 wire [31:0] data_write_data;
 wire [3:0]  data_byte_enable;
 wire        sdram_write;
@@ -57,11 +62,14 @@ b32p4 cpu (
     .fetch_addr(fetch_addr),
     .fetch_en(fetch_en),
     .fetch_word(fetch_word),
+    .fetch_ready(fetch_ready),
     .data_addr(data_addr),
+    .data_req(data_req),
     .data_write_data(data_write_data),
     .data_byte_enable(data_byte_enable),
     .sdram_write(sdram_write),
     .sdram_word(sdram_word),
+    .data_ready(data_ready),
     .retire_valid(),
     .retire_pc(),
     .retire_instr(),
@@ -83,9 +91,9 @@ b32p4 cpu (
 );
 /* verilator lint_on PINCONNECTEMPTY */
 
-sink #(69) out (
+sink #(70) out (
     .clk(clk),
-    .d({data_addr, data_write_data, data_byte_enable, sdram_write}),
+    .d({data_addr, data_req, data_write_data, data_byte_enable, sdram_write}),
     .dout(dout)
 );
 

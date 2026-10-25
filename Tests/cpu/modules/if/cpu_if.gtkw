@@ -17,6 +17,7 @@ tb_b32p4.dut.if_stage.redirect_target[31:0]
 tb_b32p4.dut.if_stage.fetch_addr[31:0]
 @28
 tb_b32p4.dut.if_stage.fetch_en
+tb_b32p4.dut.if_stage.fetch_ready
 @22
 tb_b32p4.dut.if_stage.fetch_word[31:0]
 @200
@@ -26,4 +27,5 @@ tb_b32p4.dut.if_stage.fetch_word[31:0]
 tb_b32p4.dut.if_stage.pc[31:0]
 tb_b32p4.dut.if_stage.if_instr[31:0]
 @28
+tb_b32p4.dut.if_stage.old_request
 tb_b32p4.dut.if_stage.busy_if

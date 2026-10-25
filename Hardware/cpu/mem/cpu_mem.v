@@ -33,14 +33,18 @@ module cpu_mem (
     input  wire        ex_redirect,
     input  wire [31:0] ex_target,
 
-    // The data memory. It registers data_addr at every clock edge, and sdram_word is
-    // the word at that address from then on. With sdram_write, it writes the bytes of
-    // data_write_data that data_byte_enable selects at that edge.
+    // The data memory takes a request for the word at data_addr at a clock edge when
+    // data_req is 1. It answers with data_ready, in the cycle after the request at the
+    // earliest, and sdram_word is then the word until the next request. A write is
+    // done at the clock edge when sdram_write is 1, which is only once the memory has
+    // answered: it writes the bytes of data_write_data that data_byte_enable selects.
     output wire [31:0] data_addr,
+    output wire        data_req,
     output wire [31:0] data_write_data,
     output wire [3:0]  data_byte_enable,
     output wire        sdram_write,
     input  wire [31:0] sdram_word,
+    input  wire        data_ready,
 
     // The EX/MEM register, as far as other stages need it
     output reg         ex_mem_valid,
@@ -107,8 +111,13 @@ end
 // The instruction commits at the end of this cycle.
 wire commit = ex_mem_valid && !stall_mem;
 
-// The data memory reads at the address of the instruction in EX, so a read has its word
-// in MEM. Only a write in MEM uses its own address, to write at the end of MEM.
+// A read or write to SDRAM makes its request at the clock edge where it enters MEM, with
+// the address from EX, so a read can have its word in MEM right away. The instruction
+// can't be cancelled any more once it's in MEM, so each one makes exactly one request.
+// Only a write in MEM uses its own address, to write at the end of MEM.
+wire enter_mem = id_ex_valid && !stall_mem && !flush_mem;
+
+assign data_req  = enter_mem && (id_ex_read || id_ex_write) && ex_sdram;
 assign data_addr = ex_mem_valid && ex_mem_write ? ex_mem_addr : ex_addr;
 
 cpu_write_align write_align (
@@ -219,6 +228,8 @@ assign mem_value       = ex_mem_read ? mem_read_value :
 assign redirect        = ex_mem_valid && ex_mem_redirect && !busy_mem;
 assign redirect_target = {ex_mem_target[31:2], 2'b00};  // the PC is a multiple of 4
 
-assign busy_mem = 1'b0;  // the data memory always answers in one cycle yet
+// A read or write to SDRAM waits in MEM until the data memory has answered.
+assign busy_mem = ex_mem_valid && (ex_mem_read || ex_mem_write) && ex_mem_sdram &&
+                  !data_ready;
 
 endmodule

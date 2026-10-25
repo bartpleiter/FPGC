@@ -23,6 +23,37 @@ def compile_b32p4() -> Path:
     )
 
 
+@dataclass(frozen=True)
+class Latency:
+    """How many cycles the memory models wait before they answer a request.
+
+    Each is a number, or "rand" for a random number per request from `seed`.
+    """
+
+    fetch: str = "0"
+    data: str = "0"
+    seed: int = 0
+
+    def plusargs(self) -> dict[str, object]:
+        return {
+            "fetch_latency": self.fetch,
+            "data_latency": self.data,
+            "seed": self.seed,
+        }
+
+    def options(self) -> str:
+        """The same as options of `fpgc cpu wave`, empty for the ideal memories."""
+        if self == IDEAL:
+            return ""
+        return (
+            f" --fetch-latency {self.fetch} --data-latency {self.data}"
+            f" --latency-seed {self.seed}"
+        )
+
+
+IDEAL = Latency()  # memories that answer right away, like a BRAM
+
+
 @dataclass
 class RtlTrace:
     records: list[str]  # one per retired instruction, in the ISS trace format
@@ -37,11 +68,14 @@ def run_iss_comparison(
     vcd: Path | None = None,
     max_cycles: int = 100_000,
     strict: bool = True,
+    latency: Latency = IDEAL,
 ) -> RtlTrace:
     """Run `source` (assembled at the ROM) on the RTL and the ISS; fail on a difference.
 
     With `strict` off, the ISS runs in hardware mode, for programs with illegal cases.
-    The files of the run are kept in build/cpu/iss_comparison/<name>/.
+    `latency` sets the memory models of the RTL; the retire trace must be the same for
+    every latency, only the cycles differ. The files of the run are kept in
+    build/cpu/iss_comparison/<name>/.
     """
     __tracebackhide__ = True
     out_dir = COMPARISON_DIR / name
@@ -66,6 +100,7 @@ def run_iss_comparison(
         "rom": rom_file,
         "trace": trace_file,
         "max_cycles": max_cycles,
+        **latency.plusargs(),
     }
     if vcd is not None:
         vcd.parent.mkdir(parents=True, exist_ok=True)
@@ -77,7 +112,8 @@ def run_iss_comparison(
         cycle, record = line.split(" ", 1)
         rtl.cycles.append(int(cycle))
         rtl.records.append(record)
-    compare(expected, rtl, f"fpgc cpu wave b32p4 {program_file.relative_to(REPO)}")
+    rerun = f"fpgc cpu wave b32p4 {program_file.relative_to(REPO)}{latency.options()}"
+    compare(expected, rtl, rerun)
     return rtl
 
 

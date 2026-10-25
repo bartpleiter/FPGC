@@ -61,22 +61,53 @@ def lint() -> None:
     "--view",
     help="Another preset of MODULE: <module>.<view>.gtkw, such as `--view data`.",
 )
-def wave(module: str, program: Path | None, view: str | None) -> None:
+@click.option(
+    "--fetch-latency",
+    default="0",
+    show_default=True,
+    help="How many cycles the instruction memory waits before it answers, or rand.",
+)
+@click.option(
+    "--data-latency",
+    default="0",
+    show_default=True,
+    help="How many cycles the data memory waits before it answers, or rand.",
+)
+@click.option(
+    "--latency-seed",
+    type=int,
+    default=0,
+    show_default=True,
+    help="The seed of the random latencies.",
+)
+def wave(
+    module: str,
+    program: Path | None,
+    view: str | None,
+    fetch_latency: str,
+    data_latency: str,
+    latency_seed: int,
+) -> None:
     """Run the demo of MODULE, or PROGRAM, and show it in GTKWave with its preset."""
     name = f"{module}.{view}.gtkw" if view else f"{module}.gtkw"
     presets = list(cfg.modules_dir.rglob(name))
     if not presets:
         raise click.UsageError(f"there is no {name} in {cfg.modules_dir}")
+    latency = [
+        f"--fetch-latency={fetch_latency}",
+        f"--data-latency={data_latency}",
+        f"--latency-seed={latency_seed}",
+    ]
     # The demo tests write the waveform. A failing run still has one, so go on.
+    tests: list[str | Path]
     if program is None:
-        run("pytest", cfg.modules_dir, "-q", "-k", f"demo and {module}", check=False)
+        tests = [cfg.modules_dir, "-k", f"demo and {module}"]
         name = module
     else:
         demos = cfg.modules_dir / "test_demo_programs.py"
-        run(
-            "pytest", demos, "-q", "--program", program, "-k", program.stem, check=False
-        )
+        tests = [demos, "--program", program, "-k", program.stem]
         name = program.stem
+    run("pytest", *tests, "-q", *latency, check=False)
     run("gtkwave", "-r", cfg.gtkwave_rc, "-a", presets[0], cfg.wave_dir / f"{name}.vcd")
 
 
