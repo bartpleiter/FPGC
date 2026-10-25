@@ -150,7 +150,7 @@ The stack is 256 words of on-chip memory, separate from the address space. It's 
 | PUSH | `push B` | `stack[SP] = B`, then `SP = SP + 1` |
 | POP | `pop D` | `SP = SP - 1`, then `D = stack[SP]` |
 
-- The SP can be read (not written) by reading a specific CPU-internal I/O register, which gives software (such as a context switch) access to SP.
+- The SP can be read and written through a CPU-internal I/O register, which gives software (such as a context switch) access to SP.
 - The SP wraps around on overflow and underflow.
 
 

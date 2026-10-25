@@ -1,7 +1,8 @@
 // Memory access stage (MEM)
-// The EX/MEM register, then reading and writing the data memory, the result, and the
-// redirect. An instruction commits when it leaves MEM, so this is where a write writes,
-// and where the redirect happens.
+// The EX/MEM register, then reading and writing the data memory, the stack and the
+// CPU-internal I/O registers, the result, and the redirect. An instruction commits when
+// it leaves MEM, so this is where a write writes, a push pushes, the error register
+// records the events of an instruction, and where the redirect happens.
 module cpu_mem (
     input  wire        clk,
     input  wire        reset,
@@ -19,10 +20,16 @@ module cpu_mem (
     input  wire        id_ex_byte,
     input  wire        id_ex_half,
     input  wire        id_ex_sign_extend,
+    input  wire        id_ex_push,
+    input  wire        id_ex_pop,
+    input  wire        id_ex_illegal,
     input  wire [31:0] ex_result,
     input  wire [31:0] ex_b,
     input  wire [31:0] ex_addr,
     input  wire        ex_sdram,
+    input  wire        ex_rom,
+    input  wire        ex_cpu_io,
+    input  wire        ex_unmapped,
     input  wire        ex_redirect,
     input  wire [31:0] ex_target,
 
@@ -44,6 +51,9 @@ module cpu_mem (
     output reg  [31:0] ex_mem_result,
     output reg         ex_mem_write,
     output reg  [31:0] ex_mem_addr,
+    output reg  [31:0] ex_mem_b,          // the data of a write or push
+    output reg         ex_mem_push,
+    output reg         ex_mem_pop,
 
     // To WB, and the redirect to IF
     output wire [31:0] mem_value,
@@ -56,12 +66,13 @@ reg        ex_mem_read;
 reg        ex_mem_byte;
 reg        ex_mem_half;
 reg        ex_mem_sign_extend;
-reg [31:0] ex_mem_b;
+reg        ex_mem_illegal;
 reg        ex_mem_sdram;
+reg        ex_mem_rom;
+reg        ex_mem_cpu_io;
+reg        ex_mem_unmapped;
 reg        ex_mem_redirect;
-// verilator lint_off UNUSEDSIGNAL
-reg [31:0] ex_mem_target;    // bits [1:0] are for the bad-target check, in a later step
-// verilator lint_on UNUSEDSIGNAL
+reg [31:0] ex_mem_target;
 
 always @(posedge clk) begin
     if (reset || flush_mem)
@@ -79,13 +90,22 @@ always @(posedge clk) begin
         ex_mem_byte        <= id_ex_byte;
         ex_mem_half        <= id_ex_half;
         ex_mem_sign_extend <= id_ex_sign_extend;
+        ex_mem_push        <= id_ex_push;
+        ex_mem_pop         <= id_ex_pop;
+        ex_mem_illegal     <= id_ex_illegal;
         ex_mem_addr        <= ex_addr;
         ex_mem_b           <= ex_b;
         ex_mem_sdram       <= ex_sdram;
+        ex_mem_rom         <= ex_rom;
+        ex_mem_cpu_io      <= ex_cpu_io;
+        ex_mem_unmapped    <= ex_unmapped;
         ex_mem_redirect    <= ex_redirect;
         ex_mem_target      <= ex_target;
     end
 end
+
+// The instruction commits at the end of this cycle.
+wire commit = ex_mem_valid && !stall_mem;
 
 // The data memory reads at the address of the instruction in EX, so a read has its word
 // in MEM. Only a write in MEM uses its own address, to write at the end of MEM.
@@ -100,10 +120,88 @@ cpu_write_align write_align (
     .byte_enable(data_byte_enable)
 );
 
-assign sdram_write = ex_mem_valid && ex_mem_write && ex_mem_sdram && !stall_mem;
+assign sdram_write = commit && ex_mem_write && ex_mem_sdram;
 
-// A read from a region without memory gives 0.
-wire [31:0] mem_read_word = ex_mem_sdram ? sdram_word : 32'd0;
+// The stack
+
+wire [7:0]  sp;
+wire [31:0] stack_top;
+wire        sp_write;
+wire        overflow;
+wire        underflow;
+
+cpu_stack stack (
+    .clk(clk),
+    .reset(reset),
+    .push(commit && ex_mem_push),
+    .push_value(ex_mem_b),
+    .pop(commit && ex_mem_pop),
+    .sp_write(sp_write),
+    .sp_write_value(ex_mem_b[7:0]),
+    .sp(sp),
+    .top(stack_top),
+    .overflow(overflow),
+    .underflow(underflow)
+);
+
+// The CPU-internal I/O registers, and the events for the error register
+
+wire        word = !ex_mem_byte && !ex_mem_half;
+wire        io_bad_read;
+wire        io_bad_write;
+wire [31:0] io_read_value;
+wire        target_code;
+
+// The jump target only needs to be in a region that can hold code.
+/* verilator lint_off PINCONNECTEMPTY */
+cpu_memory_map target_map (
+    .addr(ex_mem_target),
+    .sdram(),
+    .io(),
+    .rom(),
+    .vram32(),
+    .vram8(),
+    .vrampx(),
+    .palette(),
+    .cpu_io(),
+    .code(target_code),
+    .unmapped()
+);
+/* verilator lint_on PINCONNECTEMPTY */
+
+wire unaligned   = (ex_mem_read || ex_mem_write) &&
+                   (word ? ex_mem_addr[1:0] != 2'd0 : ex_mem_half && ex_mem_addr[0]);
+wire bad_address = ((ex_mem_read || ex_mem_write) && ex_mem_unmapped) ||
+                   (ex_mem_write && ex_mem_rom) ||
+                   (ex_mem_cpu_io && ex_mem_read && io_bad_read) ||
+                   (ex_mem_cpu_io && ex_mem_write && io_bad_write);
+wire bad_target  = ex_mem_redirect && (ex_mem_target[1:0] != 2'd0 || !target_code);
+
+// Bit n is the event of kind n + 1. The stack gives its events only when it commits.
+wire [5:0] events = {underflow, overflow,
+                     {bad_target, bad_address, unaligned, ex_mem_illegal} & {4{commit}}};
+
+cpu_io_regs io_regs (
+    .clk(clk),
+    .reset(reset),
+    .addr(ex_mem_addr[3:2]),
+    .word(word),
+    .bad_read(io_bad_read),
+    .bad_write(io_bad_write),
+    .read_value(io_read_value),
+    .write(commit && ex_mem_write && ex_mem_cpu_io),
+    .write_data(ex_mem_b),
+    .sp(sp),
+    .sp_write(sp_write),
+    .events(events),
+    .events_pc(ex_mem_pc)
+);
+
+// The result. A read from a region without memory gives 0.
+
+wire [31:0] mem_read_word = ex_mem_sdram  ? sdram_word    :
+                            ex_mem_cpu_io ? io_read_value :
+                                            32'd0;
 wire [31:0] mem_read_value;
 
 cpu_read_align read_align (
@@ -115,7 +213,9 @@ cpu_read_align read_align (
     .value(mem_read_value)
 );
 
-assign mem_value       = ex_mem_read ? mem_read_value : ex_mem_result;
+assign mem_value       = ex_mem_read ? mem_read_value :
+                         ex_mem_pop  ? stack_top      :
+                                       ex_mem_result;
 assign redirect        = ex_mem_valid && ex_mem_redirect && !busy_mem;
 assign redirect_target = {ex_mem_target[31:2], 2'b00};  // the PC is a multiple of 4
 

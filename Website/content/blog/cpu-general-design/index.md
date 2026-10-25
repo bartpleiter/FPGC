@@ -1,5 +1,5 @@
 ---
-title: CPU part 1 - Pipeline
+title: CPU part 1 - General design
 date: 2026-10-19T10:00:00
 authors:
   - name: Bart Pleiter

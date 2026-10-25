@@ -73,8 +73,6 @@ WB only writes the register file, which always takes one cycle, so there is noth
 
 ## Simulation
 
-<!-- TODO: screenshot of `fpgc cpu wave cpu_hazard`, saved as Website/static/images/sim-hazard.png -->
-
 ![Hazard unit simulation in GTKWave](/images/sim-hazard.png "Hazard unit simulation in GTKWave")
 
 Here you can see the hazard unit in GTKWave, where first each stage is busy on its own, followed by a redirect and two combinations. Again, combinational logic, so the clk signal is just for spacing.

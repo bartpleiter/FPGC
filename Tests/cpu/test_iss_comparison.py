@@ -20,14 +20,17 @@ from .test_random import ALU_ONLY
 # The opcodes the RTL executes, and the mnemonics for the random programs.
 SUPPORTED = {Opcode.ARITH, Opcode.ARITHC, Opcode.SAVPC, Opcode.BRANCH, Opcode.JUMP}
 SUPPORTED |= {Opcode.JUMPR, Opcode.HALT, Opcode.READ, Opcode.WRITE}
+SUPPORTED |= {Opcode.PUSH, Opcode.POP}
 RANDOM_ONLY = ALU_ONLY | {*BRANCH_OPS, "jump", "jumpr", "jumpro", "savpc"}
-RANDOM_ONLY |= {*READ_OPS, *WRITE_OPS}
-# The regions with a memory behind the data port. Only SDRAM yet, so the directed
-# programs that read ROM or video memory wait for the step that adds those memories.
-RANDOM_REGIONS = frozenset({"sdram"})
+RANDOM_ONLY |= {*READ_OPS, *WRITE_OPS, "push", "pop"}
+# The regions with a memory behind the data port. Only SDRAM and the CPU-internal I/O
+# yet, so the directed programs that read ROM or video memory wait for the step that
+# adds those memories.
+RANDOM_REGIONS = frozenset({"sdram", "cpu_io"})
 NEEDS_REGION = {"rom_to_ram_copy", "vram_loop_write", "vram_read_write"}
 
 PROGRAMS = sorted((Path(__file__).parent / "asm").rglob("*.asm"))
+ERROR_PROGRAMS = sorted((Path(__file__).parent / "errors").glob("*.asm"))
 
 
 def supported(path: Path) -> bool:
@@ -43,6 +46,13 @@ def supported(path: Path) -> bool:
 def test_program(b32p4_sim: Path, wave_dir: Path | None, path: Path) -> None:
     vcd = wave_dir / f"{path.stem}.vcd" if wave_dir else None
     run_iss_comparison(b32p4_sim, path.read_text(), path.stem, vcd)
+
+
+@pytest.mark.parametrize("path", ERROR_PROGRAMS, ids=lambda p: p.stem)
+def test_error_program(b32p4_sim: Path, wave_dir: Path | None, path: Path) -> None:
+    """The programs with illegal cases, compared with the ISS in hardware mode."""
+    vcd = wave_dir / f"{path.stem}.vcd" if wave_dir else None
+    run_iss_comparison(b32p4_sim, path.read_text(), path.stem, vcd, strict=False)
 
 
 def test_random(b32p4_sim: Path, wave_dir: Path | None, random_seed: int) -> None:

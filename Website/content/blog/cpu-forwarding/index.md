@@ -85,8 +85,6 @@ There is one more catch, which is not in the forwarding unit itself but in EX. L
 
 ## Simulation
 
-<!-- TODO: screenshot of `fpgc cpu wave cpu_forward`, saved as Website/static/images/sim-forward.png -->
-
 ![Forwarding unit simulation in GTKWave](/images/sim-forward.png "Forwarding unit simulation in GTKWave")
 
 Here you can see the forwarding unit in GTKWave. In every case, the instruction in ID is an `add` that reads `r1` and `r2`, and the cases change which registers the instructions in EX and MEM write. Again, this is combinational logic, so the clk signal is just for spacing. Some things to look at:

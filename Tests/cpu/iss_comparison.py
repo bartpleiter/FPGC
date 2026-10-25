@@ -36,9 +36,11 @@ def run_iss_comparison(
     name: str,
     vcd: Path | None = None,
     max_cycles: int = 100_000,
+    strict: bool = True,
 ) -> RtlTrace:
     """Run `source` (assembled at the ROM) on the RTL and the ISS; fail on a difference.
 
+    With `strict` off, the ISS runs in hardware mode, for programs with illegal cases.
     The files of the run are kept in build/cpu/iss_comparison/<name>/.
     """
     __tracebackhide__ = True
@@ -50,7 +52,7 @@ def run_iss_comparison(
     words = program.words
     assert len(words) <= ROM_SIZE // 4, "the program doesn't fit in the ROM"
 
-    machine = Machine()
+    machine = Machine(strict=strict)
     machine.load(ROM_BASE, program.to_bytes())
     expected = [str(r) for r in machine.run(max_steps=max_cycles)]
     (out_dir / "iss.trace").write_text("".join(f"{r}\n" for r in expected))

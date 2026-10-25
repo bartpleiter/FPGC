@@ -1,0 +1,33 @@
+[*] GTKWave preset for cpu_stack (fpgc cpu wave cpu_stack)
+@28
+tb_cpu_stack.clk
+@820
+tb_cpu_stack.label[95:0]
+@28
+tb_cpu_stack.dut.reset
+@200
+-
+-Inputs
+@28
+tb_cpu_stack.dut.push
+@22
+tb_cpu_stack.dut.push_value[31:0]
+@28
+tb_cpu_stack.dut.pop
+tb_cpu_stack.dut.sp_write
+@24
+tb_cpu_stack.dut.sp_write_value[7:0]
+@200
+-
+-Stack pointer
+@24
+tb_cpu_stack.dut.sp[7:0]
+tb_cpu_stack.dut.next_sp[7:0]
+@200
+-
+-Outputs
+@22
+tb_cpu_stack.dut.top[31:0]
+@28
+tb_cpu_stack.dut.overflow
+tb_cpu_stack.dut.underflow

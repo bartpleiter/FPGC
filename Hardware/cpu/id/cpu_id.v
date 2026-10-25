@@ -53,6 +53,9 @@ module cpu_id (
     output wire        id_byte,           // read or write size, a word if neither byte nor half
     output wire        id_half,
     output wire        id_sign_extend,    // readb, readh
+    output wire        id_push,
+    output wire        id_pop,
+    output wire        id_illegal,        // a reserved encoding, which does nothing
     output wire        id_areg_from_mem,
     output wire        id_areg_from_wb,
     output wire        id_breg_from_mem,
@@ -108,8 +111,8 @@ cpu_decoder decoder (
     .div(),
     .read(id_read),
     .write(id_write),
-    .push(),
-    .pop(),
+    .push(id_push),
+    .pop(id_pop),
     .branch(id_branch),
     .jump(id_jump),
     .jumpr(id_jumpr),
@@ -117,7 +120,7 @@ cpu_decoder decoder (
     .reti(),
     .ccache(),
     .intid(),
-    .illegal()
+    .illegal(id_illegal)
 );
 /* verilator lint_on PINCONNECTEMPTY */
 

@@ -2,6 +2,9 @@
 
 Each program in asm/ ends with `halt` and has an `; expected=N` comment with the value
 r15 must have at that point. Programs run in strict mode, so any illegal case fails.
+
+The programs in errors/ have illegal cases on purpose, one file per kind of event. They
+run in hardware mode, and read ERR_STATUS into r15 at the end.
 """
 
 import re
@@ -13,6 +16,7 @@ from b32asm.assembler import assemble
 from b32sim.sim import ROM_BASE, SDRAM_BASE, Machine
 
 PROGRAMS = sorted((Path(__file__).parent / "asm").rglob("*.asm"))
+ERROR_PROGRAMS = sorted((Path(__file__).parent / "errors").glob("*.asm"))
 
 
 def expected_r15(source: str) -> int:
@@ -21,8 +25,10 @@ def expected_r15(source: str) -> int:
     return int(match.group(1))
 
 
-def run_program(source: str, name: str, from_sdram: bool) -> Machine:
-    machine = Machine()
+def run_program(
+    source: str, name: str, from_sdram: bool, strict: bool = True
+) -> Machine:
+    machine = Machine(strict=strict)
     if from_sdram:
         machine.load(ROM_BASE, assemble("jump 0").to_bytes())
         machine.load(SDRAM_BASE, assemble(source, SDRAM_BASE, name).to_bytes())
@@ -39,3 +45,11 @@ def test_program(path: Path, from_sdram: bool) -> None:
     machine = run_program(source, str(path), from_sdram)
     assert machine.regs[15] == expected_r15(source)
     assert machine.err_status == 0
+
+
+@pytest.mark.parametrize("from_sdram", [False, True], ids=["rom", "sdram"])
+@pytest.mark.parametrize("path", ERROR_PROGRAMS, ids=lambda p: p.stem)
+def test_error_program(path: Path, from_sdram: bool) -> None:
+    source = path.read_text()
+    machine = run_program(source, str(path), from_sdram, strict=False)
+    assert machine.regs[15] == expected_r15(source)

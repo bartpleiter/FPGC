@@ -18,6 +18,9 @@ module cpu_wb (
     // verilator lint_on UNUSEDSIGNAL
     input  wire [31:0] data_write_data,
     input  wire [3:0]  data_byte_enable,
+    input  wire        ex_mem_push,
+    input  wire        ex_mem_pop,
+    input  wire [31:0] ex_mem_b,          // the value of a push
     input  wire        redirect,
     input  wire [31:0] redirect_target,
 
@@ -55,6 +58,9 @@ reg        mem_wb_write;
 reg [31:0] mem_wb_write_addr;
 reg [31:0] mem_wb_write_data;
 reg [3:0]  mem_wb_write_be;
+reg        mem_wb_push;
+reg [31:0] mem_wb_push_value;
+reg        mem_wb_pop;
 reg        mem_wb_redirect;
 reg [31:0] mem_wb_target;
 
@@ -70,6 +76,9 @@ always @(posedge clk) begin
     mem_wb_write_addr  <= {ex_mem_addr[31:2], 2'b00};  // the trace shows the word
     mem_wb_write_data  <= data_write_data;
     mem_wb_write_be    <= data_byte_enable;
+    mem_wb_push        <= ex_mem_push;
+    mem_wb_push_value  <= ex_mem_b;
+    mem_wb_pop         <= ex_mem_pop;
     mem_wb_redirect    <= redirect;
     mem_wb_target      <= redirect_target;
 end
@@ -86,10 +95,10 @@ assign retire_write       = mem_wb_valid && mem_wb_write;
 assign retire_write_addr  = mem_wb_write_addr;
 assign retire_write_data  = mem_wb_write_data;
 assign retire_write_be    = mem_wb_write_be;
-assign retire_push        = 1'b0;
-assign retire_push_value  = 32'd0;
-assign retire_pop         = 1'b0;
-assign retire_pop_value   = 32'd0;
+assign retire_push        = mem_wb_valid && mem_wb_push;
+assign retire_push_value  = mem_wb_push_value;
+assign retire_pop         = mem_wb_valid && mem_wb_pop;
+assign retire_pop_value   = mem_wb_value;  // also for pop r0
 assign retire_redirect    = mem_wb_redirect;
 assign retire_target      = mem_wb_target;
 assign retire_irq         = 1'b0;

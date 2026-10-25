@@ -94,8 +94,6 @@ The `add` needs `r2` from the instruction right in front of it, and `r1` from th
 
 ## Simulation
 
-<!-- TODO: screenshot of `fpgc cpu wave b32p4`, saved as Website/static/images/sim-pipeline.png -->
-
 ![Pipeline simulation in GTKWave](/images/sim-pipeline.png "Pipeline simulation in GTKWave")
 
 Here you can see the demo program in GTKWave. Each stage gets its own section, with the valid bit and the PC of the instruction that is in it, so you can follow an instruction through the pipeline by following its PC diagonally down. Some things to look at:

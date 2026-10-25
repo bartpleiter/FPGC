@@ -40,6 +40,37 @@ tb_b32p4.dut.mem_stage.ex_mem_addr[31:0]
 tb_b32p4.dut.mem_stage.mem_read_value[31:0]
 @200
 -
+-Stack
+@28
+tb_b32p4.dut.mem_stage.ex_mem_push
+tb_b32p4.dut.mem_stage.ex_mem_pop
+@24
+tb_b32p4.dut.mem_stage.stack.sp[7:0]
+tb_b32p4.dut.mem_stage.stack.next_sp[7:0]
+@22
+tb_b32p4.dut.mem_stage.ex_mem_b[31:0]
+tb_b32p4.dut.mem_stage.stack_top[31:0]
+@200
+-
+-CPU-internal I/O
+@28
+tb_b32p4.dut.mem_stage.ex_mem_cpu_io
+tb_b32p4.dut.mem_stage.io_bad_read
+@22
+tb_b32p4.dut.mem_stage.io_read_value[31:0]
+@200
+-
+-Error register
+@28
+tb_b32p4.dut.mem_stage.commit
+@24
+tb_b32p4.dut.mem_stage.events[5:0]
+tb_b32p4.dut.mem_stage.io_regs.err_flags[5:0]
+tb_b32p4.dut.mem_stage.io_regs.err_first[2:0]
+@22
+tb_b32p4.dut.mem_stage.io_regs.err_pc[31:0]
+@200
+-
 -Result
 @22
 tb_b32p4.dut.mem_stage.ex_mem_result[31:0]

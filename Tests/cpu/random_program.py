@@ -7,20 +7,22 @@ How a program is built:
 - r1-r6 are the working registers: every source and destination comes from this small
   pool, so most instructions depend on the ones just before them.
 - Fixed registers, never written by the random instructions:
-  r10 = CPU-internal I/O base, r11 = scratch for jumps, r12 = loop counter,
-  r13 = data window in SDRAM, r14 = data window in video memory (word access only).
+  r10 = CPU-internal I/O base, r11 = scratch for jumps and the drop,
+  r12 = loop counter, r13 = data window in SDRAM, r14 = data window in video memory
+  (word access only).
 - The data windows are filled with known values first, so every read is defined.
 - Control flow only goes forward, except the backward branch of a counted loop.
   Forward branches and jumps skip over the next few units, never into a loop.
 - The stack is only used outside skipped regions, so its depth is always known.
-  It's emptied before the final halt.
+  It's emptied before the final halt. Besides push and pop, a "drop" lowers SP by
+  writing it, without reading the word.
 - `only` restricts a program to some instructions, for the RTL steps that don't have
   all of them yet. Whatever needs a missing instruction is left out: without `write`
   there are no data windows and no memory accesses, without `load` and `loadhi` the
   registers start at 0, and so on.
 - `regions` restricts the reads and writes to some regions, for the RTL steps that
   don't have all memories yet: "sdram" (the SDRAM window), "video" (the video window)
-  and "cpu_io" (reading SP).
+  and "cpu_io" (reading the CPU-internal registers, and the drop).
 """
 
 import random
@@ -30,6 +32,7 @@ WORK_REGS = [f"r{n}" for n in range(1, 7)]
 SOURCE_REGS = ["r0", *WORK_REGS]
 
 CPU_IO_BASE = 0x1F000000
+CPU_IO_OFFSETS = [0, 4, 8, 12]  # PC_BACKUP, SP, ERR_STATUS, ERR_PC
 SP_OFFSET = 4
 
 # The SDRAM data is two cache lines at 0x10000, and two that map to the same L1 lines
@@ -83,6 +86,7 @@ class _Generator:
         self.read_ops = {o: s for o, s in READ_OPS.items() if self.ok(o)}
         self.write_ops = {o: s for o, s in WRITE_OPS.items() if self.ok(o)}
         self.load32 = self.ok("load", "loadhi")
+        self.cpu_io_ok = self.load32 and self.ok("read") and "cpu_io" in regions
         # The data windows need their base registers, and are filled with `write`.
         self.memory_ok = self.load32 and self.ok("write") and "sdram" in regions
         self.windows = [("r13", SDRAM_DATA_OFFSETS)]
@@ -97,7 +101,7 @@ class _Generator:
         self.special_forms = _available(
             (2, self.savpc, self.ok("savpc")),
             (2, self.readintid, self.ok("readintid")),
-            (2, self.read_sp, self.load32 and self.ok("read") and "cpu_io" in regions),
+            (2, self.read_cpu_io, self.cpu_io_ok),
             (1, self.ccache, self.ok("ccache")),
             (1, self.ccached, self.ok("ccached")),
             (2, self.nop, self.ok("nop")),
@@ -119,6 +123,7 @@ class _Generator:
         )
         self.loop_ok = self.ok("load", "sub", "bne")
         self.stack_ok = self.ok("push", "pop")
+        self.drop_ok = self.cpu_io_ok and self.ok("sub", "write")
 
     def ok(self, *mnemonics: str) -> bool:
         """Whether the program may use all of these mnemonics."""
@@ -215,8 +220,8 @@ class _Generator:
     def readintid(self) -> None:
         self.emit(f"readintid {self.dst()}")
 
-    def read_sp(self) -> None:
-        self.emit(f"read {SP_OFFSET} r10 {self.dst()}")
+    def read_cpu_io(self) -> None:
+        self.emit(f"read {self.rng.choice(CPU_IO_OFFSETS)} r10 {self.dst()}")
 
     def ccache(self) -> None:
         self.emit("ccache")
@@ -271,7 +276,14 @@ class _Generator:
         self.emit("sub r12 1 r12", f"bne r12 r0 {label}")
 
     def stack(self) -> None:
-        if self.stack_depth > 0 and self.rng.random() < 0.5:
+        if self.stack_depth > 0 and self.drop_ok and self.rng.random() < 0.1:
+            self.stack_depth -= 1
+            self.emit(
+                f"read {SP_OFFSET} r10 r11",
+                "sub r11 1 r11",
+                f"write {SP_OFFSET} r10 r11",
+            )
+        elif self.stack_depth > 0 and self.rng.random() < 0.5:
             self.stack_depth -= 1
             self.emit(f"pop {self.dst()}")
         elif self.stack_depth < MAX_STACK_DEPTH:

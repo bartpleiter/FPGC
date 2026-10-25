@@ -120,6 +120,9 @@ wire        id_write;
 wire        id_byte;
 wire        id_half;
 wire        id_sign_extend;
+wire        id_push;
+wire        id_pop;
+wire        id_illegal;
 wire        id_areg_from_mem;
 wire        id_areg_from_wb;
 wire        id_breg_from_mem;
@@ -165,6 +168,9 @@ cpu_id id_stage (
     .id_byte(id_byte),
     .id_half(id_half),
     .id_sign_extend(id_sign_extend),
+    .id_push(id_push),
+    .id_pop(id_pop),
+    .id_illegal(id_illegal),
     .id_areg_from_mem(id_areg_from_mem),
     .id_areg_from_wb(id_areg_from_wb),
     .id_breg_from_mem(id_breg_from_mem),
@@ -181,13 +187,20 @@ wire        id_ex_write;
 wire        id_ex_byte;
 wire        id_ex_half;
 wire        id_ex_sign_extend;
+wire        id_ex_push;
+wire        id_ex_pop;
+wire        id_ex_illegal;
 wire [31:0] ex_mem_result;
 wire        ex_mem_write;
+wire        ex_mem_push;
 wire [31:0] ex_mem_addr;
 wire [31:0] ex_result;
 wire [31:0] ex_b;
 wire [31:0] ex_addr;
 wire        ex_sdram;
+wire        ex_rom;
+wire        ex_cpu_io;
+wire        ex_unmapped;
 wire        ex_redirect;
 wire [31:0] ex_target;
 
@@ -219,6 +232,9 @@ cpu_ex ex_stage (
     .id_byte(id_byte),
     .id_half(id_half),
     .id_sign_extend(id_sign_extend),
+    .id_push(id_push),
+    .id_pop(id_pop),
+    .id_illegal(id_illegal),
     .id_areg_from_mem(id_areg_from_mem),
     .id_areg_from_wb(id_areg_from_wb),
     .id_breg_from_mem(id_breg_from_mem),
@@ -227,6 +243,7 @@ cpu_ex ex_stage (
     .mem_wb_value(mem_wb_value),
     .ex_mem_valid(ex_mem_valid),
     .ex_mem_write(ex_mem_write),
+    .ex_mem_push(ex_mem_push),
     .id_ex_valid(id_ex_valid),
     .id_ex_pc(id_ex_pc),
     .id_ex_instr(id_ex_instr),
@@ -238,10 +255,16 @@ cpu_ex ex_stage (
     .id_ex_byte(id_ex_byte),
     .id_ex_half(id_ex_half),
     .id_ex_sign_extend(id_ex_sign_extend),
+    .id_ex_push(id_ex_push),
+    .id_ex_pop(id_ex_pop),
+    .id_ex_illegal(id_ex_illegal),
     .ex_result(ex_result),
     .ex_b(ex_b),
     .ex_addr(ex_addr),
     .ex_sdram(ex_sdram),
+    .ex_rom(ex_rom),
+    .ex_cpu_io(ex_cpu_io),
+    .ex_unmapped(ex_unmapped),
     .ex_redirect(ex_redirect),
     .ex_target(ex_target),
     .busy_ex(busy_ex)
@@ -251,6 +274,8 @@ cpu_ex ex_stage (
 
 wire [31:0] ex_mem_pc;
 wire [31:0] ex_mem_instr;
+wire [31:0] ex_mem_b;
+wire        ex_mem_pop;
 wire [31:0] mem_value;
 
 cpu_mem mem_stage (
@@ -268,10 +293,16 @@ cpu_mem mem_stage (
     .id_ex_byte(id_ex_byte),
     .id_ex_half(id_ex_half),
     .id_ex_sign_extend(id_ex_sign_extend),
+    .id_ex_push(id_ex_push),
+    .id_ex_pop(id_ex_pop),
+    .id_ex_illegal(id_ex_illegal),
     .ex_result(ex_result),
     .ex_b(ex_b),
     .ex_addr(ex_addr),
     .ex_sdram(ex_sdram),
+    .ex_rom(ex_rom),
+    .ex_cpu_io(ex_cpu_io),
+    .ex_unmapped(ex_unmapped),
     .ex_redirect(ex_redirect),
     .ex_target(ex_target),
     .data_addr(data_addr),
@@ -287,6 +318,9 @@ cpu_mem mem_stage (
     .ex_mem_result(ex_mem_result),
     .ex_mem_write(ex_mem_write),
     .ex_mem_addr(ex_mem_addr),
+    .ex_mem_b(ex_mem_b),
+    .ex_mem_push(ex_mem_push),
+    .ex_mem_pop(ex_mem_pop),
     .mem_value(mem_value),
     .redirect(redirect),
     .redirect_target(redirect_target),
@@ -309,6 +343,9 @@ cpu_wb wb_stage (
     .ex_mem_addr(ex_mem_addr),
     .data_write_data(data_write_data),
     .data_byte_enable(data_byte_enable),
+    .ex_mem_push(ex_mem_push),
+    .ex_mem_pop(ex_mem_pop),
+    .ex_mem_b(ex_mem_b),
     .redirect(redirect),
     .redirect_target(redirect_target),
     .wb_writes_dreg(wb_writes_dreg),

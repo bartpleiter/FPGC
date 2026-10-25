@@ -45,7 +45,7 @@ tb_b32p4.dut.ex_stage.id_ex_alu_use_const
 tb_b32p4.dut.ex_stage.ex_result[31:0]
 @200
 -
--Reads and writes
+-Reads, writes and the stack
 @28
 tb_b32p4.dut.ex_stage.id_ex_read
 tb_b32p4.dut.ex_stage.id_ex_write
@@ -54,6 +54,10 @@ tb_b32p4.dut.ex_stage.ex_addr[31:0]
 @28
 tb_b32p4.dut.ex_stage.ex_sdram
 tb_b32p4.dut.ex_stage.ex_mem_write
+tb_b32p4.dut.ex_stage.write_then_access
+tb_b32p4.dut.ex_stage.id_ex_pop
+tb_b32p4.dut.ex_stage.ex_mem_push
+tb_b32p4.dut.ex_stage.push_then_pop
 tb_b32p4.dut.ex_stage.busy_ex
 @200
 -

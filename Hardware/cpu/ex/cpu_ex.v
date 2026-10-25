@@ -32,6 +32,9 @@ module cpu_ex (
     input  wire        id_byte,
     input  wire        id_half,
     input  wire        id_sign_extend,
+    input  wire        id_push,
+    input  wire        id_pop,
+    input  wire        id_illegal,
     input  wire        id_areg_from_mem,
     input  wire        id_areg_from_wb,
     input  wire        id_breg_from_mem,
@@ -41,9 +44,11 @@ module cpu_ex (
     input  wire [31:0] ex_mem_result,
     input  wire [31:0] mem_wb_value,
 
-    // A write in MEM, which uses the data memory in this cycle
+    // A write in MEM, which uses the data memory in this cycle, and a push in MEM,
+    // which writes the word a pop would read
     input  wire        ex_mem_valid,
     input  wire        ex_mem_write,
+    input  wire        ex_mem_push,
 
     // The ID/EX register, as far as other stages need it
     output reg         id_ex_valid,
@@ -57,12 +62,18 @@ module cpu_ex (
     output reg         id_ex_byte,
     output reg         id_ex_half,
     output reg         id_ex_sign_extend,
+    output reg         id_ex_push,
+    output reg         id_ex_pop,
+    output reg         id_ex_illegal,
 
     // To MEM
     output wire [31:0] ex_result,
     output wire [31:0] ex_b,           // the data of a write
     output wire [31:0] ex_addr,        // also the address of the data memory
-    output wire        ex_sdram,       // the address is in SDRAM
+    output wire        ex_sdram,       // the region of the address
+    output wire        ex_rom,
+    output wire        ex_cpu_io,
+    output wire        ex_unmapped,
     output wire        ex_redirect,
     output wire [31:0] ex_target,
     output wire        busy_ex
@@ -124,6 +135,9 @@ always @(posedge clk) begin
         id_ex_byte          <= id_byte;
         id_ex_half          <= id_half;
         id_ex_sign_extend   <= id_sign_extend;
+        id_ex_push          <= id_push;
+        id_ex_pop           <= id_pop;
+        id_ex_illegal       <= id_illegal;
         id_ex_areg_from_mem <= id_areg_from_mem;
         id_ex_areg_from_wb  <= id_areg_from_wb;
         id_ex_breg_from_mem <= id_breg_from_mem;
@@ -155,14 +169,14 @@ cpu_memory_map memory_map (
     .addr(ex_addr),
     .sdram(ex_sdram),
     .io(),
-    .rom(),
+    .rom(ex_rom),
     .vram32(),
     .vram8(),
     .vrampx(),
     .palette(),
-    .cpu_io(),
+    .cpu_io(ex_cpu_io),
     .code(),
-    .unmapped()
+    .unmapped(ex_unmapped)
 );
 /* verilator lint_on PINCONNECTEMPTY */
 
@@ -182,7 +196,11 @@ assign ex_target   = id_ex_jumpr ? ex_addr : id_ex_target;
 
 // A write in MEM uses the address of the data memory, so a read or write in EX has to
 // wait a cycle (the write-then-access stall). A read that waits like this also reads
-// what the write wrote.
-assign busy_ex = id_ex_valid && (id_ex_read || id_ex_write) && ex_mem_valid && ex_mem_write;
+// what the write wrote. A pop in EX waits for a push in MEM in the same way (the
+// push-then-pop stall), because the stack can't read the word that is being written.
+wire write_then_access = (id_ex_read || id_ex_write) && ex_mem_valid && ex_mem_write;
+wire push_then_pop     = id_ex_pop && ex_mem_valid && ex_mem_push;
+
+assign busy_ex = id_ex_valid && (write_then_access || push_then_pop);
 
 endmodule

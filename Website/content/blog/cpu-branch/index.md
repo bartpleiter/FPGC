@@ -61,8 +61,6 @@ A branch that is not taken does nothing at all: the CPU always assumes a branch 
 
 ## Simulation
 
-<!-- TODO: screenshot of `fpgc cpu wave cpu_branch`, saved as Website/static/images/sim-branch.png -->
-
 ![Branch unit simulation in GTKWave](/images/sim-branch.png "Branch unit simulation in GTKWave")
 
 Here you can see the branch unit in GTKWave. Each case is one branch condition with two values, and in the middle you can see the two compares that all conditions are built from. Like the other units, this is combinational logic, so the clk signal is just for spacing. Some things to look at:
