@@ -1,0 +1,26 @@
+[*] GTKWave preset for cpu_read_align (fpgc cpu wave cpu_read_align)
+@28
+tb_cpu_read_align.clk
+@820
+tb_cpu_read_align.label[95:0]
+@200
+-
+-Inputs
+@22
+tb_cpu_read_align.dut.word[31:0]
+@28
+tb_cpu_read_align.dut.addr[1:0]
+tb_cpu_read_align.dut.mem_byte
+tb_cpu_read_align.dut.mem_half
+tb_cpu_read_align.dut.sign_extend
+@200
+-
+-Selected bytes
+@22
+tb_cpu_read_align.dut.byte_value[7:0]
+tb_cpu_read_align.dut.half_value[15:0]
+@200
+-
+-Output
+@22
+tb_cpu_read_align.dut.value[31:0]

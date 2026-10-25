@@ -11,6 +11,15 @@ module b32p4 (
     output wire        fetch_en,
     input  wire [31:0] fetch_word,
 
+    // The data memory registers data_addr at every clock edge, and sdram_word is the
+    // word at that address from then on. With sdram_write, it writes the bytes of
+    // data_write_data that data_byte_enable selects at that edge.
+    output wire [31:0] data_addr,
+    output wire [31:0] data_write_data,
+    output wire [3:0]  data_byte_enable,
+    output wire        sdram_write,
+    input  wire [31:0] sdram_word,
+
     // A debug port for observing finished (retired) instructions, currently used in simulation only
     output wire        retire_valid,
     output wire [31:0] retire_pc,
@@ -106,6 +115,11 @@ wire        id_branch;
 wire        id_jump;
 wire        id_jumpr;
 wire        id_halt;
+wire        id_read;
+wire        id_write;
+wire        id_byte;
+wire        id_half;
+wire        id_sign_extend;
 wire        id_areg_from_mem;
 wire        id_areg_from_wb;
 wire        id_breg_from_mem;
@@ -146,6 +160,11 @@ cpu_id id_stage (
     .id_jump(id_jump),
     .id_jumpr(id_jumpr),
     .id_halt(id_halt),
+    .id_read(id_read),
+    .id_write(id_write),
+    .id_byte(id_byte),
+    .id_half(id_half),
+    .id_sign_extend(id_sign_extend),
     .id_areg_from_mem(id_areg_from_mem),
     .id_areg_from_wb(id_areg_from_wb),
     .id_breg_from_mem(id_breg_from_mem),
@@ -157,8 +176,18 @@ cpu_id id_stage (
 
 wire [31:0] id_ex_pc;
 wire [31:0] id_ex_instr;
+wire        id_ex_read;
+wire        id_ex_write;
+wire        id_ex_byte;
+wire        id_ex_half;
+wire        id_ex_sign_extend;
 wire [31:0] ex_mem_result;
+wire        ex_mem_write;
+wire [31:0] ex_mem_addr;
 wire [31:0] ex_result;
+wire [31:0] ex_b;
+wire [31:0] ex_addr;
+wire        ex_sdram;
 wire        ex_redirect;
 wire [31:0] ex_target;
 
@@ -185,19 +214,34 @@ cpu_ex ex_stage (
     .id_jump(id_jump),
     .id_jumpr(id_jumpr),
     .id_halt(id_halt),
+    .id_read(id_read),
+    .id_write(id_write),
+    .id_byte(id_byte),
+    .id_half(id_half),
+    .id_sign_extend(id_sign_extend),
     .id_areg_from_mem(id_areg_from_mem),
     .id_areg_from_wb(id_areg_from_wb),
     .id_breg_from_mem(id_breg_from_mem),
     .id_breg_from_wb(id_breg_from_wb),
     .ex_mem_result(ex_mem_result),
     .mem_wb_value(mem_wb_value),
+    .ex_mem_valid(ex_mem_valid),
+    .ex_mem_write(ex_mem_write),
     .id_ex_valid(id_ex_valid),
     .id_ex_pc(id_ex_pc),
     .id_ex_instr(id_ex_instr),
     .id_ex_writes_dreg(id_ex_writes_dreg),
     .id_ex_dreg(id_ex_dreg),
     .id_ex_late(id_ex_late),
+    .id_ex_read(id_ex_read),
+    .id_ex_write(id_ex_write),
+    .id_ex_byte(id_ex_byte),
+    .id_ex_half(id_ex_half),
+    .id_ex_sign_extend(id_ex_sign_extend),
     .ex_result(ex_result),
+    .ex_b(ex_b),
+    .ex_addr(ex_addr),
+    .ex_sdram(ex_sdram),
     .ex_redirect(ex_redirect),
     .ex_target(ex_target),
     .busy_ex(busy_ex)
@@ -219,15 +263,30 @@ cpu_mem mem_stage (
     .id_ex_instr(id_ex_instr),
     .id_ex_writes_dreg(id_ex_writes_dreg),
     .id_ex_dreg(id_ex_dreg),
+    .id_ex_read(id_ex_read),
+    .id_ex_write(id_ex_write),
+    .id_ex_byte(id_ex_byte),
+    .id_ex_half(id_ex_half),
+    .id_ex_sign_extend(id_ex_sign_extend),
     .ex_result(ex_result),
+    .ex_b(ex_b),
+    .ex_addr(ex_addr),
+    .ex_sdram(ex_sdram),
     .ex_redirect(ex_redirect),
     .ex_target(ex_target),
+    .data_addr(data_addr),
+    .data_write_data(data_write_data),
+    .data_byte_enable(data_byte_enable),
+    .sdram_write(sdram_write),
+    .sdram_word(sdram_word),
     .ex_mem_valid(ex_mem_valid),
     .ex_mem_pc(ex_mem_pc),
     .ex_mem_instr(ex_mem_instr),
     .ex_mem_writes_dreg(ex_mem_writes_dreg),
     .ex_mem_dreg(ex_mem_dreg),
     .ex_mem_result(ex_mem_result),
+    .ex_mem_write(ex_mem_write),
+    .ex_mem_addr(ex_mem_addr),
     .mem_value(mem_value),
     .redirect(redirect),
     .redirect_target(redirect_target),
@@ -246,6 +305,10 @@ cpu_wb wb_stage (
     .ex_mem_writes_dreg(ex_mem_writes_dreg),
     .ex_mem_dreg(ex_mem_dreg),
     .mem_value(mem_value),
+    .ex_mem_write(ex_mem_write),
+    .ex_mem_addr(ex_mem_addr),
+    .data_write_data(data_write_data),
+    .data_byte_enable(data_byte_enable),
     .redirect(redirect),
     .redirect_target(redirect_target),
     .wb_writes_dreg(wb_writes_dreg),

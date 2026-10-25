@@ -18,6 +18,9 @@ How a program is built:
   all of them yet. Whatever needs a missing instruction is left out: without `write`
   there are no data windows and no memory accesses, without `load` and `loadhi` the
   registers start at 0, and so on.
+- `regions` restricts the reads and writes to some regions, for the RTL steps that
+  don't have all memories yet: "sdram" (the SDRAM window), "video" (the video window)
+  and "cpu_io" (reading SP).
 """
 
 import random
@@ -37,6 +40,8 @@ VIDEO_DATA_BASE = 0x1E400000  # vram32
 VIDEO_DATA_OFFSETS = list(range(0, 64, 4))
 
 MAX_STACK_DEPTH = 32
+
+REGIONS = frozenset({"sdram", "video", "cpu_io"})
 
 ALU_OPS = ["or", "and", "xor", "add", "sub", "shiftl", "shiftr", "shiftrs"]
 ALU_OPS += ["slt", "sltu"]
@@ -59,10 +64,13 @@ def _available(*options: tuple[int, Action, bool]) -> list[tuple[int, Action]]:
 
 
 class _Generator:
-    def __init__(self, seed: int, exclude: set[str], only: set[str] | None) -> None:
+    def __init__(
+        self, seed: int, exclude: set[str], only: set[str] | None, regions: set[str]
+    ) -> None:
         self.rng = random.Random(seed)
         self.exclude = exclude
         self.only = only
+        self.regions = regions
         self.lines: list[str] = []
         self.labels = 0
         self.pending: list[list] = []  # [units left, label] of forward branches
@@ -76,7 +84,10 @@ class _Generator:
         self.write_ops = {o: s for o, s in WRITE_OPS.items() if self.ok(o)}
         self.load32 = self.ok("load", "loadhi")
         # The data windows need their base registers, and are filled with `write`.
-        self.memory_ok = self.load32 and self.ok("write")
+        self.memory_ok = self.load32 and self.ok("write") and "sdram" in regions
+        self.windows = [("r13", SDRAM_DATA_OFFSETS)]
+        if "video" in regions:
+            self.windows.append(("r14", VIDEO_DATA_OFFSETS))
         self.alu_forms = _available(
             (45, self.alu_regs, bool(self.alu_ops)),
             (35, self.alu_const, bool(self.alu_ops)),
@@ -86,7 +97,7 @@ class _Generator:
         self.special_forms = _available(
             (2, self.savpc, self.ok("savpc")),
             (2, self.readintid, self.ok("readintid")),
-            (2, self.read_sp, self.load32 and self.ok("read")),
+            (2, self.read_sp, self.load32 and self.ok("read") and "cpu_io" in regions),
             (1, self.ccache, self.ok("ccache")),
             (1, self.ccached, self.ok("ccached")),
             (2, self.nop, self.ok("nop")),
@@ -179,7 +190,7 @@ class _Generator:
             self.emit(f"{op} {self.src()} {self.const16()} {self.dst()}")
 
     def memory(self) -> None:
-        if self.rng.random() < 0.8:
+        if len(self.windows) == 1 or self.rng.random() < 0.8:
             base, offsets, sizes = "r13", SDRAM_DATA_OFFSETS, (1, 2, 4)
         else:
             base, offsets, sizes = "r14", VIDEO_DATA_OFFSETS, (4,)
@@ -292,10 +303,7 @@ class _Generator:
                 f"load32 {VIDEO_DATA_BASE} r14",
             )
         if self.memory_ok:
-            for base, offsets in (
-                ("r13", SDRAM_DATA_OFFSETS),
-                ("r14", VIDEO_DATA_OFFSETS),
-            ):
+            for base, offsets in self.windows:
                 for offset in offsets:
                     self.emit(f"load32 {self.value()} r1", f"write {offset} {base} r1")
         if self.load32:
@@ -312,12 +320,12 @@ def generate(
     length: int = 500,
     exclude: frozenset[str] = frozenset(),
     only: frozenset[str] | None = None,
+    regions: frozenset[str] = REGIONS,
 ) -> str:
     """A random program of about `length` lines.
 
     It doesn't use the mnemonics in `exclude`, and with `only`, it uses only those
-    (plus the final `halt`).
+    (plus the final `halt`). It reads and writes only the `regions`.
     """
-    return _Generator(seed, set(exclude), None if only is None else set(only)).program(
-        length
-    )
+    only_set = None if only is None else set(only)
+    return _Generator(seed, set(exclude), only_set, set(regions)).program(length)

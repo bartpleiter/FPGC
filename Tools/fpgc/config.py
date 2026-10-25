@@ -19,6 +19,7 @@ class CpuConfig(BaseModel):
     rtl_files: list[Path] = [
         Path("Hardware/cpu/b32p4.v"),
         Path("Hardware/cpu/cpu_hazard.v"),
+        Path("Hardware/cpu/cpu_memory_map.v"),
         Path("Hardware/cpu/if/cpu_if.v"),
         Path("Hardware/cpu/id/cpu_id.v"),
         Path("Hardware/cpu/id/cpu_decoder.v"),
@@ -28,6 +29,8 @@ class CpuConfig(BaseModel):
         Path("Hardware/cpu/ex/cpu_alu.v"),
         Path("Hardware/cpu/ex/cpu_branch.v"),
         Path("Hardware/cpu/mem/cpu_mem.v"),
+        Path("Hardware/cpu/mem/cpu_read_align.v"),
+        Path("Hardware/cpu/mem/cpu_write_align.v"),
         Path("Hardware/cpu/wb/cpu_wb.v"),
     ]
     tests_dir: Path = Path("Tests/cpu")

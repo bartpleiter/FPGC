@@ -14,6 +14,8 @@
 //
 // The ideal instruction memory is the ROM (4 KiB at 0x1E000000), with the timing of a
 // BRAM. The address is registered at the clock edge, and the word is there after it.
+// The ideal data memory is the whole SDRAM (64 MiB at 0), with the same timing: an
+// L1D that always hits.
 `timescale 1ns / 1ps
 module tb_b32p4;
 
@@ -29,6 +31,12 @@ reg reset = 1;
 wire [31:0] fetch_addr;
 wire        fetch_en;
 reg  [31:0] fetch_word;
+
+wire [31:0] data_addr;
+wire [31:0] data_write_data;
+wire [3:0]  data_byte_enable;
+wire        sdram_write;
+reg  [31:0] sdram_word;
 
 wire        retire_valid;
 wire [31:0] retire_pc;
@@ -55,6 +63,11 @@ b32p4 dut (
     .fetch_addr(fetch_addr),
     .fetch_en(fetch_en),
     .fetch_word(fetch_word),
+    .data_addr(data_addr),
+    .data_write_data(data_write_data),
+    .data_byte_enable(data_byte_enable),
+    .sdram_write(sdram_write),
+    .sdram_word(sdram_word),
     .retire_valid(retire_valid),
     .retire_pc(retire_pc),
     .retire_instr(retire_instr),
@@ -82,6 +95,20 @@ reg [31:0] rom [0:1023];
 always @(posedge clk)
     if (fetch_en)
         fetch_word <= rom[fetch_addr[11:2]];
+
+// ---- Ideal data memory ----
+
+// A 2-state array starts at 0, like the SDRAM of the ISS, and Icarus keeps 64 MiB of it
+// small and fast.
+bit [31:0] sdram [0:(1 << 24) - 1];
+integer lane;
+
+always @(posedge clk) begin
+    for (lane = 0; lane < 4; lane = lane + 1)
+        if (sdram_write && data_byte_enable[lane])
+            sdram[data_addr[25:2]][8*lane +: 8] <= data_write_data[8*lane +: 8];
+    sdram_word <= sdram[data_addr[25:2]];
+end
 
 // ---- The registers as wires for the waveform, because Icarus doesn't dump arrays ----
 

@@ -224,6 +224,23 @@ def branch_taken(cond: int, s: int, a: int, b: int) -> bool:
     }[cond]
 
 
+def read_value(word: int, address: int, size: int, signed: bool) -> int:
+    """The value that a read of `size` bytes at an aligned `address` takes from the
+    word that holds it, sign-extended or zero-extended."""
+    shift = (address & 3) * 8
+    value = (word >> shift) & ((1 << (8 * size)) - 1)
+    return sext(value, 8 * size) & MASK if signed else value
+
+
+def write_lanes(value: int, address: int, size: int) -> tuple[int, int]:
+    """The data word and byte enables of a write of `size` bytes at an aligned
+    `address`. The bytes outside the byte enables are 0."""
+    shift = (address & 3) * 8
+    enables = ((1 << size) - 1) << (address & 3)
+    mask = sum(0xFF << (8 * i) for i in range(4) if enables >> i & 1)
+    return (value << shift) & mask, enables
+
+
 @dataclass
 class Machine:
     """The architectural state of a B32P4"""
@@ -451,12 +468,8 @@ class Machine:
             return
         size, signed = _READ_SIZES[ins["size"]]
         address = self._address(ins, size)
-        word = self._load_word(address, size)
-        shift = (address & 3) * 8
-        value = (word >> shift) & ((1 << (8 * size)) - 1)
-        if signed:
-            value = sext(value, 8 * size) & MASK
-        self._write_reg(ins["d"], value, r)
+        word = self._read_word(address, size)
+        self._write_reg(ins["d"], read_value(word, address, size, signed), r)
 
     def _write(self, ins: Decoded, r: Retired) -> None:
         if ins["size"] not in _WRITE_SIZES:
@@ -466,12 +479,10 @@ class Machine:
             return
         size = _WRITE_SIZES[ins["size"]]
         address = self._address(ins, size)
-        shift = (address & 3) * 8
-        enables = ((1 << size) - 1) << (address & 3)
+        data, enables = write_lanes(self.regs[ins["b"]], address, size)
         mask = sum(0xFF << (8 * i) for i in range(4) if enables >> i & 1)
-        data = (self.regs[ins["b"]] << shift) & mask
         r.write = (address & ~3, data, enables)
-        self._store_word(address & ~3, data, mask)
+        self._write_word(address & ~3, data, mask)
 
     def _address(self, ins: Decoded, size: int) -> int:
         address = (self.regs[ins["a"]] + sext(ins["c16"], 16)) & MASK
@@ -488,7 +499,7 @@ class Machine:
                 return region, (address - region.base) & ~3
         return None
 
-    def _load_word(self, address: int, size: int) -> int:
+    def _read_word(self, address: int, size: int) -> int:
         if CPU_IO_BASE <= address < CPU_IO_BASE + CPU_IO_SIZE:
             return self._cpu_io_read(address, size)
         found = self._find(address)
@@ -498,7 +509,7 @@ class Machine:
         region, offset = found
         return region.device.read_word(offset)
 
-    def _store_word(self, address: int, data: int, mask: int) -> None:
+    def _write_word(self, address: int, data: int, mask: int) -> None:
         if CPU_IO_BASE <= address < CPU_IO_BASE + CPU_IO_SIZE:
             self._cpu_io_write(address, data, mask)
             return

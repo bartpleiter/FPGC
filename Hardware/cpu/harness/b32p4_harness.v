@@ -2,9 +2,9 @@
 // CPU RTL. It puts b32p4 between the memories it reaches, at their real sizes, and keeps
 // its outputs alive with the sink.
 //
-// For now that's only the ROM, as the fetch memory. Until the CPU has a data port, the
-// register write of the retire port is the only way out for the results, so it goes
-// to the sink too. Without it, Quartus would remove the whole datapath.
+// For now that's the ROM, as the fetch memory, and one data memory of the size of the
+// future L1D data array (4 KiB, in four byte lanes). Every result can end up in a
+// write, so the data port's outputs going to the sink keeps the whole datapath.
 module b32p4_harness (
     input  wire clk,
     input  wire din,
@@ -29,9 +29,26 @@ always @(posedge clk)
     if (fetch_en)
         fetch_word <= rom[fetch_addr[11:2]];
 
-wire        retire_writes_dreg;
-wire [3:0]  retire_dreg;
-wire [31:0] retire_dreg_value;
+wire [31:0] data_addr;
+wire [31:0] data_write_data;
+wire [3:0]  data_byte_enable;
+wire        sdram_write;
+wire [31:0] sdram_word;
+
+// The data memory, one M9K per byte lane
+genvar lane;
+generate
+    for (lane = 0; lane < 4; lane = lane + 1) begin : data_lane
+        reg [7:0] ram [0:1023];
+        reg [7:0] q;
+        always @(posedge clk) begin
+            if (sdram_write && data_byte_enable[lane])
+                ram[data_addr[11:2]] <= data_write_data[8*lane +: 8];
+            q <= ram[data_addr[11:2]];
+        end
+        assign sdram_word[8*lane +: 8] = q;
+    end
+endgenerate
 
 /* verilator lint_off PINCONNECTEMPTY */
 b32p4 cpu (
@@ -40,12 +57,17 @@ b32p4 cpu (
     .fetch_addr(fetch_addr),
     .fetch_en(fetch_en),
     .fetch_word(fetch_word),
+    .data_addr(data_addr),
+    .data_write_data(data_write_data),
+    .data_byte_enable(data_byte_enable),
+    .sdram_write(sdram_write),
+    .sdram_word(sdram_word),
     .retire_valid(),
     .retire_pc(),
     .retire_instr(),
-    .retire_writes_dreg(retire_writes_dreg),
-    .retire_dreg(retire_dreg),
-    .retire_dreg_value(retire_dreg_value),
+    .retire_writes_dreg(),
+    .retire_dreg(),
+    .retire_dreg_value(),
     .retire_write(),
     .retire_write_addr(),
     .retire_write_data(),
@@ -61,9 +83,9 @@ b32p4 cpu (
 );
 /* verilator lint_on PINCONNECTEMPTY */
 
-sink #(37) out (
+sink #(69) out (
     .clk(clk),
-    .d({retire_writes_dreg, retire_dreg, retire_dreg_value}),
+    .d({data_addr, data_write_data, data_byte_enable, sdram_write}),
     .dout(dout)
 );
 

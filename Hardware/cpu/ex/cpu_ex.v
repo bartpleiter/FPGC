@@ -1,6 +1,7 @@
 // Execute stage (EX)
 // The ID/EX register, then the forwarding mux, the ALU, the address adder and the
-// branch compare, which decide whether the instruction redirects, and where to.
+// branch compare, which decide whether the instruction redirects, and where to. The
+// address adder also gives the address of a read or write, and its region.
 module cpu_ex (
     input  wire        clk,
     input  wire        reset,
@@ -26,6 +27,11 @@ module cpu_ex (
     input  wire        id_jump,
     input  wire        id_jumpr,
     input  wire        id_halt,
+    input  wire        id_read,
+    input  wire        id_write,
+    input  wire        id_byte,
+    input  wire        id_half,
+    input  wire        id_sign_extend,
     input  wire        id_areg_from_mem,
     input  wire        id_areg_from_wb,
     input  wire        id_breg_from_mem,
@@ -35,6 +41,10 @@ module cpu_ex (
     input  wire [31:0] ex_mem_result,
     input  wire [31:0] mem_wb_value,
 
+    // A write in MEM, which uses the data memory in this cycle
+    input  wire        ex_mem_valid,
+    input  wire        ex_mem_write,
+
     // The ID/EX register, as far as other stages need it
     output reg         id_ex_valid,
     output reg  [31:0] id_ex_pc,
@@ -42,9 +52,17 @@ module cpu_ex (
     output reg         id_ex_writes_dreg,
     output reg  [3:0]  id_ex_dreg,
     output reg         id_ex_late,
+    output reg         id_ex_read,
+    output reg         id_ex_write,
+    output reg         id_ex_byte,
+    output reg         id_ex_half,
+    output reg         id_ex_sign_extend,
 
     // To MEM
     output wire [31:0] ex_result,
+    output wire [31:0] ex_b,           // the data of a write
+    output wire [31:0] ex_addr,        // also the address of the data memory
+    output wire        ex_sdram,       // the address is in SDRAM
     output wire        ex_redirect,
     output wire [31:0] ex_target,
     output wire        busy_ex
@@ -71,7 +89,7 @@ reg        id_ex_breg_from_wb;
 wire [31:0] ex_a = id_ex_areg_from_mem ? ex_mem_result :
                    id_ex_areg_from_wb  ? mem_wb_value  :
                                          id_ex_a;
-wire [31:0] ex_b = id_ex_breg_from_mem ? ex_mem_result :
+assign ex_b      = id_ex_breg_from_mem ? ex_mem_result :
                    id_ex_breg_from_wb  ? mem_wb_value  :
                                          id_ex_b;
 
@@ -101,6 +119,11 @@ always @(posedge clk) begin
         id_ex_jump          <= id_jump;
         id_ex_jumpr         <= id_jumpr;
         id_ex_halt          <= id_halt;
+        id_ex_read          <= id_read;
+        id_ex_write         <= id_write;
+        id_ex_byte          <= id_byte;
+        id_ex_half          <= id_half;
+        id_ex_sign_extend   <= id_sign_extend;
         id_ex_areg_from_mem <= id_areg_from_mem;
         id_ex_areg_from_wb  <= id_areg_from_wb;
         id_ex_breg_from_mem <= id_breg_from_mem;
@@ -122,8 +145,26 @@ cpu_alu alu (
     .y(ex_result)
 );
 
-// The address adder, separate from the ALU. For JUMPR it gives the target.
-wire [31:0] ex_addr = ex_a + id_ex_constant;
+// The address adder, separate from the ALU. It gives the address of a read or write,
+// and the target of a JUMPR.
+assign ex_addr = ex_a + id_ex_constant;
+
+// The empty outputs are for the regions that come in later steps.
+/* verilator lint_off PINCONNECTEMPTY */
+cpu_memory_map memory_map (
+    .addr(ex_addr),
+    .sdram(ex_sdram),
+    .io(),
+    .rom(),
+    .vram32(),
+    .vram8(),
+    .vrampx(),
+    .palette(),
+    .cpu_io(),
+    .code(),
+    .unmapped()
+);
+/* verilator lint_on PINCONNECTEMPTY */
 
 wire ex_taken;
 
@@ -139,6 +180,9 @@ cpu_branch branch (
 assign ex_redirect = id_ex_jump || id_ex_jumpr || id_ex_halt || (id_ex_branch && ex_taken);
 assign ex_target   = id_ex_jumpr ? ex_addr : id_ex_target;
 
-assign busy_ex = 1'b0;  // nothing in EX takes more than one cycle yet
+// A write in MEM uses the address of the data memory, so a read or write in EX has to
+// wait a cycle (the write-then-access stall). A read that waits like this also reads
+// what the write wrote.
+assign busy_ex = id_ex_valid && (id_ex_read || id_ex_write) && ex_mem_valid && ex_mem_write;
 
 endmodule

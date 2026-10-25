@@ -9,7 +9,7 @@ This page defines the instruction set of B32P4, the CPU that runs in the FPGC. T
 
 - **32-bit RISC**, with 16 registers of 32 bits. `r0` always reads as 0.
 - **Fixed-length 32-bit instructions**, with the opcode always in the leftmost 4 bits.
-- **Byte-addressed, little-endian memory.** Loads and writes can be 8, 16 or 32 bits wide.
+- **Byte-addressed, little-endian memory.** Reads and writes can be 8, 16 or 32 bits wide.
 - **A hardware stack** of 256 words for `push` and `pop`, separate from memory. Primarily for quick register backups.
 - **Hardware interrupts**, taken only at jumps and branches to simplify the CPU pipeline.
 - **No security features.** Since the goal is to be a personal hobby CPU where I am the only user, adding security features only adds unnecessary complexity.
@@ -134,9 +134,9 @@ READ and WRITE access memory at the byte address `A + sext(c16)`.
 | READ | `0101` | `readbu c16 A D` | `D` = the byte, zero-extended |
 | READ | `0010` | `readh c16 A D` | `D` = the 16-bit halfword, sign-extended |
 | READ | `0110` | `readhu c16 A D` | `D` = the halfword, zero-extended |
-| WRITE | `0000` | `write c16 A B` | stores the word B |
-| WRITE | `0001` | `writeb c16 A B` | stores `B[7:0]` |
-| WRITE | `0010` | `writeh c16 A B` | stores `B[15:0]` |
+| WRITE | `0000` | `write c16 A B` | writes the word B |
+| WRITE | `0001` | `writeb c16 A B` | writes `B[7:0]` |
+| WRITE | `0010` | `writeh c16 A B` | writes `B[15:0]` |
 
 - Little-endian: the byte at address `n` is bits [7:0] of the word at `n & ~3`.
 - Word accesses must be at a multiple of 4, halfword accesses at a multiple of 2.

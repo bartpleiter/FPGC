@@ -1,0 +1,21 @@
+[*] GTKWave preset for cpu_write_align (fpgc cpu wave cpu_write_align)
+@28
+tb_cpu_write_align.clk
+@820
+tb_cpu_write_align.label[95:0]
+@200
+-
+-Inputs
+@22
+tb_cpu_write_align.dut.data[31:0]
+@28
+tb_cpu_write_align.dut.addr[1:0]
+tb_cpu_write_align.dut.mem_byte
+tb_cpu_write_align.dut.mem_half
+@200
+-
+-Outputs
+@22
+tb_cpu_write_align.dut.write_data[31:0]
+@28
+tb_cpu_write_align.dut.byte_enable[3:0]
