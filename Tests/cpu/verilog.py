@@ -14,8 +14,13 @@ MODULES_DIR = REPO / CFG.modules_dir
 RTL_FILES = [REPO / f for f in CFG.rtl_files]
 
 
-def compile_tb(tb: Path, sources: list[Path], out: Path) -> Path:
-    """Compile testbench `tb` with `sources` into `out`.
+def compile_tb(
+    tb: Path,
+    sources: list[Path],
+    out: Path,
+    parameters: dict[str, int] | None = None,
+) -> Path:
+    """Compile testbench `tb` with `sources` into `out`, with its `parameters` set.
 
     The tests run in parallel, and each worker compiles the testbenches it needs. So
     Icarus writes to a file of this process first, which then replaces `out` in one
@@ -32,6 +37,7 @@ def compile_tb(tb: Path, sources: list[Path], out: Path) -> Path:
         MODULES_DIR,
         "-s",
         tb.stem,
+        *(f"-P{tb.stem}.{k}={v}" for k, v in (parameters or {}).items()),
         "-o",
         tmp,
         tb,

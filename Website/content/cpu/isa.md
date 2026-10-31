@@ -189,7 +189,7 @@ The stack is 256 words of on-chip memory, separate from the address space. It's 
 
 ## Interrupts
 
-The CPU has several interrupt inputs, with IDs 1 starting from 1 upwards. ID 1 has the highest priority.
+The CPU has several interrupt inputs, numbered from 1 upwards (the number is a parameter of the CPU, 7 by default). Interrupt 1 has the highest priority.
 
 Pending interrupts:
 
@@ -213,7 +213,7 @@ The handler reads the ID with INTID, handles the interrupt and ends with RETI.
 
 | Instruction | Mnemonic | Effect |
 | --- | --- | --- |
-| RETI | `reti` | `PC = pc_backup`, and interrupts are enabled |
+| RETI | `reti` | `PC = pc_backup`, and interrupts are enabled. The target follows the same rules as a jump target. |
 | INTID | `readintid D` | `D` = the ID of the last interrupt taken, or 0 if there has been none since reset |
 
 After RETI, the interrupted control-flow instruction executes as if nothing happened.
@@ -268,7 +268,7 @@ Only SDRAM and ROM can hold executable code.
 | 0 | 1 | illegal instruction | a reserved ALU, multiply/divide, branch-condition or memory-size encoding |
 | 1 | 2 | unaligned access | a word access not at a multiple of 4, or a halfword access not at a multiple of 2 |
 | 2 | 3 | bad address | an access to an unmapped address, a write to ROM, or an access to CPU-internal I/O other than a word access to a register above |
-| 3 | 4 | bad jump target | a taken jump or branch to an address that isn't a multiple of 4, or that's outside SDRAM and ROM |
+| 3 | 4 | bad jump target | a taken jump or branch, or a RETI, to an address that isn't a multiple of 4, or that's outside SDRAM and ROM |
 | 4 | 5 | stack overflow | a push when SP is 255 |
 | 5 | 6 | stack underflow | a pop when SP is 0 |
 | [10:8] | — | first kind | the kind number of the first event since the last clear, or 0 if there was none |

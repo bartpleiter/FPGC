@@ -411,7 +411,7 @@ class Machine:
             self._write_reg(ins["d"], r.pc, r)
         elif op == Opcode.RETI:
             self.interrupts_enabled = True
-            self.pc = r.redirect = self.pc_backup
+            self.pc = r.redirect = self._jump_target(self.pc_backup)
         elif op == Opcode.INTID:
             self._write_reg(ins["d"], self.int_id, r)
         elif op == Opcode.PUSH:

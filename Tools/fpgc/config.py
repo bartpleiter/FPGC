@@ -35,6 +35,7 @@ class CpuConfig(BaseModel):
         Path("Hardware/cpu/mem/cpu_write_align.v"),
         Path("Hardware/cpu/mem/cpu_stack.v"),
         Path("Hardware/cpu/mem/cpu_io_regs.v"),
+        Path("Hardware/cpu/mem/cpu_interrupts.v"),
         Path("Hardware/cpu/wb/cpu_wb.v"),
     ]
     tests_dir: Path = Path("Tests/cpu")

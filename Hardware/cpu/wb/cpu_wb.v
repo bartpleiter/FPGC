@@ -23,6 +23,8 @@ module cpu_wb (
     input  wire [31:0] ex_mem_b,          // the value of a push
     input  wire        redirect,
     input  wire [31:0] redirect_target,
+    input  wire        ex_mem_interrupt,
+    input  wire [7:0]  interrupt_id,
 
     // The register write, to the register file in ID
     output wire        wb_writes_dreg,
@@ -47,7 +49,7 @@ module cpu_wb (
     output wire        retire_redirect,
     output wire [31:0] retire_target,
     output wire        retire_irq,
-    output wire [2:0]  retire_irq_id
+    output wire [7:0]  retire_irq_id
 );
 
 reg        mem_wb_valid;
@@ -63,24 +65,28 @@ reg [31:0] mem_wb_push_value;
 reg        mem_wb_pop;
 reg        mem_wb_redirect;
 reg [31:0] mem_wb_target;
+reg        mem_wb_interrupt;
+reg [7:0]  mem_wb_interrupt_id;
 
 // WB never stalls.
 always @(posedge clk) begin
-    mem_wb_valid       <= ex_mem_valid && !flush_wb && !reset;
-    mem_wb_pc          <= ex_mem_pc;
-    mem_wb_instr       <= ex_mem_instr;
-    mem_wb_writes_dreg <= ex_mem_writes_dreg;
-    mem_wb_dreg        <= ex_mem_dreg;
-    mem_wb_value       <= mem_value;
-    mem_wb_write       <= ex_mem_write;
-    mem_wb_write_addr  <= {ex_mem_addr[31:2], 2'b00};  // the trace shows the word
-    mem_wb_write_data  <= data_write_data;
-    mem_wb_write_be    <= data_byte_enable;
-    mem_wb_push        <= ex_mem_push;
-    mem_wb_push_value  <= ex_mem_b;
-    mem_wb_pop         <= ex_mem_pop;
-    mem_wb_redirect    <= redirect;
-    mem_wb_target      <= redirect_target;
+    mem_wb_valid        <= ex_mem_valid && !flush_wb && !reset;
+    mem_wb_pc           <= ex_mem_pc;
+    mem_wb_instr        <= ex_mem_instr;
+    mem_wb_writes_dreg  <= ex_mem_writes_dreg;
+    mem_wb_dreg         <= ex_mem_dreg;
+    mem_wb_value        <= mem_value;
+    mem_wb_write        <= ex_mem_write;
+    mem_wb_write_addr   <= {ex_mem_addr[31:2], 2'b00};  // the trace shows the word
+    mem_wb_write_data   <= data_write_data;
+    mem_wb_write_be     <= data_byte_enable;
+    mem_wb_push         <= ex_mem_push;
+    mem_wb_push_value   <= ex_mem_b;
+    mem_wb_pop          <= ex_mem_pop;
+    mem_wb_redirect     <= redirect;
+    mem_wb_target       <= redirect_target;
+    mem_wb_interrupt    <= ex_mem_interrupt;
+    mem_wb_interrupt_id <= interrupt_id;
 end
 
 assign wb_writes_dreg = mem_wb_valid && mem_wb_writes_dreg;
@@ -101,7 +107,7 @@ assign retire_pop         = mem_wb_valid && mem_wb_pop;
 assign retire_pop_value   = mem_wb_value;  // also for pop r0
 assign retire_redirect    = mem_wb_redirect;
 assign retire_target      = mem_wb_target;
-assign retire_irq         = 1'b0;
-assign retire_irq_id      = 3'd0;
+assign retire_irq         = mem_wb_valid && mem_wb_interrupt;
+assign retire_irq_id      = mem_wb_interrupt_id;
 
 endmodule

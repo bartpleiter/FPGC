@@ -216,6 +216,10 @@ ILLEGAL = [
     ),
     ("load32 0x1E000002 r1\njumpr 4 r1", ErrorKind.BAD_JUMP_TARGET),
     ("jump 0x4000000", ErrorKind.BAD_JUMP_TARGET),
+    (
+        "load32 0x1F000000 r1\nload32 0x1E000002 r2\nwrite 0 r1 r2\nreti",
+        ErrorKind.BAD_JUMP_TARGET,
+    ),
 ]
 
 

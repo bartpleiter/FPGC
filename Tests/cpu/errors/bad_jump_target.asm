@@ -1,5 +1,5 @@
-; Bad jump targets: a jump or taken branch to an address that isn't a multiple of 4.
-; Each one sets the bad-jump-target flag (kind 4), and jumps to the address rounded
+; Bad jump targets: a jump, taken branch or RETI to an address that isn't a multiple of
+; 4. Each one sets the bad-jump-target flag (kind 4), and jumps to the address rounded
 ; down. A target outside SDRAM and ROM is bad too, but the ISS stops when it fetches
 ; from there. After each case, the program reads ERR_STATUS and ERR_PC, and clears
 ; them.
@@ -15,6 +15,16 @@ Target:
 
     .dw 0x90000015          ; jumpo 10, so the next instruction is skipped
     load 1 r15
+    read 8 r10 r3
+    read 12 r10 r4
+    write 8 r10 r0
+
+    addr2reg Returned r1
+    add r1 3 r1
+    write 0 r10 r1          ; PC_BACKUP: Returned + 3
+    reti                    ; so to Returned
+    load 1 r15
+Returned:
     read 8 r10 r3
     read 12 r10 r4
     write 8 r10 r0

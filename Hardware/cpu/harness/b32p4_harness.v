@@ -13,12 +13,13 @@ module b32p4_harness (
     output wire dout
 );
 
-wire [7:0] random;
-source #(8) src (.clk(clk), .din(din), .q(random));
+wire [9:0] random;
+source #(10) src (.clk(clk), .din(din), .q(random));
 
-wire reset       = random[0];
-wire fetch_ready = random[1];
-wire data_ready  = random[2];
+wire       reset       = random[0];
+wire       fetch_ready = random[1];
+wire       data_ready  = random[2];
+wire [7:1] interrupts  = random[9:3];
 
 // The ROM, 4 KiB, filled with arbitrary words so Quartus can't simplify the CPU
 reg [31:0] rom [0:1023];
@@ -70,6 +71,7 @@ b32p4 cpu (
     .sdram_write(sdram_write),
     .sdram_word(sdram_word),
     .data_ready(data_ready),
+    .interrupts(interrupts),
     .retire_valid(),
     .retire_pc(),
     .retire_instr(),

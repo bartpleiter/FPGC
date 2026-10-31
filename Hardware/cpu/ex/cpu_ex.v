@@ -1,8 +1,9 @@
 // Execute stage (EX)
 // The ID/EX register, then the forwarding mux, the ALU, the address adder and the
-// branch compare, which decide whether the instruction redirects, and where to. The
-// address adder also gives the address of a read or write, and its region. A multiply
-// starts here and finishes in MEM, and a divide waits here until it's done.
+// branch compare, which decide whether the instruction redirects, and where to, and
+// whether an interrupt is taken instead. The address adder also gives the address of a
+// read or write, and its region. A multiply starts here and finishes in MEM, and a
+// divide waits here until it's done.
 module cpu_ex (
     input  wire        clk,
     input  wire        reset,
@@ -28,6 +29,7 @@ module cpu_ex (
     input  wire        id_jump,
     input  wire        id_jumpr,
     input  wire        id_halt,
+    input  wire        id_reti,
     input  wire        id_mult,
     input  wire        id_div,
     input  wire        id_read,
@@ -37,6 +39,7 @@ module cpu_ex (
     input  wire        id_sign_extend,
     input  wire        id_push,
     input  wire        id_pop,
+    input  wire        id_intid,
     input  wire        id_illegal,
     input  wire        id_areg_from_mem,
     input  wire        id_areg_from_wb,
@@ -53,6 +56,10 @@ module cpu_ex (
     input  wire        ex_mem_write,
     input  wire        ex_mem_push,
 
+    // The interrupt state, from MEM
+    input  wire        interrupt_pending,
+    input  wire        interrupts_enabled,
+
     // The ID/EX register, as far as other stages need it
     output reg         id_ex_valid,
     output reg  [31:0] id_ex_pc,
@@ -67,6 +74,8 @@ module cpu_ex (
     output reg         id_ex_sign_extend,
     output reg         id_ex_push,
     output reg         id_ex_pop,
+    output reg         id_ex_intid,
+    output reg         id_ex_reti,
     output reg         id_ex_illegal,
     output reg         id_ex_mult,
     output reg         id_ex_div,
@@ -79,8 +88,9 @@ module cpu_ex (
     output wire        ex_rom,
     output wire        ex_cpu_io,
     output wire        ex_unmapped,
-    output wire        ex_redirect,
+    output wire        ex_redirect,    // a jump, a taken branch or HALT
     output wire [31:0] ex_target,
+    output wire        ex_interrupt,   // an interrupt is taken instead
     output wire [31:0] ex_mult_result, // of the multiply in MEM
     output wire [31:0] ex_div_result,  // once the divider is done
     output wire        busy_ex
@@ -137,6 +147,7 @@ always @(posedge clk) begin
         id_ex_jump          <= id_jump;
         id_ex_jumpr         <= id_jumpr;
         id_ex_halt          <= id_halt;
+        id_ex_reti          <= id_reti;
         id_ex_read          <= id_read;
         id_ex_write         <= id_write;
         id_ex_byte          <= id_byte;
@@ -144,6 +155,7 @@ always @(posedge clk) begin
         id_ex_sign_extend   <= id_sign_extend;
         id_ex_push          <= id_push;
         id_ex_pop           <= id_pop;
+        id_ex_intid         <= id_intid;
         id_ex_illegal       <= id_illegal;
         id_ex_mult          <= id_mult;
         id_ex_div           <= id_div;
@@ -236,9 +248,36 @@ cpu_branch branch (
     .taken(ex_taken)
 );
 
-// A jump, a taken branch and HALT redirect. HALT's target is its own PC.
+// A jump, a taken branch and HALT redirect. HALT's target is its own PC. (A RETI
+// redirects too, but its target is only read in MEM.)
 assign ex_redirect = id_ex_jump || id_ex_jumpr || id_ex_halt || (id_ex_branch && ex_taken);
 assign ex_target   = id_ex_jumpr ? ex_addr : id_ex_target;
+
+// An interrupt is taken instead of an instruction that redirects, when one is pending,
+// interrupts are enabled, and the instruction is in SDRAM, so code in ROM is never
+// interrupted. The decision goes to MEM with the instruction. Until the instruction
+// commits, only an interrupt or a RETI can change whether interrupts are enabled, and
+// both redirect, which cancels this instruction. A pending interrupt stays pending until
+// it's taken, so the decision still holds when the instruction commits.
+wire pc_in_sdram;
+
+/* verilator lint_off PINCONNECTEMPTY */
+cpu_memory_map pc_map (
+    .addr(id_ex_pc),
+    .sdram(pc_in_sdram),
+    .io(),
+    .rom(),
+    .vram32(),
+    .vram8(),
+    .vrampx(),
+    .palette(),
+    .cpu_io(),
+    .code(),
+    .unmapped()
+);
+/* verilator lint_on PINCONNECTEMPTY */
+
+assign ex_interrupt = ex_redirect && interrupt_pending && interrupts_enabled && pc_in_sdram;
 
 // A write in MEM uses the address of the data memory, so a read or write in EX has to
 // wait a cycle (the write-then-access stall). A read that waits like this also reads

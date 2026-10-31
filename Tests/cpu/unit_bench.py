@@ -9,7 +9,7 @@ random vectors and edge cases, and `demo` with a short hand-picked list. The dem
 also dumped as a waveform for `fpgc cpu wave`.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .presets import check_preset
@@ -26,6 +26,7 @@ class UnitBench:
     folder: Path  # where tb_<unit>.v and <unit>.gtkw are
     inputs: list[str]  # the vector columns after the label, in the testbench's order
     outputs: list[str]  # the output columns, in the testbench's order
+    parameters: dict[str, int] = field(default_factory=dict)  # of the testbench
 
     def run(
         self,
@@ -37,7 +38,7 @@ class UnitBench:
         """Apply `vectors` and return the outputs, one per vector."""
         out_dir = BUILD_DIR / "modules" / self.unit / name
         tb = self.folder / f"tb_{self.unit}.v"
-        vvp = compile_tb(tb, RTL_FILES, out_dir / "tb.vvp")
+        vvp = compile_tb(tb, RTL_FILES, out_dir / "tb.vvp", self.parameters)
         labels = labels or [""] * len(vectors)
         vectors_file = out_dir / "vectors.hex"
         outputs_file = out_dir / "outputs.hex"

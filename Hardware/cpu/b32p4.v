@@ -1,7 +1,9 @@
 // B32P4
 // Top-level design of the CPU. It connects the five pipeline stages and the hazard unit,
 // and has no logic of its own.
-module b32p4 (
+module b32p4 #(
+    parameter INTERRUPTS = 7  // the number of interrupt inputs, at most 255
+) (
     input  wire        clk,
     input  wire        reset,
 
@@ -27,6 +29,10 @@ module b32p4 (
     input  wire [31:0] sdram_word,
     input  wire        data_ready,
 
+    // The interrupt inputs, bit n for interrupt n. A rising edge makes an interrupt
+    // pending. They can come from another clock domain.
+    input  wire [INTERRUPTS:1] interrupts,
+
     // A debug port for observing finished (retired) instructions, currently used in simulation only
     output wire        retire_valid,
     output wire [31:0] retire_pc,
@@ -45,7 +51,7 @@ module b32p4 (
     output wire        retire_redirect,
     output wire [31:0] retire_target,
     output wire        retire_irq,
-    output wire [2:0]  retire_irq_id
+    output wire [7:0]  retire_irq_id
 );
 
 // Stall and flush
@@ -123,6 +129,7 @@ wire        id_branch;
 wire        id_jump;
 wire        id_jumpr;
 wire        id_halt;
+wire        id_reti;
 wire        id_mult;
 wire        id_div;
 wire        id_read;
@@ -132,6 +139,7 @@ wire        id_half;
 wire        id_sign_extend;
 wire        id_push;
 wire        id_pop;
+wire        id_intid;
 wire        id_illegal;
 wire        id_areg_from_mem;
 wire        id_areg_from_wb;
@@ -173,6 +181,7 @@ cpu_id id_stage (
     .id_jump(id_jump),
     .id_jumpr(id_jumpr),
     .id_halt(id_halt),
+    .id_reti(id_reti),
     .id_mult(id_mult),
     .id_div(id_div),
     .id_read(id_read),
@@ -182,6 +191,7 @@ cpu_id id_stage (
     .id_sign_extend(id_sign_extend),
     .id_push(id_push),
     .id_pop(id_pop),
+    .id_intid(id_intid),
     .id_illegal(id_illegal),
     .id_areg_from_mem(id_areg_from_mem),
     .id_areg_from_wb(id_areg_from_wb),
@@ -201,6 +211,8 @@ wire        id_ex_half;
 wire        id_ex_sign_extend;
 wire        id_ex_push;
 wire        id_ex_pop;
+wire        id_ex_intid;
+wire        id_ex_reti;
 wire        id_ex_illegal;
 wire        id_ex_mult;
 wire        id_ex_div;
@@ -217,8 +229,11 @@ wire        ex_cpu_io;
 wire        ex_unmapped;
 wire        ex_redirect;
 wire [31:0] ex_target;
+wire        ex_interrupt;
 wire [31:0] ex_mult_result;
 wire [31:0] ex_div_result;
+wire        interrupt_pending;
+wire        interrupts_enabled;
 
 cpu_ex ex_stage (
     .clk(clk),
@@ -243,6 +258,7 @@ cpu_ex ex_stage (
     .id_jump(id_jump),
     .id_jumpr(id_jumpr),
     .id_halt(id_halt),
+    .id_reti(id_reti),
     .id_mult(id_mult),
     .id_div(id_div),
     .id_read(id_read),
@@ -252,6 +268,7 @@ cpu_ex ex_stage (
     .id_sign_extend(id_sign_extend),
     .id_push(id_push),
     .id_pop(id_pop),
+    .id_intid(id_intid),
     .id_illegal(id_illegal),
     .id_areg_from_mem(id_areg_from_mem),
     .id_areg_from_wb(id_areg_from_wb),
@@ -262,6 +279,8 @@ cpu_ex ex_stage (
     .ex_mem_valid(ex_mem_valid),
     .ex_mem_write(ex_mem_write),
     .ex_mem_push(ex_mem_push),
+    .interrupt_pending(interrupt_pending),
+    .interrupts_enabled(interrupts_enabled),
     .id_ex_valid(id_ex_valid),
     .id_ex_pc(id_ex_pc),
     .id_ex_instr(id_ex_instr),
@@ -275,6 +294,8 @@ cpu_ex ex_stage (
     .id_ex_sign_extend(id_ex_sign_extend),
     .id_ex_push(id_ex_push),
     .id_ex_pop(id_ex_pop),
+    .id_ex_intid(id_ex_intid),
+    .id_ex_reti(id_ex_reti),
     .id_ex_illegal(id_ex_illegal),
     .id_ex_mult(id_ex_mult),
     .id_ex_div(id_ex_div),
@@ -287,6 +308,7 @@ cpu_ex ex_stage (
     .ex_unmapped(ex_unmapped),
     .ex_redirect(ex_redirect),
     .ex_target(ex_target),
+    .ex_interrupt(ex_interrupt),
     .ex_mult_result(ex_mult_result),
     .ex_div_result(ex_div_result),
     .busy_ex(busy_ex)
@@ -298,9 +320,13 @@ wire [31:0] ex_mem_pc;
 wire [31:0] ex_mem_instr;
 wire [31:0] ex_mem_b;
 wire        ex_mem_pop;
+wire        ex_mem_interrupt;
 wire [31:0] mem_value;
+wire [7:0]  interrupt_id;
 
-cpu_mem mem_stage (
+cpu_mem #(
+    .INTERRUPTS(INTERRUPTS)
+) mem_stage (
     .clk(clk),
     .reset(reset),
     .stall_mem(stall_mem),
@@ -317,6 +343,8 @@ cpu_mem mem_stage (
     .id_ex_sign_extend(id_ex_sign_extend),
     .id_ex_push(id_ex_push),
     .id_ex_pop(id_ex_pop),
+    .id_ex_intid(id_ex_intid),
+    .id_ex_reti(id_ex_reti),
     .id_ex_illegal(id_ex_illegal),
     .id_ex_mult(id_ex_mult),
     .id_ex_div(id_ex_div),
@@ -329,6 +357,7 @@ cpu_mem mem_stage (
     .ex_unmapped(ex_unmapped),
     .ex_redirect(ex_redirect),
     .ex_target(ex_target),
+    .ex_interrupt(ex_interrupt),
     .ex_mult_result(ex_mult_result),
     .ex_div_result(ex_div_result),
     .data_addr(data_addr),
@@ -338,6 +367,9 @@ cpu_mem mem_stage (
     .sdram_write(sdram_write),
     .sdram_word(sdram_word),
     .data_ready(data_ready),
+    .interrupts(interrupts),
+    .interrupt_pending(interrupt_pending),
+    .interrupts_enabled(interrupts_enabled),
     .ex_mem_valid(ex_mem_valid),
     .ex_mem_pc(ex_mem_pc),
     .ex_mem_instr(ex_mem_instr),
@@ -349,7 +381,9 @@ cpu_mem mem_stage (
     .ex_mem_b(ex_mem_b),
     .ex_mem_push(ex_mem_push),
     .ex_mem_pop(ex_mem_pop),
+    .ex_mem_interrupt(ex_mem_interrupt),
     .mem_value(mem_value),
+    .interrupt_id(interrupt_id),
     .redirect(redirect),
     .redirect_target(redirect_target),
     .busy_mem(busy_mem)
@@ -376,6 +410,8 @@ cpu_wb wb_stage (
     .ex_mem_b(ex_mem_b),
     .redirect(redirect),
     .redirect_target(redirect_target),
+    .ex_mem_interrupt(ex_mem_interrupt),
+    .interrupt_id(interrupt_id),
     .wb_writes_dreg(wb_writes_dreg),
     .mem_wb_dreg(mem_wb_dreg),
     .mem_wb_value(mem_wb_value),

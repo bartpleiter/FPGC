@@ -48,6 +48,7 @@ module cpu_id (
     output wire        id_jump,
     output wire        id_jumpr,
     output wire        id_halt,
+    output wire        id_reti,
     output wire        id_mult,           // a multiply
     output wire        id_div,            // a divide or modulo
     output wire        id_read,
@@ -57,6 +58,7 @@ module cpu_id (
     output wire        id_sign_extend,    // readb, readh
     output wire        id_push,
     output wire        id_pop,
+    output wire        id_intid,
     output wire        id_illegal,        // a reserved encoding, which does nothing
     output wire        id_areg_from_mem,
     output wire        id_areg_from_wb,
@@ -119,9 +121,9 @@ cpu_decoder decoder (
     .jump(id_jump),
     .jumpr(id_jumpr),
     .halt(id_halt),
-    .reti(),
+    .reti(id_reti),
     .ccache(),
-    .intid(),
+    .intid(id_intid),
     .illegal(id_illegal)
 );
 /* verilator lint_on PINCONNECTEMPTY */

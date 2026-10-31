@@ -1,9 +1,12 @@
 // Memory access stage (MEM)
 // The EX/MEM register, then reading and writing the data memory, the stack and the
-// CPU-internal I/O registers, the result, and the redirect. An instruction commits when
-// it leaves MEM, so this is where a write writes, a push pushes, the error register
-// records the events of an instruction, and where the redirect happens.
-module cpu_mem (
+// CPU-internal I/O registers, the interrupt controller, the result, and the redirect.
+// An instruction commits when it leaves MEM, so this is where a write writes, a push
+// pushes, the error register records the events of an instruction, an interrupt is
+// taken, and where the redirect happens.
+module cpu_mem #(
+    parameter INTERRUPTS = 7  // the number of interrupt inputs
+) (
     input  wire        clk,
     input  wire        reset,
     input  wire        stall_mem,
@@ -22,6 +25,8 @@ module cpu_mem (
     input  wire        id_ex_sign_extend,
     input  wire        id_ex_push,
     input  wire        id_ex_pop,
+    input  wire        id_ex_intid,
+    input  wire        id_ex_reti,
     input  wire        id_ex_illegal,
     input  wire        id_ex_mult,
     input  wire        id_ex_div,
@@ -34,6 +39,7 @@ module cpu_mem (
     input  wire        ex_unmapped,
     input  wire        ex_redirect,
     input  wire [31:0] ex_target,
+    input  wire        ex_interrupt,
     input  wire [31:0] ex_mult_result,
     input  wire [31:0] ex_div_result,
 
@@ -50,6 +56,11 @@ module cpu_mem (
     input  wire [31:0] sdram_word,
     input  wire        data_ready,
 
+    // The interrupt inputs, bit n for interrupt n, and the interrupt state for EX
+    input  wire [INTERRUPTS:1] interrupts,
+    output wire        interrupt_pending,
+    output wire        interrupts_enabled,
+
     // The EX/MEM register, as far as other stages need it
     output reg         ex_mem_valid,
     output reg  [31:0] ex_mem_pc,
@@ -62,9 +73,11 @@ module cpu_mem (
     output reg  [31:0] ex_mem_b,          // the data of a write or push
     output reg         ex_mem_push,
     output reg         ex_mem_pop,
+    output reg         ex_mem_interrupt,  // an interrupt is taken instead of the instruction
 
     // To WB, and the redirect to IF
     output wire [31:0] mem_value,
+    output wire [7:0]  interrupt_id,      // the interrupt that is taken
     output wire        redirect,
     output wire [31:0] redirect_target,
     output wire        busy_mem
@@ -74,6 +87,8 @@ reg        ex_mem_read;
 reg        ex_mem_byte;
 reg        ex_mem_half;
 reg        ex_mem_sign_extend;
+reg        ex_mem_intid;
+reg        ex_mem_reti;
 reg        ex_mem_illegal;
 reg        ex_mem_mult;
 reg        ex_mem_div;
@@ -103,6 +118,8 @@ always @(posedge clk) begin
         ex_mem_sign_extend <= id_ex_sign_extend;
         ex_mem_push        <= id_ex_push;
         ex_mem_pop         <= id_ex_pop;
+        ex_mem_intid       <= id_ex_intid;
+        ex_mem_reti        <= id_ex_reti;
         ex_mem_illegal     <= id_ex_illegal;
         ex_mem_mult        <= id_ex_mult;
         ex_mem_div         <= id_ex_div;
@@ -115,6 +132,7 @@ always @(posedge clk) begin
         ex_mem_unmapped    <= ex_unmapped;
         ex_mem_redirect    <= ex_redirect;
         ex_mem_target      <= ex_target;
+        ex_mem_interrupt   <= ex_interrupt;
     end
 end
 
@@ -163,18 +181,40 @@ cpu_stack stack (
     .underflow(underflow)
 );
 
+// The interrupt controller. An interrupt is taken when the instruction it replaces
+// commits.
+
+wire take_interrupt = commit && ex_mem_interrupt;
+
+cpu_interrupts #(
+    .INTERRUPTS(INTERRUPTS)
+) interrupt_controller (
+    .clk(clk),
+    .reset(reset),
+    .interrupts(interrupts),
+    .take(take_interrupt),
+    .pending(interrupt_pending),
+    .id(interrupt_id)
+);
+
 // The CPU-internal I/O registers, and the events for the error register
 
 wire        word = !ex_mem_byte && !ex_mem_half;
 wire        io_bad_read;
 wire        io_bad_write;
 wire [31:0] io_read_value;
+wire [31:0] pc_backup;
+wire [7:0]  last_interrupt;
 wire        target_code;
+
+// RETI jumps to pc_backup. Every older write to it has committed by now.
+wire        jumps  = (ex_mem_redirect && !ex_mem_interrupt) || ex_mem_reti;
+wire [31:0] target = ex_mem_reti ? pc_backup : ex_mem_target;
 
 // The jump target only needs to be in a region that can hold code.
 /* verilator lint_off PINCONNECTEMPTY */
 cpu_memory_map target_map (
-    .addr(ex_mem_target),
+    .addr(target),
     .sdram(),
     .io(),
     .rom(),
@@ -194,7 +234,7 @@ wire bad_address = ((ex_mem_read || ex_mem_write) && ex_mem_unmapped) ||
                    (ex_mem_write && ex_mem_rom) ||
                    (ex_mem_cpu_io && ex_mem_read && io_bad_read) ||
                    (ex_mem_cpu_io && ex_mem_write && io_bad_write);
-wire bad_target  = ex_mem_redirect && (ex_mem_target[1:0] != 2'd0 || !target_code);
+wire bad_target  = jumps && (target[1:0] != 2'd0 || !target_code);
 
 // Bit n is the event of kind n + 1. The stack gives its events only when it commits.
 wire [5:0] events = {underflow, overflow,
@@ -212,8 +252,14 @@ cpu_io_regs io_regs (
     .write_data(ex_mem_b),
     .sp(sp),
     .sp_write(sp_write),
+    .pc(ex_mem_pc),
     .events(events),
-    .events_pc(ex_mem_pc)
+    .take_interrupt(take_interrupt),
+    .interrupt_id(interrupt_id),
+    .reti(commit && ex_mem_reti),
+    .pc_backup(pc_backup),
+    .interrupts_enabled(interrupts_enabled),
+    .last_interrupt(last_interrupt)
 );
 
 // The result. A read from a region without memory gives 0.
@@ -233,14 +279,18 @@ cpu_read_align read_align (
 );
 
 // The second stage of the multiplier works on the multiply in MEM. The result of a
-// divide came along from EX.
-assign mem_value       = ex_mem_read ? mem_read_value    :
-                         ex_mem_pop  ? stack_top         :
-                         ex_mem_mult ? ex_mult_result    :
-                         ex_mem_div  ? ex_mem_div_result :
-                                       ex_mem_result;
-assign redirect        = ex_mem_valid && ex_mem_redirect && !busy_mem;
-assign redirect_target = {ex_mem_target[31:2], 2'b00};  // the PC is a multiple of 4
+// divide came along from EX. INTID reads the last interrupt taken.
+assign mem_value = ex_mem_read  ? mem_read_value          :
+                   ex_mem_pop   ? stack_top               :
+                   ex_mem_mult  ? ex_mult_result          :
+                   ex_mem_div   ? ex_mem_div_result       :
+                   ex_mem_intid ? {24'd0, last_interrupt} :
+                                  ex_mem_result;
+
+// An interrupt goes to the interrupt vector, at address 4. The PC is always a multiple
+// of 4.
+assign redirect        = ex_mem_valid && (ex_mem_redirect || ex_mem_reti) && !busy_mem;
+assign redirect_target = ex_mem_interrupt ? 32'h4 : {target[31:2], 2'b00};
 
 // A read or write to SDRAM waits in MEM until the data memory has answered.
 assign busy_mem = ex_mem_valid && (ex_mem_read || ex_mem_write) && ex_mem_sdram &&

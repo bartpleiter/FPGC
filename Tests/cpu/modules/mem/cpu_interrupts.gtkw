@@ -1,0 +1,31 @@
+[*] GTKWave preset for cpu_interrupts (fpgc cpu wave cpu_interrupts)
+@28
+tb_cpu_interrupts.clk
+@820
+tb_cpu_interrupts.label[95:0]
+@28
+tb_cpu_interrupts.dut.reset
+@200
+-
+-Inputs
+@22
+tb_cpu_interrupts.dut.interrupts[7:1]
+@200
+-
+-Synchronizer and edges
+@22
+tb_cpu_interrupts.dut.sync1[7:1]
+tb_cpu_interrupts.dut.sync2[7:1]
+tb_cpu_interrupts.dut.last[7:1]
+tb_cpu_interrupts.dut.rising[7:1]
+@200
+-
+-Pending
+@22
+tb_cpu_interrupts.dut.pending_bits[7:1]
+@28
+tb_cpu_interrupts.dut.pending
+@24
+tb_cpu_interrupts.dut.id[7:0]
+@28
+tb_cpu_interrupts.dut.take

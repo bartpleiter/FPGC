@@ -32,10 +32,10 @@ tb_cpu_io_regs.dut.sp_write
 @200
 -
 -Error register
+@22
+tb_cpu_io_regs.dut.pc[31:0]
 @24
 tb_cpu_io_regs.dut.events[5:0]
-@22
-tb_cpu_io_regs.dut.events_pc[31:0]
 @28
 tb_cpu_io_regs.dut.clear
 @24
@@ -43,3 +43,15 @@ tb_cpu_io_regs.dut.err_flags[5:0]
 tb_cpu_io_regs.dut.err_first[2:0]
 @22
 tb_cpu_io_regs.dut.err_pc[31:0]
+@200
+-
+-Interrupts
+@28
+tb_cpu_io_regs.dut.take_interrupt
+@24
+tb_cpu_io_regs.dut.interrupt_id[7:0]
+@28
+tb_cpu_io_regs.dut.reti
+tb_cpu_io_regs.dut.interrupts_enabled
+@24
+tb_cpu_io_regs.dut.last_interrupt[7:0]

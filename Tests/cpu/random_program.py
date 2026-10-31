@@ -23,10 +23,17 @@ How a program is built:
 - `regions` restricts the reads and writes to some regions, for the RTL steps that
   don't have all memories yet: "sdram" (the SDRAM window), "video" (the video window)
   and "cpu_io" (reading the CPU-internal registers, and the drop).
+- With `interrupts`, the program is for SDRAM: it starts with the jump to the program at
+  address 0 and the jump to the interrupt handler at address 4, the interrupt vector.
+  Comments at the top say when the interrupts come (see iss_comparison.py). The
+  handler only uses r7-r9, so the program doesn't notice it, apart from what INTID and
+  PC_BACKUP read.
 """
 
 import random
 from collections.abc import Callable
+
+from b32sim.sim import NUM_INTERRUPTS
 
 WORK_REGS = [f"r{n}" for n in range(1, 7)]
 SOURCE_REGS = ["r0", *WORK_REGS]
@@ -43,6 +50,13 @@ VIDEO_DATA_BASE = 0x1E400000  # vram32
 VIDEO_DATA_OFFSETS = list(range(0, 64, 4))
 
 MAX_STACK_DEPTH = 32
+
+# The interrupts come at random times during the first INTERRUPT_CYCLES cycles, which is
+# longer than a program runs with the slowest memories. On average there are
+# INTERRUPT_SPACING cycles between them, which leaves the handler enough time.
+INTERRUPT_CYCLES = 10000
+INTERRUPT_SPACING = 400
+INTERRUPT_GAP = 8  # the cycles before an input can rise again
 
 REGIONS = frozenset({"sdram", "video", "cpu_io"})
 
@@ -68,9 +82,15 @@ def _available(*options: tuple[int, Action, bool]) -> list[tuple[int, Action]]:
 
 class _Generator:
     def __init__(
-        self, seed: int, exclude: set[str], only: set[str] | None, regions: set[str]
+        self,
+        seed: int,
+        exclude: set[str],
+        only: set[str] | None,
+        regions: set[str],
+        interrupts: bool,
     ) -> None:
         self.rng = random.Random(seed)
+        self.interrupts = interrupts
         self.exclude = exclude
         self.only = only
         self.regions = regions
@@ -305,9 +325,56 @@ class _Generator:
             self.emit(f"{p[1]}:")
             self.pending.remove(p)
 
+    # ---- Interrupts ----
+
+    def schedule(self) -> list[str]:
+        """The interrupt comments: single ones, and sometimes two or three at once."""
+        lines = []
+        free = [0] * (NUM_INTERRUPTS + 1)  # the first cycle each input can rise again
+        # Sometimes the first one comes right away, while the CPU is still in ROM.
+        cycle = self.rng.choice([0, self.rng.randint(0, INTERRUPT_SPACING)])
+        while cycle < INTERRUPT_CYCLES:
+            count = self.rng.choices([1, 2, 3], [8, 1, 1])[0]
+            for number in self.rng.sample(range(1, NUM_INTERRUPTS + 1), count):
+                if cycle >= free[number]:
+                    lines.append(f"; interrupt {number} at cycle {cycle}")
+                    free[number] = cycle + INTERRUPT_GAP
+            cycle += self.rng.randint(1, 2 * INTERRUPT_SPACING)
+        return lines
+
+    def handler(self) -> list[str]:
+        """The interrupt handler, with some of its parts chosen at random.
+
+        It adds the interrupt numbers up in r8, and keeps the return address in r7.
+        The return address can be overwritten during the handler and written back
+        directly before RETI, which must then use the value written back.
+        """
+        lines = [
+            "Interrupt:",
+            f"load32 {CPU_IO_BASE} r9",
+            "readintid r7",
+            "add r8 r7 r8",
+        ]
+        lines.append("read 0 r9 r7")  # PC_BACKUP
+        if self.rng.random() < 0.5:
+            lines.append("write 0 r9 r0")
+        if self.stack_ok and self.rng.random() < 0.5:
+            lines += ["push r8", "pop r8"]
+        if self.rng.random() < 0.5:
+            # A taken branch, which isn't interrupted, as interrupts are disabled
+            label = self.new_label()
+            lines += [f"beq r0 r0 {label}", "load 1 r8", f"{label}:"]
+        if self.muldiv_ops and self.rng.random() < 0.5:
+            lines.append(f"{self.rng.choice(self.muldiv_ops)} r8 r7 r8")
+        return [*lines, "write 0 r9 r7", "reti"]
+
     # ---- The whole program ----
 
     def program(self, length: int) -> str:
+        header = []
+        if self.interrupts:
+            header = [*self.schedule(), "jump Main", "jump Interrupt", *self.handler()]
+            header.append("Main:")
         if self.load32:
             self.emit(
                 f"load32 {CPU_IO_BASE} r10",
@@ -324,7 +391,7 @@ class _Generator:
         while len(self.lines) < length or self.pending:
             self.unit()
         self.emit(*(f"pop {self.dst()}" for _ in range(self.stack_depth)), "halt")
-        return "\n".join(self.lines) + "\n"
+        return "\n".join(header + self.lines) + "\n"
 
 
 def generate(
@@ -333,11 +400,15 @@ def generate(
     exclude: frozenset[str] = frozenset(),
     only: frozenset[str] | None = None,
     regions: frozenset[str] = REGIONS,
+    interrupts: bool = False,
 ) -> str:
     """A random program of about `length` lines.
 
     It doesn't use the mnemonics in `exclude`, and with `only`, it uses only those
-    (plus the final `halt`). It reads and writes only the `regions`.
+    (plus the final `halt`). It reads and writes only the `regions`. With `interrupts`,
+    it's a program for SDRAM with random interrupts and a handler, which needs `load`,
+    `loadhi`, `read`, `write`, `add`, `readintid` and `reti` too.
     """
     only_set = None if only is None else set(only)
-    return _Generator(seed, set(exclude), only_set, set(regions)).program(length)
+    generator = _Generator(seed, set(exclude), only_set, set(regions), interrupts)
+    return generator.program(length)

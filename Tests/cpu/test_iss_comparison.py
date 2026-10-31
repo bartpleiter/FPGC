@@ -8,6 +8,7 @@ Every program runs under each of the LATENCIES of the memory models, and must gi
 same retire trace under each of them.
 """
 
+import re
 from pathlib import Path
 
 import pytest
@@ -24,8 +25,9 @@ from .test_random import ALU_ONLY
 SUPPORTED = {Opcode.ARITH, Opcode.ARITHC, Opcode.SAVPC, Opcode.BRANCH, Opcode.JUMP}
 SUPPORTED |= {Opcode.JUMPR, Opcode.HALT, Opcode.READ, Opcode.WRITE}
 SUPPORTED |= {Opcode.PUSH, Opcode.POP, Opcode.ARITHM, Opcode.ARITHMC}
+SUPPORTED |= {Opcode.RETI, Opcode.INTID}
 RANDOM_ONLY = ALU_ONLY | {*BRANCH_OPS, "jump", "jumpr", "jumpro", "savpc"}
-RANDOM_ONLY |= {*READ_OPS, *WRITE_OPS, "push", "pop", *MULDIV_OPS}
+RANDOM_ONLY |= {*READ_OPS, *WRITE_OPS, "push", "pop", *MULDIV_OPS, "readintid", "reti"}
 # The regions with a memory behind the data port. Only SDRAM and the CPU-internal I/O
 # yet, so the directed programs that read ROM or video memory wait for the step that
 # adds those memories.
@@ -43,6 +45,7 @@ LATENCIES = {
 
 PROGRAMS = sorted((Path(__file__).parent / "asm").rglob("*.asm"))
 ERROR_PROGRAMS = sorted((Path(__file__).parent / "errors").glob("*.asm"))
+INTERRUPT_PROGRAMS = sorted((Path(__file__).parent / "interrupts").glob("*.asm"))
 
 
 def supported(path: Path) -> bool:
@@ -85,6 +88,25 @@ def test_error_program(
 
 
 @pytest.mark.parametrize("mode", LATENCIES)
+@pytest.mark.parametrize("path", INTERRUPT_PROGRAMS, ids=lambda p: p.stem)
+def test_interrupt_program(
+    b32p4_sim: Path, wave_dir: Path | None, path: Path, mode: str
+) -> None:
+    """The programs with interrupts, which run from SDRAM.
+
+    Each says which interrupts it must take, in order: `; interrupts taken: 1 5`.
+    """
+    name = run_name(path.stem, mode)
+    vcd = wave_dir / f"{name}.vcd" if wave_dir else None
+    source = path.read_text()
+    rtl = run_iss_comparison(b32p4_sim, source, name, vcd, latency=LATENCIES[mode])
+    expected = re.search(r"^; interrupts taken: ([\d ]+)$", source, re.MULTILINE)
+    assert expected, "no '; interrupts taken:' comment"
+    taken = [m.group(1) for r in rtl.records if (m := re.search(r" irq (\d+)", r))]
+    assert taken == expected.group(1).split()
+
+
+@pytest.mark.parametrize("mode", LATENCIES)
 def test_random(
     b32p4_sim: Path, wave_dir: Path | None, random_seed: int, mode: str
 ) -> None:
@@ -93,7 +115,9 @@ def test_random(
     latency = LATENCIES[mode]
     run_iss_comparison(
         b32p4_sim,
-        generate(random_seed, only=RANDOM_ONLY, regions=RANDOM_REGIONS),
+        generate(
+            random_seed, only=RANDOM_ONLY, regions=RANDOM_REGIONS, interrupts=True
+        ),
         name,
         vcd,
         latency=Latency(latency.fetch, latency.data, random_seed),
