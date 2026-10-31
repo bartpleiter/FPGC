@@ -23,6 +23,8 @@ module cpu_mem (
     input  wire        id_ex_push,
     input  wire        id_ex_pop,
     input  wire        id_ex_illegal,
+    input  wire        id_ex_mult,
+    input  wire        id_ex_div,
     input  wire [31:0] ex_result,
     input  wire [31:0] ex_b,
     input  wire [31:0] ex_addr,
@@ -32,6 +34,8 @@ module cpu_mem (
     input  wire        ex_unmapped,
     input  wire        ex_redirect,
     input  wire [31:0] ex_target,
+    input  wire [31:0] ex_mult_result,
+    input  wire [31:0] ex_div_result,
 
     // The data memory takes a request for the word at data_addr at a clock edge when
     // data_req is 1. It answers with data_ready, in the cycle after the request at the
@@ -71,6 +75,9 @@ reg        ex_mem_byte;
 reg        ex_mem_half;
 reg        ex_mem_sign_extend;
 reg        ex_mem_illegal;
+reg        ex_mem_mult;
+reg        ex_mem_div;
+reg [31:0] ex_mem_div_result;
 reg        ex_mem_sdram;
 reg        ex_mem_rom;
 reg        ex_mem_cpu_io;
@@ -97,6 +104,9 @@ always @(posedge clk) begin
         ex_mem_push        <= id_ex_push;
         ex_mem_pop         <= id_ex_pop;
         ex_mem_illegal     <= id_ex_illegal;
+        ex_mem_mult        <= id_ex_mult;
+        ex_mem_div         <= id_ex_div;
+        ex_mem_div_result  <= ex_div_result;
         ex_mem_addr        <= ex_addr;
         ex_mem_b           <= ex_b;
         ex_mem_sdram       <= ex_sdram;
@@ -222,8 +232,12 @@ cpu_read_align read_align (
     .value(mem_read_value)
 );
 
-assign mem_value       = ex_mem_read ? mem_read_value :
-                         ex_mem_pop  ? stack_top      :
+// The second stage of the multiplier works on the multiply in MEM. The result of a
+// divide came along from EX.
+assign mem_value       = ex_mem_read ? mem_read_value    :
+                         ex_mem_pop  ? stack_top         :
+                         ex_mem_mult ? ex_mult_result    :
+                         ex_mem_div  ? ex_mem_div_result :
                                        ex_mem_result;
 assign redirect        = ex_mem_valid && ex_mem_redirect && !busy_mem;
 assign redirect_target = {ex_mem_target[31:2], 2'b00};  // the PC is a multiple of 4

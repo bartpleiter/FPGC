@@ -123,6 +123,8 @@ wire        id_branch;
 wire        id_jump;
 wire        id_jumpr;
 wire        id_halt;
+wire        id_mult;
+wire        id_div;
 wire        id_read;
 wire        id_write;
 wire        id_byte;
@@ -171,6 +173,8 @@ cpu_id id_stage (
     .id_jump(id_jump),
     .id_jumpr(id_jumpr),
     .id_halt(id_halt),
+    .id_mult(id_mult),
+    .id_div(id_div),
     .id_read(id_read),
     .id_write(id_write),
     .id_byte(id_byte),
@@ -198,6 +202,8 @@ wire        id_ex_sign_extend;
 wire        id_ex_push;
 wire        id_ex_pop;
 wire        id_ex_illegal;
+wire        id_ex_mult;
+wire        id_ex_div;
 wire [31:0] ex_mem_result;
 wire        ex_mem_write;
 wire        ex_mem_push;
@@ -211,6 +217,8 @@ wire        ex_cpu_io;
 wire        ex_unmapped;
 wire        ex_redirect;
 wire [31:0] ex_target;
+wire [31:0] ex_mult_result;
+wire [31:0] ex_div_result;
 
 cpu_ex ex_stage (
     .clk(clk),
@@ -235,6 +243,8 @@ cpu_ex ex_stage (
     .id_jump(id_jump),
     .id_jumpr(id_jumpr),
     .id_halt(id_halt),
+    .id_mult(id_mult),
+    .id_div(id_div),
     .id_read(id_read),
     .id_write(id_write),
     .id_byte(id_byte),
@@ -266,6 +276,8 @@ cpu_ex ex_stage (
     .id_ex_push(id_ex_push),
     .id_ex_pop(id_ex_pop),
     .id_ex_illegal(id_ex_illegal),
+    .id_ex_mult(id_ex_mult),
+    .id_ex_div(id_ex_div),
     .ex_result(ex_result),
     .ex_b(ex_b),
     .ex_addr(ex_addr),
@@ -275,6 +287,8 @@ cpu_ex ex_stage (
     .ex_unmapped(ex_unmapped),
     .ex_redirect(ex_redirect),
     .ex_target(ex_target),
+    .ex_mult_result(ex_mult_result),
+    .ex_div_result(ex_div_result),
     .busy_ex(busy_ex)
 );
 
@@ -304,6 +318,8 @@ cpu_mem mem_stage (
     .id_ex_push(id_ex_push),
     .id_ex_pop(id_ex_pop),
     .id_ex_illegal(id_ex_illegal),
+    .id_ex_mult(id_ex_mult),
+    .id_ex_div(id_ex_div),
     .ex_result(ex_result),
     .ex_b(ex_b),
     .ex_addr(ex_addr),
@@ -313,6 +329,8 @@ cpu_mem mem_stage (
     .ex_unmapped(ex_unmapped),
     .ex_redirect(ex_redirect),
     .ex_target(ex_target),
+    .ex_mult_result(ex_mult_result),
+    .ex_div_result(ex_div_result),
     .data_addr(data_addr),
     .data_req(data_req),
     .data_write_data(data_write_data),

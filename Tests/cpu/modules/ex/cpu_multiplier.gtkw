@@ -1,0 +1,29 @@
+[*] GTKWave preset for cpu_multiplier (fpgc cpu wave cpu_multiplier)
+@28
+tb_cpu_multiplier.clk
+@820
+tb_cpu_multiplier.label[95:0]
+@200
+-
+-Inputs (EX)
+@28
+tb_cpu_multiplier.dut.enable
+@22
+tb_cpu_multiplier.dut.a[31:0]
+tb_cpu_multiplier.dut.b[31:0]
+@200
+-
+-Stage 1 (EX/MEM)
+@22
+tb_cpu_multiplier.dut.hh[33:0]
+tb_cpu_multiplier.dut.hl[33:0]
+tb_cpu_multiplier.dut.lh[33:0]
+tb_cpu_multiplier.dut.ll[33:0]
+@24
+tb_cpu_multiplier.dut.select[1:0]
+@200
+-
+-Stage 2 (MEM)
+@22
+tb_cpu_multiplier.dut.product[63:0]
+tb_cpu_multiplier.dut.y[31:0]

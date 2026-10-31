@@ -48,6 +48,8 @@ module cpu_id (
     output wire        id_jump,
     output wire        id_jumpr,
     output wire        id_halt,
+    output wire        id_mult,           // a multiply
+    output wire        id_div,            // a divide or modulo
     output wire        id_read,
     output wire        id_write,
     output wire        id_byte,           // read or write size, a word if neither byte nor half
@@ -107,8 +109,8 @@ cpu_decoder decoder (
     .read_sign_extend(id_sign_extend),
     .ccache_data_only(),
     .arith(),
-    .mult(),
-    .div(),
+    .mult(id_mult),
+    .div(id_div),
     .read(id_read),
     .write(id_write),
     .push(id_push),

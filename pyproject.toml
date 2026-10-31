@@ -16,6 +16,7 @@ dev = [
     "mypy>=2.3.1",
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
+    "pytest-xdist>=3.8.0",
     "ruff>=0.16.7",
 ]
 
@@ -38,7 +39,8 @@ extend-exclude = ["Website/themes"]
 
 [tool.pytest.ini_options]
 testpaths = ["Tools", "Tests"]
-addopts = ["--import-mode=importlib"]
+# -n auto runs the tests in parallel
+addopts = ["--import-mode=importlib", "-n", "auto"]
 
 [tool.coverage.report]
 fail_under = 50

@@ -1,7 +1,8 @@
 // Execute stage (EX)
 // The ID/EX register, then the forwarding mux, the ALU, the address adder and the
 // branch compare, which decide whether the instruction redirects, and where to. The
-// address adder also gives the address of a read or write, and its region.
+// address adder also gives the address of a read or write, and its region. A multiply
+// starts here and finishes in MEM, and a divide waits here until it's done.
 module cpu_ex (
     input  wire        clk,
     input  wire        reset,
@@ -27,6 +28,8 @@ module cpu_ex (
     input  wire        id_jump,
     input  wire        id_jumpr,
     input  wire        id_halt,
+    input  wire        id_mult,
+    input  wire        id_div,
     input  wire        id_read,
     input  wire        id_write,
     input  wire        id_byte,
@@ -65,6 +68,8 @@ module cpu_ex (
     output reg         id_ex_push,
     output reg         id_ex_pop,
     output reg         id_ex_illegal,
+    output reg         id_ex_mult,
+    output reg         id_ex_div,
 
     // To MEM
     output wire [31:0] ex_result,
@@ -76,6 +81,8 @@ module cpu_ex (
     output wire        ex_unmapped,
     output wire        ex_redirect,
     output wire [31:0] ex_target,
+    output wire [31:0] ex_mult_result, // of the multiply in MEM
+    output wire [31:0] ex_div_result,  // once the divider is done
     output wire        busy_ex
 );
 
@@ -138,6 +145,8 @@ always @(posedge clk) begin
         id_ex_push          <= id_push;
         id_ex_pop           <= id_pop;
         id_ex_illegal       <= id_illegal;
+        id_ex_mult          <= id_mult;
+        id_ex_div           <= id_div;
         id_ex_areg_from_mem <= id_areg_from_mem;
         id_ex_areg_from_wb  <= id_areg_from_wb;
         id_ex_breg_from_mem <= id_breg_from_mem;
@@ -152,11 +161,48 @@ always @(posedge clk) begin
     end
 end
 
+wire [31:0] alu_b = id_ex_alu_use_const ? id_ex_constant : ex_b;
+
 cpu_alu alu (
     .op(id_ex_alu_op),
     .a(ex_a),
-    .b(id_ex_alu_use_const ? id_ex_constant : ex_b),
+    .b(alu_b),
     .y(ex_result)
+);
+
+// The multiplier takes the operands of every instruction when it moves on to MEM, and
+// has the result when the instruction is in MEM. Only a multiply uses it.
+cpu_multiplier multiplier (
+    .clk(clk),
+    .enable(!stall_ex),
+    .op(id_ex_alu_op),
+    .a(ex_a),
+    .b(alu_b),
+    .y(ex_mult_result)
+);
+
+// A divide starts the divider in its first cycle in EX, and waits in EX until the
+// divider is done. The flag makes sure it starts only once, also when EX has to wait
+// for a later stage.
+reg  div_started;
+wire div_start = id_ex_valid && id_ex_div && !div_started;
+wire div_busy;
+
+always @(posedge clk) begin
+    if (reset || !stall_ex)
+        div_started <= 1'b0;
+    else if (div_start)
+        div_started <= 1'b1;
+end
+
+cpu_divider divider (
+    .clk(clk),
+    .start(div_start),
+    .op(id_ex_alu_op),
+    .a(ex_a),
+    .b(alu_b),
+    .busy(div_busy),
+    .y(ex_div_result)
 );
 
 // The address adder, separate from the ALU. It gives the address of a read or write,
@@ -201,6 +247,7 @@ assign ex_target   = id_ex_jumpr ? ex_addr : id_ex_target;
 wire write_then_access = (id_ex_read || id_ex_write) && ex_mem_valid && ex_mem_write;
 wire push_then_pop     = id_ex_pop && ex_mem_valid && ex_mem_push;
 
-assign busy_ex = id_ex_valid && (write_then_access || push_then_pop);
+assign busy_ex = id_ex_valid &&
+                 (write_then_access || push_then_pop || (id_ex_div && div_busy));
 
 endmodule

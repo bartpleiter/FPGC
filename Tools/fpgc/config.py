@@ -28,6 +28,8 @@ class CpuConfig(BaseModel):
         Path("Hardware/cpu/ex/cpu_ex.v"),
         Path("Hardware/cpu/ex/cpu_alu.v"),
         Path("Hardware/cpu/ex/cpu_branch.v"),
+        Path("Hardware/cpu/ex/cpu_multiplier.v"),
+        Path("Hardware/cpu/ex/cpu_divider.v"),
         Path("Hardware/cpu/mem/cpu_mem.v"),
         Path("Hardware/cpu/mem/cpu_read_align.v"),
         Path("Hardware/cpu/mem/cpu_write_align.v"),

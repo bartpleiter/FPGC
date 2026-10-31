@@ -1,0 +1,32 @@
+[*] GTKWave preset for cpu_divider (fpgc cpu wave cpu_divider)
+@28
+tb_cpu_divider.clk
+@820
+tb_cpu_divider.label[95:0]
+@200
+-
+-Inputs
+@28
+tb_cpu_divider.dut.start
+@424
+tb_cpu_divider.dut.a[31:0]
+tb_cpu_divider.dut.b[31:0]
+@200
+-
+-Working registers
+@24
+tb_cpu_divider.dut.steps[5:0]
+tb_cpu_divider.dut.divisor[31:0]
+tb_cpu_divider.dut.remainder[31:0]
+@22
+tb_cpu_divider.dut.quotient[47:0]
+@28
+tb_cpu_divider.dut.fits
+tb_cpu_divider.dut.negate
+@200
+-
+-Outputs
+@28
+tb_cpu_divider.dut.busy
+@424
+tb_cpu_divider.dut.y[31:0]

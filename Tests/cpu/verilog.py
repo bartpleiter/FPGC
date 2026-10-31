@@ -1,5 +1,6 @@
 """Compile and run Verilog testbenches with Icarus for the tests."""
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -14,8 +15,14 @@ RTL_FILES = [REPO / f for f in CFG.rtl_files]
 
 
 def compile_tb(tb: Path, sources: list[Path], out: Path) -> Path:
-    """Compile testbench `tb` with `sources` into `out`."""
+    """Compile testbench `tb` with `sources` into `out`.
+
+    The tests run in parallel, and each worker compiles the testbenches it needs. So
+    Icarus writes to a file of this process first, which then replaces `out` in one
+    step: a simulation that starts meanwhile never sees half a file.
+    """
     out.parent.mkdir(parents=True, exist_ok=True)
+    tmp = out.with_name(f"{out.name}.{os.getpid()}")
     _call(
         "iverilog",
         "-g2012",
@@ -26,10 +33,11 @@ def compile_tb(tb: Path, sources: list[Path], out: Path) -> Path:
         "-s",
         tb.stem,
         "-o",
-        out,
+        tmp,
         tb,
         *sources,
     )
+    tmp.replace(out)
     return out
 
 

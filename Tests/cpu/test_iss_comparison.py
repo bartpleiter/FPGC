@@ -17,15 +17,15 @@ from b32asm.isa import Opcode, decode
 from b32sim.sim import ROM_BASE
 
 from .iss_comparison import IDEAL, Latency, run_iss_comparison
-from .random_program import BRANCH_OPS, READ_OPS, WRITE_OPS, generate
+from .random_program import BRANCH_OPS, MULDIV_OPS, READ_OPS, WRITE_OPS, generate
 from .test_random import ALU_ONLY
 
 # The opcodes the RTL executes, and the mnemonics for the random programs.
 SUPPORTED = {Opcode.ARITH, Opcode.ARITHC, Opcode.SAVPC, Opcode.BRANCH, Opcode.JUMP}
 SUPPORTED |= {Opcode.JUMPR, Opcode.HALT, Opcode.READ, Opcode.WRITE}
-SUPPORTED |= {Opcode.PUSH, Opcode.POP}
+SUPPORTED |= {Opcode.PUSH, Opcode.POP, Opcode.ARITHM, Opcode.ARITHMC}
 RANDOM_ONLY = ALU_ONLY | {*BRANCH_OPS, "jump", "jumpr", "jumpro", "savpc"}
-RANDOM_ONLY |= {*READ_OPS, *WRITE_OPS, "push", "pop"}
+RANDOM_ONLY |= {*READ_OPS, *WRITE_OPS, "push", "pop", *MULDIV_OPS}
 # The regions with a memory behind the data port. Only SDRAM and the CPU-internal I/O
 # yet, so the directed programs that read ROM or video memory wait for the step that
 # adds those memories.
