@@ -1,23 +1,36 @@
 """Run a program on the RTL and on the ISS, and compare the two retire traces.
 
-The RTL runs in the testbench modules/tb_b32p4.v,
-compiled once per test session.
+The RTL runs in the testbench modules/tb_b32p4.v, compiled once per test process for
+each number of cache lines.
 
 Interrupts come at times the ISS can't know, so the RTL runs first, and the ISS takes
 each interrupt at the instruction where the RTL took it. The ISS only does that where
 the ISA allows it, so an interrupt at the wrong place is still a difference. A program
 gets its interrupts from comments such as `; interrupt 3 at cycle 120`: interrupt
-input 3 goes high at the end of cycle 120, and low again PULSE cycles later. A program
-with interrupts runs from SDRAM, because code in ROM is never interrupted, and the ROM
-then only has a jump to it.
+input 3 goes high at the end of cycle 120, and low again PULSE cycles later.
+
+A program runs from the ROM, or from SDRAM, through the L1I: a program with interrupts,
+because code in ROM is never interrupted, and a program with the comment
+`; runs from SDRAM`. The ROM then only has a jump to it.
+
+A program that ends with `ccache` (after its last write to SDRAM) has written every dirty
+line back, so the SDRAM must then hold what the ISS's memory holds. The testbench writes out
+the SDRAM at DATA_BASE, where the random programs keep their data, and the comparison
+checks it too. This finds a write-back that got lost, also of a line that the program
+never reads again.
+
+A program with the comment `; reset at cycle C` gets a reset at the end of cycle C. The
+comparison is then of what the RTL does after the reset, from the start of the program,
+with the ISS on a fresh machine. RtlTrace.reset says where the reset came.
 """
 
+import functools
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from b32asm.assembler import assemble
-from b32sim.sim import ROM_BASE, ROM_SIZE, SDRAM_BASE, Machine, SimError
+from b32sim.sim import ROM_BASE, ROM_SIZE, SDRAM_BASE, SDRAM_SIZE, Machine, SimError
 
 from .verilog import BUILD_DIR, MODULES_DIR, REPO, RTL_FILES, compile_tb, run_vvp
 
@@ -26,45 +39,53 @@ CONTEXT = 10  # instructions shown before a mismatch
 PULSE = 2  # the cycles an interrupt input stays high
 SDRAM_CODE_SIZE = 0x10000  # SDRAM below the data of the random programs
 
+DATA_BASE = 0x10000  # the SDRAM that the testbench writes out after a final ccache
+DATA_BYTES = 0x2000
+
 INTERRUPT_COMMENT = re.compile(r"^\s*; interrupt (\d) at cycle (\d+)", re.MULTILINE)
+RESET_COMMENT = re.compile(r"^\s*; reset at cycle (\d+)", re.MULTILINE)
+SDRAM_COMMENT = "; runs from SDRAM"
+CCACHE = 0x70000000  # the instruction word of ccache, and of ccached with bit 0 set
 
 
-def compile_b32p4() -> Path:
-    """Compile the ISS comparison testbench with the CPU."""
+@functools.cache
+def compile_b32p4(lines: int) -> Path:
+    """Compile the ISS comparison testbench with `lines` lines in each L1 cache."""
     return compile_tb(
-        MODULES_DIR / "tb_b32p4.v", RTL_FILES, COMPARISON_DIR / "tb_b32p4.vvp"
+        MODULES_DIR / "tb_b32p4.v",
+        RTL_FILES,
+        COMPARISON_DIR / f"tb_b32p4_{lines}.vvp",
+        {"LINES": lines},
     )
 
 
 @dataclass(frozen=True)
-class Latency:
-    """How many cycles the memory models wait before they answer a request.
+class Memories:
+    """The caches and the SDRAM model of the testbench.
 
-    Each is a number, or "rand" for a random number per request from `seed`.
+    `lines` is the number of lines of each L1 cache. `sdram` is the latency of the SDRAM
+    line model, the cycles to the first word of a line (at least 1), or "rand" for a
+    random latency per request from `seed`.
     """
 
-    fetch: str = "0"
-    data: str = "0"
+    lines: int = 128
+    sdram: str = "6"
     seed: int = 0
 
     def plusargs(self) -> dict[str, object]:
-        return {
-            "fetch_latency": self.fetch,
-            "data_latency": self.data,
-            "seed": self.seed,
-        }
+        return {"sdram_latency": self.sdram, "seed": self.seed}
 
     def options(self) -> str:
-        """The same as options of `fpgc cpu wave`, empty for the ideal memories."""
-        if self == IDEAL:
+        """The same as options of `fpgc cpu wave`, empty for the defaults."""
+        if self == DEFAULT:
             return ""
         return (
-            f" --fetch-latency {self.fetch} --data-latency {self.data}"
+            f" --lines {self.lines} --sdram-latency {self.sdram}"
             f" --latency-seed {self.seed}"
         )
 
 
-IDEAL = Latency()  # memories that answer right away, like a BRAM
+DEFAULT = Memories()  # the caches of B32P4 with B32P3's SDRAM timing
 
 
 @dataclass
@@ -72,6 +93,12 @@ class RtlTrace:
     records: list[str]  # one per retired instruction, in the ISS trace format
     cycles: list[int]  # the cycle in which each one retired
     ending: str  # the testbench's last line, which says how it ended
+    # the lines read from SDRAM and written to it (address bits [25:5]), in order
+    sdram_reads: list[int] = field(default_factory=list)
+    sdram_writes: list[int] = field(default_factory=list)
+    # the testbench's line about a reset in the middle of the run, if there was one
+    reset: str | None = None
+    memory_checked: bool = False  # the SDRAM was compared with the ISS's memory
 
 
 def interrupt_schedule(source: str) -> list[tuple[int, int, int]]:
@@ -83,21 +110,20 @@ def interrupt_schedule(source: str) -> list[tuple[int, int, int]]:
 
 
 def run_iss_comparison(
-    vvp: Path,
     source: str,
     name: str,
     vcd: Path | None = None,
     max_cycles: int = 100_000,
     strict: bool = True,
-    latency: Latency = IDEAL,
+    memories: Memories = DEFAULT,
 ) -> RtlTrace:
     """Run `source` on the RTL and the ISS; fail on a difference.
 
-    The program is assembled at the ROM, or at the start of SDRAM if it has interrupts.
-    With `strict` off, the ISS runs in hardware mode, for programs with illegal cases.
-    `latency` sets the memory models of the RTL; without interrupts, the retire trace
-    must be the same for every latency, only the cycles differ. The files of the run
-    are kept in build/cpu/iss_comparison/<name>/.
+    The program is assembled at the ROM, or at the start of SDRAM if it has interrupts
+    or SDRAM_COMMENT. With `strict` off, the ISS runs in hardware mode, for programs
+    with illegal cases. `memories` sets the caches and the memory models of the RTL;
+    without interrupts, the retire trace must be the same for all of them, only the
+    cycles differ. The files of the run are kept in build/cpu/iss_comparison/<name>/.
     """
     __tracebackhide__ = True
     out_dir = COMPARISON_DIR / name
@@ -105,7 +131,7 @@ def run_iss_comparison(
     program_file = out_dir / "program.asm"
     program_file.write_text(source)
     schedule = interrupt_schedule(source)
-    if schedule:
+    if schedule or SDRAM_COMMENT in source:
         rom = assemble("jump 0", ROM_BASE)
         sdram = assemble(source, SDRAM_BASE, str(program_file))
         assert len(sdram.words) <= SDRAM_CODE_SIZE // 4, "the program is too long"
@@ -118,11 +144,13 @@ def run_iss_comparison(
     padding = [0] * (ROM_SIZE // 4 - len(rom.words))
     rom_file.write_text("".join(f"{w:08x}\n" for w in rom.words + padding))
     trace_file = out_dir / "rtl.trace"
+    sdram_log = out_dir / "sdram.log"
     plusargs: dict[str, object] = {
         "rom": rom_file,
         "trace": trace_file,
+        "sdram_log": sdram_log,
         "max_cycles": max_cycles,
-        **latency.plusargs(),
+        **memories.plusargs(),
     }
     if sdram.words:
         sdram_file = out_dir / "sdram.hex"
@@ -135,9 +163,23 @@ def run_iss_comparison(
     if vcd is not None:
         vcd.parent.mkdir(parents=True, exist_ok=True)
         plusargs["vcd"] = vcd
-    output = run_vvp(vvp, **plusargs).splitlines()
+    reset = RESET_COMMENT.search(source)
+    if reset:
+        plusargs["reset_at"] = int(reset.group(1))
+    dump_file = out_dir / "sdram_dump.hex"
+    dump_file.unlink(missing_ok=True)
+    plusargs["sdram_dump"] = dump_file
+    output = run_vvp(compile_b32p4(memories.lines), **plusargs).splitlines()
 
-    rtl = RtlTrace([], [], output[-1] if output else "no output")
+    reads = [line.split() for line in sdram_log.read_text().splitlines()]
+    rtl = RtlTrace(
+        [],
+        [],
+        output[-1] if output else "no output",
+        [int(r[2], 16) for r in reads if r[1] == "read"],
+        [int(r[2], 16) for r in reads if r[1] == "write"],
+    )
+    rtl.reset = next((line for line in output if line.startswith("reset in")), None)
     for line in trace_file.read_text().splitlines():
         cycle, record = line.split(" ", 1)
         rtl.cycles.append(int(cycle))
@@ -149,9 +191,38 @@ def run_iss_comparison(
     expected = run_iss(machine, rtl.records, max_cycles)
     (out_dir / "iss.trace").write_text("".join(f"{r}\n" for r in expected))
 
-    rerun = f"fpgc cpu wave b32p4 {program_file.relative_to(REPO)}{latency.options()}"
+    rerun = f"fpgc cpu wave b32p4 {program_file.relative_to(REPO)}{memories.options()}"
     compare(expected, rtl, rerun)
+    if written_back(expected):
+        compare_memory(machine, dump_file, rerun)
+        rtl.memory_checked = True
     return rtl
+
+
+def written_back(trace: list[str]) -> bool:
+    """Whether the SDRAM holds every write of the trace: there's a ccache or ccached after
+    the last write to SDRAM (an interrupt handler may still run after it)."""
+    words = [int(r.split()[1], 16) & ~1 for r in trace]
+    if CCACHE not in words:
+        return False
+    last = len(words) - 1 - words[::-1].index(CCACHE)
+    writes = [re.search(r" write ([\da-f]{8})", r) for r in trace[last:]]
+    return not any(w and int(w.group(1), 16) < SDRAM_SIZE for w in writes)
+
+
+def compare_memory(machine: Machine, dump_file: Path, rerun: str) -> None:
+    """Fail at the first word of the SDRAM dump that differs from the ISS's memory."""
+    __tracebackhide__ = True
+    words = [int(w, 16) for w in dump_file.read_text().split()]
+    assert len(words) == DATA_BYTES // 4, "the testbench didn't write out the SDRAM"
+    for n, word in enumerate(words):
+        address = DATA_BASE + 4 * n
+        want = machine.read_word(address)
+        if word != want:
+            raise AssertionError(
+                f"after the final ccache, the SDRAM has {word:08x} at {address:08x},"
+                f" the ISS {want:08x}\nwaveform:  {rerun}"
+            )
 
 
 def run_iss(machine: Machine, rtl_records: list[str], max_steps: int) -> list[str]:

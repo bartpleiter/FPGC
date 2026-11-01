@@ -1,33 +1,33 @@
 // B32P4
-// Top-level design of the CPU. It connects the five pipeline stages and the hazard unit,
-// and has no logic of its own.
+// Top-level design of the CPU. It connects the five pipeline stages, the hazard unit, the
+// L1 caches and the cache controller, and has no logic of its own.
 module b32p4 #(
-    parameter INTERRUPTS = 7  // the number of interrupt inputs, at most 255
+    parameter INTERRUPTS = 7,    // the number of interrupt inputs, at most 255
+    parameter L1I_LINES  = 128,  // the number of lines of each L1 cache, a power of two
+    parameter L1D_LINES  = 128
 ) (
     input  wire        clk,
     input  wire        reset,
 
-    // The instruction memory takes a request for the word at fetch_addr at a clock edge
-    // when fetch_en is 1. It answers with fetch_ready, in the cycle after the request at
-    // the earliest, and fetch_word is then the word until the next request.
+    // The ROM reads the word at fetch_addr at a clock edge when fetch_en is 1, and
+    // keeps rom_word otherwise, like a BRAM with a clock enable.
     output wire [31:0] fetch_addr,
     output wire        fetch_en,
-    input  wire [31:0] fetch_word,
-    input  wire        fetch_ready,
+    input  wire [31:0] rom_word,
 
-    // The data memory takes a request for the word at data_addr at a clock edge when
-    // data_req is 1, and answers it in the same way, with data_ready and sdram_word.
-    // On both ports, the CPU only makes a new request once the last one is answered
-    // (apart from reset). A write is done
-    // at the clock edge when sdram_write is 1, which is only once the memory has
-    // answered: it writes the bytes of data_write_data that data_byte_enable selects.
-    output wire [31:0] data_addr,
-    output wire        data_req,
-    output wire [31:0] data_write_data,
-    output wire [3:0]  data_byte_enable,
+    // The SDRAM line port, of the cache controller. A request for a line stays 1 until
+    // sdram_take. A read gives the 8 words of the line with sdram_read_valid, starting
+    // at word sdram_first and wrapping around. A write asks for each word with
+    // sdram_next, and takes sdram_write_word in the cycle after.
+    output wire        sdram_req,
     output wire        sdram_write,
-    input  wire [31:0] sdram_word,
-    input  wire        data_ready,
+    output wire [25:5] sdram_line,
+    output wire [2:0]  sdram_first,
+    input  wire        sdram_take,
+    input  wire        sdram_read_valid,
+    input  wire [31:0] sdram_read_word,
+    input  wire        sdram_next,
+    output wire [31:0] sdram_write_word,
 
     // The interrupt inputs, bit n for interrupt n. A rising edge makes an interrupt
     // pending. They can come from another clock domain.
@@ -56,16 +56,19 @@ module b32p4 #(
 
 // Stall and flush
 
-wire busy_if, busy_id, busy_ex, busy_mem;
+wire busy_if, busy_id, busy_ex, busy_mem, l1d_miss, l1d_wait;
 wire redirect;
 wire stall_if, stall_id, stall_ex, stall_mem;
 wire flush_id, flush_ex, flush_mem, flush_wb;
+wire refetch_if;
 
 cpu_hazard hazard (
     .busy_if(busy_if),
     .busy_id(busy_id),
     .busy_ex(busy_ex),
     .busy_mem(busy_mem),
+    .l1d_miss(l1d_miss),
+    .l1d_wait(l1d_wait),
     .redirect(redirect),
     .stall_if(stall_if),
     .stall_id(stall_id),
@@ -74,7 +77,8 @@ cpu_hazard hazard (
     .flush_ex(flush_ex),
     .stall_mem(stall_mem),
     .flush_mem(flush_mem),
-    .flush_wb(flush_wb)
+    .flush_wb(flush_wb),
+    .refetch_if(refetch_if)
 );
 
 // IF
@@ -82,17 +86,35 @@ cpu_hazard hazard (
 wire [31:0] redirect_target;
 wire [31:0] pc;
 wire [31:0] if_instr;
+wire [31:0] l1i_word;
+wire [21-$clog2(L1I_LINES):0] l1i_entry;
+wire        l1i_request;
+wire        l1i_take;
+wire        l1i_writing;
+wire        l1i_filling;
+wire [25:2] fill_addr;
 
-cpu_if if_stage (
+cpu_if #(
+    .L1I_LINES(L1I_LINES)
+) if_stage (
     .clk(clk),
     .reset(reset),
     .stall_if(stall_if),
+    .refetch_if(refetch_if),
     .redirect(redirect),
     .redirect_target(redirect_target),
     .fetch_addr(fetch_addr),
     .fetch_en(fetch_en),
-    .fetch_word(fetch_word),
-    .fetch_ready(fetch_ready),
+    .rom_word(rom_word),
+    .l1i_word(l1i_word),
+    .l1i_entry(l1i_entry),
+    .l1i_request(l1i_request),
+    .l1i_take(l1i_take),
+    .l1i_writing(l1i_writing),
+    .l1i_filling(l1i_filling),
+    .fill_addr(fill_addr),
+    .sdram_read_valid(sdram_read_valid),
+    .sdram_read_word(sdram_read_word),
     .pc(pc),
     .if_instr(if_instr),
     .busy_if(busy_if)
@@ -130,6 +152,8 @@ wire        id_jump;
 wire        id_jumpr;
 wire        id_halt;
 wire        id_reti;
+wire        id_ccache;
+wire        id_ccached;
 wire        id_mult;
 wire        id_div;
 wire        id_read;
@@ -182,6 +206,8 @@ cpu_id id_stage (
     .id_jumpr(id_jumpr),
     .id_halt(id_halt),
     .id_reti(id_reti),
+    .id_ccache(id_ccache),
+    .id_ccached(id_ccached),
     .id_mult(id_mult),
     .id_div(id_div),
     .id_read(id_read),
@@ -213,6 +239,8 @@ wire        id_ex_push;
 wire        id_ex_pop;
 wire        id_ex_intid;
 wire        id_ex_reti;
+wire        id_ex_ccache;
+wire        id_ex_ccached;
 wire        id_ex_illegal;
 wire        id_ex_mult;
 wire        id_ex_div;
@@ -259,6 +287,8 @@ cpu_ex ex_stage (
     .id_jumpr(id_jumpr),
     .id_halt(id_halt),
     .id_reti(id_reti),
+    .id_ccache(id_ccache),
+    .id_ccached(id_ccached),
     .id_mult(id_mult),
     .id_div(id_div),
     .id_read(id_read),
@@ -296,6 +326,8 @@ cpu_ex ex_stage (
     .id_ex_pop(id_ex_pop),
     .id_ex_intid(id_ex_intid),
     .id_ex_reti(id_ex_reti),
+    .id_ex_ccache(id_ex_ccache),
+    .id_ex_ccached(id_ex_ccached),
     .id_ex_illegal(id_ex_illegal),
     .id_ex_mult(id_ex_mult),
     .id_ex_div(id_ex_div),
@@ -323,9 +355,29 @@ wire        ex_mem_pop;
 wire        ex_mem_interrupt;
 wire [31:0] mem_value;
 wire [7:0]  interrupt_id;
+// Only the L1D reads at data_addr yet, and it uses the bits of the line and the word.
+/* verilator lint_off UNUSEDSIGNAL */
+wire [31:0] data_addr;
+/* verilator lint_on UNUSEDSIGNAL */
+wire [31:0] data_write_data;
+wire [3:0]  data_byte_enable;
+wire        l1d_write;
+wire [22-$clog2(L1D_LINES):0] l1d_entry_write_value;
+wire [31:0] l1d_word;
+wire [22-$clog2(L1D_LINES):0] l1d_entry;
+wire        l1d_request;
+wire        victim_dirty;
+wire [20-$clog2(L1D_LINES):0] victim_tag;
+wire        l1d_take;
+wire        l1d_writing;
+wire        l1d_filling;
+wire        clear_request;
+wire        clear_data_only;
+wire        clear_take;
 
 cpu_mem #(
-    .INTERRUPTS(INTERRUPTS)
+    .INTERRUPTS(INTERRUPTS),
+    .L1D_LINES(L1D_LINES)
 ) mem_stage (
     .clk(clk),
     .reset(reset),
@@ -345,6 +397,8 @@ cpu_mem #(
     .id_ex_pop(id_ex_pop),
     .id_ex_intid(id_ex_intid),
     .id_ex_reti(id_ex_reti),
+    .id_ex_ccache(id_ex_ccache),
+    .id_ex_ccached(id_ex_ccached),
     .id_ex_illegal(id_ex_illegal),
     .id_ex_mult(id_ex_mult),
     .id_ex_div(id_ex_div),
@@ -361,12 +415,24 @@ cpu_mem #(
     .ex_mult_result(ex_mult_result),
     .ex_div_result(ex_div_result),
     .data_addr(data_addr),
-    .data_req(data_req),
     .data_write_data(data_write_data),
     .data_byte_enable(data_byte_enable),
-    .sdram_write(sdram_write),
-    .sdram_word(sdram_word),
-    .data_ready(data_ready),
+    .l1d_write(l1d_write),
+    .l1d_entry_write_value(l1d_entry_write_value),
+    .l1d_word(l1d_word),
+    .l1d_entry(l1d_entry),
+    .l1d_request(l1d_request),
+    .victim_dirty(victim_dirty),
+    .victim_tag(victim_tag),
+    .l1d_take(l1d_take),
+    .l1d_writing(l1d_writing),
+    .l1d_filling(l1d_filling),
+    .fill_addr(fill_addr),
+    .sdram_read_valid(sdram_read_valid),
+    .sdram_read_word(sdram_read_word),
+    .clear_request(clear_request),
+    .clear_data_only(clear_data_only),
+    .clear_take(clear_take),
     .interrupts(interrupts),
     .interrupt_pending(interrupt_pending),
     .interrupts_enabled(interrupts_enabled),
@@ -386,7 +452,9 @@ cpu_mem #(
     .interrupt_id(interrupt_id),
     .redirect(redirect),
     .redirect_target(redirect_target),
-    .busy_mem(busy_mem)
+    .busy_mem(busy_mem),
+    .l1d_miss(l1d_miss),
+    .l1d_wait(l1d_wait)
 );
 
 // WB
@@ -433,6 +501,101 @@ cpu_wb wb_stage (
     .retire_target(retire_target),
     .retire_irq(retire_irq),
     .retire_irq_id(retire_irq_id)
+);
+
+// The L1 caches and the cache controller. Port A of the L1I belongs to IF, port A of
+// the L1D to MEM, and port B of both caches to the controller.
+
+wire [31:0]                   b_write_data;
+wire [$clog2(L1I_LINES)+4:2]  l1i_b_addr;
+wire                          l1i_b_write;
+wire                          l1i_b_entry_write;
+wire [21-$clog2(L1I_LINES):0] l1i_b_entry_write_value;
+wire [$clog2(L1D_LINES)+4:2]  l1d_b_addr;
+wire [31:0]                   l1d_b_word;
+wire [22-$clog2(L1D_LINES):0] l1d_b_entry;
+wire                          l1d_b_write;
+wire                          l1d_b_entry_write;
+wire [22-$clog2(L1D_LINES):0] l1d_b_entry_write_value;
+
+cpu_l1i #(
+    .LINES(L1I_LINES)
+) l1i (
+    .clk(clk),
+    .a_addr(fetch_addr[$clog2(L1I_LINES)+4:2]),
+    .a_enable(fetch_en),
+    .a_word(l1i_word),
+    .a_entry(l1i_entry),
+    .b_addr(l1i_b_addr),
+    .b_write(l1i_b_write),
+    .b_write_data(b_write_data),
+    .b_entry_write(l1i_b_entry_write),
+    .b_entry_write_value(l1i_b_entry_write_value)
+);
+
+cpu_l1d #(
+    .LINES(L1D_LINES)
+) l1d (
+    .clk(clk),
+    .a_addr(data_addr[$clog2(L1D_LINES)+4:2]),
+    .a_word(l1d_word),
+    .a_entry(l1d_entry),
+    .a_write(l1d_write),
+    .a_byte_enable(data_byte_enable),
+    .a_write_data(data_write_data),
+    .a_entry_write(l1d_write),
+    .a_entry_write_value(l1d_entry_write_value),
+    .b_addr(l1d_b_addr),
+    .b_word(l1d_b_word),
+    .b_entry(l1d_b_entry),
+    .b_write(l1d_b_write),
+    .b_write_data(b_write_data),
+    .b_entry_write(l1d_b_entry_write),
+    .b_entry_write_value(l1d_b_entry_write_value)
+);
+
+cpu_cache_controller #(
+    .L1I_LINES(L1I_LINES),
+    .L1D_LINES(L1D_LINES)
+) cache_controller (
+    .clk(clk),
+    .reset(reset),
+    .l1i_request(l1i_request),
+    .l1i_addr(pc[25:2]),
+    .l1i_take(l1i_take),
+    .l1i_writing(l1i_writing),
+    .l1d_request(l1d_request),
+    .l1d_addr(ex_mem_addr[25:2]),
+    .victim_dirty(victim_dirty),
+    .victim_tag(victim_tag),
+    .l1d_take(l1d_take),
+    .l1d_writing(l1d_writing),
+    .l1i_filling(l1i_filling),
+    .l1d_filling(l1d_filling),
+    .fill_addr(fill_addr),
+    .clear_request(clear_request),
+    .clear_data_only(clear_data_only),
+    .clear_take(clear_take),
+    .b_write_data(b_write_data),
+    .l1i_b_addr(l1i_b_addr),
+    .l1i_b_write(l1i_b_write),
+    .l1i_b_entry_write(l1i_b_entry_write),
+    .l1i_b_entry_write_value(l1i_b_entry_write_value),
+    .l1d_b_addr(l1d_b_addr),
+    .l1d_b_word(l1d_b_word),
+    .l1d_b_entry(l1d_b_entry),
+    .l1d_b_write(l1d_b_write),
+    .l1d_b_entry_write(l1d_b_entry_write),
+    .l1d_b_entry_write_value(l1d_b_entry_write_value),
+    .sdram_req(sdram_req),
+    .sdram_write(sdram_write),
+    .sdram_line(sdram_line),
+    .sdram_first(sdram_first),
+    .sdram_take(sdram_take),
+    .sdram_read_valid(sdram_read_valid),
+    .sdram_read_word(sdram_read_word),
+    .sdram_next(sdram_next),
+    .sdram_write_word(sdram_write_word)
 );
 
 endmodule

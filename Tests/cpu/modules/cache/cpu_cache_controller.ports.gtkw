@@ -1,0 +1,30 @@
+[*] GTKWave preset for cpu_cache_controller, only the requests and the SDRAM line port (fpgc cpu wave cpu_cache_controller --view ports), 4 lines
+@28
+tb_cpu_cache_controller.clk
+@820
+tb_cpu_cache_controller.label[95:0]
+@22
+tb_cpu_cache_controller.dut.state[1:0]
+@200
+-
+-From MEM and IF
+@28
+tb_cpu_cache_controller.dut.l1d_request
+tb_cpu_cache_controller.dut.victim_dirty
+tb_cpu_cache_controller.dut.l1d_writing
+tb_cpu_cache_controller.dut.clear_request
+tb_cpu_cache_controller.dut.l1i_request
+tb_cpu_cache_controller.dut.l1i_writing
+@200
+-
+-SDRAM line port
+@28
+tb_cpu_cache_controller.dut.sdram_req
+tb_cpu_cache_controller.dut.sdram_write
+@22
+tb_cpu_cache_controller.dut.sdram_line[25:5]
+tb_cpu_cache_controller.dut.sdram_first[2:0]
+@28
+tb_cpu_cache_controller.dut.sdram_take
+tb_cpu_cache_controller.dut.sdram_read_valid
+tb_cpu_cache_controller.dut.sdram_next

@@ -8,6 +8,8 @@ reg  busy_if;
 reg  busy_id;
 reg  busy_ex;
 reg  busy_mem;
+reg  l1d_miss;
+reg  l1d_wait;
 reg  redirect;
 wire stall_if;
 wire stall_id;
@@ -17,12 +19,15 @@ wire flush_ex;
 wire stall_mem;
 wire flush_mem;
 wire flush_wb;
+wire refetch_if;
 
 cpu_hazard dut (
     .busy_if(busy_if),
     .busy_id(busy_id),
     .busy_ex(busy_ex),
     .busy_mem(busy_mem),
+    .l1d_miss(l1d_miss),
+    .l1d_wait(l1d_wait),
     .redirect(redirect),
     .stall_if(stall_if),
     .stall_id(stall_id),
@@ -31,15 +36,17 @@ cpu_hazard dut (
     .flush_ex(flush_ex),
     .stall_mem(stall_mem),
     .flush_mem(flush_mem),
-    .flush_wb(flush_wb)
+    .flush_wb(flush_wb),
+    .refetch_if(refetch_if)
 );
 
 initial begin
     tb_open;
-    while ($fscanf(vectors_fd, "%h %h %h %h %h %h\n",
-                   label, busy_if, busy_id, busy_ex, busy_mem, redirect) == 6)
-        @(negedge clk) $fwrite(outputs_fd, "%h %h %h %h %h %h %h %h\n", stall_if, stall_id,
-                               flush_id, stall_ex, flush_ex, stall_mem, flush_mem, flush_wb);
+    while ($fscanf(vectors_fd, "%h %h %h %h %h %h %h %h\n", label, busy_if, busy_id,
+                   busy_ex, busy_mem, l1d_miss, l1d_wait, redirect) == 8)
+        @(negedge clk) $fwrite(outputs_fd, "%h %h %h %h %h %h %h %h %h\n", stall_if,
+                               stall_id, flush_id, stall_ex, flush_ex, stall_mem,
+                               flush_mem, flush_wb, refetch_if);
     tb_close;
 end
 

@@ -233,6 +233,15 @@ SDRAM is accessed through an instruction cache (L1I) and a data cache (L1D). The
 | CCACHE, data-only = 0 | `ccache` | write all changed L1D data back to SDRAM, then invalidate L1I and L1D |
 | CCACHE, data-only = 1 | `ccached` | write all changed L1D data back to SDRAM, then invalidate L1D only |
 
+## Reset
+
+After a reset:
+
+- All registers and SP are 0, and the CPU starts at `0x1E000000`, in ROM. The contents of the hardware stack are undefined.
+- Interrupts are enabled, and none are pending.
+- The error register is clear.
+- The contents of SDRAM are undefined. This also means that dirty L1D lines do not need to be evicted.
+
 ## Memory map
 
 The CPU's view of the 32-bit address space. Other addresses ignore writes and return 0 for reads.

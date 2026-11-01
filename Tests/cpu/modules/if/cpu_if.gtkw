@@ -7,19 +7,32 @@ tb_b32p4.reset
 -Control
 @28
 tb_b32p4.dut.if_stage.stall_if
+tb_b32p4.dut.if_stage.refetch
 tb_b32p4.dut.if_stage.redirect
 @22
 tb_b32p4.dut.if_stage.redirect_target[31:0]
 @200
 -
--Fetch memory
+-Fetch memories
 @22
 tb_b32p4.dut.if_stage.fetch_addr[31:0]
 @28
 tb_b32p4.dut.if_stage.fetch_en
-tb_b32p4.dut.if_stage.fetch_ready
+tb_b32p4.dut.if_stage.in_rom
 @22
-tb_b32p4.dut.if_stage.fetch_word[31:0]
+tb_b32p4.dut.if_stage.rom_word[31:0]
+tb_b32p4.dut.if_stage.l1i_word[31:0]
+@200
+-
+-L1I miss
+@28
+tb_b32p4.dut.if_stage.l1i_current
+tb_b32p4.dut.if_stage.l1i_request
+tb_b32p4.dut.if_stage.l1i_take
+tb_b32p4.dut.if_stage.l1i_writing
+tb_b32p4.dut.sdram_req
+tb_b32p4.dut.sdram_read_valid
+tb_b32p4.dut.if_stage.l1i_bypass
 @200
 -
 -To ID
@@ -27,5 +40,4 @@ tb_b32p4.dut.if_stage.fetch_word[31:0]
 tb_b32p4.dut.if_stage.pc[31:0]
 tb_b32p4.dut.if_stage.if_instr[31:0]
 @28
-tb_b32p4.dut.if_stage.old_request
 tb_b32p4.dut.if_stage.busy_if

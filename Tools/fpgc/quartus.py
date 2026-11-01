@@ -11,6 +11,9 @@ from pathlib import Path
 from fpgc.common import run
 
 # Settings that differ from the Quartus defaults, the same as in the full project.
+# Quartus doesn't define SYNTHESIS itself, so the macro keeps the simulation-only code
+# (`ifndef SYNTHESIS) out of the build. Verilator and Icarus don't define it, so they
+# still check it.
 QSF = """\
 set_global_assignment -name FAMILY "Cyclone IV E"
 set_global_assignment -name DEVICE {device}
@@ -22,6 +25,7 @@ set_global_assignment -name OPTIMIZATION_MODE BALANCED
 set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
 set_global_assignment -name SDC_FILE {top}.sdc
 set_global_assignment -name SEED {seed}
+set_global_assignment -name VERILOG_MACRO "SYNTHESIS=1"
 """
 
 # The clock goes straight to the pin (no PLL). The other pins only feed and observe
@@ -79,10 +83,18 @@ def compile_and_report(
     device: str,
     period_ns: float,
     seed: int,
+    parameters: dict[str, int] | None = None,
 ) -> None:
-    """Compile `files` with top level `top` in `out_dir` and print the timing summary."""
+    """Compile `files` with top level `top` in `out_dir` and print the timing summary.
+
+    `parameters` overrides parameters of the top level.
+    """
     out_dir.mkdir(parents=True, exist_ok=True)
     qsf = QSF.format(device=device, top=top, seed=seed)
+    qsf += "".join(
+        f"set_parameter -name {name} {value}\n"
+        for name, value in (parameters or {}).items()
+    )
     qsf += "".join(
         f"set_global_assignment -name VERILOG_FILE {f.absolute()}\n" for f in files
     )
@@ -143,14 +155,12 @@ def summary(out_dir: Path, top: str) -> str:
     ranked = sorted(groups.items(), key=lambda item: min(item[1]))
     for (src, dst), group in ranked[:10]:
         lines.append(f"  {min(group):+.3f} ns  {len(group):4}  {src} -> {dst}")
-    lines.append(
-        "Resources: " + resources(out_dir / "output_files" / f"{top}.fit.summary")
-    )
+    lines.append("Resources: " + resources(out_dir / "output_files", top))
     return "\n".join(lines)
 
 
-def resources(fit_summary: Path) -> str:
-    """Logic elements, registers, memory bits and multipliers from the fit summary."""
+def resources(output_files: Path, top: str) -> str:
+    """Logic elements, registers, memory bits, M9Ks and multipliers of the fit."""
     wanted = {
         "Total logic elements": "LEs",
         "Total registers": "registers",
@@ -158,8 +168,12 @@ def resources(fit_summary: Path) -> str:
         "Embedded Multiplier 9-bit elements": "9-bit multipliers",
     }
     found = []
-    for line in fit_summary.read_text().splitlines():
+    for line in (output_files / f"{top}.fit.summary").read_text().splitlines():
         key, _, value = line.partition(" : ")
         if key.strip() in wanted:
             found.append(f"{value.split(' / ')[0].strip()} {wanted[key.strip()]}")
+    report = (output_files / f"{top}.fit.rpt").read_text(errors="replace")
+    m9ks = re.search(r"^; M9Ks\s+; (\d+) /", report, re.MULTILINE)
+    if m9ks:
+        found.insert(-1, f"{m9ks.group(1)} M9Ks")
     return ", ".join(found)

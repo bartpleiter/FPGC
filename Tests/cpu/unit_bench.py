@@ -44,8 +44,7 @@ class UnitBench:
         outputs_file = out_dir / "outputs.hex"
         vectors_file.write_text(
             "".join(
-                " ".join([_label_hex(label), *(f"{v[k]:x}" for k in self.inputs)])
-                + "\n"
+                " ".join([label_hex(label), *(f"{v[k]:x}" for k in self.inputs)]) + "\n"
                 for label, v in zip(labels, vectors, strict=True)
             )
         )
@@ -110,7 +109,7 @@ def _compare(
             )
 
 
-def _label_hex(label: str) -> str:
+def label_hex(label: str) -> str:
     """A label as the hex of its ASCII bytes, padded with spaces."""
     assert len(label) <= LABEL_CHARS, f"label {label!r} is too long"
     return label.ljust(LABEL_CHARS).encode("ascii").hex()

@@ -1,0 +1,33 @@
+[*] GTKWave preset for b32p4_cache, early restart and the refetch (fpgc cpu wave b32p4_cache --view restart)
+@28
+tb_b32p4.clk
+@200
+-
+-IF
+@22
+tb_b32p4.dut.if_stage.pc[31:0]
+@28
+tb_b32p4.dut.if_stage.busy_if
+tb_b32p4.dut.if_stage.l1i_bypass
+tb_b32p4.dut.if_stage.refetch
+@200
+-
+-MEM
+@28
+tb_b32p4.dut.mem_stage.ex_mem_valid
+@22
+tb_b32p4.dut.mem_stage.ex_mem_pc[31:0]
+@28
+tb_b32p4.dut.mem_stage.l1d_miss
+tb_b32p4.dut.mem_stage.l1d_bypass
+tb_b32p4.dut.mem_stage.l1d_write
+@200
+-
+-SDRAM line port
+@22
+tb_b32p4.dut.sdram_line[25:5]
+@28
+tb_b32p4.dut.sdram_write
+tb_b32p4.dut.sdram_read_valid
+@22
+tb_b32p4.dut.sdram_read_word[31:0]

@@ -1,0 +1,36 @@
+[*] GTKWave preset for cpu_l1d (fpgc cpu wave cpu_l1d)
+@28
+tb_cpu_l1d.clk
+@820
+tb_cpu_l1d.label[95:0]
+@200
+-
+-Port B (the cache controller)
+@22
+tb_cpu_l1d.dut.b_addr[11:2]
+@28
+tb_cpu_l1d.dut.b_write
+@22
+tb_cpu_l1d.dut.b_write_data[31:0]
+@28
+tb_cpu_l1d.dut.b_entry_write
+@22
+tb_cpu_l1d.dut.b_entry_write_value[15:0]
+tb_cpu_l1d.dut.b_word[31:0]
+tb_cpu_l1d.dut.b_entry[15:0]
+@200
+-
+-Port A (MEM)
+@22
+tb_cpu_l1d.dut.a_addr[11:2]
+@28
+tb_cpu_l1d.dut.a_write
+@22
+tb_cpu_l1d.dut.a_byte_enable[3:0]
+tb_cpu_l1d.dut.a_write_data[31:0]
+@28
+tb_cpu_l1d.dut.a_entry_write
+@22
+tb_cpu_l1d.dut.a_entry_write_value[15:0]
+tb_cpu_l1d.dut.a_word[31:0]
+tb_cpu_l1d.dut.a_entry[15:0]

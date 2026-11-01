@@ -37,6 +37,9 @@ class CpuConfig(BaseModel):
         Path("Hardware/cpu/mem/cpu_io_regs.v"),
         Path("Hardware/cpu/mem/cpu_interrupts.v"),
         Path("Hardware/cpu/wb/cpu_wb.v"),
+        Path("Hardware/cpu/cache/cpu_l1i.v"),
+        Path("Hardware/cpu/cache/cpu_l1d.v"),
+        Path("Hardware/cpu/cache/cpu_cache_controller.v"),
     ]
     tests_dir: Path = Path("Tests/cpu")
     modules_dir: Path = Path("Tests/cpu/modules")

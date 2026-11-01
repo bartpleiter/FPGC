@@ -30,6 +30,8 @@ module cpu_ex (
     input  wire        id_jumpr,
     input  wire        id_halt,
     input  wire        id_reti,
+    input  wire        id_ccache,
+    input  wire        id_ccached,
     input  wire        id_mult,
     input  wire        id_div,
     input  wire        id_read,
@@ -76,6 +78,8 @@ module cpu_ex (
     output reg         id_ex_pop,
     output reg         id_ex_intid,
     output reg         id_ex_reti,
+    output reg         id_ex_ccache,
+    output reg         id_ex_ccached,
     output reg         id_ex_illegal,
     output reg         id_ex_mult,
     output reg         id_ex_div,
@@ -148,6 +152,8 @@ always @(posedge clk) begin
         id_ex_jumpr         <= id_jumpr;
         id_ex_halt          <= id_halt;
         id_ex_reti          <= id_reti;
+        id_ex_ccache        <= id_ccache;
+        id_ex_ccached       <= id_ccached;
         id_ex_read          <= id_read;
         id_ex_write         <= id_write;
         id_ex_byte          <= id_byte;
@@ -249,7 +255,8 @@ cpu_branch branch (
 );
 
 // A jump, a taken branch and HALT redirect. HALT's target is its own PC. (A RETI
-// redirects too, but its target is only read in MEM.)
+// redirects too, but its target is only read in MEM. CCACHE redirects to its target,
+// PC + 4, once it's done in MEM. Neither is a place where an interrupt is taken.)
 assign ex_redirect = id_ex_jump || id_ex_jumpr || id_ex_halt || (id_ex_branch && ex_taken);
 assign ex_target   = id_ex_jumpr ? ex_addr : id_ex_target;
 

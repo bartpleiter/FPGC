@@ -1,25 +1,28 @@
 // Timing harness of the CPU, the top level of `fpgc cpu timing` without files. It isn't
-// CPU RTL. It puts b32p4 between the memories it reaches, at their real sizes, and keeps
-// its outputs alive with the sink.
+// CPU RTL. It puts b32p4 next to the memories outside it that it reaches, at their real
+// sizes, and keeps its outputs alive with the sink.
 //
-// For now that's the ROM, as the fetch memory, and one data memory of the size of the
-// future L1D data array (4 KiB, in four byte lanes). Every result can end up in a
-// write, so the data port's outputs going to the sink keeps the whole datapath. Whether
-// a memory has answered comes from the source, so from a register, as it would from a
-// real memory.
-module b32p4_harness (
+// For now that's the ROM, as the fetch memory next to the L1I inside the CPU. The L1D is
+// inside the CPU too, and every result can end up in it, and from there in a line that
+// is written back. So the SDRAM line port is the CPU's way out: it's a stub whose inputs
+// come from the source, and whose outputs go to the sink.
+module b32p4_harness #(
+    parameter LINES = 128  // the number of lines of each L1 cache
+) (
     input  wire clk,
     input  wire din,
     output wire dout
 );
 
-wire [9:0] random;
-source #(10) src (.clk(clk), .din(din), .q(random));
+wire [42:0] random;
+source #(43) src (.clk(clk), .din(din), .q(random));
 
-wire       reset       = random[0];
-wire       fetch_ready = random[1];
-wire       data_ready  = random[2];
-wire [7:1] interrupts  = random[9:3];
+wire        reset            = random[0];
+wire [7:1]  interrupts       = random[7:1];
+wire        sdram_take       = random[8];
+wire        sdram_read_valid = random[9];
+wire        sdram_next       = random[10];
+wire [31:0] sdram_read_word  = random[42:11];
 
 // The ROM, 4 KiB, filled with arbitrary words so Quartus can't simplify the CPU
 reg [31:0] rom [0:1023];
@@ -28,49 +31,37 @@ initial for (k = 0; k < 1024; k = k + 1) rom[k] = k * 32'h9E3779B9;
 
 wire [31:0] fetch_addr;
 wire        fetch_en;
-reg  [31:0] fetch_word;
+reg  [31:0] rom_word;
 
 always @(posedge clk)
     if (fetch_en)
-        fetch_word <= rom[fetch_addr[11:2]];
+        rom_word <= rom[fetch_addr[11:2]];
 
-wire [31:0] data_addr;
-wire        data_req;
-wire [31:0] data_write_data;
-wire [3:0]  data_byte_enable;
+wire        sdram_req;
 wire        sdram_write;
-wire [31:0] sdram_word;
-
-// The data memory, one M9K per byte lane
-genvar lane;
-generate
-    for (lane = 0; lane < 4; lane = lane + 1) begin : data_lane
-        reg [7:0] ram [0:1023];
-        reg [7:0] q;
-        always @(posedge clk) begin
-            if (sdram_write && data_byte_enable[lane])
-                ram[data_addr[11:2]] <= data_write_data[8*lane +: 8];
-            q <= ram[data_addr[11:2]];
-        end
-        assign sdram_word[8*lane +: 8] = q;
-    end
-endgenerate
+wire [25:5] sdram_line;
+wire [2:0]  sdram_first;
+wire [31:0] sdram_write_word;
 
 /* verilator lint_off PINCONNECTEMPTY */
-b32p4 cpu (
+b32p4 #(
+    .L1I_LINES(LINES),
+    .L1D_LINES(LINES)
+) cpu (
     .clk(clk),
     .reset(reset),
     .fetch_addr(fetch_addr),
     .fetch_en(fetch_en),
-    .fetch_word(fetch_word),
-    .fetch_ready(fetch_ready),
-    .data_addr(data_addr),
-    .data_req(data_req),
-    .data_write_data(data_write_data),
-    .data_byte_enable(data_byte_enable),
+    .rom_word(rom_word),
+    .sdram_req(sdram_req),
     .sdram_write(sdram_write),
-    .sdram_word(sdram_word),
-    .data_ready(data_ready),
+    .sdram_line(sdram_line),
+    .sdram_first(sdram_first),
+    .sdram_take(sdram_take),
+    .sdram_read_valid(sdram_read_valid),
+    .sdram_read_word(sdram_read_word),
+    .sdram_next(sdram_next),
+    .sdram_write_word(sdram_write_word),
     .interrupts(interrupts),
     .retire_valid(),
     .retire_pc(),
@@ -93,9 +84,9 @@ b32p4 cpu (
 );
 /* verilator lint_on PINCONNECTEMPTY */
 
-sink #(70) out (
+sink #(58) out (
     .clk(clk),
-    .d({data_addr, data_req, data_write_data, data_byte_enable, sdram_write}),
+    .d({sdram_req, sdram_write, sdram_line, sdram_first, sdram_write_word}),
     .dout(dout)
 );
 

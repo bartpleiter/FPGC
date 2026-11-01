@@ -20,14 +20,15 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         help="Also run this program as a demo, compared with the ISS, with a waveform.",
     )
     group.addoption(
-        "--fetch-latency",
-        default="0",
-        help="The latency of the instruction memory for the demos: cycles, or rand.",
+        "--lines",
+        type=int,
+        default=128,
+        help="The number of lines of each L1 cache for the demos.",
     )
     group.addoption(
-        "--data-latency",
-        default="0",
-        help="The latency of the data memory for the demos: cycles, or rand.",
+        "--sdram-latency",
+        default="6",
+        help="The latency of the SDRAM for the demos: cycles to the first word, or rand.",
     )
     group.addoption(
         "--latency-seed",

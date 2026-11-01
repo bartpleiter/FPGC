@@ -1,11 +1,23 @@
 // Memory access stage (MEM)
-// The EX/MEM register, then reading and writing the data memory, the stack and the
-// CPU-internal I/O registers, the interrupt controller, the result, and the redirect.
-// An instruction commits when it leaves MEM, so this is where a write writes, a push
-// pushes, the error register records the events of an instruction, an interrupt is
-// taken, and where the redirect happens.
+// The EX/MEM register, then reading and writing the L1D, the stack and the CPU-internal
+// I/O registers, the interrupt controller, the result, and the redirect. An instruction
+// commits when it leaves MEM, so this is where a write writes, a push pushes, the error
+// register records the events of an instruction, an interrupt is taken, and where the
+// redirect happens.
+//
+// A read or write to SDRAM goes through port A of the L1D, which reads at data_addr at
+// every clock edge. MEM only uses an L1D output that is current: read at ex_mem_addr,
+// and not written by the cache controller since. On a miss, MEM requests the line from
+// the controller, and reads again once the controller has stopped writing the L1D.
+// While the controller fills a line of the L1D, a read also takes its word from the
+// SDRAM port in the cycle it arrives (early restart). A write waits for the whole line.
+// A write hit writes the word and the entry {valid, dirty, tag} at commit. CCACHE and
+// CCACHED ask the controller to walk through the caches, wait until it's done, and then
+// redirect to the next instruction. See l1-cache.md, "L1D: hits in EX and MEM", "The
+// current rule", "Misses", "Early restart" and "CCACHE, CCACHED and reset".
 module cpu_mem #(
-    parameter INTERRUPTS = 7  // the number of interrupt inputs
+    parameter INTERRUPTS = 7,   // the number of interrupt inputs
+    parameter L1D_LINES  = 128  // the number of lines of the L1D, a power of two
 ) (
     input  wire        clk,
     input  wire        reset,
@@ -27,6 +39,8 @@ module cpu_mem #(
     input  wire        id_ex_pop,
     input  wire        id_ex_intid,
     input  wire        id_ex_reti,
+    input  wire        id_ex_ccache,
+    input  wire        id_ex_ccached,
     input  wire        id_ex_illegal,
     input  wire        id_ex_mult,
     input  wire        id_ex_div,
@@ -43,18 +57,39 @@ module cpu_mem #(
     input  wire [31:0] ex_mult_result,
     input  wire [31:0] ex_div_result,
 
-    // The data memory takes a request for the word at data_addr at a clock edge when
-    // data_req is 1. It answers with data_ready, in the cycle after the request at the
-    // earliest, and sdram_word is then the word until the next request. A write is
-    // done at the clock edge when sdram_write is 1, which is only once the memory has
-    // answered: it writes the bytes of data_write_data that data_byte_enable selects.
-    output wire [31:0] data_addr,
-    output wire        data_req,
-    output wire [31:0] data_write_data,
-    output wire [3:0]  data_byte_enable,
-    output wire        sdram_write,
-    input  wire [31:0] sdram_word,
-    input  wire        data_ready,
+    // Port A of the L1D reads the word at data_addr and the entry {valid, dirty, tag}
+    // of its line at every clock edge. When l1d_write is 1, it writes the bytes of
+    // data_write_data that data_byte_enable selects, and the entry
+    // l1d_entry_write_value.
+    output wire [31:0]                    data_addr,
+    output wire [31:0]                    data_write_data,
+    output wire [3:0]                     data_byte_enable,
+    output wire                           l1d_write,
+    output wire [22-$clog2(L1D_LINES):0]  l1d_entry_write_value,
+    input  wire [31:0]                    l1d_word,
+    input  wire [22-$clog2(L1D_LINES):0]  l1d_entry,
+
+    // The cache controller takes the request for the line of ex_mem_addr with
+    // l1d_take, and l1d_writing is 1 from then until after its last write to the L1D.
+    // The request comes with the line it replaces: whether it's dirty, and its tag.
+    output reg                            l1d_request,
+    output reg                            victim_dirty,
+    output reg  [20-$clog2(L1D_LINES):0]  victim_tag,
+    input  wire                           l1d_take,
+    input  wire                           l1d_writing,
+
+    // While l1d_filling is 1, the controller fills a line of the L1D, and the word that
+    // arrives on the SDRAM port with sdram_read_valid is the one at fill_addr.
+    input  wire                           l1d_filling,
+    input  wire [25:2]                    fill_addr,
+    input  wire                           sdram_read_valid,
+    input  wire [31:0]                    sdram_read_word,
+
+    // CCACHE (clear_data_only 0) or CCACHED (1). The controller takes the request with
+    // clear_take, and is done when l1d_writing is 0 again.
+    output reg                            clear_request,
+    output reg                            clear_data_only,
+    input  wire                           clear_take,
 
     // The interrupt inputs, bit n for interrupt n, and the interrupt state for EX
     input  wire [INTERRUPTS:1] interrupts,
@@ -80,8 +115,12 @@ module cpu_mem #(
     output wire [7:0]  interrupt_id,      // the interrupt that is taken
     output wire        redirect,
     output wire [31:0] redirect_target,
-    output wire        busy_mem
+    output wire        busy_mem,
+    output wire        l1d_miss,          // late: from the tag compare of the L1D
+    output wire        l1d_wait           // the part of l1d_miss known from registers
 );
+
+localparam INDEX = $clog2(L1D_LINES);
 
 reg        ex_mem_read;
 reg        ex_mem_byte;
@@ -89,6 +128,8 @@ reg        ex_mem_half;
 reg        ex_mem_sign_extend;
 reg        ex_mem_intid;
 reg        ex_mem_reti;
+reg        ex_mem_ccache;
+reg        ex_mem_ccached;
 reg        ex_mem_illegal;
 reg        ex_mem_mult;
 reg        ex_mem_div;
@@ -120,6 +161,8 @@ always @(posedge clk) begin
         ex_mem_pop         <= id_ex_pop;
         ex_mem_intid       <= id_ex_intid;
         ex_mem_reti        <= id_ex_reti;
+        ex_mem_ccache      <= id_ex_ccache;
+        ex_mem_ccached     <= id_ex_ccached;
         ex_mem_illegal     <= id_ex_illegal;
         ex_mem_mult        <= id_ex_mult;
         ex_mem_div         <= id_ex_div;
@@ -139,14 +182,60 @@ end
 // The instruction commits at the end of this cycle.
 wire commit = ex_mem_valid && !stall_mem;
 
-// A read or write to SDRAM makes its request at the clock edge where it enters MEM, with
-// the address from EX, so a read can have its word in MEM right away. The instruction
-// can't be cancelled any more once it's in MEM, so each one makes exactly one request.
-// Only a write in MEM uses its own address, to write at the end of MEM.
-wire enter_mem = id_ex_valid && !stall_mem && !flush_mem;
+// Only a read or write of SDRAM waits for the L1D. For every other instruction, the
+// commit is the same without the L1D miss, which comes late, from a tag compare. So the
+// side effects of those instructions use that, and don't wait for the compare.
+wire commit_early = ex_mem_valid && !busy_mem;
 
-assign data_req  = enter_mem && (id_ex_read || id_ex_write) && ex_sdram;
-assign data_addr = ex_mem_valid && ex_mem_write ? ex_mem_addr : ex_addr;
+// The L1D
+
+wire sdram_access = ex_mem_valid && (ex_mem_read || ex_mem_write) && ex_mem_sdram;
+
+// The L1D output is current when it was read at the edge where the instruction entered
+// MEM, or re-read since, while the controller wasn't writing the L1D. The arrays are
+// never held, so after that edge they read the address of the instruction in EX.
+reg l1d_current;
+
+wire l1d_match = l1d_entry[22-INDEX] && l1d_entry[20-INDEX:0] == ex_mem_addr[25:INDEX+5];
+wire l1d_hit   = l1d_current && l1d_match;
+
+// Early restart: the word of a read arrives on the SDRAM port for a fill of the L1D.
+// It comes from registers only, so it's known long before the tag compare. A write
+// waits for the whole line, and then writes the line as a write hit. A read that isn't
+// in MEM when its word arrives reads the L1D again after the fill.
+wire l1d_bypass = ex_mem_valid && ex_mem_read && ex_mem_sdram && sdram_read_valid &&
+                  l1d_filling && fill_addr == ex_mem_addr[25:2];
+
+// The tag compare comes late, so it's the last term.
+assign l1d_miss = sdram_access && !l1d_bypass && !l1d_hit;
+
+// Without a current output, MEM waits for the L1D whatever the tag says. That part of
+// the miss comes from registers only, so IF can use it. IF doesn't wait for the rest.
+assign l1d_wait = sdram_access && !l1d_bypass && !l1d_current;
+
+// When the output isn't current, MEM reads ex_mem_addr again once the controller has
+// stopped writing the L1D, and doesn't wait for a request of its own.
+wire l1d_reread = sdram_access && !l1d_current && !l1d_writing && !l1d_request;
+
+// The arrays read the address from EX, so a read has its word in MEM right away. A write
+// in MEM uses its own address, to write at the end of MEM, and so does a re-read.
+assign data_addr = (ex_mem_valid && ex_mem_write) || l1d_reread ? ex_mem_addr : ex_addr;
+
+always @(posedge clk) begin
+    l1d_current <= (!stall_mem || l1d_reread) && !l1d_writing;
+
+    // The request is set in the cycle in which MEM sees a current miss, together with
+    // the line it replaces, and the take clears it. The output stops being current at
+    // the same edge, so the request is set once. Nothing flushes an instruction that
+    // waits in MEM, so nothing else clears it.
+    if (reset || l1d_take) begin
+        l1d_request <= 1'b0;
+    end else if (sdram_access && l1d_current && !l1d_match) begin
+        l1d_request  <= 1'b1;
+        victim_dirty <= l1d_entry[22-INDEX] && l1d_entry[21-INDEX];
+        victim_tag   <= l1d_entry[20-INDEX:0];
+    end
+end
 
 cpu_write_align write_align (
     .data(ex_mem_b),
@@ -157,7 +246,33 @@ cpu_write_align write_align (
     .byte_enable(data_byte_enable)
 );
 
-assign sdram_write = commit && ex_mem_write && ex_mem_sdram;
+// A write hit writes the word and makes the line dirty when it commits. The entry is
+// written at every write hit, also when the line is dirty already.
+assign l1d_write             = commit && ex_mem_write && ex_mem_sdram;
+assign l1d_entry_write_value = {2'b11, ex_mem_addr[25:INDEX+5]};
+
+// CCACHE and CCACHED. The request is made in the first cycle in MEM, and the
+// instruction waits until the controller has taken it and has stopped writing the L1D.
+// It then commits, and redirects to the next instruction, which IF fetches from the
+// caches as they are after the walk. For CCACHE, l1i_writing ends no later than
+// l1d_writing. The flag is cleared when MEM isn't busy, which for CCACHE is when it
+// moves on, so the late L1D miss doesn't reach it.
+
+wire clear = ex_mem_valid && ex_mem_ccache;
+reg  clear_started;  // the request is made
+
+always @(posedge clk) begin
+    if (reset || clear_take)
+        clear_request <= 1'b0;
+    else if (clear && !clear_started)
+        clear_request <= 1'b1;
+    if (clear && !clear_started)
+        clear_data_only <= ex_mem_ccached;
+    if (reset || !busy_mem)
+        clear_started <= 1'b0;
+    else if (clear)
+        clear_started <= 1'b1;
+end
 
 // The stack
 
@@ -170,9 +285,9 @@ wire        underflow;
 cpu_stack stack (
     .clk(clk),
     .reset(reset),
-    .push(commit && ex_mem_push),
+    .push(commit_early && ex_mem_push),
     .push_value(ex_mem_b),
-    .pop(commit && ex_mem_pop),
+    .pop(commit_early && ex_mem_pop),
     .sp_write(sp_write),
     .sp_write_value(ex_mem_b[7:0]),
     .sp(sp),
@@ -184,7 +299,7 @@ cpu_stack stack (
 // The interrupt controller. An interrupt is taken when the instruction it replaces
 // commits.
 
-wire take_interrupt = commit && ex_mem_interrupt;
+wire take_interrupt = commit_early && ex_mem_interrupt;
 
 cpu_interrupts #(
     .INTERRUPTS(INTERRUPTS)
@@ -237,8 +352,12 @@ wire bad_address = ((ex_mem_read || ex_mem_write) && ex_mem_unmapped) ||
 wire bad_target  = jumps && (target[1:0] != 2'd0 || !target_code);
 
 // Bit n is the event of kind n + 1. The stack gives its events only when it commits.
+// An unaligned read or write of SDRAM gives its event while it waits for the L1D too.
+// That changes nothing: it gives the same event in every cycle, which the error register
+// only records once, and nothing can flush an instruction in MEM, so it commits.
 wire [5:0] events = {underflow, overflow,
-                     {bad_target, bad_address, unaligned, ex_mem_illegal} & {4{commit}}};
+                     {bad_target, bad_address, unaligned, ex_mem_illegal} &
+                     {4{commit_early}}};
 
 cpu_io_regs io_regs (
     .clk(clk),
@@ -248,7 +367,7 @@ cpu_io_regs io_regs (
     .bad_read(io_bad_read),
     .bad_write(io_bad_write),
     .read_value(io_read_value),
-    .write(commit && ex_mem_write && ex_mem_cpu_io),
+    .write(commit_early && ex_mem_write && ex_mem_cpu_io),
     .write_data(ex_mem_b),
     .sp(sp),
     .sp_write(sp_write),
@@ -256,7 +375,7 @@ cpu_io_regs io_regs (
     .events(events),
     .take_interrupt(take_interrupt),
     .interrupt_id(interrupt_id),
-    .reti(commit && ex_mem_reti),
+    .reti(commit_early && ex_mem_reti),
     .pc_backup(pc_backup),
     .interrupts_enabled(interrupts_enabled),
     .last_interrupt(last_interrupt)
@@ -264,8 +383,9 @@ cpu_io_regs io_regs (
 
 // The result. A read from a region without memory gives 0.
 
-wire [31:0] mem_read_word = ex_mem_sdram  ? sdram_word    :
-                            ex_mem_cpu_io ? io_read_value :
+wire [31:0] mem_read_word = l1d_bypass    ? sdram_read_word :
+                            ex_mem_sdram  ? l1d_word        :
+                            ex_mem_cpu_io ? io_read_value   :
                                             32'd0;
 wire [31:0] mem_read_value;
 
@@ -288,12 +408,21 @@ assign mem_value = ex_mem_read  ? mem_read_value          :
                                   ex_mem_result;
 
 // An interrupt goes to the interrupt vector, at address 4. The PC is always a multiple
-// of 4.
-assign redirect        = ex_mem_valid && (ex_mem_redirect || ex_mem_reti) && !busy_mem;
+// of 4. The target of CCACHE is PC + 4, from ID.
+assign redirect        = ex_mem_valid && (ex_mem_redirect || ex_mem_reti || ex_mem_ccache) &&
+                         !busy_mem;
 assign redirect_target = ex_mem_interrupt ? 32'h4 : {target[31:2], 2'b00};
 
-// A read or write to SDRAM waits in MEM until the data memory has answered.
-assign busy_mem = ex_mem_valid && (ex_mem_read || ex_mem_write) && ex_mem_sdram &&
-                  !data_ready;
+// CCACHE and CCACHED make MEM wait (and the Memory Unit will, in step 14). An L1D miss
+// goes to cpu_hazard on its own, because it comes late.
+assign busy_mem = clear && (!clear_started || clear_request || l1d_writing);
+
+`ifndef SYNTHESIS
+// A check in simulation: a read or write to SDRAM never commits with an L1D output that
+// isn't current, unless a read takes its word from the SDRAM port.
+always @(posedge clk)
+    if (!reset && commit && sdram_access && !l1d_current && !l1d_bypass)
+        $fatal(1, "cpu_mem moved on with an L1D output that isn't current");
+`endif
 
 endmodule

@@ -23,6 +23,8 @@ How a program is built:
 - `regions` restricts the reads and writes to some regions, for the RTL steps that
   don't have all memories yet: "sdram" (the SDRAM window), "video" (the video window)
   and "cpu_io" (reading the CPU-internal registers, and the drop).
+- Half of the programs that may use `ccache` end with one right before the `halt`, so
+  every dirty line is written back and the SDRAM can be compared with the ISS's memory.
 - With `interrupts`, the program is for SDRAM: it starts with the jump to the program at
   address 0 and the jump to the interrupt handler at address 4, the interrupt vector.
   Comments at the top say when the interrupts come (see iss_comparison.py). The
@@ -390,7 +392,10 @@ class _Generator:
                 self.emit(f"load32 {self.value()} {reg}")
         while len(self.lines) < length or self.pending:
             self.unit()
-        self.emit(*(f"pop {self.dst()}" for _ in range(self.stack_depth)), "halt")
+        self.emit(*(f"pop {self.dst()}" for _ in range(self.stack_depth)))
+        if self.ok("ccache") and self.rng.random() < 0.5:
+            self.emit("ccache")
+        self.emit("halt")
         return "\n".join(header + self.lines) + "\n"
 
 

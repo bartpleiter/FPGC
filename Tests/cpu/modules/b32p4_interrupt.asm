@@ -3,8 +3,9 @@
 ; comes during the loop, and is taken instead of the branch back: the branch goes
 ; through the pipeline, but in MEM it jumps to the interrupt vector at address 4
 ; instead, and pc_backup gets its address. The handler reads the interrupt number, and
-; RETI jumps back to the branch, which then runs as normal.
-; interrupt 3 at cycle 10
+; RETI jumps back to the branch, which then runs as normal. Before the first fetch from
+; SDRAM, IF waits about 130 cycles for the cache controller's walk after reset.
+; interrupt 3 at cycle 145
     jump Main
     jump Interrupt
 Interrupt:

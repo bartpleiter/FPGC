@@ -49,6 +49,8 @@ module cpu_id (
     output wire        id_jumpr,
     output wire        id_halt,
     output wire        id_reti,
+    output wire        id_ccache,         // ccache or ccached
+    output wire        id_ccached,        // ccached, which leaves the L1I alone
     output wire        id_mult,           // a multiply
     output wire        id_div,            // a divide or modulo
     output wire        id_read,
@@ -109,7 +111,7 @@ cpu_decoder decoder (
     .mem_byte(id_byte),
     .mem_half(id_half),
     .read_sign_extend(id_sign_extend),
-    .ccache_data_only(),
+    .ccache_data_only(id_ccached),
     .arith(),
     .mult(id_mult),
     .div(id_div),
@@ -122,14 +124,14 @@ cpu_decoder decoder (
     .jumpr(id_jumpr),
     .halt(id_halt),
     .reti(id_reti),
-    .ccache(),
+    .ccache(id_ccache),
     .intid(id_intid),
     .illegal(id_illegal)
 );
 /* verilator lint_on PINCONNECTEMPTY */
 
 // The target adder. It also makes the constant of savpc (the PC) and jumpro (PC + c16),
-// to which EX then adds the register.
+// to which EX then adds the register. The target of ccache is PC + 4.
 
 wire [31:0] pc_plus_constant = if_id_pc + constant;
 

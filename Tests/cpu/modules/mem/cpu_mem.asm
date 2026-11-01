@@ -1,11 +1,14 @@
 ; The demo of MEM (fpgc cpu wave cpu_mem).
-; A write writes the data memory at the end of MEM. A read gets its word from the data
-; memory in MEM, and takes the bytes it wants out of it. A push and a pop use the stack,
-; and an access at 0x1F000000 the CPU-internal I/O registers. The error register
-; records an illegal access when it leaves MEM. The redirects come from here too.
+; Reads and writes of SDRAM go through the L1D. The first write waits for the cache
+; controller's walk after reset, which invalidates the caches. It then misses: MEM requests
+; the line, waits while the cache controller fills it, then reads it again and hits. A
+; write hit writes the L1D at the end of MEM. A read gets its word from the L1D in MEM,
+; and takes the bytes it wants out of it. A push and a pop use the stack, and an access
+; at 0x1F000000 the CPU-internal I/O registers. The error register records an illegal
+; access when it leaves MEM. The redirects come from here too.
 load 4096 r1
 load 0xBEEF r2
-write 0 r1 r2       ; writes 0x0000BEEF
+write 0 r1 r2       ; misses, waits for the line, then writes 0x0000BEEF
 read 0 r1 r3        ; waits a cycle in EX for the write, then reads 0x0000BEEF
 readb 0 r1 r4       ; the byte 0xEF, sign-extended: 0xFFFFFFEF
 readbu 1 r1 r5      ; the byte 0xBE, zero-extended

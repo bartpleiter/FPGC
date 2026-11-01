@@ -1,0 +1,95 @@
+[*] GTKWave preset for cpu_cache_controller (fpgc cpu wave cpu_cache_controller), 4 lines
+@28
+tb_cpu_cache_controller.clk
+@820
+tb_cpu_cache_controller.label[95:0]
+@28
+tb_cpu_cache_controller.dut.reset
+@200
+-
+-L1D request (from MEM)
+@28
+tb_cpu_cache_controller.dut.l1d_request
+@22
+tb_cpu_cache_controller.dut.l1d_addr[25:2]
+@28
+tb_cpu_cache_controller.dut.victim_dirty
+@22
+tb_cpu_cache_controller.dut.victim_tag[18:0]
+@28
+tb_cpu_cache_controller.dut.l1d_take
+tb_cpu_cache_controller.dut.l1d_writing
+@200
+-
+-CCACHE or CCACHED (from MEM)
+@28
+tb_cpu_cache_controller.dut.clear_request
+tb_cpu_cache_controller.dut.clear_data_only
+tb_cpu_cache_controller.dut.clear_take
+@200
+-
+-L1I request (from IF)
+@28
+tb_cpu_cache_controller.dut.l1i_request
+@22
+tb_cpu_cache_controller.dut.l1i_addr[25:2]
+@28
+tb_cpu_cache_controller.dut.l1i_take
+tb_cpu_cache_controller.dut.l1i_writing
+@200
+-
+-State (0 idle, 1 write-back, 2 fill, 3 walk)
+@24
+tb_cpu_cache_controller.dut.state[1:0]
+@28
+tb_cpu_cache_controller.dut.fill_l1d
+@24
+tb_cpu_cache_controller.dut.count[2:0]
+tb_cpu_cache_controller.dut.index[1:0]
+@28
+tb_cpu_cache_controller.dut.clearing
+tb_cpu_cache_controller.dut.walk_l1i
+tb_cpu_cache_controller.dut.entry_read
+@200
+-
+-SDRAM line port
+@28
+tb_cpu_cache_controller.dut.sdram_req
+tb_cpu_cache_controller.dut.sdram_write
+@22
+tb_cpu_cache_controller.dut.sdram_line[25:5]
+@24
+tb_cpu_cache_controller.dut.sdram_first[2:0]
+@28
+tb_cpu_cache_controller.dut.sdram_take
+tb_cpu_cache_controller.dut.sdram_read_valid
+@22
+tb_cpu_cache_controller.dut.sdram_read_word[31:0]
+@28
+tb_cpu_cache_controller.dut.sdram_next
+@22
+tb_cpu_cache_controller.dut.sdram_write_word[31:0]
+@200
+-
+-L1D port B
+@22
+tb_cpu_cache_controller.dut.l1d_b_addr[6:2]
+tb_cpu_cache_controller.dut.l1d_b_entry[20:0]
+@28
+tb_cpu_cache_controller.dut.l1d_b_write
+@22
+tb_cpu_cache_controller.dut.b_write_data[31:0]
+@28
+tb_cpu_cache_controller.dut.l1d_b_entry_write
+@22
+tb_cpu_cache_controller.dut.l1d_b_entry_write_value[20:0]
+@200
+-
+-L1I port B
+@22
+tb_cpu_cache_controller.dut.l1i_b_addr[6:2]
+@28
+tb_cpu_cache_controller.dut.l1i_b_write
+tb_cpu_cache_controller.dut.l1i_b_entry_write
+@22
+tb_cpu_cache_controller.dut.l1i_b_entry_write_value[19:0]

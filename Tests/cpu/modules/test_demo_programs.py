@@ -6,15 +6,16 @@ views. `fpgc cpu wave` shows them. Programs given with --program run here too, f
 `fpgc cpu wave <module> <program>`.
 
 The ISS runs them in hardware mode, so a demo can show an illegal case, such as the
-error register recording it. The memories answer right away, unless --fetch-latency or
---data-latency says otherwise, to show a demo with memories that wait.
+error register recording it. The caches and memories are those of iss_comparison's
+DEFAULT, unless --lines or --sdram-latency say otherwise, to show a demo with other
+caches or an SDRAM that waits longer.
 """
 
 from pathlib import Path
 
 import pytest
 
-from ..iss_comparison import Latency, run_iss_comparison
+from ..iss_comparison import Memories, run_iss_comparison
 from ..presets import check_preset
 from ..verilog import WAVE_DIR
 
@@ -27,21 +28,18 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
         metafunc.parametrize("program", programs, ids=[p.stem for p in programs])
 
 
-def test_demo_program(
-    b32p4_sim: Path, program: Path, request: pytest.FixtureRequest
-) -> None:
+def test_demo_program(program: Path, request: pytest.FixtureRequest) -> None:
     vcd = WAVE_DIR / f"{program.stem}.vcd"
     option = request.config.getoption
-    latency = Latency(
-        option("fetch_latency"), option("data_latency"), option("latency_seed")
+    memories = Memories(
+        option("lines"), option("sdram_latency"), option("latency_seed")
     )
     run_iss_comparison(
-        b32p4_sim,
         program.read_text(),
         program.stem,
         vcd,
         strict=False,
-        latency=latency,
+        memories=memories,
     )
     if program in DEMOS:
         # The preset, and the other views of the same demo (<stem>.<view>.gtkw)

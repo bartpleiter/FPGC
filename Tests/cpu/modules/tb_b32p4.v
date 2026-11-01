@@ -1,12 +1,14 @@
-// The testbench of the ISS comparison. It runs a program on b32p4 with memory models
-// that answer after a set or a random number of cycles, raises the interrupt inputs as a
+// The testbench of the ISS comparison. It runs a program on b32p4 with the ROM and the
+// SDRAM line model behind the cache controller. It raises the interrupt inputs as a
 // schedule says, and writes the retire port to a trace file.
 //
 // A trace line is the cycle number, then the record in the format of the ISS trace
 // (b32sim's Retired), so pytest can compare the two line by line. The testbench stops
 // after the first retired HALT, and prints how it ended as its last line.
 //
-// Plusargs:
+// The parameter LINES is the number of lines of each L1 cache.
+//
+// Plusargs, besides those of sdram_line_model.vh (+sdram_latency, +seed, +sdram_log):
 //
 //   +rom=<file>        the program as hex words ($readmemh), 1024 of them (required)
 //   +sdram=<file>      hex words for the start of the SDRAM, such as a program that runs
@@ -16,40 +18,68 @@
 //   +trace=<file>      the retire trace (required)
 //   +vcd=<file>        also dump a waveform
 //   +max_cycles=<n>    give up after n cycles (default 100000)
-//   +fetch_latency=<l> how many cycles the instruction memory waits before it answers a
-//                      request: a number, or rand for a random number (default 0)
-//   +data_latency=<l>  the same for the data memory
-//   +seed=<n>          the seed of the random latencies (default 0)
+//   +reset_at=<c>      raise reset at the end of cycle c for two cycles, as at the start.
+//                      The CPU then starts again, and so does the trace: it only has the
+//                      instructions after the reset. A line says how many retired before.
+//   +sdram_dump=<file> after the HALT, write the SDRAM words of DUMP_BYTES at DUMP_BASE,
+//                      where the random programs keep their data, one per line in hex
 //
-// The instruction memory is the ROM (4 KiB at 0x1E000000) and the SDRAM, and the data
-// memory is the whole SDRAM (64 MiB at 0). With a latency of 0, they have the timing of
-// a BRAM: the word of a request is there in the cycle after it. With a larger latency, a memory
-// answers that many cycles later, and its word is X until then, so a CPU that uses the
-// word too early gets X in the trace.
+// The ROM (4 KiB at 0x1E000000) is a BRAM with a clock enable. Every other fetch, and
+// every read and write of SDRAM (64 MiB at 0), goes through the L1 caches, and from
+// there through the line model.
 `timescale 1ns / 1ps
-module tb_b32p4;
+module tb_b32p4 #(
+    parameter LINES = 128
+);
 
 localparam HALT = 32'hFFFFFFFF;
+
+localparam DUMP_BASE  = 32'h10000;  // the SDRAM that +sdram_dump writes out
+localparam DUMP_BYTES = 32'h2000;
 
 reg clk = 0;
 always #5 clk = !clk;
 
 reg reset = 1;
 
+// Cycle 0 is the first cycle after reset.
+integer cycle = 0;
+integer trace_fd;
+
+// Ends the simulation. The last line printed before it says how it ended.
+task stop;
+    begin
+        $fclose(trace_fd);
+        $finish(0);
+    end
+endtask
+
+reg [8*256-1:0] trace_path;
+reg [8*256-1:0] dump_path;
+integer         dump_fd;
+integer         dump_i;
+
+// Writes out the SDRAM of DUMP_BASE, if +sdram_dump asks for it
+task dump_sdram;
+    if ($value$plusargs("sdram_dump=%s", dump_path)) begin
+        dump_fd = $fopen(dump_path, "w");
+        for (dump_i = 0; dump_i < DUMP_BYTES / 4; dump_i = dump_i + 1)
+            $fwrite(dump_fd, "%08x\n", sdram[DUMP_BASE / 4 + dump_i]);
+        $fclose(dump_fd);
+    end
+endtask
+
+// The SDRAM, for the line model. A 2-state array starts at 0, like
+// the SDRAM of the ISS, and Icarus keeps 64 MiB of it small and fast.
+bit [31:0] sdram [0:(1 << 24) - 1];
+
+`include "sdram_line_model.vh"
+
 // ---- The CPU ----
 
 wire [31:0] fetch_addr;
 wire        fetch_en;
-reg  [31:0] fetch_word;
-wire        fetch_ready;
-
-wire [31:0] data_addr;
-wire        data_req;
-wire [31:0] data_write_data;
-wire [3:0]  data_byte_enable;
-wire        sdram_write;
-reg  [31:0] sdram_word;
-wire        data_ready;
+reg  [31:0] rom_word;
 
 // As many interrupt inputs as the ISS has
 localparam INTERRUPTS = 7;
@@ -76,21 +106,24 @@ wire        retire_irq;
 wire [7:0]  retire_irq_id;
 
 b32p4 #(
-    .INTERRUPTS(INTERRUPTS)
+    .INTERRUPTS(INTERRUPTS),
+    .L1I_LINES(LINES),
+    .L1D_LINES(LINES)
 ) dut (
     .clk(clk),
     .reset(reset),
     .fetch_addr(fetch_addr),
     .fetch_en(fetch_en),
-    .fetch_word(fetch_word),
-    .fetch_ready(fetch_ready),
-    .data_addr(data_addr),
-    .data_req(data_req),
-    .data_write_data(data_write_data),
-    .data_byte_enable(data_byte_enable),
+    .rom_word(rom_word),
+    .sdram_req(sdram_req),
     .sdram_write(sdram_write),
-    .sdram_word(sdram_word),
-    .data_ready(data_ready),
+    .sdram_line(sdram_line),
+    .sdram_first(sdram_first),
+    .sdram_take(sdram_take),
+    .sdram_read_valid(sdram_read_valid),
+    .sdram_read_word(sdram_read_word),
+    .sdram_next(sdram_next),
+    .sdram_write_word(sdram_write_word),
     .interrupts(interrupts),
     .retire_valid(retire_valid),
     .retire_pc(retire_pc),
@@ -112,116 +145,23 @@ b32p4 #(
     .retire_irq_id(retire_irq_id)
 );
 
-// Cycle 0 is the first cycle after reset.
-integer cycle = 0;
-integer trace_fd;
-
-// Ends the simulation. The last line printed before it says how it ended.
-task stop;
-    begin
-        $fclose(trace_fd);
-        $finish(0);
-    end
-endtask
-
-// ---- The latency of the memories ----
-
-localparam RANDOM = -1;
-
-integer fetch_latency = 0;  // a number of cycles, or RANDOM
-integer data_latency  = 0;
-integer fetch_seed;
-integer data_seed;
-
-// The number of cycles a memory waits before it answers a request, for a latency
-// setting and a random number. A random latency is 0 for half of the requests, as for a
-// BRAM, 1 to 4 cycles for most others, and 8 to 39 cycles for one in sixteen, as for an
-// SDRAM access.
-function integer wait_cycles(input integer latency, input [31:0] r);
-    if (latency != RANDOM)
-        wait_cycles = latency;
-    else if (r[0])
-        wait_cycles = 0;
-    else if (r[3:1] != 3'd0)
-        wait_cycles = 1 + r[5:4];
-    else
-        wait_cycles = 8 + r[9:5];
-endfunction
-
-// ---- The instruction memory ----
-
-// The SDRAM, the same one as the data memory's below. A 2-state array starts at 0, like
-// the SDRAM of the ISS, and Icarus keeps 64 MiB of it small and fast.
-bit [31:0] sdram [0:(1 << 24) - 1];
+// ---- The ROM ----
 
 reg [31:0] rom [0:1023];
-reg [31:0] fetch_index;     // the address of the last request
-integer    fetch_wait = 0;  // the cycles until the memory answers it
-integer    fetch_cycles;
 
-assign fetch_ready = fetch_wait == 0;
+always @(posedge clk)
+    if (fetch_en)
+        rom_word <= rom[fetch_addr[11:2]];
 
-// The code memories: the ROM, or else the SDRAM.
-function [31:0] code_word(input [31:0] addr);
-    code_word = addr >= 32'h1E000000 ? rom[addr[11:2]] : sdram[addr[25:2]];
-endfunction
-
-// A request during reset replaces one that hasn't been answered yet. Otherwise a request
-// before the answer is a protocol error.
+// IF never moves on with an L1I output that isn't current. That's checked here against
+// the SDRAM itself: an instruction from outside the ROM that IF passes to ID must be the
+// SDRAM's word at the PC.
 always @(posedge clk) begin
-    if (fetch_en) begin
-        if (!fetch_ready && !reset) begin
-            $display("protocol error in cycle %0d: a fetch request before the last answer",
-                     cycle);
-            stop;
-        end
-        fetch_cycles = wait_cycles(fetch_latency, $random(fetch_seed));
-        fetch_index <= fetch_addr;
-        fetch_wait  <= fetch_cycles;
-        fetch_word  <= fetch_cycles == 0 ? code_word(fetch_addr) : 32'bx;
-    end else if (fetch_wait != 0) begin
-        fetch_wait <= fetch_wait - 1;
-        if (fetch_wait == 1)
-            fetch_word <= code_word(fetch_index);
-    end
-end
-
-// ---- The data memory ----
-
-reg [23:0] data_index;
-integer    data_wait = 0;
-integer    data_cycles;
-integer    lane;
-
-assign data_ready = data_wait == 0;
-
-always @(posedge clk) begin
-    if (reset) begin
-        data_wait <= 0;
-    end else if (data_req) begin
-        if (!data_ready) begin
-            $display("protocol error in cycle %0d: a data request before the last answer",
-                     cycle);
-            stop;
-        end
-        data_cycles = wait_cycles(data_latency, $random(data_seed));
-        data_index <= data_addr[25:2];
-        data_wait  <= data_cycles;
-        sdram_word <= data_cycles == 0 ? sdram[data_addr[25:2]] : 32'bx;
-    end else if (data_wait != 0) begin
-        data_wait <= data_wait - 1;
-        if (data_wait == 1)
-            sdram_word <= sdram[data_index];
-    end
-    if (sdram_write) begin
-        if (!data_ready) begin
-            $display("protocol error in cycle %0d: a write before the data memory answered",
-                     cycle);
-            stop;
-        end
-        for (lane = 0; lane < 4; lane = lane + 1)
-            if (data_byte_enable[lane])
-                sdram[data_addr[25:2]][8*lane +: 8] <= data_write_data[8*lane +: 8];
+    if (!reset && !dut.stall_if && !dut.if_stage.in_rom &&
+        dut.if_instr !== sdram[dut.pc[25:2]]) begin
+        $display("IF moved on in cycle %0d with %08x at %08x, where the SDRAM has %08x",
+                 cycle, dut.if_instr, dut.pc, sdram[dut.pc[25:2]]);
+        stop;
     end
 end
 
@@ -276,8 +216,6 @@ endtask
 reg [8*256-1:0] path;
 integer max_cycles;
 
-reg [8*8-1:0] latency;
-
 initial begin
     if (!$value$plusargs("rom=%s", path))
         $fatal(1, "+rom=<file> is missing");
@@ -290,22 +228,13 @@ initial begin
             $fatal(1, "cannot read %0s", path);
         read_schedule;
     end
-    if (!$value$plusargs("trace=%s", path))
+    if (!$value$plusargs("trace=%s", trace_path))
         $fatal(1, "+trace=<file> is missing");
-    trace_fd = $fopen(path, "w");
+    trace_fd = $fopen(trace_path, "w");
+    if (!$value$plusargs("reset_at=%d", reset_at))
+        reset_at = -1;
     if (!$value$plusargs("max_cycles=%d", max_cycles))
         max_cycles = 100000;
-    if ($value$plusargs("fetch_latency=%s", latency) && latency == "rand")
-        fetch_latency = RANDOM;
-    else if (!$value$plusargs("fetch_latency=%d", fetch_latency))
-        fetch_latency = 0;
-    if ($value$plusargs("data_latency=%s", latency) && latency == "rand")
-        data_latency = RANDOM;
-    else if (!$value$plusargs("data_latency=%d", data_latency))
-        data_latency = 0;
-    if (!$value$plusargs("seed=%d", fetch_seed))
-        fetch_seed = 0;
-    data_seed = fetch_seed + 1;
     if ($value$plusargs("vcd=%s", path)) begin
         $dumpfile(path);
         $dumpvars(0, tb_b32p4);
@@ -314,9 +243,12 @@ initial begin
     reset <= 0;
 end
 
-// ---- The trace ----
+// ---- The trace, and a reset in the middle of the run ----
 
-integer retired = 0;
+integer    retired = 0;
+reg [31:0] last_pc = 32'd0;  // of the last instruction that retired
+integer    reset_at;
+integer    reset_left = 0;   // the cycles that a reset in the middle of the run stays 1
 
 always @(posedge clk) begin
     if (!reset) begin
@@ -337,7 +269,9 @@ always @(posedge clk) begin
                 $fwrite(trace_fd, " -> %08x", retire_target);
             $fwrite(trace_fd, "\n");
             retired = retired + 1;
+            last_pc = retire_pc;
             if (retire_instr == HALT && !retire_irq) begin
+                dump_sdram;
                 $display("halted after %0d cycles and %0d instructions",
                          cycle + 1, retired);
                 stop;
@@ -348,6 +282,21 @@ always @(posedge clk) begin
             stop;
         end
         cycle <= cycle + 1;
+
+        // After the instruction that retires in that cycle, the trace starts again.
+        if (cycle == reset_at) begin
+            $display("reset in cycle %0d, after %0d instructions, the last at %08x",
+                     cycle, retired, last_pc);
+            reset      <= 1'b1;
+            reset_left = 2;
+            retired    = 0;
+            $fclose(trace_fd);
+            trace_fd = $fopen(trace_path, "w");
+        end
+    end else if (reset_left > 0) begin
+        reset_left = reset_left - 1;
+        if (reset_left == 0)
+            reset <= 1'b0;
     end
 end
 

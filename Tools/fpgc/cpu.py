@@ -62,16 +62,17 @@ def lint() -> None:
     help="Another preset of MODULE: <module>.<view>.gtkw, such as `--view data`.",
 )
 @click.option(
-    "--fetch-latency",
-    default="0",
+    "--lines",
+    type=int,
+    default=128,
     show_default=True,
-    help="How many cycles the instruction memory waits before it answers, or rand.",
+    help="The number of lines of each L1 cache.",
 )
 @click.option(
-    "--data-latency",
-    default="0",
+    "--sdram-latency",
+    default="6",
     show_default=True,
-    help="How many cycles the data memory waits before it answers, or rand.",
+    help="The cycles from an SDRAM request to the first word of the line, or rand.",
 )
 @click.option(
     "--latency-seed",
@@ -84,8 +85,8 @@ def wave(
     module: str,
     program: Path | None,
     view: str | None,
-    fetch_latency: str,
-    data_latency: str,
+    lines: int,
+    sdram_latency: str,
     latency_seed: int,
 ) -> None:
     """Run the demo of MODULE, or PROGRAM, and show it in GTKWave with its preset."""
@@ -93,9 +94,9 @@ def wave(
     presets = list(cfg.modules_dir.rglob(name))
     if not presets:
         raise click.UsageError(f"there is no {name} in {cfg.modules_dir}")
-    latency = [
-        f"--fetch-latency={fetch_latency}",
-        f"--data-latency={data_latency}",
+    memories = [
+        f"--lines={lines}",
+        f"--sdram-latency={sdram_latency}",
         f"--latency-seed={latency_seed}",
     ]
     # The demo tests write the waveform. A failing run still has one, so go on.
@@ -107,7 +108,7 @@ def wave(
         demos = cfg.modules_dir / "test_demo_programs.py"
         tests = [demos, "--program", program, "-k", program.stem]
         name = program.stem
-    run("pytest", *tests, "-q", *latency, check=False)
+    run("pytest", *tests, "-q", *memories, check=False)
     run("gtkwave", "-r", cfg.gtkwave_rc, "-a", presets[0], cfg.wave_dir / f"{name}.vcd")
 
 
@@ -125,7 +126,14 @@ def wave(
     show_default=True,
     help="Fitter seed.",
 )
-def timing(files: tuple[Path, ...], top: str | None, seed: int) -> None:
+@click.option(
+    "--lines",
+    type=int,
+    help="The number of lines of each L1 cache in the harness. Default: b32p4's.",
+)
+def timing(
+    files: tuple[Path, ...], top: str | None, seed: int, lines: int | None
+) -> None:
     """Compile the CPU in its harness, or Verilog FILES, and report the timing.
 
     Without FILES, this compiles the CPU's RTL with the harness top level. The timing
@@ -134,12 +142,18 @@ def timing(files: tuple[Path, ...], top: str | None, seed: int) -> None:
     if not files:
         files, top = tuple(cfg.rtl_files), top or cfg.harness_top
     top = top or files[0].stem
+    name = top if seed == 1 else f"{top}-seed{seed}"
+    parameters = {}
+    if lines is not None:
+        name += f"-lines{lines}"
+        parameters["LINES"] = lines
     compile_and_report(
         cfg.quartus_bin,
-        cfg.timing_dir / (top if seed == 1 else f"{top}-seed{seed}"),
+        cfg.timing_dir / name,
         top,
         sorted(cfg.harness_dir.glob("*.v")) + list(files),
         cfg.device,
         cfg.clock_period_ns,
         seed,
+        parameters,
     )

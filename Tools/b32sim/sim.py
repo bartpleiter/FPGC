@@ -430,7 +430,9 @@ class Machine:
         elif op == Opcode.WRITE:
             self._write(ins, r)
         elif op == Opcode.CCACHE:
-            pass  # the ISS has no caches; execution continues at PC + 4
+            # The ISS has no caches. CCACHE redirects to PC + 4 (rule 2.13), so that the
+            # next instruction is fetched again, which the trace shows.
+            r.redirect = self.pc
         elif op in (Opcode.JUMP, Opcode.JUMPR, Opcode.HALT):
             self.halted = op == Opcode.HALT
 
