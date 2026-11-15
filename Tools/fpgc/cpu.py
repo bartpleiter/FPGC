@@ -6,7 +6,7 @@ import click
 
 from fpgc.common import run
 from fpgc.config import CONFIG
-from fpgc.quartus import compile_and_report
+from fpgc.quartus import compile_and_report, compile_seeds, prepare
 
 cfg = CONFIG.cpu
 
@@ -127,6 +127,11 @@ def wave(
     help="Fitter seed.",
 )
 @click.option(
+    "--seeds",
+    type=int,
+    help="Compile with seeds 1 to SEEDS in parallel, and summarise over them.",
+)
+@click.option(
     "--l1i-lines",
     type=int,
     help="The number of lines of the L1I in the harness. Default: b32p4's.",
@@ -140,18 +145,21 @@ def timing(
     files: tuple[Path, ...],
     top: str | None,
     seed: int,
+    seeds: int | None,
     l1i_lines: int | None,
     l1d_lines: int | None,
 ) -> None:
     """Compile the CPU in its harness, or Verilog FILES, and report the timing.
 
-    Without FILES, this compiles the CPU's RTL with the harness top level. The timing
-    is reported at every corner.
+    Without FILES, this compiles the CPU's RTL with the harness top level, which makes
+    the CPU clock from clk_50 with the PLL of the full system. A top level of FILES
+    gets the CPU clock on its clk pin, or clk_50 as the harness. The timing is reported at every corner. With --seeds, this is the sign-off of
+    the CPU: every seed must pass.
     """
     if not files:
         files, top = tuple(cfg.rtl_files), top or cfg.harness_top
     top = top or files[0].stem
-    name = top if seed == 1 else f"{top}-seed{seed}"
+    name = top
     parameters = {}
     if l1i_lines is not None:
         name += f"-l1i{l1i_lines}"
@@ -159,13 +167,15 @@ def timing(
     if l1d_lines is not None:
         name += f"-l1d{l1d_lines}"
         parameters["L1D_LINES"] = l1d_lines
-    compile_and_report(
-        cfg.quartus_bin,
-        cfg.timing_dir / name,
-        top,
-        sorted(cfg.harness_dir.glob("*.v")) + list(files),
-        cfg.device,
-        cfg.clock_period_ns,
-        seed,
-        parameters,
-    )
+    sources = sorted(cfg.harness_dir.glob("*.v")) + list(files)
+    out_dirs = {
+        s: cfg.timing_dir / (name if s == 1 else f"{name}-seed{s}")
+        for s in (range(1, seeds + 1) if seeds else [seed])
+    }
+    for s, out_dir in out_dirs.items():
+        periods = (cfg.clock_period_ns, cfg.board_clock_period_ns)
+        prepare(out_dir, top, sources, cfg.device, periods, s, parameters)
+    if seeds:
+        compile_seeds(cfg.quartus_bin, out_dirs, top)
+    else:
+        compile_and_report(cfg.quartus_bin, out_dirs[seed], top)

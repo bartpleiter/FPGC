@@ -8,10 +8,11 @@ How a program is built:
   pool, so most instructions depend on the ones just before them.
 - Every register is written before it's read, as registers are undefined after a reset.
 - Fixed registers, never written by the random instructions:
-  r10 = CPU-internal I/O base, r11 = scratch for jumps and the drop,
+  r10 = CPU-internal I/O base, r11 = scratch for jumps, the drop and ROM reads,
   r12 = loop counter, r13 = data window in SDRAM, r14 = data window in video memory
-  (word access only).
+  (word access only), r15 = data window in the I/O region.
 - The data windows are filled with known values first, so every read is defined.
+  Reads of the ROM read the program itself, or the ROM in front of it.
 - Control flow only goes forward, except the backward branch of a counted loop.
   Forward branches and jumps skip over the next few units, never into a loop.
 - The stack is only used outside skipped regions, so its depth is always known.
@@ -22,9 +23,10 @@ How a program is built:
   there are no data windows and no memory accesses, without `load` and `loadhi` the
   working registers start with an ALU operation on r0, and so on.
 - `regions` restricts the reads and writes to some regions, for the RTL steps that
-  don't have all memories yet: "sdram" (the SDRAM window), "video" (the video window)
-  and "cpu_io" (reading the CPU-internal registers, the drop, and writing INT_ENABLE,
-  which enables or disables interrupts at random).
+  don't have all memories yet: "sdram" (the SDRAM window), "video" (the video window),
+  "io" (the I/O window), "rom" (reads anywhere in the ROM) and "cpu_io" (reading the
+  CPU-internal registers, the drop, and writing INT_ENABLE, which enables or disables
+  interrupts at random).
 - Half of the programs that may use `ccache` end with one right before the `halt`, so
   every dirty line is written back and the SDRAM can be compared with the ISS's memory.
 - With `interrupts`, the program is for SDRAM: it starts with the jump to the program at
@@ -53,6 +55,9 @@ SDRAM_DATA_BASE = 0x10000
 SDRAM_DATA_OFFSETS = [*range(0, 64, 4), *range(0x1000, 0x1040, 4)]
 VIDEO_DATA_BASE = 0x1E400000  # vram32
 VIDEO_DATA_OFFSETS = list(range(0, 64, 4))
+IO_DATA_BASE = 0x1C000000
+IO_DATA_OFFSETS = list(range(0, 64, 4))
+ROM_BASE, ROM_SIZE = 0x1E000000, 0x1000
 
 MAX_STACK_DEPTH = 32
 
@@ -63,7 +68,7 @@ INTERRUPT_CYCLES = 10000
 INTERRUPT_SPACING = 400
 INTERRUPT_GAP = 8  # the cycles before an input can rise again
 
-REGIONS = frozenset({"sdram", "video", "cpu_io"})
+REGIONS = frozenset({"sdram", "video", "io", "rom", "cpu_io"})
 
 ALU_OPS = ["or", "and", "xor", "add", "sub", "shiftl", "shiftr", "shiftrs"]
 ALU_OPS += ["slt", "sltu"]
@@ -114,9 +119,13 @@ class _Generator:
         self.cpu_io_ok = self.load32 and self.ok("read") and "cpu_io" in regions
         # The data windows need their base registers, and are filled with `write`.
         self.memory_ok = self.load32 and self.ok("write") and "sdram" in regions
-        self.windows = [("r13", SDRAM_DATA_OFFSETS)]
+        # (base register, offsets, access sizes, weight)
+        self.windows = [("r13", SDRAM_DATA_OFFSETS, (1, 2, 4), 70)]
         if "video" in regions:
-            self.windows.append(("r14", VIDEO_DATA_OFFSETS))
+            self.windows.append(("r14", VIDEO_DATA_OFFSETS, (4,), 10))
+        if "io" in regions:
+            self.windows.append(("r15", IO_DATA_OFFSETS, (1, 2, 4), 10))
+        self.rom_ok = "rom" in regions and bool(self.read_ops)
         self.alu_forms = _available(
             (45, self.alu_regs, bool(self.alu_ops)),
             (35, self.alu_const, bool(self.alu_ops)),
@@ -221,10 +230,12 @@ class _Generator:
             self.emit(f"{op} {self.src()} {self.const16()} {self.dst()}")
 
     def memory(self) -> None:
-        if len(self.windows) == 1 or self.rng.random() < 0.8:
-            base, offsets, sizes = "r13", SDRAM_DATA_OFFSETS, (1, 2, 4)
-        else:
-            base, offsets, sizes = "r14", VIDEO_DATA_OFFSETS, (4,)
+        weights = [w for *_, w in self.windows] + [10 if self.rom_ok else 0]
+        i = self.rng.choices(range(len(weights)), weights)[0]
+        if i == len(self.windows):
+            self.read_rom()
+            return
+        base, offsets, sizes, _ = self.windows[i]
         reads = [o for o, s in self.read_ops.items() if s in sizes]
         writes = [o for o, s in self.write_ops.items() if s in sizes]
         offset = self.rng.choice(offsets)
@@ -236,6 +247,11 @@ class _Generator:
             op = self.rng.choice(writes)  # never empty, because `write` is allowed
             offset += self.rng.randrange(0, 4, WRITE_OPS[op])
             self.emit(f"{op} {offset} {base} {self.src()}")
+
+    def read_rom(self) -> None:
+        op = self.rng.choice(list(self.read_ops))
+        address = ROM_BASE + self.rng.randrange(0, ROM_SIZE, READ_OPS[op])
+        self.emit(f"load32 {address} r11", f"{op} 0 r11 {self.dst()}")
 
     def special(self) -> None:
         self.pick(self.special_forms)
@@ -396,9 +412,10 @@ class _Generator:
                 f"load32 {CPU_IO_BASE} r10",
                 f"load32 {SDRAM_DATA_BASE} r13",
                 f"load32 {VIDEO_DATA_BASE} r14",
+                f"load32 {IO_DATA_BASE} r15",
             )
         if self.memory_ok:
-            for base, offsets in self.windows:
+            for base, offsets, *_ in self.windows:
                 for offset in offsets:
                     self.emit(f"load32 {self.value()} r1", f"write {offset} {base} r1")
         if self.load32:

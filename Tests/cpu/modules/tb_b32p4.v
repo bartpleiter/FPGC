@@ -1,5 +1,5 @@
-// The testbench of the ISS comparison. It runs a program on b32p4 with the ROM and the
-// SDRAM line model behind the cache controller. It raises the interrupt inputs as a
+// The testbench of the ISS comparison. It runs a program on b32p4 with the ROM, the
+// SDRAM line model behind the cache controller, and the bus model on the bus. It raises the interrupt inputs as a
 // schedule says, and writes the retire port to a trace file.
 //
 // A trace line is the cycle number, then the record in the format of the ISS trace
@@ -8,7 +8,8 @@
 //
 // The parameter LINES is the number of lines of each L1 cache.
 //
-// Plusargs, besides those of sdram_line_model.vh (+sdram_latency, +seed, +sdram_log):
+// Plusargs, besides those of sdram_line_model.vh (+sdram_latency, +seed, +sdram_log)
+// and bus_model.vh (+seed):
 //
 //   +rom=<file>        the program as hex words ($readmemh), 1024 of them (required)
 //   +sdram=<file>      hex words for the start of the SDRAM, such as a program that runs
@@ -27,7 +28,8 @@
 //
 // The ROM (4 KiB at 0x1E000000) is a BRAM with a clock enable. Every other fetch, and
 // every read and write of SDRAM (64 MiB at 0), goes through the L1 caches, and from
-// there through the line model.
+// there through the line model. Reads of the ROM as data, and the I/O and video
+// regions, go over the bus.
 `timescale 1ns / 1ps
 module tb_b32p4 #(
     parameter LINES = 128
@@ -75,6 +77,10 @@ endtask
 bit [31:0] sdram [0:(1 << 24) - 1];
 
 `include "sdram_line_model.vh"
+
+reg [31:0] rom [0:1023];
+
+`include "bus_model.vh"
 
 // ---- The CPU ----
 
@@ -125,6 +131,13 @@ b32p4 #(
     .sdram_read_word(sdram_read_word),
     .sdram_next(sdram_next),
     .sdram_write_word(sdram_write_word),
+    .bus_request(bus_request),
+    .bus_write(bus_write),
+    .bus_addr(bus_addr),
+    .bus_write_data(bus_write_data),
+    .bus_byte_enable(bus_byte_enable),
+    .bus_ready(bus_ready),
+    .bus_read_word(bus_read_word),
     .interrupts(interrupts),
     .retire_valid(retire_valid),
     .retire_pc(retire_pc),
@@ -147,8 +160,6 @@ b32p4 #(
 );
 
 // ---- The ROM ----
-
-reg [31:0] rom [0:1023];
 
 always @(posedge clk)
     if (fetch_en)

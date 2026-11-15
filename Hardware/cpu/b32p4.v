@@ -22,6 +22,14 @@ module b32p4 #(
     input  wire        sdram_next,
     output wire [31:0] sdram_write_word,
 
+    output wire        bus_request,
+    output wire        bus_write,
+    output wire [31:0] bus_addr,
+    output wire [31:0] bus_write_data,
+    output wire [3:0]  bus_byte_enable,
+    input  wire        bus_ready,
+    input  wire [31:0] bus_read_word,
+
     input  wire [INTERRUPTS:1] interrupts,
 
     // A debug port for observing finished (retired) instructions, currently used in simulation only
@@ -423,6 +431,13 @@ cpu_mem #(
     .clear_request(clear_request),
     .clear_data_only(clear_data_only),
     .clear_take(clear_take),
+    .bus_request(bus_request),
+    .bus_write(bus_write),
+    .bus_addr(bus_addr),
+    .bus_write_data(bus_write_data),
+    .bus_byte_enable(bus_byte_enable),
+    .bus_ready(bus_ready),
+    .bus_read_word(bus_read_word),
     .interrupts(interrupts),
     .interrupt_pending(interrupt_pending),
     .interrupts_enabled(interrupts_enabled),

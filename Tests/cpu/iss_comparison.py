@@ -35,7 +35,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from b32asm.assembler import assemble
-from b32sim.sim import ROM_BASE, ROM_SIZE, SDRAM_BASE, SDRAM_SIZE, Machine, SimError
+from b32sim.sim import (
+    ROM_BASE,
+    ROM_SIZE,
+    SDRAM_BASE,
+    SDRAM_SIZE,
+    Machine,
+    Ram,
+    SimError,
+)
 
 from .verilog import BUILD_DIR, MODULES_DIR, REPO, RTL_FILES, compile_tb, run_vvp
 
@@ -206,7 +214,7 @@ def run_iss_comparison(
         rtl.records.append(record)
     assert not reset or rtl.reset, "the reset didn't come before the HALT"
 
-    machine = Machine(strict=strict)
+    machine = Machine(strict=strict, io=Ram())
     machine.load(ROM_BASE, rom.to_bytes())
     machine.load(SDRAM_BASE, sdram.to_bytes())
     rerun = f"fpgc cpu wave b32p4 {program_file.relative_to(REPO)}{memories.options()}"

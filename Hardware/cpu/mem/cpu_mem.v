@@ -64,6 +64,15 @@ module cpu_mem #(
     output reg                            clear_data_only,
     input  wire                           clear_take,
 
+    // Bus for everything outside SDRAM and the CPU-internal I/O registers
+    output reg         bus_request,
+    output wire        bus_write,
+    output wire [31:0] bus_addr,
+    output wire [31:0] bus_write_data,
+    output wire [3:0]  bus_byte_enable,
+    input  wire        bus_ready,
+    input  wire [31:0] bus_read_word,
+
     input  wire [INTERRUPTS:1] interrupts,
     output wire        interrupt_pending,
     output wire        interrupts_enabled,
@@ -308,10 +317,35 @@ cpu_io_regs io_regs (
     .last_interrupt(last_interrupt)
 );
 
-wire [31:0] mem_read_word = l1d_bypass    ? sdram_read_word :
-                            ex_mem_sdram  ? l1d_word        :
-                            ex_mem_cpu_io ? io_read_value   :
-                                            32'd0;
+// Slow path for reads outside SDRAM and for bus accesses
+wire bus_region = !ex_mem_sdram && !ex_mem_cpu_io && !ex_mem_unmapped;
+wire bus_access = ex_mem_valid && bus_region && (ex_mem_read || (ex_mem_write && !ex_mem_rom));
+wire slow       = bus_access || (ex_mem_valid && ex_mem_read && !ex_mem_sdram);
+
+reg        bus_started;
+reg        slow_done;
+reg [31:0] slow_word;
+
+always @(posedge clk) begin
+    bus_request <= !reset && bus_access && !bus_started;
+    if (reset || !busy_mem)
+        bus_started <= 1'b0;
+    else if (bus_access)
+        bus_started <= 1'b1;
+    slow_done <= !reset && slow && !slow_done && (!bus_access || bus_ready);
+    slow_word <= bus_ready     ? bus_read_word :
+                 ex_mem_cpu_io ? io_read_value :
+                                 32'd0;
+end
+
+assign bus_write       = ex_mem_write;
+assign bus_addr        = ex_mem_addr;
+assign bus_write_data  = data_write_data;
+assign bus_byte_enable = data_byte_enable;
+
+wire [31:0] mem_read_word = l1d_bypass   ? sdram_read_word :
+                            ex_mem_sdram ? l1d_word        :
+                                           slow_word;
 wire [31:0] mem_read_value;
 
 cpu_read_align read_align (
@@ -334,7 +368,8 @@ assign redirect        = ex_mem_valid && !busy_mem &&
                          (ex_mem_redirect || ex_mem_reti || ex_mem_ccache);
 assign redirect_target = ex_mem_interrupt ? 32'h4 : {target[31:2], 2'b00};
 
-assign busy_mem = clear && (!clear_started || clear_request || l1d_writing);
+assign busy_mem = (clear && (!clear_started || clear_request || l1d_writing)) ||
+                  (slow && !slow_done);
 
 `ifndef SYNTHESIS
 // Simulation only check to catch implementation bugs

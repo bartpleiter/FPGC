@@ -1,9 +1,5 @@
 """Run programs on the RTL, and compare what they do with the ISS.
 
-The CPU is built one step at a time, so only the programs that use instructions the
-RTL already has run here. SUPPORTED grows with each step of the build order, and the
-directed programs then join in by themselves.
-
 Every program runs with each of the MEMORIES, and must give the same retire trace with
 each of them. The directed programs run from the ROM and from SDRAM, through the L1I.
 Their reads and writes of SDRAM go through the L1D either way.
@@ -15,8 +11,7 @@ from pathlib import Path
 import pytest
 
 from b32asm.assembler import assemble
-from b32asm.isa import Opcode, decode
-from b32sim.sim import ROM_BASE, SDRAM_BASE
+from b32sim.sim import SDRAM_BASE
 
 from .iss_comparison import (
     DEFAULT,
@@ -26,22 +21,7 @@ from .iss_comparison import (
     RtlTrace,
     run_iss_comparison,
 )
-from .random_program import BRANCH_OPS, MULDIV_OPS, READ_OPS, WRITE_OPS, generate
-from .test_random import ALU_ONLY
-
-# The opcodes the RTL executes, and the mnemonics for the random programs.
-SUPPORTED = {Opcode.ARITH, Opcode.ARITHC, Opcode.SAVPC, Opcode.BRANCH, Opcode.JUMP}
-SUPPORTED |= {Opcode.JUMPR, Opcode.HALT, Opcode.READ, Opcode.WRITE}
-SUPPORTED |= {Opcode.PUSH, Opcode.POP, Opcode.ARITHM, Opcode.ARITHMC}
-SUPPORTED |= {Opcode.RETI, Opcode.INTID, Opcode.CCACHE}
-RANDOM_ONLY = ALU_ONLY | {*BRANCH_OPS, "jump", "jumpr", "jumpro", "savpc"}
-RANDOM_ONLY |= {*READ_OPS, *WRITE_OPS, "push", "pop", *MULDIV_OPS, "readintid", "reti"}
-RANDOM_ONLY |= {"ccache", "ccached"}
-# The regions with a memory behind the data port. Only SDRAM and the CPU-internal I/O
-# yet, so the directed programs that read ROM or video memory wait for the step that
-# adds those memories.
-RANDOM_REGIONS = frozenset({"sdram", "cpu_io"})
-NEEDS_REGION = {"rom_to_ram_copy", "vram_loop_write", "vram_read_write"}
+from .random_program import generate
 
 # Each L1 cache with 128 lines, and with 4, so that nearly every line misses and is
 # evicted again. Each with the SDRAM at its shortest latency, and at random latencies.
@@ -67,13 +47,6 @@ RESET_PROGRAMS = sorted(
 CACHE_PROGRAMS = sorted(set(CACHE_DIR.glob("*.asm")) - set(RESET_PROGRAMS))
 
 
-def supported(path: Path) -> bool:
-    if path.stem in NEEDS_REGION:
-        return False
-    words = assemble(path.read_text(), ROM_BASE, str(path)).words
-    return all(decode(w).opcode in SUPPORTED for w in words)
-
-
 def run_name(name: str, place: str, mode: str) -> str:
     return f"{name}_{mode}" if place == "rom" else f"{name}_sdram_{mode}"
 
@@ -84,9 +57,7 @@ def placed(source: str, place: str) -> str:
 
 
 @pytest.mark.parametrize(("place", "mode"), RUNS, ids=[f"{p}-{m}" for p, m in RUNS])
-@pytest.mark.parametrize(
-    "path", [p for p in PROGRAMS if supported(p)], ids=lambda p: p.stem
-)
+@pytest.mark.parametrize("path", PROGRAMS, ids=lambda p: p.stem)
 def test_program(wave_dir: Path | None, path: Path, place: str, mode: str) -> None:
     name = run_name(path.stem, place, mode)
     vcd = wave_dir / f"{name}.vcd" if wave_dir else None
@@ -288,9 +259,7 @@ def test_random(wave_dir: Path | None, random_seed: int, mode: str) -> None:
     vcd = wave_dir / f"{name}.vcd" if wave_dir else None
     memories = MEMORIES[mode]
     run_iss_comparison(
-        generate(
-            random_seed, only=RANDOM_ONLY, regions=RANDOM_REGIONS, interrupts=True
-        ),
+        generate(random_seed, interrupts=True),
         name,
         vcd,
         memories=Memories(memories.lines, memories.sdram, random_seed),

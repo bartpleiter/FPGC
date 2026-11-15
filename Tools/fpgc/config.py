@@ -52,7 +52,8 @@ class CpuConfig(BaseModel):
     timing_dir: Path = Path("build/cpu/timing")
     quartus_bin: Path = Path("/home/bart/altera_lite/25.1std/quartus/bin")
     device: str = "EP4CE40F23I7"
-    clock_period_ns: float = 10.0
+    clock_period_ns: float = 10.0  # the CPU clock, on the clk pin of other tops
+    board_clock_period_ns: float = 20.0  # clk_50, into the harness's PLL
 
 
 class Config(BaseModel):
