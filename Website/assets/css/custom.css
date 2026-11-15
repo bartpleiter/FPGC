@@ -40,3 +40,9 @@
   outline: 2px solid var(--fpgc-blog-color);
   outline-offset: 2px;
 }
+
+/* The reader label under the title of a docs page (layouts/_partials/custom/content-begin.html) */
+.fpgc-reader {
+  margin-top: -0.5rem;
+  margin-bottom: 1.5rem;
+}

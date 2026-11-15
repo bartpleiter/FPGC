@@ -45,10 +45,6 @@ cpu_memory_map pc_map (
     .sdram(),
     .io(),
     .rom(in_rom),
-    .vram32(),
-    .vram8(),
-    .vrampx(),
-    .palette(),
     .cpu_io(),
     .code(),
     .unmapped()

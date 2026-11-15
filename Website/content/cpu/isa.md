@@ -1,9 +1,10 @@
 ---
 title: Instruction set
 weight: 1
+reader: programming
 ---
 
-This page defines the instruction set of B32P4, the CPU that runs in the FPGC. The instruction encoding is almost identical to B32P3, as B32P4 focuses mostly on performance and efficiency improvements instead of functional changes.
+This page defines the instruction set of B32P4, the CPU that runs in the FPGC. What the instructions cost in cycles, and what software must do for the caches and interrupts, is on the [programming notes](programming.md) page.
 
 ## Overview
 
@@ -14,7 +15,7 @@ This page defines the instruction set of B32P4, the CPU that runs in the FPGC. T
 - **Hardware interrupts**, taken only at jumps and branches to simplify the CPU pipeline.
 - **No security features.** Since the goal is to be a personal hobby CPU where I am the only user, adding security features only adds unnecessary complexity.
 - **No floating point.** To keep complexity down, decimal arithmetic is done using Q16.16 fixed-point format, just like the Sony PS1 did.
-- **Error register.** (new feature in B32P4) Illegal instructions and accesses set a flag in the [error register](#error-register).
+- **Error register.** Illegal instructions and accesses set a flag in the [error register](#error-register).
 
 ### Notation
 
@@ -101,7 +102,7 @@ ARITH and ARITHC use the single-cycle ALU. The operation is `D = A op B`, where 
 
 ### Multiply and divide instructions
 
-ARITHM and ARITHMC have the same form as ARITH and ARITHC: B is register B, or `sext(c16)`. These take multiple cycles to complete (stalls the CPU).
+ARITHM and ARITHMC have the same form as ARITH and ARITHC: B is register B, or `sext(c16)`. A multiply can start every cycle, but a divide or modulo makes the CPU wait until it's done (see [programming notes](programming.md#what-instructions-cost)).
 
 | op | Mnemonic | Result |
 | --- | --- | --- |
@@ -254,17 +255,11 @@ After a reset:
 
 ## Memory map
 
-The CPU's view of the 32-bit address space. Other addresses ignore writes and return 0 for reads.
+The full address space is on the [memory map](../memory-map.md) page. What the CPU itself does with it:
 
-| Address range | Region | Notes |
-| --- | --- | --- |
-| `0x00000000`–`0x03FFFFFF` | SDRAM, 64 MiB | code and data, through the L1 caches |
-| `0x1C000000`–`0x1DFFFFFF` | I/O | handled by the Memory Unit, the devices and their addresses are in the I/O documentation |
-| `0x1E000000`–`0x1E000FFF` | ROM, 4 KiB | code and read-only data. The CPU starts here. Writes are illegal. |
-| `0x1E400000`–`0x1EFFFFFF` | video memory | the GPU's memories. The exact layout is defined with the GPU. |
-| `0x1F000000`–`0x1F000013` | CPU-internal I/O | the registers below |
-
-Only SDRAM and ROM can hold executable code.
+- Only SDRAM (`0x00000000`–`0x03FFFFFF`) and the ROM (`0x1E000000`–`0x1E000FFF`) can hold executable code. The CPU starts in the ROM.
+- An unmapped address gives 0 for a read and ignores a write. Both set the bad-address flag.
+- The CPU-internal I/O registers at `0x1F000000` are inside the CPU, and described below.
 
 ### CPU-internal I/O registers
 

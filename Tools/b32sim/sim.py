@@ -36,14 +36,6 @@ IO_BASE, IO_SIZE = 0x1C000000, 0x02000000
 ROM_BASE, ROM_SIZE = 0x1E000000, 4 << 10
 CPU_IO_BASE, CPU_IO_SIZE = 0x1F000000, 0x14
 
-# Video memory
-VIDEO_REGIONS = {
-    "vram32": (0x1E400000, 0x1080),
-    "vram8": (0x1E800000, 0x8008),
-    "vrampx": (0x1EC00000, 0x20000),
-    "palette": (0x1EC80000, 0x400),
-}
-
 # CPU-internal I/O registers
 PC_BACKUP_ADDR = CPU_IO_BASE + 0x0
 SP_ADDR = CPU_IO_BASE + 0x4
@@ -262,10 +254,6 @@ class Machine:
             Region("sdram", SDRAM_BASE, SDRAM_SIZE, Ram()),
             Region("io", IO_BASE, IO_SIZE, self.io),
             Region("rom", ROM_BASE, ROM_SIZE, Ram(), writable=False),
-            *(
-                Region(n, base, size, Ram())
-                for n, (base, size) in VIDEO_REGIONS.items()
-            ),
         ]
         self._events: list[ErrorKind] = []
         self.reset()

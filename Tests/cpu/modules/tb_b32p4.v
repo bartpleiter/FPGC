@@ -28,8 +28,8 @@
 //
 // The ROM (4 KiB at 0x1E000000) is a BRAM with a clock enable. Every other fetch, and
 // every read and write of SDRAM (64 MiB at 0), goes through the L1 caches, and from
-// there through the line model. Reads of the ROM as data, and the I/O and video
-// regions, go over the bus.
+// there through the line model. Reads of the ROM as data, and the I/O region, go over
+// the bus.
 `timescale 1ns / 1ps
 module tb_b32p4 #(
     parameter LINES = 128

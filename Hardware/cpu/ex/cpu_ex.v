@@ -219,10 +219,6 @@ cpu_memory_map memory_map (
     .sdram(ex_sdram),
     .io(),
     .rom(ex_rom),
-    .vram32(),
-    .vram8(),
-    .vrampx(),
-    .palette(),
     .cpu_io(ex_cpu_io),
     .code(),
     .unmapped(ex_unmapped)

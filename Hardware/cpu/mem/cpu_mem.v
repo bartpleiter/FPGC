@@ -273,10 +273,6 @@ cpu_memory_map target_map (
     .sdram(),
     .io(),
     .rom(),
-    .vram32(),
-    .vram8(),
-    .vrampx(),
-    .palette(),
     .cpu_io(),
     .code(target_code),
     .unmapped()

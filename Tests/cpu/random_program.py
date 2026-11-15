@@ -9,8 +9,7 @@ How a program is built:
 - Every register is written before it's read, as registers are undefined after a reset.
 - Fixed registers, never written by the random instructions:
   r10 = CPU-internal I/O base, r11 = scratch for jumps, the drop and ROM reads,
-  r12 = loop counter, r13 = data window in SDRAM, r14 = data window in video memory
-  (word access only), r15 = data window in the I/O region.
+  r12 = loop counter, r13 = data window in SDRAM, r15 = data window in the I/O region.
 - The data windows are filled with known values first, so every read is defined.
   Reads of the ROM read the program itself, or the ROM in front of it.
 - Control flow only goes forward, except the backward branch of a counted loop.
@@ -23,10 +22,9 @@ How a program is built:
   there are no data windows and no memory accesses, without `load` and `loadhi` the
   working registers start with an ALU operation on r0, and so on.
 - `regions` restricts the reads and writes to some regions, for the RTL steps that
-  don't have all memories yet: "sdram" (the SDRAM window), "video" (the video window),
-  "io" (the I/O window), "rom" (reads anywhere in the ROM) and "cpu_io" (reading the
-  CPU-internal registers, the drop, and writing INT_ENABLE, which enables or disables
-  interrupts at random).
+  don't have all memories yet: "sdram" (the SDRAM window), "io" (the I/O window),
+  "rom" (reads anywhere in the ROM) and "cpu_io" (reading the CPU-internal registers,
+  the drop, and writing INT_ENABLE, which enables or disables interrupts at random).
 - Half of the programs that may use `ccache` end with one right before the `halt`, so
   every dirty line is written back and the SDRAM can be compared with the ISS's memory.
 - With `interrupts`, the program is for SDRAM: it starts with the jump to the program at
@@ -53,8 +51,6 @@ INT_ENABLE_OFFSET = 16
 # 4 KiB further, so accesses cause evictions and write-backs.
 SDRAM_DATA_BASE = 0x10000
 SDRAM_DATA_OFFSETS = [*range(0, 64, 4), *range(0x1000, 0x1040, 4)]
-VIDEO_DATA_BASE = 0x1E400000  # vram32
-VIDEO_DATA_OFFSETS = list(range(0, 64, 4))
 IO_DATA_BASE = 0x1C000000
 IO_DATA_OFFSETS = list(range(0, 64, 4))
 ROM_BASE, ROM_SIZE = 0x1E000000, 0x1000
@@ -68,7 +64,7 @@ INTERRUPT_CYCLES = 10000
 INTERRUPT_SPACING = 400
 INTERRUPT_GAP = 8  # the cycles before an input can rise again
 
-REGIONS = frozenset({"sdram", "video", "io", "rom", "cpu_io"})
+REGIONS = frozenset({"sdram", "io", "rom", "cpu_io"})
 
 ALU_OPS = ["or", "and", "xor", "add", "sub", "shiftl", "shiftr", "shiftrs"]
 ALU_OPS += ["slt", "sltu"]
@@ -121,8 +117,6 @@ class _Generator:
         self.memory_ok = self.load32 and self.ok("write") and "sdram" in regions
         # (base register, offsets, access sizes, weight)
         self.windows = [("r13", SDRAM_DATA_OFFSETS, (1, 2, 4), 70)]
-        if "video" in regions:
-            self.windows.append(("r14", VIDEO_DATA_OFFSETS, (4,), 10))
         if "io" in regions:
             self.windows.append(("r15", IO_DATA_OFFSETS, (1, 2, 4), 10))
         self.rom_ok = "rom" in regions and bool(self.read_ops)
@@ -411,7 +405,6 @@ class _Generator:
             self.emit(
                 f"load32 {CPU_IO_BASE} r10",
                 f"load32 {SDRAM_DATA_BASE} r13",
-                f"load32 {VIDEO_DATA_BASE} r14",
                 f"load32 {IO_DATA_BASE} r15",
             )
         if self.memory_ok:

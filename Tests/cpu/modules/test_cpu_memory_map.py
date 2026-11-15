@@ -13,7 +13,6 @@ from b32sim.sim import (
     ROM_SIZE,
     SDRAM_BASE,
     SDRAM_SIZE,
-    VIDEO_REGIONS,
 )
 
 from ..unit_bench import UnitBench, Vector
@@ -23,7 +22,6 @@ REGIONS = {
     "sdram": (SDRAM_BASE, SDRAM_SIZE),
     "io": (IO_BASE, IO_SIZE),
     "rom": (ROM_BASE, ROM_SIZE),
-    **VIDEO_REGIONS,
     "cpu_io": (CPU_IO_BASE, CPU_IO_SIZE),
 }
 
@@ -42,11 +40,7 @@ DEMO = [
     ("io", 0x1C000000),
     ("rom", 0x1E000000),
     ("after rom", 0x1E001000),
-    ("vram32", 0x1E400000),
-    ("after vram32", 0x1E401080),
-    ("vram8", 0x1E800000),
-    ("vrampx", 0x1EC00000),
-    ("palette", 0x1EC80000),
+    ("unmapped", 0x1E400000),
     ("cpu_io", 0x1F000000),
     ("after cpu_io", 0x1F000010),
 ]

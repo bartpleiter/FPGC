@@ -59,10 +59,10 @@ Main:
     write 4152 r0 r0
     write 4156 r0 r0
 
-    ; Read from SDRAM and write to VRAM
+    ; Read from SDRAM and write to the I/O region
 
     
-    load32 0x1EC00000 r1 ; VRAMpx base address and counter
+    load32 0x1C000000 r1 ; I/O base address
     
     read 0 r0 r2
     write 0 r1 r2

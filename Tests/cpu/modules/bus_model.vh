@@ -14,10 +14,9 @@
 // Behind the bus:
 //
 //   - ROM reads give the ROM's words. (The CPU never puts a write to ROM on the bus.)
-//   - Every other address is RAM that starts at 0, like the I/O and video memory of the
-//     ISS in the comparison. It's 2 MiB, indexed by the address bits that tell the
-//     regions apart (25, 23, 22 and 19) and bits [16:2]. So the I/O region repeats
-//     itself every 128 KiB, which the programs stay within.
+//   - Every other address is in the I/O region, and is RAM that starts at 0, like the
+//     I/O of the ISS in the comparison. It's 128 KiB, indexed by bits [16:2], so the
+//     I/O region repeats itself every 128 KiB, which the programs stay within.
 //
 // It checks the protocol: no request before the last one is answered, no X on the bus,
 // and the same address, data and byte enables until the answer. A protocol error ends
@@ -37,7 +36,7 @@ reg  [31:0] bus_read_word = 32'bx;
 
 // ---- The model ----
 
-bit [31:0] bus_ram [0:(1 << 19) - 1];
+bit [31:0] bus_ram [0:(1 << 15) - 1];
 
 integer     bus_seed = 0;
 reg         bus_busy = 1'b0;   // an access is waiting for its answer
@@ -51,8 +50,8 @@ initial
     if (!$value$plusargs("seed=%d", bus_seed))
         bus_seed = 0;
 
-function [18:0] bus_index(input [31:0] addr);
-    bus_index = {addr[25], addr[23:22], addr[19], addr[16:2]};
+function [14:0] bus_index(input [31:0] addr);
+    bus_index = addr[16:2];
 endfunction
 
 // The extra cycles before an answer: none for most accesses, 1 to 7 for some

@@ -1,0 +1,14 @@
+{{- /* The reader a docs page is written for, as a label under the title.
+   Set with `reader: programming`, `hardware` or `rtl` in the front matter. */ -}}
+{{- with .Params.reader -}}
+  {{- $labels := dict
+    "programming" (dict "text" "For programmers" "color" "blue")
+    "hardware" (dict "text" "For hardware designers" "color" "amber")
+    "rtl" (dict "text" "For RTL readers" "color" "purple")
+  -}}
+  {{- with index $labels . -}}
+    <div class="fpgc-reader">{{ partial "shortcodes/badge.html" (dict "content" .text "color" .color "border" true) }}</div>
+  {{- else -}}
+    {{- errorf "%s: unknown reader %q (use programming, hardware or rtl)" $.File.Path . -}}
+  {{- end -}}
+{{- end -}}
