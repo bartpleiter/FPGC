@@ -1,21 +1,20 @@
 // Instruction decoder
-// Splits an instruction word into register numbers, a constant and control signals.
 module cpu_decoder (
     input  wire [31:0] instr,
 
     // Bit fields, passed on for every instruction
-    output wire [3:0]  areg,              // A register
-    output wire [3:0]  breg,              // B register, for ALU B, branch B, write and push data
-    output wire [3:0]  dreg,              // D register, the destination
+    output wire [3:0]  areg,
+    output wire [3:0]  breg,
+    output wire [3:0]  dreg,
     output wire [3:0]  alu_op,            // ALU or multi-cycle ALU operation
     output wire [2:0]  branch_op,         // branch condition
-    output wire        branch_signed,     // the S bit
+    output wire        branch_signed,
 
     // Constants
-    output reg  [31:0] constant,          // c16 or c27, extended; 4 for ccache
-    output wire        alu_use_const,     // ALU B is the constant instead of breg
-    output wire        const_add_pc,      // the constant is PC + constant (savpc, jumpro)
-    output wire        jump_absolute,     // the target is the constant, not PC + constant (jump)
+    output reg  [31:0] constant,          // extended constant
+    output wire        alu_use_const,
+    output wire        const_add_pc,
+    output wire        jump_absolute,
 
     // Registers
     output wire        reads_areg,
@@ -30,16 +29,16 @@ module cpu_decoder (
     output wire        ccache_data_only,  // ccached
 
     // The instruction type, one-hot. All 0 for an illegal instruction.
-    output wire        arith,             // ARITH, ARITHC and SAVPC, the single-cycle ALU
-    output wire        mult,              // ARITHM multiply
-    output wire        div,               // ARITHM divide and modulo
+    output wire        arith,             // single-cycle ALU
+    output wire        mult,
+    output wire        div,
     output wire        read,
     output wire        write,
     output wire        push,
     output wire        pop,
     output wire        branch,
-    output wire        jump,              // jump, jumpo
-    output wire        jumpr,             // jumpr, jumpro
+    output wire        jump,
+    output wire        jumpr,
     output wire        halt,
     output wire        reti,
     output wire        ccache,            // ccache, ccached
@@ -65,19 +64,17 @@ localparam WRITE   = 4'b1101;
 localparam READ    = 4'b1110;
 localparam HALT    = 4'b1111;
 
-// The ALU ops the decoder needs to know. savpc is the ALU's load with the PC
-// as constant, and load and loadhi take a zero-extended constant.
 localparam ALU_LOAD   = 4'b1100;
 localparam ALU_LOADHI = 4'b1101;
 
-wire [3:0]  instr_op      = instr[31:28];  // opcode
+wire [3:0]  instr_op      = instr[31:28];
 wire [3:0]  op            = instr[27:24];  // ALU op of ARITH(M)(C)
 wire [3:0]  read_subop    = instr[7:4];    // read size
 wire [3:0]  write_subop   = instr[3:0];    // write size
-wire        o             = instr[0];      // JUMP and JUMPR, the target is an offset from the PC
-wire [15:0] const16_arith = instr[23:8];   // ARITHC, ARITHMC
-wire [15:0] const16       = instr[27:12];  // BRANCH, JUMPR, READ, WRITE
-wire [26:0] const27       = instr[27:1];   // JUMP
+wire        o             = instr[0];      // offset
+wire [15:0] const16_arith = instr[23:8];   // 16 bit constant for ARITH(M)C
+wire [15:0] const16       = instr[27:12];  // 16 bit constant for other instructions
+wire [26:0] const27       = instr[27:1];
 
 wire arith_or_arithc   = instr_op == ARITH  || instr_op == ARITHC;
 wire arithm_or_arithmc = instr_op == ARITHM || instr_op == ARITHMC;
@@ -86,9 +83,9 @@ wire savpc             = instr_op == SAVPC;
 
 // Reserved encodings
 wire alu_op_ok = op != 4'b1000 && op != 4'b1001 && op != 4'b1111;
-wire mult_op   = op <= 4'b0010 || op >= 4'b1110;  // mults, multu, multfp, mulshi, multuhi
-wire div_op    = op >= 4'b0011 && op <= 4'b0111;  // divs, divu, divfp, mods, modu
-wire branch_ok = instr[2:1] != 2'b11;             // branch ops 011 and 111
+wire mult_op   = op <= 4'b0010 || op >= 4'b1110;
+wire div_op    = op >= 4'b0011 && op <= 4'b0111;
+wire branch_ok = instr[2:1] != 2'b11;
 wire read_ok   = read_subop == 4'b0000 || read_subop == 4'b0001 || read_subop == 4'b0101 ||
                  read_subop == 4'b0010 || read_subop == 4'b0110;
 wire write_ok  = write_subop == 4'b0000 || write_subop == 4'b0001 || write_subop == 4'b0010;
@@ -130,7 +127,7 @@ assign reads_breg  = (alu && alu_b_is_breg) || write || branch || push;
 assign writes_dreg = (alu || read || pop || intid) && dreg != 4'd0;
 assign late        = mult || div || read || pop || intid;
 
-// The constant
+// Constant
 assign alu_use_const = alu && !alu_b_is_breg;
 assign const_add_pc  = savpc || (jumpr && o);
 assign jump_absolute = jump && !o;
@@ -142,7 +139,7 @@ always @(*) begin
         ARITHC:  constant = (op == ALU_LOAD || op == ALU_LOADHI) ?
                             {16'd0, const16_arith} : {{16{const16_arith[15]}}, const16_arith};
         ARITHMC: constant = {{16{const16_arith[15]}}, const16_arith};
-        BRANCH, JUMPR, READ, WRITE:
+        BRANCH, JUMPR, READ, WRITE, SAVPC:
                  constant = {{16{const16[15]}}, const16};
         JUMP:    constant = o ? {{5{const27[26]}}, const27} : {5'd0, const27};
         CCACHE:  constant = 32'd4;  // the target is the next instruction

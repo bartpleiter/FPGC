@@ -30,6 +30,9 @@ def test_known_encodings() -> None:
     assert word("jumpro 4 r7") == 0x80004071
     assert word("mulshi r1 r2 r3") == 0x2E000123
     assert word("divs r1 10 r3") == 0x33000A13
+    assert word("savpc r7") == 0x50000007
+    assert word("savpc 8 r15") == 0x5000800F
+    assert word("savpc -4 r1") == 0x5FFFC001
 
 
 @pytest.mark.parametrize("opcode", list(Opcode))
@@ -61,6 +64,11 @@ def test_labels_and_relative_targets() -> None:
     assert (
         jump["o"] == 1 and sext(jump["c27"], 27) == -8
     )  # jump to a label is PC-relative
+
+
+def test_savpc_to_a_label_is_relative() -> None:
+    program = assemble("savpc Next r1\njump 0\nNext:\n", 0x1E000000)
+    assert sext(decode(program.words[0])["c16"], 16) == 8
 
 
 def test_jump_to_number_is_absolute() -> None:

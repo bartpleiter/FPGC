@@ -1,8 +1,4 @@
 // Instruction decode stage (ID)
-// The IF/ID register, then decoding, reading the register file and the target adder.
-// It decides where each value comes from once the instruction is in EX, and the
-// instruction waits here while a value it reads isn't there in time (the late-result
-// stall).
 module cpu_id (
     input  wire        clk,
     input  wire        reset,
@@ -13,7 +9,7 @@ module cpu_id (
     input  wire [31:0] pc,
     input  wire [31:0] if_instr,
 
-    // The instructions in EX and MEM, for forwarding and the late-result stall
+    // The instructions in EX and MEM
     input  wire        id_ex_valid,
     input  wire        id_ex_writes_dreg,
     input  wire [3:0]  id_ex_dreg,
@@ -50,9 +46,9 @@ module cpu_id (
     output wire        id_halt,
     output wire        id_reti,
     output wire        id_ccache,         // ccache or ccached
-    output wire        id_ccached,        // ccached, which leaves the L1I alone
-    output wire        id_mult,           // a multiply
-    output wire        id_div,            // a divide or modulo
+    output wire        id_ccached,        // ccached
+    output wire        id_mult,
+    output wire        id_div,
     output wire        id_read,
     output wire        id_write,
     output wire        id_byte,           // read or write size, a word if neither byte nor half
@@ -61,7 +57,7 @@ module cpu_id (
     output wire        id_push,
     output wire        id_pop,
     output wire        id_intid,
-    output wire        id_illegal,        // a reserved encoding, which does nothing
+    output wire        id_illegal,        // a reserved encoding
     output wire        id_areg_from_mem,
     output wire        id_areg_from_wb,
     output wire        id_breg_from_mem,
@@ -90,7 +86,6 @@ wire        jump_absolute;
 wire        reads_areg;
 wire        reads_breg;
 
-// The empty outputs are for instructions that come in later steps.
 /* verilator lint_off PINCONNECTEMPTY */
 cpu_decoder decoder (
     .instr(if_id_instr),
@@ -130,19 +125,15 @@ cpu_decoder decoder (
 );
 /* verilator lint_on PINCONNECTEMPTY */
 
-// The target adder. It also makes the constant of savpc (the PC) and jumpro (PC + c16),
-// to which EX then adds the register. The target of ccache is PC + 4.
+// Target address and constant calculation
+wire [31:0] offset         = id_write ? 32'd4 : constant;
+wire [31:0] pc_plus_offset = if_id_pc + offset;
 
-wire [31:0] pc_plus_constant = if_id_pc + constant;
-
-assign id_target   = jump_absolute ? constant : pc_plus_constant;
-assign id_constant = const_add_pc ? pc_plus_constant : constant;
-
-// Read the registers
+assign id_target   = jump_absolute ? constant : pc_plus_offset;
+assign id_constant = const_add_pc ? pc_plus_offset : constant;
 
 cpu_regfile regfile (
     .clk(clk),
-    .reset(reset),
     .areg(areg),
     .breg(breg),
     .areg_value(id_a),
@@ -151,8 +142,6 @@ cpu_regfile regfile (
     .dreg(mem_wb_dreg),
     .dreg_value(mem_wb_value)
 );
-
-// Forwarding and the late-result stall
 
 wire late_result_stall;
 

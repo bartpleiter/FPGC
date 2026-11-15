@@ -1,13 +1,7 @@
-// Timing harness of the CPU, the top level of `fpgc cpu timing` without files. It isn't
-// CPU RTL. It puts b32p4 next to the memories outside it that it reaches, at their real
-// sizes, and keeps its outputs alive with the sink.
-//
-// For now that's the ROM, as the fetch memory next to the L1I inside the CPU. The L1D is
-// inside the CPU too, and every result can end up in it, and from there in a line that
-// is written back. So the SDRAM line port is the CPU's way out: it's a stub whose inputs
-// come from the source, and whose outputs go to the sink.
+// Timing harness of the CPU, used for timing tests in Quartus without having the full FPGC ready yet.
 module b32p4_harness #(
-    parameter LINES = 128  // the number of lines of each L1 cache
+    parameter L1I_LINES = 128,
+    parameter L1D_LINES = 512
 ) (
     input  wire clk,
     input  wire din,
@@ -45,8 +39,8 @@ wire [31:0] sdram_write_word;
 
 /* verilator lint_off PINCONNECTEMPTY */
 b32p4 #(
-    .L1I_LINES(LINES),
-    .L1D_LINES(LINES)
+    .L1I_LINES(L1I_LINES),
+    .L1D_LINES(L1D_LINES)
 ) cpu (
     .clk(clk),
     .reset(reset),

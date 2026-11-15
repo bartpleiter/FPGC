@@ -28,6 +28,7 @@ BENCH = UnitBench(
         "bad_read",
         "bad_write",
         "read_value",
+        "to_int_enable",
         "sp_write",
         "pc_backup",
         "interrupts_enabled",
@@ -35,9 +36,9 @@ BENCH = UnitBench(
     ],
 )
 
-# The registers by address bits [3:2]
-PC_BACKUP, SP, ERR_STATUS, ERR_PC = range(4)
-NAMES = ["PC_BACKUP", "SP", "ERR_STATUS", "ERR_PC"]
+# The registers by address bits [4:2]
+PC_BACKUP, SP, ERR_STATUS, ERR_PC, INT_ENABLE = range(5)
+NAMES = ["PC_BACKUP", "SP", "ERR_STATUS", "ERR_PC", "INT_ENABLE"]
 
 Case = tuple[str, Vector]  # label, inputs
 
@@ -78,8 +79,9 @@ def read(reg: int, **kwargs) -> Case:
 
 
 # The demo writes and reads PC_BACKUP and SP, then has two events, reads the error
-# register, clears it, and ends with a write to ERR_STATUS by an instruction that has
-# an event itself, which is recorded after the clear.
+# register, clears it, and writes ERR_STATUS by an instruction that has an event
+# itself, which is recorded after the clear. The error register stays the same over a
+# reset. Then an interrupt, RETI, and INT_ENABLE disabling and enabling interrupts.
 DEMO = [
     case("write pc_bak", PC_BACKUP, write=0x1234),
     read(PC_BACKUP),
@@ -107,6 +109,10 @@ DEMO = [
     read(PC_BACKUP),
     case("reti", reti=True),
     read(PC_BACKUP),
+    case("disable", INT_ENABLE, write=0),
+    read(INT_ENABLE),
+    case("enable", INT_ENABLE, write=0xFFFFFFFF),
+    read(INT_ENABLE),
 ]
 
 
@@ -119,21 +125,22 @@ def model(cases: list[Case]) -> list[Vector]:
         reg, word = v["addr"], v["word"]
         bad_read = not word
         bad_write = not word or reg == ERR_PC
-        values = [pc_backup, v["sp"], flags | first << 8, err_pc]
+        values = [pc_backup, v["sp"], flags | first << 8, err_pc, enabled]
         writes = v["write"] and not bad_write
         out.append(
             {
                 "bad_read": int(bad_read),
                 "bad_write": int(bad_write),
                 "read_value": 0 if bad_read else values[reg],
+                "to_int_enable": int(bool(word) and reg == INT_ENABLE),
                 "sp_write": int(bool(writes) and reg == SP),
                 "pc_backup": pc_backup,
                 "interrupts_enabled": enabled,
                 "last_interrupt": last_interrupt,
             }
         )
-        if v["reset"]:
-            pc_backup = flags = first = err_pc = last_interrupt = 0
+        if v["reset"]:  # the error register isn't reset
+            pc_backup = last_interrupt = 0
             enabled = 1
             continue
         if v["take_interrupt"]:
@@ -144,6 +151,8 @@ def model(cases: list[Case]) -> list[Vector]:
             pc_backup = v["write_data"]
         if writes and reg == ERR_STATUS:
             flags = first = err_pc = 0
+        if writes and reg == INT_ENABLE:
+            enabled = v["write_data"] & 1
         if v["events"]:
             flags |= v["events"]
             if not first:
@@ -162,7 +171,7 @@ def check(cases: list[Case], name: str) -> None:
 def test_every_access() -> None:
     """Read and write every register, as a word and not."""
     cases = []
-    for reg in range(4):
+    for reg in range(5):
         for word in (True, False):
             cases.append(case("write", reg, write=0x80 + reg, word=word, sp=reg))
             cases.append(case("read", reg, word=word, sp=reg))
@@ -209,7 +218,7 @@ def test_random() -> None:
         cases.append(
             case(
                 "random",
-                rng.randrange(4),
+                rng.randrange(5),
                 write=rng.getrandbits(32) if r < 0.3 else None,
                 word=rng.random() < 0.9,
                 sp=rng.getrandbits(8),

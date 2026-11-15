@@ -2,7 +2,7 @@
 // A rising edge on an interrupt input makes that interrupt pending, and it stays pending
 // until the CPU takes it. The lowest pending number goes first.
 module cpu_interrupts #(
-    parameter INTERRUPTS = 7  // the number of inputs, at most 255
+    parameter INTERRUPTS = 7  // the number of inputs
 ) (
     input  wire                clk,
     input  wire                reset,
@@ -12,9 +12,7 @@ module cpu_interrupts #(
     output reg  [7:0]          id           // the lowest pending interrupt, or 0
 );
 
-// The inputs can come from another clock domain, so each one goes through two flip-flops
-// first, to give a value that is about to change time to settle (a synchronizer). The
-// third flip-flop holds the value of the cycle before, for the edge detection.
+// Synchronize the interrupt inputs as they might come from another domain or external pin.
 reg [INTERRUPTS:1] sync1;
 reg [INTERRUPTS:1] sync2;
 reg [INTERRUPTS:1] last;
@@ -30,8 +28,6 @@ wire [INTERRUPTS:1] rising = sync2 & ~last;
 
 assign pending = pending_bits != {INTERRUPTS{1'b0}};
 
-// The loop goes from the highest number down, so a lower pending number replaces a
-// higher one.
 integer n;
 
 always @(*) begin

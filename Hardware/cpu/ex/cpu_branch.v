@@ -1,10 +1,9 @@
 // Branch compare
-// Compares a with b, signed or unsigned, and decides whether the branch condition holds.
 module cpu_branch (
     input  wire [31:0] a,
     input  wire [31:0] b,
-    input  wire [2:0]  branch_op,      // the condition
-    input  wire        branch_signed,  // compare as signed numbers; beq and bne ignore it
+    input  wire [2:0]  branch_op,
+    input  wire        branch_signed,
     output reg         taken
 );
 

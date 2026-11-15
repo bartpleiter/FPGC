@@ -1,5 +1,4 @@
 // Write-back stage (WB)
-// The MEM/WB register, which writes the register file and drives the retire port.
 module cpu_wb (
     input  wire        clk,
     input  wire        reset,
@@ -26,7 +25,6 @@ module cpu_wb (
     input  wire        ex_mem_interrupt,
     input  wire [7:0]  interrupt_id,
 
-    // The register write, to the register file in ID
     output wire        wb_writes_dreg,
     output reg  [3:0]  mem_wb_dreg,
     output reg  [31:0] mem_wb_value,
@@ -77,7 +75,7 @@ always @(posedge clk) begin
     mem_wb_dreg         <= ex_mem_dreg;
     mem_wb_value        <= mem_value;
     mem_wb_write        <= ex_mem_write;
-    mem_wb_write_addr   <= {ex_mem_addr[31:2], 2'b00};  // the trace shows the word
+    mem_wb_write_addr   <= {ex_mem_addr[31:2], 2'b00};
     mem_wb_write_data   <= data_write_data;
     mem_wb_write_be     <= data_byte_enable;
     mem_wb_push         <= ex_mem_push;
@@ -104,7 +102,7 @@ assign retire_write_be    = mem_wb_write_be;
 assign retire_push        = mem_wb_valid && mem_wb_push;
 assign retire_push_value  = mem_wb_push_value;
 assign retire_pop         = mem_wb_valid && mem_wb_pop;
-assign retire_pop_value   = mem_wb_value;  // also for pop r0
+assign retire_pop_value   = mem_wb_value;
 assign retire_redirect    = mem_wb_redirect;
 assign retire_target      = mem_wb_target;
 assign retire_irq         = mem_wb_valid && mem_wb_interrupt;

@@ -2,14 +2,15 @@
 //
 // The outputs are written at the rising edge, just before it clocks the write, the
 // events and the interrupt, because that's what the instruction in MEM sees. One reset
-// cycle comes before the vectors, so the registers start from a known state.
+// cycle comes before the vectors, so the registers start from a known state. The error
+// register isn't reset, and starts at its initial value.
 `timescale 1ns / 1ps
 module tb_cpu_io_regs;
 
 `include "tb_unit.vh"
 
 reg         reset;
-reg  [3:2]  addr;
+reg  [4:2]  addr;
 reg         word;
 reg         write;
 reg  [31:0] write_data;
@@ -22,6 +23,7 @@ reg         reti;
 wire        bad_read;
 wire        bad_write;
 wire [31:0] read_value;
+wire        to_int_enable;
 wire        sp_write;
 wire [31:0] pc_backup;
 wire        interrupts_enabled;
@@ -35,6 +37,7 @@ cpu_io_regs dut (
     .bad_read(bad_read),
     .bad_write(bad_write),
     .read_value(read_value),
+    .to_int_enable(to_int_enable),
     .write(write),
     .write_data(write_data),
     .sp(sp),
@@ -52,14 +55,15 @@ cpu_io_regs dut (
 initial begin
     tb_open;
     {reset, addr, word, write, write_data, sp, pc, events, take_interrupt, interrupt_id,
-     reti} = {1'b1, 92'd0};
+     reti} = {1'b1, 93'd0};
     @(negedge clk);
     while ($fscanf(vectors_fd, "%h %h %h %h %h %h %h %h %h %h %h %h\n", label, reset,
                    addr, word, write, write_data, sp, pc, events, take_interrupt,
                    interrupt_id, reti) == 12) begin
         @(posedge clk)
-            $fwrite(outputs_fd, "%h %h %h %h %h %h %h\n", bad_read, bad_write, read_value,
-                    sp_write, pc_backup, interrupts_enabled, last_interrupt);
+            $fwrite(outputs_fd, "%h %h %h %h %h %h %h %h\n", bad_read, bad_write,
+                    read_value, to_int_enable, sp_write, pc_backup, interrupts_enabled,
+                    last_interrupt);
         @(negedge clk);
     end
     tb_close;

@@ -124,7 +124,7 @@ class Format:
 
 _A, _B, _D = Field("a", 11, 8), Field("b", 7, 4), Field("d", 3, 0)
 _OP = Field("op", 27, 24)
-_C16_HIGH = Field("c16", 27, 12)  # BRANCH, JUMPR, READ, WRITE
+_C16_HIGH = Field("c16", 27, 12)  # BRANCH, JUMPR, READ, WRITE, SAVPC
 _C16_LOW = Field("c16", 23, 8)  # ARITHC, ARITHMC
 _A_LOW = Field("a", 7, 4)  # ARITHC, ARITHMC
 
@@ -137,7 +137,7 @@ FORMATS = {
     Opcode.ARITHM: _REG_FORMAT,
     Opcode.ARITHMC: _CONST_FORMAT,
     Opcode.RETI: Format(()),
-    Opcode.SAVPC: Format((_D,)),
+    Opcode.SAVPC: Format((_C16_HIGH, _D)),
     Opcode.BRANCH: Format((_C16_HIGH, _A, _B, Field("cond", 3, 1), Field("s", 0, 0))),
     Opcode.CCACHE: Format((Field("data_only", 0, 0),)),
     Opcode.JUMPR: Format((_C16_HIGH, _B, Field("o", 0, 0))),

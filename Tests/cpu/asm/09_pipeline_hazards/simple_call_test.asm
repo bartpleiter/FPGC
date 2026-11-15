@@ -9,6 +9,7 @@ Main:
     halt
 
     load32 0x1DFFFFC r13   ; stack pointer
+    load 0 r14             ; frame pointer, which identity_func saves and restores
     
     ; Call function with argument in r4
     load 42 r4            ; argument

@@ -5,7 +5,9 @@ and reports each retired instruction as a trace record.
 
 Two modes:
 
-- strict (default): every illegal case raises IllegalError, so tests catch bugs.
+- strict (default): every illegal case raises IllegalError, so tests catch bugs. So does
+  reading a register that hasn't been written since the reset, which the ISA leaves
+  undefined.
 - hardware: illegal cases behave as the hardware does, and set the error register.
 """
 
@@ -32,7 +34,7 @@ MASK = 0xFFFFFFFF
 SDRAM_BASE, SDRAM_SIZE = 0x00000000, 64 << 20
 IO_BASE, IO_SIZE = 0x1C000000, 0x02000000
 ROM_BASE, ROM_SIZE = 0x1E000000, 4 << 10
-CPU_IO_BASE, CPU_IO_SIZE = 0x1F000000, 0x10
+CPU_IO_BASE, CPU_IO_SIZE = 0x1F000000, 0x14
 
 # Video memory
 VIDEO_REGIONS = {
@@ -47,6 +49,7 @@ PC_BACKUP_ADDR = CPU_IO_BASE + 0x0
 SP_ADDR = CPU_IO_BASE + 0x4
 ERR_STATUS_ADDR = CPU_IO_BASE + 0x8
 ERR_PC_ADDR = CPU_IO_BASE + 0xC
+INT_ENABLE_ADDR = CPU_IO_BASE + 0x10
 
 STACK_DEPTH = 256
 INTERRUPT_VECTOR = 0x4
@@ -250,17 +253,11 @@ class Machine:
 
     def __post_init__(self) -> None:
         self.regs = [0] * 16
-        self.pc = ROM_BASE
-        self.sp = 0
         self.stack = [0] * STACK_DEPTH
-        self.pc_backup = 0
-        self.interrupts_enabled = True
-        self.int_id = 0
-        self.pending = 0  # bit n-1 is set when interrupt n is pending
+        # The error register is cleared at power-up, and isn't changed by a reset.
         self.err_flags = 0
         self.err_first = 0
         self.err_pc = 0
-        self.halted = False
         self.regions = [
             Region("sdram", SDRAM_BASE, SDRAM_SIZE, Ram()),
             Region("io", IO_BASE, IO_SIZE, self.io),
@@ -271,6 +268,25 @@ class Machine:
             ),
         ]
         self._events: list[ErrorKind] = []
+        self.reset()
+
+    def reset(self) -> None:
+        """Reset the CPU, as the reset input does (rule 2.25).
+
+        The registers other than r0 are undefined: they keep their values, but strict
+        mode treats a read of one that hasn't been written since as illegal. The stack
+        keeps its contents, and the error register is kept. SDRAM is undefined after a
+        reset; the ISS clears it, so a program can't depend on what was there.
+        """
+        self.written = 1  # bit n is set when register n has been written since reset
+        self.pc = ROM_BASE
+        self.sp = 0
+        self.pc_backup = 0
+        self.interrupts_enabled = True
+        self.int_id = 0
+        self.pending = 0  # bit n-1 is set when interrupt n is pending
+        self.halted = False
+        self.regions[0].device = Ram()
         self._current_pc = self.pc
 
     # ---- Loading and inspecting ----
@@ -350,13 +366,13 @@ class Machine:
             c27 = ins["c27"]
             return pc + sext(c27, 27) if ins["o"] else c27
         if op == Opcode.JUMPR:
-            target = self.regs[ins["b"]] + sext(ins["c16"], 16)
+            target = self._reg(ins["b"]) + sext(ins["c16"], 16)
             return target + pc if ins["o"] else target
         if op == Opcode.BRANCH:
             cond, s = ins["cond"], ins["s"]
             if (cond, s) not in _BRANCH_CODES:
                 return None  # reserved: handled as an illegal instruction in _execute
-            a, b = self.regs[ins["a"]], self.regs[ins["b"]]
+            a, b = self._reg(ins["a"]), self._reg(ins["b"])
             return pc + sext(ins["c16"], 16) if branch_taken(cond, s, a, b) else None
         if op == Opcode.HALT:
             return pc
@@ -408,7 +424,7 @@ class Machine:
                     ErrorKind.ILLEGAL_INSTRUCTION, "reserved branch condition"
                 )
         elif op == Opcode.SAVPC:
-            self._write_reg(ins["d"], r.pc, r)
+            self._write_reg(ins["d"], (r.pc + sext(ins["c16"], 16)) & MASK, r)
         elif op == Opcode.RETI:
             self.interrupts_enabled = True
             self.pc = r.redirect = self._jump_target(self.pc_backup)
@@ -417,7 +433,7 @@ class Machine:
         elif op == Opcode.PUSH:
             if self.sp == STACK_DEPTH - 1:
                 self._illegal(ErrorKind.STACK_OVERFLOW, "push on a full stack")
-            r.push = self.stack[self.sp] = self.regs[ins["b"]]
+            r.push = self.stack[self.sp] = self._reg(ins["b"])
             self.sp = (self.sp + 1) % STACK_DEPTH
         elif op == Opcode.POP:
             if self.sp == 0:
@@ -438,26 +454,33 @@ class Machine:
 
     def _arith(self, ins: Decoded, r: Retired) -> None:
         op = ins["op"]
-        a = self.regs[ins["a"]]
-        if ins.opcode in (Opcode.ARITH, Opcode.ARITHM):
-            b = self.regs[ins["b"]]
+        alu = ins.opcode in (Opcode.ARITH, Opcode.ARITHC)
+        table = _ALU_BY_CODE if alu else _MULDIV_BY_CODE
+        if op not in table:
+            self._illegal(ErrorKind.ILLEGAL_INSTRUCTION, f"reserved operation {op:04b}")
+            return
+        # load doesn't use A, and not doesn't use B.
+        a = 0 if alu and op == ALU_OPS["load"] else self._reg(ins["a"])
+        if ins.opcode == Opcode.ARITH and op == ALU_OPS["not"]:
+            b = 0
+        elif ins.opcode in (Opcode.ARITH, Opcode.ARITHM):
+            b = self._reg(ins["b"])
         elif ins.opcode == Opcode.ARITHC and op in ALU_ZEXT_OPS:
             b = ins["c16"]
         else:
             b = sext(ins["c16"], 16) & MASK
-        table = (
-            _ALU_BY_CODE
-            if ins.opcode in (Opcode.ARITH, Opcode.ARITHC)
-            else _MULDIV_BY_CODE
-        )
-        if op not in table:
-            self._illegal(ErrorKind.ILLEGAL_INSTRUCTION, f"reserved operation {op:04b}")
-            return
         self._write_reg(ins["d"], table[op](a, b) & MASK, r)
+
+    def _reg(self, n: int) -> int:
+        """Read register n, which must have been written since the reset."""
+        if not self.written >> n & 1:
+            self._illegal(None, f"r{n} is read before it's written")
+        return self.regs[n]
 
     def _write_reg(self, d: int, value: int, r: Retired) -> None:
         if d != 0:
             self.regs[d] = value
+            self.written |= 1 << d
             r.dreg = (d, value)
 
     # ---- Memory ----
@@ -481,13 +504,17 @@ class Machine:
             return
         size = _WRITE_SIZES[ins["size"]]
         address = self._address(ins, size)
-        data, enables = write_lanes(self.regs[ins["b"]], address, size)
+        data, enables = write_lanes(self._reg(ins["b"]), address, size)
         mask = sum(0xFF << (8 * i) for i in range(4) if enables >> i & 1)
         r.write = (address & ~3, data, enables)
         self._write_word(address & ~3, data, mask)
+        if address == INT_ENABLE_ADDR and size == 4:
+            # Redirect to PC + 4, so that the next instruction is fetched again, and
+            # decides with the new value whether an interrupt is taken instead of it.
+            r.redirect = self.pc
 
     def _address(self, ins: Decoded, size: int) -> int:
-        address = (self.regs[ins["a"]] + sext(ins["c16"], 16)) & MASK
+        address = (self._reg(ins["a"]) + sext(ins["c16"], 16)) & MASK
         if address % size:
             self._illegal(
                 ErrorKind.UNALIGNED_ACCESS, f"{size}-byte access at {address:08x}"
@@ -533,6 +560,7 @@ class Machine:
             SP_ADDR: self.sp,
             ERR_STATUS_ADDR: self.err_status,
             ERR_PC_ADDR: self.err_pc,
+            INT_ENABLE_ADDR: int(self.interrupts_enabled),
         }
         if size != 4 or address not in values:
             self._illegal(ErrorKind.BAD_ADDRESS, f"read from CPU I/O {address:08x}")
@@ -540,15 +568,18 @@ class Machine:
         return values[address]
 
     def _cpu_io_write(self, address: int, data: int, mask: int) -> None:
-        if mask != MASK or address not in (PC_BACKUP_ADDR, SP_ADDR, ERR_STATUS_ADDR):
+        writable = (PC_BACKUP_ADDR, SP_ADDR, ERR_STATUS_ADDR, INT_ENABLE_ADDR)
+        if mask != MASK or address not in writable:
             self._illegal(ErrorKind.BAD_ADDRESS, f"write to CPU I/O {address:08x}")
             return
         if address == PC_BACKUP_ADDR:
             self.pc_backup = data
         elif address == SP_ADDR:
             self.sp = data & (STACK_DEPTH - 1)
-        else:
+        elif address == ERR_STATUS_ADDR:
             self.err_flags = self.err_first = self.err_pc = 0
+        else:
+            self.interrupts_enabled = bool(data & 1)
 
     # ---- Illegal cases ----
 

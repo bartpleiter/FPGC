@@ -1,9 +1,4 @@
 // Execute stage (EX)
-// The ID/EX register, then the forwarding mux, the ALU, the address adder and the
-// branch compare, which decide whether the instruction redirects, and where to, and
-// whether an interrupt is taken instead. The address adder also gives the address of a
-// read or write, and its region. A multiply starts here and finishes in MEM, and a
-// divide waits here until it's done.
 module cpu_ex (
     input  wire        clk,
     input  wire        reset,
@@ -52,8 +47,7 @@ module cpu_ex (
     input  wire [31:0] ex_mem_result,
     input  wire [31:0] mem_wb_value,
 
-    // A write in MEM, which uses the data memory in this cycle, and a push in MEM,
-    // which writes the word a pop would read
+    // Write and push signals
     input  wire        ex_mem_valid,
     input  wire        ex_mem_write,
     input  wire        ex_mem_push,
@@ -86,17 +80,17 @@ module cpu_ex (
 
     // To MEM
     output wire [31:0] ex_result,
-    output wire [31:0] ex_b,           // the data of a write
-    output wire [31:0] ex_addr,        // also the address of the data memory
-    output wire        ex_sdram,       // the region of the address
+    output wire [31:0] ex_b,           // data of a write
+    output wire [31:0] ex_addr,        // address of data memory
+    output wire        ex_sdram,       // region of address
     output wire        ex_rom,
     output wire        ex_cpu_io,
     output wire        ex_unmapped,
-    output wire        ex_redirect,    // a jump, a taken branch or HALT
+    output wire        ex_redirect,    // a program counter redirect
     output wire [31:0] ex_target,
-    output wire        ex_interrupt,   // an interrupt is taken instead
-    output wire [31:0] ex_mult_result, // of the multiply in MEM
-    output wire [31:0] ex_div_result,  // once the divider is done
+    output wire        ex_interrupt,   // interrupt is taken
+    output wire [31:0] ex_mult_result,
+    output wire [31:0] ex_div_result,
     output wire        busy_ex
 );
 
@@ -117,7 +111,7 @@ reg        id_ex_areg_from_wb;
 reg        id_ex_breg_from_mem;
 reg        id_ex_breg_from_wb;
 
-// Forwarding mux. Selects operands from MEM, WB, or the register file
+// Forwarding mux
 wire [31:0] ex_a = id_ex_areg_from_mem ? ex_mem_result :
                    id_ex_areg_from_wb  ? mem_wb_value  :
                                          id_ex_a;
@@ -125,9 +119,7 @@ assign ex_b      = id_ex_breg_from_mem ? ex_mem_result :
                    id_ex_breg_from_wb  ? mem_wb_value  :
                                          id_ex_b;
 
-// A stalled EX keeps its operands, but MEM and WB may move on meanwhile, taking the
-// forwarded values with them. So a stalled EX captures its operands, and from then on
-// uses those.
+// Stall and flush logic
 always @(posedge clk) begin
     if (reset || flush_ex)
         id_ex_valid <= 1'b0;
@@ -188,8 +180,6 @@ cpu_alu alu (
     .y(ex_result)
 );
 
-// The multiplier takes the operands of every instruction when it moves on to MEM, and
-// has the result when the instruction is in MEM. Only a multiply uses it.
 cpu_multiplier multiplier (
     .clk(clk),
     .enable(!stall_ex),
@@ -199,9 +189,7 @@ cpu_multiplier multiplier (
     .y(ex_mult_result)
 );
 
-// A divide starts the divider in its first cycle in EX, and waits in EX until the
-// divider is done. The flag makes sure it starts only once, also when EX has to wait
-// for a later stage.
+// Divider control logic
 reg  div_started;
 wire div_start = id_ex_valid && id_ex_div && !div_started;
 wire div_busy;
@@ -223,11 +211,8 @@ cpu_divider divider (
     .y(ex_div_result)
 );
 
-// The address adder, separate from the ALU. It gives the address of a read or write,
-// and the target of a JUMPR.
 assign ex_addr = ex_a + id_ex_constant;
 
-// The empty outputs are for the regions that come in later steps.
 /* verilator lint_off PINCONNECTEMPTY */
 cpu_memory_map memory_map (
     .addr(ex_addr),
@@ -254,18 +239,9 @@ cpu_branch branch (
     .taken(ex_taken)
 );
 
-// A jump, a taken branch and HALT redirect. HALT's target is its own PC. (A RETI
-// redirects too, but its target is only read in MEM. CCACHE redirects to its target,
-// PC + 4, once it's done in MEM. Neither is a place where an interrupt is taken.)
 assign ex_redirect = id_ex_jump || id_ex_jumpr || id_ex_halt || (id_ex_branch && ex_taken);
 assign ex_target   = id_ex_jumpr ? ex_addr : id_ex_target;
 
-// An interrupt is taken instead of an instruction that redirects, when one is pending,
-// interrupts are enabled, and the instruction is in SDRAM, so code in ROM is never
-// interrupted. The decision goes to MEM with the instruction. Until the instruction
-// commits, only an interrupt or a RETI can change whether interrupts are enabled, and
-// both redirect, which cancels this instruction. A pending interrupt stays pending until
-// it's taken, so the decision still holds when the instruction commits.
 wire pc_in_sdram;
 
 /* verilator lint_off PINCONNECTEMPTY */
@@ -284,12 +260,10 @@ cpu_memory_map pc_map (
 );
 /* verilator lint_on PINCONNECTEMPTY */
 
+// When to take an interrupt
 assign ex_interrupt = ex_redirect && interrupt_pending && interrupts_enabled && pc_in_sdram;
 
-// A write in MEM uses the address of the data memory, so a read or write in EX has to
-// wait a cycle (the write-then-access stall). A read that waits like this also reads
-// what the write wrote. A pop in EX waits for a push in MEM in the same way (the
-// push-then-pop stall), because the stack can't read the word that is being written.
+// Stall conditions
 wire write_then_access = (id_ex_read || id_ex_write) && ex_mem_valid && ex_mem_write;
 wire push_then_pop     = id_ex_pop && ex_mem_valid && ex_mem_push;
 

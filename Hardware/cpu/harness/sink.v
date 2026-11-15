@@ -1,8 +1,5 @@
 // Keeps the outputs of a design alive in a timing run. Quartus removes logic whose
 // result isn't used, so all outputs go through this registered XOR tree to one pin.
-//
-// The tree has two register levels (32 bits per group, then all groups), so its own
-// paths stay short and do show up as critical.
 module sink #(
     parameter W = 32
 ) (

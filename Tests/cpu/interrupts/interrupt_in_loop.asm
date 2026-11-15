@@ -1,7 +1,8 @@
 ; An interrupt during a loop. It's taken instead of the branch back, the handler reads
 ; which interrupt it was and where it came from, and after RETI the branch runs as if
-; nothing happened, so the loop still runs 20 times.
-; interrupt 2 at cycle 30
+; nothing happened, so the loop still runs 300 times. The interrupt comes once the loop
+; runs, with every cache size and latency.
+; interrupt 2 at cycle 400
 ; interrupts taken: 2
     jump Main
     jump Interrupt
@@ -11,7 +12,8 @@ Interrupt:
     read 0 r2 r3            ; PC_BACKUP: the address of the branch
     reti
 Main:
-    load 20 r5
+    load 0 r6
+    load 300 r5
 Loop:
     add r6 1 r6
     sub r5 1 r5

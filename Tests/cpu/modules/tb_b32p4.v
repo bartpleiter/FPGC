@@ -19,8 +19,9 @@
 //   +vcd=<file>        also dump a waveform
 //   +max_cycles=<n>    give up after n cycles (default 100000)
 //   +reset_at=<c>      raise reset at the end of cycle c for two cycles, as at the start.
-//                      The CPU then starts again, and so does the trace: it only has the
-//                      instructions after the reset. A line says how many retired before.
+//                      The CPU then starts again, and the trace gets a line "<c> reset"
+//                      between the instructions before and after the reset. A line of
+//                      output says how many retired before.
 //   +sdram_dump=<file> after the HALT, write the SDRAM words of DUMP_BYTES at DUMP_BASE,
 //                      where the random programs keep their data, one per line in hex
 //
@@ -197,6 +198,15 @@ wire [31:0] r1 = dut.id_stage.regfile.regs[1], r2 = dut.id_stage.regfile.regs[2]
 
 // ---- Start ----
 
+// The registers are undefined after a reset, so they start with a junk pattern instead
+// of 0. A program that reads a register before it writes it then differs from the ISS,
+// which stops on such a read in strict mode, instead of passing by luck.
+integer r;
+
+initial
+    for (r = 1; r < 16; r = r + 1)
+        dut.id_stage.regfile.regs[r] = 32'hDEAD0000 | r;
+
 // Reads hex words into the start of the SDRAM. $readmemh would go through all of the
 // SDRAM, which takes a lot longer than the run.
 task load_sdram(input [8*256-1:0] path);
@@ -283,15 +293,14 @@ always @(posedge clk) begin
         end
         cycle <= cycle + 1;
 
-        // After the instruction that retires in that cycle, the trace starts again.
+        // After the instruction that retires in that cycle, the trace marks the reset.
         if (cycle == reset_at) begin
             $display("reset in cycle %0d, after %0d instructions, the last at %08x",
                      cycle, retired, last_pc);
+            $fwrite(trace_fd, "%0d reset\n", cycle);
             reset      <= 1'b1;
             reset_left = 2;
             retired    = 0;
-            $fclose(trace_fd);
-            trace_fd = $fopen(trace_path, "w");
         end
     end else if (reset_left > 0) begin
         reset_left = reset_left - 1;

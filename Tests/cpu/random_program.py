@@ -6,6 +6,7 @@ How a program is built:
 
 - r1-r6 are the working registers: every source and destination comes from this small
   pool, so most instructions depend on the ones just before them.
+- Every register is written before it's read, as registers are undefined after a reset.
 - Fixed registers, never written by the random instructions:
   r10 = CPU-internal I/O base, r11 = scratch for jumps and the drop,
   r12 = loop counter, r13 = data window in SDRAM, r14 = data window in video memory
@@ -19,17 +20,18 @@ How a program is built:
 - `only` restricts a program to some instructions, for the RTL steps that don't have
   all of them yet. Whatever needs a missing instruction is left out: without `write`
   there are no data windows and no memory accesses, without `load` and `loadhi` the
-  registers start at 0, and so on.
+  working registers start with an ALU operation on r0, and so on.
 - `regions` restricts the reads and writes to some regions, for the RTL steps that
   don't have all memories yet: "sdram" (the SDRAM window), "video" (the video window)
-  and "cpu_io" (reading the CPU-internal registers, and the drop).
+  and "cpu_io" (reading the CPU-internal registers, the drop, and writing INT_ENABLE,
+  which enables or disables interrupts at random).
 - Half of the programs that may use `ccache` end with one right before the `halt`, so
   every dirty line is written back and the SDRAM can be compared with the ISS's memory.
 - With `interrupts`, the program is for SDRAM: it starts with the jump to the program at
   address 0 and the jump to the interrupt handler at address 4, the interrupt vector.
   Comments at the top say when the interrupts come (see iss_comparison.py). The
-  handler only uses r7-r9, so the program doesn't notice it, apart from what INTID and
-  PC_BACKUP read.
+  handler only uses r7-r9, so the program doesn't notice it, apart from what INTID,
+  PC_BACKUP and INT_ENABLE read.
 """
 
 import random
@@ -41,8 +43,9 @@ WORK_REGS = [f"r{n}" for n in range(1, 7)]
 SOURCE_REGS = ["r0", *WORK_REGS]
 
 CPU_IO_BASE = 0x1F000000
-CPU_IO_OFFSETS = [0, 4, 8, 12]  # PC_BACKUP, SP, ERR_STATUS, ERR_PC
+CPU_IO_OFFSETS = [0, 4, 8, 12, 16]  # PC_BACKUP, SP, ERR_STATUS, ERR_PC, INT_ENABLE
 SP_OFFSET = 4
+INT_ENABLE_OFFSET = 16
 
 # The SDRAM data is two cache lines at 0x10000, and two that map to the same L1 lines
 # 4 KiB further, so accesses cause evictions and write-backs.
@@ -124,6 +127,7 @@ class _Generator:
             (2, self.savpc, self.ok("savpc")),
             (2, self.readintid, self.ok("readintid")),
             (2, self.read_cpu_io, self.cpu_io_ok),
+            (1, self.int_enable, self.cpu_io_ok and self.ok("write")),
             (1, self.ccache, self.ok("ccache")),
             (1, self.ccached, self.ok("ccached")),
             (2, self.nop, self.ok("nop")),
@@ -237,13 +241,20 @@ class _Generator:
         self.pick(self.special_forms)
 
     def savpc(self) -> None:
-        self.emit(f"savpc {self.dst()}")
+        if self.rng.random() < 0.5:
+            self.emit(f"savpc {self.dst()}")
+        else:
+            self.emit(f"savpc {self.const16()} {self.dst()}")
 
     def readintid(self) -> None:
         self.emit(f"readintid {self.dst()}")
 
     def read_cpu_io(self) -> None:
         self.emit(f"read {self.rng.choice(CPU_IO_OFFSETS)} r10 {self.dst()}")
+
+    def int_enable(self) -> None:
+        """Enable or disable interrupts, with bit 0 of a register."""
+        self.emit(f"write {INT_ENABLE_OFFSET} r10 {self.src()}")
 
     def ccache(self) -> None:
         self.emit("ccache")
@@ -281,8 +292,10 @@ class _Generator:
         self.emit(f"addr2reg {self.later_label()} r11", "jumpr 0 r11")
 
     def skip_savpc(self) -> None:
-        """Skip exactly one instruction, through savpc + jumpr."""
-        self.emit("savpc r11", "jumpr 12 r11")
+        """Skip exactly one instruction, through savpc + jumpr. The 12 bytes from the
+        savpc are split between the two offsets."""
+        offset = self.rng.choice([0, 8, 12, self.rng.randint(-0x7FF0, 0x7FF0)])
+        self.emit(f"savpc {offset} r11", f"jumpr {12 - offset} r11")
         self.alu()
 
     def skip_jumpro(self) -> None:
@@ -347,15 +360,16 @@ class _Generator:
     def handler(self) -> list[str]:
         """The interrupt handler, with some of its parts chosen at random.
 
-        It adds the interrupt numbers up in r8, and keeps the return address in r7.
+        It reads the interrupt number into r8, and keeps the return address in r7.
         The return address can be overwritten during the handler and written back
-        directly before RETI, which must then use the value written back.
+        directly before RETI, which must then use the value written back. Registers are
+        undefined after a reset, and an interrupt can come at the first jump, so the
+        handler only reads registers it has written itself.
         """
         lines = [
             "Interrupt:",
             f"load32 {CPU_IO_BASE} r9",
-            "readintid r7",
-            "add r8 r7 r8",
+            "readintid r8",
         ]
         lines.append("read 0 r9 r7")  # PC_BACKUP
         if self.rng.random() < 0.5:
@@ -390,6 +404,12 @@ class _Generator:
         if self.load32:
             for reg in WORK_REGS:
                 self.emit(f"load32 {self.value()} {reg}")
+        else:
+            ops = self.alu_ops or self.muldiv_ops
+            if not ops:
+                raise ValueError("the allowed instructions can't set the registers")
+            for reg in WORK_REGS:
+                self.emit(f"{ops[0]} r0 r0 {reg}")
         while len(self.lines) < length or self.pending:
             self.unit()
         self.emit(*(f"pop {self.dst()}" for _ in range(self.stack_depth)))

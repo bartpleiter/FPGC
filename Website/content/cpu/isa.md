@@ -36,6 +36,8 @@ All arithmetic wraps around at 32 bits unless stated otherwise.
 | `r0` | Always 0. Writes to it are ignored. |
 | `r1`–`r15` | General purpose. Technically no difference between these registers. |
 
+The values of `r1`–`r15` are undefined after a reset, so a program must write a register before it reads it.
+
 ## Instruction encoding
 
 Every instruction is one 32-bit word. Bits marked **x** are unused in hardware.
@@ -54,7 +56,7 @@ Every instruction is one 32-bit word. Bits marked **x** are unused in hardware.
  CCACHE    0  1  1  1| x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x
  CCACHED   0  1  1  1| x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  1
  BRANCH    0  1  1  0||----------------16 BIT CONSTANT---------------||--A REG---||--B REG---||-OPCODE||S|
- SAVPC     0  1  0  1| x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x |--D REG---|
+ SAVPC     0  1  0  1||----------------16 BIT CONSTANT---------------| x  x  x  x  x  x  x  x |--D REG---|
  RETI      0  1  0  0| x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x  x
  ARITHMC   0  0  1  1||--OPCODE--||----------------16 BIT CONSTANT---------------||--A REG---||--D REG---|
  ARITHM    0  0  1  0||--OPCODE--| x  x  x  x  x  x  x  x  x  x  x  x |--A REG---||--B REG---||--D REG---|
@@ -185,7 +187,14 @@ The stack is 256 words of on-chip memory, separate from the address space. It's 
 
 ### SAVPC
 
-`savpc D` sets `D = PC`, the address of the `savpc` itself. Together with an add, this can be used to create a return address for function jumps.
+`savpc c16 D` sets `D = PC + sext(c16)`, where `PC` is the address of the `savpc` itself. `savpc D` is short for `savpc 0 D`. With a label instead of a number, the assembler uses the offset from the `savpc` to the label, so `D` gets the address of the label.
+
+This makes a function call two instructions, where the return address is the instruction after the jump:
+
+```text
+savpc 8 r15
+jump Function
+```
 
 ## Interrupts
 
@@ -221,7 +230,7 @@ After RETI, the interrupted control-flow instruction executes as if nothing happ
 Other rules:
 
 - No nesting: an interrupt that arrives during the handler stays pending until after RETI.
-- Interrupts are enabled after reset. There are no instructions to enable or disable them.
+- Interrupts are enabled after reset. Software can disable and enable them with the `INT_ENABLE` register. A write to it counts from the next instruction on: when the instruction right after the write is a jump, an interrupt can be taken at that jump after a write that enables interrupts, and not after a write that disables them.
 - Reading `pc_backup`: the handler can read and write it via a CPU-internal register, for example to switch tasks.
 
 ## Cache instructions
@@ -237,9 +246,10 @@ SDRAM is accessed through an instruction cache (L1I) and a data cache (L1D). The
 
 After a reset:
 
-- All registers and SP are 0, and the CPU starts at `0x1E000000`, in ROM. The contents of the hardware stack are undefined.
-- Interrupts are enabled, and none are pending.
-- The error register is clear.
+- The CPU starts at `0x1E000000`, in ROM, and SP is 0.
+- `r1`–`r15` and the contents of the hardware stack are undefined.
+- Interrupts are enabled, none are pending, and `PC_BACKUP` is 0.
+- The error register keeps its value. It's only cleared when the FPGA is configured, and by software. So after a reset, software can still see what went wrong before it.
 - The contents of SDRAM are undefined. This also means that dirty L1D lines do not need to be evicted.
 
 ## Memory map
@@ -252,7 +262,7 @@ The CPU's view of the 32-bit address space. Other addresses ignore writes and re
 | `0x1C000000`–`0x1DFFFFFF` | I/O | handled by the Memory Unit, the devices and their addresses are in the I/O documentation |
 | `0x1E000000`–`0x1E000FFF` | ROM, 4 KiB | code and read-only data. The CPU starts here. Writes are illegal. |
 | `0x1E400000`–`0x1EFFFFFF` | video memory | the GPU's memories. The exact layout is defined with the GPU. |
-| `0x1F000000`–`0x1F00000F` | CPU-internal I/O | the registers below |
+| `0x1F000000`–`0x1F000013` | CPU-internal I/O | the registers below |
 
 Only SDRAM and ROM can hold executable code.
 
@@ -264,6 +274,7 @@ Only SDRAM and ROM can hold executable code.
 | `0x1F000004` | `SP` | read/write | the hardware stack pointer in bits [7:0]. Reads give 0 in bits [31:8]; writes use only bits [7:0]. |
 | `0x1F000008` | `ERR_STATUS` | read/write | the error flags (below). Any write clears all flags and `ERR_PC`. |
 | `0x1F00000C` | `ERR_PC` | read only | the address of the instruction that caused the first error since the last clear |
+| `0x1F000010` | `INT_ENABLE` | read/write | whether interrupts are enabled, in bit 0. Reads give 0 in bits [31:1]; writes use only bit 0. Taking an interrupt clears it, and `reti` sets it. |
 
 ### Error register
 

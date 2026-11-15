@@ -9,12 +9,12 @@
 ; runs from SDRAM
 ; sdram reads: 0 1
     ccached                 ; word 0
+    load 0 r1               ; word 1
 Main:
-    beq r1 r0 First         ; word 1, taken the first time round
-    halt                    ; word 2
+    beq r1 r0 First         ; word 2, taken the first time round
+    halt                    ; word 3
 First:
-    load 1 r1               ; word 3
-    nop
+    load 1 r1               ; word 4
     nop
     nop
     jump Main               ; word 7: line 1 misses behind it, and its fill starts

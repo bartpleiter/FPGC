@@ -40,7 +40,7 @@ tb_b32p4.dut.id_stage.const_add_pc
 tb_b32p4.dut.id_stage.jump_absolute
 @22
 tb_b32p4.dut.id_stage.constant[31:0]
-tb_b32p4.dut.id_stage.pc_plus_constant[31:0]
+tb_b32p4.dut.id_stage.pc_plus_offset[31:0]
 tb_b32p4.dut.id_stage.id_target[31:0]
 tb_b32p4.dut.id_stage.id_constant[31:0]
 @200

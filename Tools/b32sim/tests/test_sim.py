@@ -6,6 +6,7 @@ from b32asm.assembler import assemble
 from b32sim.sim import (
     ERR_PC_ADDR,
     ERR_STATUS_ADDR,
+    INT_ENABLE_ADDR,
     ROM_BASE,
     ErrorKind,
     IllegalError,
@@ -105,9 +106,10 @@ def test_cpu_io_registers() -> None:
         write 4 r1 r2
         read 4 r1 r4
         read 0 r1 r5
+        read 16 r1 r6
         halt"""
     )
-    assert machine.regs[3:6] == [2, 0xFF, 99]
+    assert machine.regs[3:7] == [2, 0xFF, 99, 1]
 
 
 # ---- Stack ----
@@ -128,15 +130,19 @@ def test_pop_r0_drops_a_value() -> None:
 
 def test_savpc_and_call() -> None:
     machine = run_rom(
-        """savpc r1
-        add r1 12 r1
+        """savpc 8 r1
         jump Function
         halt
         Function:
         load 42 r3
         jumpr 0 r1"""
     )
-    assert machine.regs[3] == 42 and machine.regs[1] == ROM_BASE + 12
+    assert machine.regs[3] == 42 and machine.regs[1] == ROM_BASE + 8
+
+
+def test_savpc_offset() -> None:
+    machine = run_rom("savpc r1\nsavpc -4 r2\nsavpc Next r3\nNext:\nhalt")
+    assert machine.regs[1:4] == [ROM_BASE, ROM_BASE, ROM_BASE + 12]
 
 
 @pytest.mark.parametrize(
@@ -196,6 +202,73 @@ def test_halt_in_sdram_is_interruptible() -> None:
     assert machine.step().interrupt == 1
 
 
+def test_int_enable() -> None:
+    """A word write to INT_ENABLE sets whether interrupts are enabled from bit 0, and
+    redirects to the next instruction. A pending interrupt waits until it's set again,
+    and is then taken at the next jump."""
+    machine = sdram_machine(
+        f"""jump Main
+        jump Handler
+        Main:
+        load32 {INT_ENABLE_ADDR} r1
+        write 0 r1 r0
+        jump Next
+        Next:
+        read 0 r1 r2
+        load 3 r3
+        write 0 r1 r3
+        jump Done
+        Done:
+        halt
+        Handler:
+        reti"""
+    )
+    for _ in range(4):  # the jumps from ROM and to Main, and load32
+        machine.step()
+    disable = machine.step()
+    assert disable.redirect == disable.pc + 4 and not machine.interrupts_enabled
+    machine.request_interrupt(1)
+    assert machine.step().interrupt is None  # jump Next
+    machine.step()
+    assert machine.regs[2] == 0
+    machine.step()
+    enable = machine.step()
+    assert enable.redirect == enable.pc + 4 and machine.interrupts_enabled
+    assert machine.step().interrupt == 1  # jump Done
+
+
+# ---- Reset ----
+
+
+def test_reset_keeps_only_the_error_register() -> None:
+    """A reset keeps the error register, starts again in ROM, and clears SDRAM, which
+    is undefined after a reset."""
+    machine = run_rom(
+        "pop r0\nload 5 r1\nload 0x100 r2\nwrite 0 r2 r1\nhalt",
+        strict=False,
+    )
+    assert machine.sp == 255
+    machine.reset()
+    assert machine.err_status == (1 << 5) | (6 << 8) and machine.err_pc == ROM_BASE
+    assert machine.pc == ROM_BASE and machine.sp == 0 and not machine.halted
+    assert machine.read_word(0x100) == 0
+
+
+def test_registers_are_undefined_after_reset() -> None:
+    """In strict mode, a register must be written before it's read, also after a reset.
+    load doesn't read A, and not doesn't read B."""
+    with pytest.raises(IllegalError, match="r2 is read before"):
+        run_rom("load 1 r1\nadd r1 r2 r3\nhalt")
+    run_rom("load 1 r1\nnot r1 r2\nhalt")
+    machine = run_rom("load 7 r1\nhalt")
+    machine.load(ROM_BASE, assemble("add r1 1 r2\nhalt", ROM_BASE).to_bytes())
+    machine.reset()
+    with pytest.raises(IllegalError, match="r1 is read before"):
+        machine.run()
+    hardware = run_rom("add r1 1 r2\nhalt", strict=False)
+    assert hardware.err_status == 0
+
+
 # ---- Illegal cases ----
 
 ILLEGAL = [
@@ -209,6 +282,8 @@ ILLEGAL = [
     ("load32 0x1E000000 r1\nwrite 0 r1 r1", ErrorKind.BAD_ADDRESS),
     ("load32 0x1F000000 r1\nreadb 0 r1 r2", ErrorKind.BAD_ADDRESS),
     ("load32 0x1F00000C r1\nwrite 0 r1 r1", ErrorKind.BAD_ADDRESS),
+    ("load32 0x1F000010 r1\nwriteb 0 r1 r1", ErrorKind.BAD_ADDRESS),
+    ("load32 0x1F000014 r1\nread 0 r1 r2", ErrorKind.BAD_ADDRESS),
     ("pop r1", ErrorKind.STACK_UNDERFLOW),
     (
         "load32 0x1F000000 r1\nload 255 r2\nwrite 4 r1 r2\npush r2",

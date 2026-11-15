@@ -1,6 +1,5 @@
 // ALU
 // Arithmetic Logic Unit for single-cycle operations.
-// Performs combinational logic on a with b, producing the result y.
 module cpu_alu (
     input  wire [3:0]  op,
     input  wire [31:0] a,

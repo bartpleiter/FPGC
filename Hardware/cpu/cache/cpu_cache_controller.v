@@ -1,38 +1,18 @@
 // Cache controller
-// Fills lines of the L1I and the L1D from SDRAM, and first writes a dirty L1D line back
-// that a fill replaces. It handles one line at a time, and takes CCACHE and CCACHED and a
-// miss of the L1D before a miss of the L1I. It streams the words between the SDRAM line
-// port and port B of the caches, one per cycle, so it never holds a whole line. Every
-// output is a register, apart from the write-back word, which comes straight from port B
-// of the L1D. See l1-cache.md, "The cache controller", "CCACHE, CCACHED and reset" and
-// "The SDRAM line port".
-//
-// A stage with a miss sets its request and keeps it until the controller takes it. From
-// the take until after the last write to that stage's cache, the cache's writing signal
-// is 1. The stage then reads its cache again.
-//
-// During a fill, the controller says which word of which line comes next on the SDRAM
-// port, so that a stage that waits for that word can use it in the cycle it arrives
-// (early restart). The fill starts at the word the stage waits for.
-//
-// CCACHE and CCACHED walk through the lines: each dirty line of the L1D is written back,
-// and every entry of the L1D, and for CCACHE of the L1I, is written 0, which makes the
-// line invalid. After a reset, the walk only writes the entries of both caches 0, one
-// line per cycle, without writing anything back.
 module cpu_cache_controller #(
-    parameter L1I_LINES = 128,  // the number of lines of each cache, a power of two
-    parameter L1D_LINES = 128
+    parameter L1I_LINES = 128,  // the number of L1I lines, power of two
+    parameter L1D_LINES = 128  // the number of L1D lines, power of two
 ) (
     input  wire                              clk,
     input  wire                              reset,
 
-    // A miss in IF. The address is the word that IF waits for, and the fill starts there.
+    // A miss in IF
     input  wire                              l1i_request,
     input  wire [25:2]                       l1i_addr,
     output reg                               l1i_take,
     output reg                               l1i_writing,
 
-    // A miss in MEM, with the line it replaces: whether that line is dirty, and its tag
+    // A miss in MEM
     input  wire                              l1d_request,
     input  wire [25:2]                       l1d_addr,
     input  wire                              victim_dirty,
@@ -40,22 +20,15 @@ module cpu_cache_controller #(
     output reg                               l1d_take,
     output reg                               l1d_writing,
 
-    // The controller fills a line of the L1I or the L1D, and the word that arrives next
-    // with sdram_read_valid is the one at fill_addr. The flags are 1 from the request
-    // of the fill on the SDRAM port until after its last word.
     output reg                               l1i_filling,
     output reg                               l1d_filling,
     output wire [25:2]                       fill_addr,
 
-    // CCACHE (clear_data_only 0) or CCACHED (1) from MEM. MEM keeps the request until
-    // clear_take, and the walk is done when l1d_writing is 0 again. For CCACHE,
-    // l1i_writing ends together with it.
     input  wire                              clear_request,
     input  wire                              clear_data_only,
     output reg                               clear_take,
 
-    // Port B of the caches. The word a fill writes goes to both, with a write enable
-    // and an address for each.
+    // Port B of the caches
     output reg  [31:0]                       b_write_data,
     output reg  [$clog2(L1I_LINES)+4:2]      l1i_b_addr,
     output reg                               l1i_b_write,
@@ -68,10 +41,7 @@ module cpu_cache_controller #(
     output reg                               l1d_b_entry_write,
     output reg  [22-$clog2(L1D_LINES):0]     l1d_b_entry_write_value,
 
-    // The SDRAM line port. A request stays 1 until sdram_take. A read gives the 8 words
-    // of the line with sdram_read_valid, starting at word sdram_first and wrapping
-    // around. A write asks for each word with sdram_next, and takes sdram_write_word in
-    // the cycle after.
+    // The SDRAM line port
     output reg                               sdram_req,
     output reg                               sdram_write,
     output reg  [25:5]                       sdram_line,
@@ -86,38 +56,33 @@ module cpu_cache_controller #(
 localparam L1I_INDEX = $clog2(L1I_LINES);
 localparam L1D_INDEX = $clog2(L1D_LINES);
 
-// The walk goes through the lines of the larger cache.
 localparam WALK_LINES = L1I_LINES > L1D_LINES ? L1I_LINES : L1D_LINES;
 localparam WALK_INDEX = $clog2(WALK_LINES);
 
-localparam IDLE       = 2'd0;  // waits for a request
-localparam WRITE_BACK = 2'd1;  // sends the dirty line of the L1D to SDRAM
-localparam FILL       = 2'd2;  // writes the line from SDRAM into the cache
-localparam WALK       = 2'd3;  // invalidates every line, and writes dirty lines back
+// State machine states
+localparam IDLE       = 2'd0;
+localparam WRITE_BACK = 2'd1;
+localparam FILL       = 2'd2;
+localparam WALK       = 2'd3;
 
 reg [1:0]  state;
 reg        fill_l1d;  // the line goes into the L1D, else into the L1I
-reg [25:5] line;      // the line to fill
+reg [25:5] line; 
 reg [2:0]  first;     // the word of the line the fill starts at
 reg [2:0]  word;      // the word of the line that arrives next
 reg [2:0]  count;     // the words of the fill that have arrived
 
-reg [WALK_INDEX-1:0] index;  // the line of the walk
-reg        clearing;         // a walk of CCACHE or CCACHED is running
-reg        walk_l1i;         // the walk invalidates the L1I too
-reg        entry_read;       // port B of the L1D has read the entry of the line
+reg [WALK_INDEX-1:0] index;
+reg        clearing;
+reg        walk_l1i;
+reg        entry_read;
 
-// The line of the walk as a number, whether each cache has it, and whether it's the
-// last line of the walk. The walk of CCACHED only goes through the lines of the L1D.
 wire [31:0] walk_line  = {{(32-WALK_INDEX){1'b0}}, index};
 wire        walk_l1i_has = walk_line < L1I_LINES;
 wire        walk_l1d_has = walk_line < L1D_LINES;
 wire        walk_last    = walk_line == (walk_l1i ? WALK_LINES : L1D_LINES) - 1;
 wire        walk_dirty   = l1d_b_entry[22-L1D_INDEX] && l1d_b_entry[21-L1D_INDEX];
 
-// Port B of the L1D reads at l1d_b_addr at every clock edge. During a write-back that's
-// the word the SDRAM port asks for next, so the word is there in the cycle after
-// sdram_next.
 assign sdram_write_word = l1d_b_word;
 
 assign fill_addr = {line, word};
@@ -133,9 +98,8 @@ always @(posedge clk) begin
     if (sdram_take)
         sdram_req <= 1'b0;
 
-    // A reset starts the walk that invalidates both caches.
     if (reset) begin
-        state                   <= WALK;
+        state                   <= WALK; // A reset invalidates both caches.
         clearing                <= 1'b0;
         walk_l1i                <= 1'b1;
         index                   <= {WALK_INDEX{1'b0}};
@@ -251,14 +215,7 @@ always @(posedge clk) begin
                 end
             end
 
-            // The walk of CCACHE and CCACHED takes two cycles per line. In the first,
-            // port B of the L1D reads the entry. In the second, the entry is there,
-            // and the entries of the line are written 0 at the end of it. If the line
-            // was dirty, it's written back from there, and the walk then comes back to
-            // the same line, whose entry now reads 0, and moves on. The walk after a
-            // reset doesn't need the entries, so after the first line it writes one
-            // line per cycle. The walk ends in the cycle of its last write, as a fill
-            // does.
+            // The walk of CCACHE and CCACHED takes two cycles per line.
             WALK: begin
                 if (!entry_read) begin
                     entry_read        <= 1'b1;
@@ -291,13 +248,7 @@ always @(posedge clk) begin
 end
 
 `ifndef SYNTHESIS
-// Checks in simulation of what the controller promises at its ports. It takes a request
-// only when it isn't busy with another one, and only a request that is there. A fill
-// writes each of the 8 words of its line once, and the entry together with the last
-// word. The cache's writing signal is 1 at every write, and stays 1 until the entry is
-// written. A walk writes no words, writes every entry it invalidates once with 0, and
-// ends l1i_writing no later than l1d_writing. The walk after a reset doesn't use the
-// SDRAM port. A word from SDRAM only arrives for a fill, of one of the caches.
+// A bunch of checks during simulation to ensure the controller behaves correctly.
 reg       was_writing;      // either writing signal, in the cycle before
 reg       was_l1i_writing;
 reg       was_l1d_writing;

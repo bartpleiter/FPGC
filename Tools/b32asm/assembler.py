@@ -265,13 +265,23 @@ def _encode(st: Statement, labels: dict[str, int]) -> int:
         c16 = _fit_signed(offset, 16, "offset")
         return encode(Opcode.JUMPR, c16=c16, b=rb.number, o=int(m == "jumpro"))
 
+    if m == "savpc":
+        # savpc D is savpc 0 D. With a label, the constant is the label's offset from
+        # the savpc, so D gets the label's address.
+        if len(ops) == 1:
+            ops = [0, *ops]
+        value, rd = _check(m, ops, (int, LabelRef), Reg)
+        if isinstance(value, LabelRef):
+            value = _resolve(value, labels) - st.address
+        c16 = _fit_signed(value, 16, "offset")
+        return encode(Opcode.SAVPC, c16=c16, d=rd.number)
+
     if m == "push":
         (rb,) = _check(m, ops, Reg)
         return encode(Opcode.PUSH, b=rb.number)
 
     single_register = {
         "pop": Opcode.POP,
-        "savpc": Opcode.SAVPC,
         "readintid": Opcode.INTID,
     }
     if m in single_register:

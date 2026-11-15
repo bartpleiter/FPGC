@@ -16,7 +16,7 @@ import pytest
 
 from b32asm.assembler import assemble
 from b32asm.isa import Opcode, decode
-from b32sim.sim import ROM_BASE
+from b32sim.sim import ROM_BASE, SDRAM_BASE
 
 from .iss_comparison import (
     DEFAULT,
@@ -121,6 +121,20 @@ def test_interrupt_program(wave_dir: Path | None, path: Path, mode: str) -> None
     assert expected, "no '; interrupts taken:' comment"
     taken = [m.group(1) for r in rtl.records if (m := re.search(r" irq (\d+)", r))]
     assert taken == expected.group(1).split()
+
+
+@pytest.mark.parametrize("mode", MEMORIES)
+def test_int_enable(mode: str) -> None:
+    """The interrupt is taken at the jump right behind the write that enables
+    interrupts, which is the first place where the ISA allows it."""
+    path = Path(__file__).parent / "interrupts" / "int_enable.asm"
+    source = path.read_text()
+    rtl = run_iss_comparison(
+        source, f"int_enable_check_{mode}", memories=MEMORIES[mode]
+    )
+    enabled = assemble(source, SDRAM_BASE).labels["Enabled"]
+    irqs = [r for r in rtl.records if " irq " in r]
+    assert len(irqs) == 1 and int(irqs[0].split()[0], 16) == enabled
 
 
 @pytest.mark.parametrize("mode", MEMORIES)

@@ -71,7 +71,7 @@ DEMO = [
     ("jumpo", "jumpo -8"),
     ("jumpr", "jumpr 4 r3"),
     ("jumpro", "jumpro 4 r3"),
-    ("savpc", "savpc r7"),
+    ("savpc", "savpc 8 r7"),
     ("reti", "reti"),
     ("readintid", "readintid r2"),
     ("ccached", "ccached"),
@@ -123,7 +123,7 @@ def constant(ins: Decoded) -> int:
             return ins["c16"]
         case Opcode.ARITHC | Opcode.ARITHMC:
             return sext(ins["c16"], 16) & MASK
-        case Opcode.BRANCH | Opcode.JUMPR | Opcode.READ | Opcode.WRITE:
+        case Opcode.BRANCH | Opcode.JUMPR | Opcode.READ | Opcode.WRITE | Opcode.SAVPC:
             return sext(ins["c16"], 16) & MASK
         case Opcode.JUMP:
             return sext(ins["c27"], 27) & MASK if ins["o"] else ins["c27"]

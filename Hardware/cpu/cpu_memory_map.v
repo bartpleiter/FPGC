@@ -1,9 +1,9 @@
 // Memory map
-// Tells which region an address is in, as one-hot bits.
+// Tells which region an address is in as one-hot bits.
 module cpu_memory_map (
     input  wire [31:0] addr,
 
-    // Regions, one-hot. All 0 for an unmapped address.
+    // Regions. All 0 for an unmapped address.
     output wire        sdram,
     output wire        io,        // Memory Unit
     output wire        rom,
@@ -17,14 +17,14 @@ module cpu_memory_map (
     output wire        unmapped
 );
 
-localparam                              SDRAM_SIZE   = 32'h04000000;  // from address 0
+localparam                              SDRAM_SIZE   = 32'h04000000;
 localparam IO_BASE      = 32'h1C000000, IO_SIZE      = 32'h02000000;
 localparam ROM_BASE     = 32'h1E000000, ROM_SIZE     = 32'h00001000;
 localparam VRAM32_BASE  = 32'h1E400000, VRAM32_SIZE  = 32'h00001080;
 localparam VRAM8_BASE   = 32'h1E800000, VRAM8_SIZE   = 32'h00008008;
 localparam VRAMPX_BASE  = 32'h1EC00000, VRAMPX_SIZE  = 32'h00020000;
 localparam PALETTE_BASE = 32'h1EC80000, PALETTE_SIZE = 32'h00000400;
-localparam CPU_IO_BASE  = 32'h1F000000, CPU_IO_SIZE  = 32'h00000010;
+localparam CPU_IO_BASE  = 32'h1F000000, CPU_IO_SIZE  = 32'h00000014;
 
 assign sdram   = addr < SDRAM_SIZE;
 assign io      = addr >= IO_BASE      && addr < IO_BASE      + IO_SIZE;

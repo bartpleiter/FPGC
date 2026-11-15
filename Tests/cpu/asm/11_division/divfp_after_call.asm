@@ -6,6 +6,7 @@
 Main:
     ; Setup: r13 = SP
     load32 0x1DFFFFC r13
+    load 0 r14         ; the frame pointer, which shift16 saves and restores
 
     ; Call shift16(6) — returns 6<<16 = 393216 in r1
     load 6 r4

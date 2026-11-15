@@ -1,9 +1,7 @@
 // Read alignment
-// Takes the bytes that a read wants out of the word that holds them, and extends them to
-// 32 bits. An unaligned address is aligned down to the size of the read.
 module cpu_read_align (
-    input  wire [31:0] word,         // the word from memory
-    input  wire [1:0]  addr,         // bits [1:0] of the address
+    input  wire [31:0] word,
+    input  wire [1:0]  addr,
     input  wire        mem_byte,     // a word if neither byte nor half
     input  wire        mem_half,
     input  wire        sign_extend,  // readb, readh

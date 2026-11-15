@@ -3,8 +3,6 @@
 tb_cpu_regfile.clk
 @820
 tb_cpu_regfile.label[95:0]
-@28
-tb_cpu_regfile.dut.reset
 @200
 -
 -Write port

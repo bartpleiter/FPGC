@@ -127,12 +127,21 @@ def wave(
     help="Fitter seed.",
 )
 @click.option(
-    "--lines",
+    "--l1i-lines",
     type=int,
-    help="The number of lines of each L1 cache in the harness. Default: b32p4's.",
+    help="The number of lines of the L1I in the harness. Default: b32p4's.",
+)
+@click.option(
+    "--l1d-lines",
+    type=int,
+    help="The number of lines of the L1D in the harness. Default: b32p4's.",
 )
 def timing(
-    files: tuple[Path, ...], top: str | None, seed: int, lines: int | None
+    files: tuple[Path, ...],
+    top: str | None,
+    seed: int,
+    l1i_lines: int | None,
+    l1d_lines: int | None,
 ) -> None:
     """Compile the CPU in its harness, or Verilog FILES, and report the timing.
 
@@ -144,9 +153,12 @@ def timing(
     top = top or files[0].stem
     name = top if seed == 1 else f"{top}-seed{seed}"
     parameters = {}
-    if lines is not None:
-        name += f"-lines{lines}"
-        parameters["LINES"] = lines
+    if l1i_lines is not None:
+        name += f"-l1i{l1i_lines}"
+        parameters["L1I_LINES"] = l1i_lines
+    if l1d_lines is not None:
+        name += f"-l1d{l1d_lines}"
+        parameters["L1D_LINES"] = l1d_lines
     compile_and_report(
         cfg.quartus_bin,
         cfg.timing_dir / name,

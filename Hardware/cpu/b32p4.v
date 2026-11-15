@@ -1,24 +1,17 @@
 // B32P4
-// Top-level design of the CPU. It connects the five pipeline stages, the hazard unit, the
-// L1 caches and the cache controller, and has no logic of its own.
+// Top-level design of the CPU.
 module b32p4 #(
     parameter INTERRUPTS = 7,    // the number of interrupt inputs, at most 255
-    parameter L1I_LINES  = 128,  // the number of lines of each L1 cache, a power of two
-    parameter L1D_LINES  = 128
+    parameter L1I_LINES  = 128,  // the number of L1i cache lines, a power of two
+    parameter L1D_LINES  = 512   // the number of L1d cache lines, a power of two
 ) (
     input  wire        clk,
     input  wire        reset,
 
-    // The ROM reads the word at fetch_addr at a clock edge when fetch_en is 1, and
-    // keeps rom_word otherwise, like a BRAM with a clock enable.
     output wire [31:0] fetch_addr,
     output wire        fetch_en,
     input  wire [31:0] rom_word,
 
-    // The SDRAM line port, of the cache controller. A request for a line stays 1 until
-    // sdram_take. A read gives the 8 words of the line with sdram_read_valid, starting
-    // at word sdram_first and wrapping around. A write asks for each word with
-    // sdram_next, and takes sdram_write_word in the cycle after.
     output wire        sdram_req,
     output wire        sdram_write,
     output wire [25:5] sdram_line,
@@ -29,8 +22,6 @@ module b32p4 #(
     input  wire        sdram_next,
     output wire [31:0] sdram_write_word,
 
-    // The interrupt inputs, bit n for interrupt n. A rising edge makes an interrupt
-    // pending. They can come from another clock domain.
     input  wire [INTERRUPTS:1] interrupts,
 
     // A debug port for observing finished (retired) instructions, currently used in simulation only
@@ -355,7 +346,6 @@ wire        ex_mem_pop;
 wire        ex_mem_interrupt;
 wire [31:0] mem_value;
 wire [7:0]  interrupt_id;
-// Only the L1D reads at data_addr yet, and it uses the bits of the line and the word.
 /* verilator lint_off UNUSEDSIGNAL */
 wire [31:0] data_addr;
 /* verilator lint_on UNUSEDSIGNAL */
@@ -502,9 +492,6 @@ cpu_wb wb_stage (
     .retire_irq(retire_irq),
     .retire_irq_id(retire_irq_id)
 );
-
-// The L1 caches and the cache controller. Port A of the L1I belongs to IF, port A of
-// the L1D to MEM, and port B of both caches to the controller.
 
 wire [31:0]                   b_write_data;
 wire [$clog2(L1I_LINES)+4:2]  l1i_b_addr;

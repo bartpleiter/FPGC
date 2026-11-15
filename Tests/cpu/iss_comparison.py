@@ -11,7 +11,8 @@ input 3 goes high at the end of cycle 120, and low again PULSE cycles later.
 
 A program runs from the ROM, or from SDRAM, through the L1I: a program with interrupts,
 because code in ROM is never interrupted, and a program with the comment
-`; runs from SDRAM`. The ROM then only has a jump to it.
+`; runs from SDRAM`. The ROM then only has a jump to it, and a halt behind that, at
+ROM_BASE + 4, for a program that ends by jumping to the ROM.
 
 A program that ends with `ccache` (after its last write to SDRAM) has written every dirty
 line back, so the SDRAM must then hold what the ISS's memory holds. The testbench writes out
@@ -20,8 +21,11 @@ checks it too. This finds a write-back that got lost, also of a line that the pr
 never reads again.
 
 A program with the comment `; reset at cycle C` gets a reset at the end of cycle C. The
-comparison is then of what the RTL does after the reset, from the start of the program,
-with the ISS on a fresh machine. RtlTrace.reset says where the reset came.
+ISS runs the instructions that the RTL retired before it, resets, and the comparison
+goes on with what the RTL does after the reset, from the start of the program. SDRAM is
+undefined after a reset, and the ISS clears it, so it loads the program's SDRAM image
+again: that's what the testbench's SDRAM still has, as long as the program doesn't read
+a line that was written back before the reset. RtlTrace.reset says where the reset came.
 """
 
 import functools
@@ -96,8 +100,10 @@ class RtlTrace:
     # the lines read from SDRAM and written to it (address bits [25:5]), in order
     sdram_reads: list[int] = field(default_factory=list)
     sdram_writes: list[int] = field(default_factory=list)
-    # the testbench's line about a reset in the middle of the run, if there was one
+    # the testbench's line about a reset in the middle of the run, if there was one, and
+    # the instructions that retired before it
     reset: str | None = None
+    before_reset: "RtlTrace | None" = None
     memory_checked: bool = False  # the SDRAM was compared with the ISS's memory
 
 
@@ -132,7 +138,7 @@ def run_iss_comparison(
     program_file.write_text(source)
     schedule = interrupt_schedule(source)
     if schedule or SDRAM_COMMENT in source:
-        rom = assemble("jump 0", ROM_BASE)
+        rom = assemble("jump 0\nhalt", ROM_BASE)
         sdram = assemble(source, SDRAM_BASE, str(program_file))
         assert len(sdram.words) <= SDRAM_CODE_SIZE // 4, "the program is too long"
     else:
@@ -182,16 +188,28 @@ def run_iss_comparison(
     rtl.reset = next((line for line in output if line.startswith("reset in")), None)
     for line in trace_file.read_text().splitlines():
         cycle, record = line.split(" ", 1)
+        if record == "reset":
+            rtl.before_reset = RtlTrace(rtl.records, rtl.cycles, rtl.reset or "")
+            rtl.records, rtl.cycles = [], []
+            continue
         rtl.cycles.append(int(cycle))
         rtl.records.append(record)
+    assert not reset or rtl.reset, "the reset didn't come before the HALT"
 
     machine = Machine(strict=strict)
     machine.load(ROM_BASE, rom.to_bytes())
     machine.load(SDRAM_BASE, sdram.to_bytes())
+    rerun = f"fpgc cpu wave b32p4 {program_file.relative_to(REPO)}{memories.options()}"
+    if rtl.before_reset is not None:
+        before = [iss_step(machine, r) for r in rtl.before_reset.records]
+        (out_dir / "iss_before_reset.trace").write_text(
+            "".join(f"{r}\n" for r in before)
+        )
+        compare(before, rtl.before_reset, rerun)
+        machine.reset()
+        machine.load(SDRAM_BASE, sdram.to_bytes())
     expected = run_iss(machine, rtl.records, max_cycles)
     (out_dir / "iss.trace").write_text("".join(f"{r}\n" for r in expected))
-
-    rerun = f"fpgc cpu wave b32p4 {program_file.relative_to(REPO)}{memories.options()}"
     compare(expected, rtl, rerun)
     if written_back(expected):
         compare_memory(machine, dump_file, rerun)
@@ -233,15 +251,20 @@ def run_iss(machine: Machine, rtl_records: list[str], max_steps: int) -> list[st
     """
     trace = []
     for i in range(max_steps):
-        taken = (
-            re.search(r" irq (\d)", rtl_records[i]) if i < len(rtl_records) else None
+        trace.append(
+            iss_step(machine, rtl_records[i] if i < len(rtl_records) else None)
         )
-        if taken:
-            machine.request_interrupt(int(taken.group(1)))
-        trace.append(str(machine.step()))
         if machine.halted:
             return trace
     raise SimError(f"no HALT within {max_steps} steps")
+
+
+def iss_step(machine: Machine, rtl_record: str | None) -> str:
+    """One step of the ISS, which takes an interrupt if the RTL's record has one."""
+    taken = re.search(r" irq (\d)", rtl_record) if rtl_record else None
+    if taken:
+        machine.request_interrupt(int(taken.group(1)))
+    return str(machine.step())
 
 
 def compare(expected: list[str], rtl: RtlTrace, rerun: str) -> None:

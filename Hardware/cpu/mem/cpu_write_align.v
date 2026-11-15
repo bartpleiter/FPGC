@@ -1,14 +1,11 @@
 // Write alignment
-// Puts the bytes that a write writes at their place in the word, and sets their byte
-// enables. The other bytes are 0. An unaligned address is aligned down to the size of
-// the write.
 module cpu_write_align (
-    input  wire [31:0] data,         // the data to write
-    input  wire [1:0]  addr,         // bits [1:0] of the address
+    input  wire [31:0] data,
+    input  wire [1:0]  addr,
     input  wire        mem_byte,     // a word if neither byte nor half
     input  wire        mem_half,
     output reg  [31:0] write_data,
-    output reg  [3:0]  byte_enable   // bit n enables bits [8n+7:8n]
+    output reg  [3:0]  byte_enable
 );
 
 always @(*) begin
