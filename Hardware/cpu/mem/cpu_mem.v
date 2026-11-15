@@ -250,7 +250,6 @@ cpu_interrupts #(
 wire        word = !ex_mem_byte && !ex_mem_half;
 wire        io_bad_read;
 wire        io_bad_write;
-wire        to_int_enable;
 wire [31:0] io_read_value;
 wire [31:0] pc_backup;
 wire [7:0]  last_interrupt;
@@ -295,7 +294,6 @@ cpu_io_regs io_regs (
     .bad_read(io_bad_read),
     .bad_write(io_bad_write),
     .read_value(io_read_value),
-    .to_int_enable(to_int_enable),
     .write(commit_early && ex_mem_write && ex_mem_cpu_io),
     .write_data(ex_mem_b),
     .sp(sp),
@@ -332,10 +330,8 @@ assign mem_value = ex_mem_read  ? mem_read_value          :
                    ex_mem_intid ? {24'd0, last_interrupt} :
                                   ex_mem_result;
 
-wire int_enable_write = ex_mem_write && ex_mem_cpu_io && to_int_enable;
-
 assign redirect        = ex_mem_valid && !busy_mem &&
-                         (ex_mem_redirect || ex_mem_reti || ex_mem_ccache || int_enable_write);
+                         (ex_mem_redirect || ex_mem_reti || ex_mem_ccache);
 assign redirect_target = ex_mem_interrupt ? 32'h4 : {target[31:2], 2'b00};
 
 assign busy_mem = clear && (!clear_started || clear_request || l1d_writing);

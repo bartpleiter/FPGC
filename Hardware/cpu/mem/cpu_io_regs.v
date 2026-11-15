@@ -8,7 +8,6 @@ module cpu_io_regs (
     output wire        bad_read,
     output wire        bad_write,
     output reg  [31:0] read_value,
-    output wire        to_int_enable,
 
     input  wire        write,
     input  wire [31:0] write_data,
@@ -45,9 +44,8 @@ reg [5:0]  err_flags = 6'd0;
 reg [2:0]  err_first = 3'd0;  // the kind of the first event, or 0
 reg [31:0] err_pc    = 32'd0;
 
-assign bad_read      = !word;
-assign bad_write     = !word || register == ERR_PC;
-assign to_int_enable = word && register == INT_ENABLE;
+assign bad_read  = !word;
+assign bad_write = !word || register == ERR_PC;
 
 always @(*) begin
     case (register)
@@ -80,7 +78,7 @@ wire first = events != 6'd0 && (clear || err_first == 3'd0);
 always @(posedge clk) begin
     if (reset) begin
         pc_backup          <= 32'd0;
-        interrupts_enabled <= 1'b1;
+        interrupts_enabled <= 1'b0;
         last_interrupt     <= 8'd0;
     end else begin
         if (take_interrupt) begin

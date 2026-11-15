@@ -210,7 +210,6 @@ When an interrupt is taken, all of these must hold:
 - interrupts are enabled
 - an interrupt is pending
 - the CPU is about to execute a jump, `jumpr`, taken branch or `halt`
-- that instruction is in SDRAM, so ROM code is never interrupted
 
 This simplifies the implementation: the interrupt is taken instead of that control-flow instruction.
 
@@ -230,7 +229,8 @@ After RETI, the interrupted control-flow instruction executes as if nothing happ
 Other rules:
 
 - No nesting: an interrupt that arrives during the handler stays pending until after RETI.
-- Interrupts are enabled after reset. Software can disable and enable them with the `INT_ENABLE` register. A write to it counts from the next instruction on: when the instruction right after the write is a jump, an interrupt can be taken at that jump after a write that enables interrupts, and not after a write that disables them.
+- Interrupts are disabled after reset. Software enables and disables them with the `INT_ENABLE` register. The bootloader enables them right before it jumps to the program in SDRAM, as the handler is at `0x4`.
+- The instruction right after a write to `INT_ENABLE` may still use the old value. So when it's a jump or branch, an interrupt can still be taken there right after a write that disables interrupts (and RETI then enables them again), or not yet right after a write that enables them. Code that must not be interrupted puts another instruction between the write and the first jump or branch.
 - Reading `pc_backup`: the handler can read and write it via a CPU-internal register, for example to switch tasks.
 
 ## Cache instructions
@@ -248,7 +248,7 @@ After a reset:
 
 - The CPU starts at `0x1E000000`, in ROM, and SP is 0.
 - `r1`–`r15` and the contents of the hardware stack are undefined.
-- Interrupts are enabled, none are pending, and `PC_BACKUP` is 0.
+- Interrupts are disabled, none are pending, and `PC_BACKUP` is 0.
 - The error register keeps its value. It's only cleared when the FPGA is configured, and by software. So after a reset, software can still see what went wrong before it.
 - The contents of SDRAM are undefined. This also means that dirty L1D lines do not need to be evicted.
 

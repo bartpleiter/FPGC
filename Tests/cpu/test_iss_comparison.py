@@ -125,8 +125,8 @@ def test_interrupt_program(wave_dir: Path | None, path: Path, mode: str) -> None
 
 @pytest.mark.parametrize("mode", MEMORIES)
 def test_int_enable(mode: str) -> None:
-    """The interrupt is taken at the jump right behind the write that enables
-    interrupts, which is the first place where the ISA allows it."""
+    """The interrupt is taken at the first jump after the write that enables
+    interrupts."""
     path = Path(__file__).parent / "interrupts" / "int_enable.asm"
     source = path.read_text()
     rtl = run_iss_comparison(

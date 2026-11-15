@@ -23,10 +23,12 @@ def run_rom(source: str, strict: bool = True) -> Machine:
 
 
 def sdram_machine(source: str) -> Machine:
-    """A machine that jumps from ROM to a program at SDRAM address 0."""
+    """A machine that jumps from ROM to a program at SDRAM address 0, with interrupts
+    enabled, as the bootloader leaves them."""
     machine = Machine()
     machine.load(ROM_BASE, assemble("jump 0").to_bytes())
     machine.load(0, assemble(source, 0).to_bytes())
+    machine.interrupts_enabled = True
     return machine
 
 
@@ -109,7 +111,7 @@ def test_cpu_io_registers() -> None:
         read 16 r1 r6
         halt"""
     )
-    assert machine.regs[3:7] == [2, 0xFF, 99, 1]
+    assert machine.regs[3:7] == [2, 0xFF, 99, 0]
 
 
 # ---- Stack ----
@@ -187,7 +189,7 @@ def test_interrupt_is_taken_at_a_taken_branch_and_returns() -> None:
     assert second.interrupt == 3
 
 
-def test_no_interrupts_in_rom() -> None:
+def test_interrupts_are_disabled_after_reset() -> None:
     machine = Machine()
     machine.load(ROM_BASE, assemble("Loop:\njump Loop", ROM_BASE).to_bytes())
     machine.request_interrupt(1)
@@ -195,7 +197,16 @@ def test_no_interrupts_in_rom() -> None:
         assert machine.step().interrupt is None
 
 
-def test_halt_in_sdram_is_interruptible() -> None:
+def test_interrupts_in_rom() -> None:
+    machine = Machine()
+    machine.load(ROM_BASE, assemble("Loop:\njump Loop", ROM_BASE).to_bytes())
+    machine.interrupts_enabled = True
+    machine.request_interrupt(1)
+    first = machine.step()
+    assert first.interrupt == 1 and machine.pc_backup == ROM_BASE
+
+
+def test_halt_is_interruptible() -> None:
     machine = sdram_machine("jump Main\njump Handler\nMain:\nhalt\nHandler:\nreti")
     machine.run()  # runs into the halt
     machine.request_interrupt(1)
@@ -203,9 +214,8 @@ def test_halt_in_sdram_is_interruptible() -> None:
 
 
 def test_int_enable() -> None:
-    """A word write to INT_ENABLE sets whether interrupts are enabled from bit 0, and
-    redirects to the next instruction. A pending interrupt waits until it's set again,
-    and is then taken at the next jump."""
+    """A word write to INT_ENABLE sets whether interrupts are enabled from bit 0. A
+    pending interrupt waits until it's set again, and is then taken at the next jump."""
     machine = sdram_machine(
         f"""jump Main
         jump Handler
@@ -215,6 +225,8 @@ def test_int_enable() -> None:
         jump Next
         Next:
         read 0 r1 r2
+        jump Wait
+        Wait:
         load 3 r3
         write 0 r1 r3
         jump Done
@@ -223,18 +235,39 @@ def test_int_enable() -> None:
         Handler:
         reti"""
     )
-    for _ in range(4):  # the jumps from ROM and to Main, and load32
+    for _ in range(5):  # the jumps from ROM and to Main, load32 and the write
         machine.step()
-    disable = machine.step()
-    assert disable.redirect == disable.pc + 4 and not machine.interrupts_enabled
+    assert not machine.interrupts_enabled
+    machine.step()  # jump Next
     machine.request_interrupt(1)
-    assert machine.step().interrupt is None  # jump Next
     machine.step()
     assert machine.regs[2] == 0
+    assert machine.step().interrupt is None  # jump Wait
     machine.step()
-    enable = machine.step()
-    assert enable.redirect == enable.pc + 4 and machine.interrupts_enabled
+    machine.step()
+    assert machine.interrupts_enabled
     assert machine.step().interrupt == 1  # jump Done
+
+
+def test_int_enable_old_value() -> None:
+    """The instruction right after a write to INT_ENABLE may still use the old value.
+    The ISS then takes a pending interrupt if either value allows it."""
+    machine = sdram_machine(
+        f"""jump Main
+        jump Handler
+        Main:
+        load32 {INT_ENABLE_ADDR} r1
+        write 0 r1 r0
+        jump Next
+        Next:
+        halt
+        Handler:
+        reti"""
+    )
+    for _ in range(5):
+        machine.step()
+    machine.request_interrupt(1)
+    assert machine.step().interrupt == 1  # jump Next
 
 
 # ---- Reset ----
@@ -251,6 +284,7 @@ def test_reset_keeps_only_the_error_register() -> None:
     machine.reset()
     assert machine.err_status == (1 << 5) | (6 << 8) and machine.err_pc == ROM_BASE
     assert machine.pc == ROM_BASE and machine.sp == 0 and not machine.halted
+    assert not machine.interrupts_enabled
     assert machine.read_word(0x100) == 0
 
 

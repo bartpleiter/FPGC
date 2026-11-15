@@ -126,11 +126,10 @@ cpu_decoder decoder (
 /* verilator lint_on PINCONNECTEMPTY */
 
 // Target address and constant calculation
-wire [31:0] offset         = id_write ? 32'd4 : constant;
-wire [31:0] pc_plus_offset = if_id_pc + offset;
+wire [31:0] pc_plus_constant = if_id_pc + constant;
 
-assign id_target   = jump_absolute ? constant : pc_plus_offset;
-assign id_constant = const_add_pc ? pc_plus_offset : constant;
+assign id_target   = jump_absolute ? constant : pc_plus_constant;
+assign id_constant = const_add_pc ? pc_plus_constant : constant;
 
 cpu_regfile regfile (
     .clk(clk),

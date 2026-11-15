@@ -23,7 +23,6 @@ reg         reti;
 wire        bad_read;
 wire        bad_write;
 wire [31:0] read_value;
-wire        to_int_enable;
 wire        sp_write;
 wire [31:0] pc_backup;
 wire        interrupts_enabled;
@@ -37,7 +36,6 @@ cpu_io_regs dut (
     .bad_read(bad_read),
     .bad_write(bad_write),
     .read_value(read_value),
-    .to_int_enable(to_int_enable),
     .write(write),
     .write_data(write_data),
     .sp(sp),
@@ -61,9 +59,8 @@ initial begin
                    addr, word, write, write_data, sp, pc, events, take_interrupt,
                    interrupt_id, reti) == 12) begin
         @(posedge clk)
-            $fwrite(outputs_fd, "%h %h %h %h %h %h %h %h\n", bad_read, bad_write,
-                    read_value, to_int_enable, sp_write, pc_backup, interrupts_enabled,
-                    last_interrupt);
+            $fwrite(outputs_fd, "%h %h %h %h %h %h %h\n", bad_read, bad_write,
+                    read_value, sp_write, pc_backup, interrupts_enabled, last_interrupt);
         @(negedge clk);
     end
     tb_close;

@@ -10,8 +10,9 @@ gets its interrupts from comments such as `; interrupt 3 at cycle 120`: interrup
 input 3 goes high at the end of cycle 120, and low again PULSE cycles later.
 
 A program runs from the ROM, or from SDRAM, through the L1I: a program with interrupts,
-because code in ROM is never interrupted, and a program with the comment
-`; runs from SDRAM`. The ROM then only has a jump to it, and a halt behind that, at
+because the interrupt handler is at address 4, and a program with the comment
+`; runs from SDRAM`. The ROM then does what the bootloader does: it enables interrupts,
+which are disabled after a reset, and jumps to address 0. It has a halt at
 ROM_BASE + 4, for a program that ends by jumping to the ROM.
 
 A program that ends with `ccache` (after its last write to SDRAM) has written every dirty
@@ -49,6 +50,15 @@ DATA_BYTES = 0x2000
 INTERRUPT_COMMENT = re.compile(r"^\s*; interrupt (\d) at cycle (\d+)", re.MULTILINE)
 RESET_COMMENT = re.compile(r"^\s*; reset at cycle (\d+)", re.MULTILINE)
 SDRAM_COMMENT = "; runs from SDRAM"
+BOOT_ROM = """
+    jump Boot
+    halt
+Boot:
+    load32 0x1F000000 r1
+    load 1 r2
+    write 16 r1 r2  ; INT_ENABLE
+    jump 0
+"""
 CCACHE = 0x70000000  # the instruction word of ccache, and of ccached with bit 0 set
 
 
@@ -138,7 +148,7 @@ def run_iss_comparison(
     program_file.write_text(source)
     schedule = interrupt_schedule(source)
     if schedule or SDRAM_COMMENT in source:
-        rom = assemble("jump 0\nhalt", ROM_BASE)
+        rom = assemble(BOOT_ROM, ROM_BASE)
         sdram = assemble(source, SDRAM_BASE, str(program_file))
         assert len(sdram.words) <= SDRAM_CODE_SIZE // 4, "the program is too long"
     else:

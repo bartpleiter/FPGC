@@ -9,6 +9,7 @@ from b32asm.assembler import assemble
 from b32asm.isa import Opcode, decode
 from b32sim.sim import ROM_BASE, ROM_SIZE, SDRAM_BASE, Machine
 
+from .iss_comparison import BOOT_ROM
 from .random_program import generate
 
 SEEDS = range(100)
@@ -29,7 +30,7 @@ def test_random_program_runs_cleanly(seed: int) -> None:
 def test_random_program_with_interrupts(seed: int) -> None:
     """From SDRAM, with an interrupt now and then, which the ISS takes at the next jump."""
     machine = Machine()
-    machine.load(ROM_BASE, assemble("jump 0", ROM_BASE).to_bytes())
+    machine.load(ROM_BASE, assemble(BOOT_ROM, ROM_BASE).to_bytes())
     program = generate(seed, interrupts=True)
     machine.load(SDRAM_BASE, assemble(program, SDRAM_BASE).to_bytes())
     taken = 0

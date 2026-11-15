@@ -28,7 +28,6 @@ BENCH = UnitBench(
         "bad_read",
         "bad_write",
         "read_value",
-        "to_int_enable",
         "sp_write",
         "pc_backup",
         "interrupts_enabled",
@@ -81,7 +80,8 @@ def read(reg: int, **kwargs) -> Case:
 # The demo writes and reads PC_BACKUP and SP, then has two events, reads the error
 # register, clears it, and writes ERR_STATUS by an instruction that has an event
 # itself, which is recorded after the clear. The error register stays the same over a
-# reset. Then an interrupt, RETI, and INT_ENABLE disabling and enabling interrupts.
+# reset, and interrupts are disabled by it. Then INT_ENABLE enabling interrupts, an
+# interrupt, RETI, and INT_ENABLE disabling and enabling them again.
 DEMO = [
     case("write pc_bak", PC_BACKUP, write=0x1234),
     read(PC_BACKUP),
@@ -105,6 +105,8 @@ DEMO = [
     read(ERR_PC),
     case("reset", reset=True),
     read(ERR_STATUS),
+    read(INT_ENABLE),
+    case("enable", INT_ENABLE, write=1),
     case("interrupt 3", interrupt=3, pc=0x40),
     read(PC_BACKUP),
     case("reti", reti=True),
@@ -118,8 +120,7 @@ DEMO = [
 
 def model(cases: list[Case]) -> list[Vector]:
     """What the registers give in each cycle, before the clock edge."""
-    pc_backup = flags = first = err_pc = last_interrupt = 0
-    enabled = 1
+    pc_backup = flags = first = err_pc = last_interrupt = enabled = 0
     out = []
     for _, v in cases:
         reg, word = v["addr"], v["word"]
@@ -132,7 +133,6 @@ def model(cases: list[Case]) -> list[Vector]:
                 "bad_read": int(bad_read),
                 "bad_write": int(bad_write),
                 "read_value": 0 if bad_read else values[reg],
-                "to_int_enable": int(bool(word) and reg == INT_ENABLE),
                 "sp_write": int(bool(writes) and reg == SP),
                 "pc_backup": pc_backup,
                 "interrupts_enabled": enabled,
@@ -140,8 +140,7 @@ def model(cases: list[Case]) -> list[Vector]:
             }
         )
         if v["reset"]:  # the error register isn't reset
-            pc_backup = last_interrupt = 0
-            enabled = 1
+            pc_backup = last_interrupt = enabled = 0
             continue
         if v["take_interrupt"]:
             pc_backup, enabled, last_interrupt = v["pc"], 0, v["interrupt_id"]

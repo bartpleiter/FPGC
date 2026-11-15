@@ -1,5 +1,5 @@
 ; Interrupts in the pipeline (fpgc cpu wave b32p4_interrupt).
-; The program runs from SDRAM, because code in ROM is never interrupted. Interrupt 3
+; The program runs from SDRAM, where the interrupt handler is. Interrupt 3
 ; comes during the loop, and is taken instead of the branch back: the branch goes
 ; through the pipeline, but in MEM it jumps to the interrupt vector at address 4
 ; instead, and pc_backup gets its address. The handler reads the interrupt number, and

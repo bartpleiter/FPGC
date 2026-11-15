@@ -282,7 +282,8 @@ class Machine:
         self.pc = ROM_BASE
         self.sp = 0
         self.pc_backup = 0
-        self.interrupts_enabled = True
+        self.interrupts_enabled = False
+        self.enabled_before_write = False  # see _interrupt_point
         self.int_id = 0
         self.pending = 0  # bit n-1 is set when interrupt n is pending
         self.halted = False
@@ -343,7 +344,9 @@ class Machine:
             self._illegal(None, f"{ins.opcode.name}: {what}")
 
         target = self._redirect_target(ins, pc)
-        if target is not None and self._interrupt_point(pc):
+        interrupt = target is not None and self._interrupt_point()
+        self.enabled_before_write = False
+        if interrupt:
             return self._take_interrupt(r)
 
         self.pc = (pc + 4) & MASK
@@ -378,8 +381,10 @@ class Machine:
             return pc
         return None
 
-    def _interrupt_point(self, pc: int) -> bool:
-        return bool(self.pending) and self.interrupts_enabled and pc < ROM_BASE
+    def _interrupt_point(self) -> bool:
+        # The instruction right after a write to INT_ENABLE may still use the old value.
+        enabled = self.interrupts_enabled or self.enabled_before_write
+        return bool(self.pending) and enabled
 
     def _take_interrupt(self, r: Retired) -> Retired:
         number = (self.pending & -self.pending).bit_length()  # lowest number first
@@ -508,10 +513,6 @@ class Machine:
         mask = sum(0xFF << (8 * i) for i in range(4) if enables >> i & 1)
         r.write = (address & ~3, data, enables)
         self._write_word(address & ~3, data, mask)
-        if address == INT_ENABLE_ADDR and size == 4:
-            # Redirect to PC + 4, so that the next instruction is fetched again, and
-            # decides with the new value whether an interrupt is taken instead of it.
-            r.redirect = self.pc
 
     def _address(self, ins: Decoded, size: int) -> int:
         address = (self._reg(ins["a"]) + sext(ins["c16"], 16)) & MASK
@@ -579,6 +580,7 @@ class Machine:
         elif address == ERR_STATUS_ADDR:
             self.err_flags = self.err_first = self.err_pc = 0
         else:
+            self.enabled_before_write = self.interrupts_enabled
             self.interrupts_enabled = bool(data & 1)
 
     # ---- Illegal cases ----

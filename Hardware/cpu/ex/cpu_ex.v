@@ -242,26 +242,8 @@ cpu_branch branch (
 assign ex_redirect = id_ex_jump || id_ex_jumpr || id_ex_halt || (id_ex_branch && ex_taken);
 assign ex_target   = id_ex_jumpr ? ex_addr : id_ex_target;
 
-wire pc_in_sdram;
-
-/* verilator lint_off PINCONNECTEMPTY */
-cpu_memory_map pc_map (
-    .addr(id_ex_pc),
-    .sdram(pc_in_sdram),
-    .io(),
-    .rom(),
-    .vram32(),
-    .vram8(),
-    .vrampx(),
-    .palette(),
-    .cpu_io(),
-    .code(),
-    .unmapped()
-);
-/* verilator lint_on PINCONNECTEMPTY */
-
 // When to take an interrupt
-assign ex_interrupt = ex_redirect && interrupt_pending && interrupts_enabled && pc_in_sdram;
+assign ex_interrupt = ex_redirect && interrupt_pending && interrupts_enabled;
 
 // Stall conditions
 wire write_then_access = (id_ex_read || id_ex_write) && ex_mem_valid && ex_mem_write;

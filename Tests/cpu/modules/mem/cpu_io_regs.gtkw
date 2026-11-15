@@ -14,7 +14,6 @@ tb_cpu_io_regs.dut.addr[4:2]
 tb_cpu_io_regs.dut.word
 tb_cpu_io_regs.dut.bad_read
 tb_cpu_io_regs.dut.bad_write
-tb_cpu_io_regs.dut.to_int_enable
 @22
 tb_cpu_io_regs.dut.read_value[31:0]
 @28
