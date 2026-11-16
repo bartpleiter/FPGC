@@ -12,7 +12,7 @@ The outputs to the SDRAM controller and the bus come from registers (the bus wri
 
 | Parameter | Default | Meaning |
 | --- | --- | --- |
-| `INTERRUPTS` | 7 | the number of interrupt inputs, at most 255 |
+| `INTERRUPTS` | 2 | the number of interrupt inputs, at most 255 |
 | `L1I_LINES` | 128 | the number of L1I lines, a power of two. A line is 32 bytes, so the default is 4 KiB. |
 | `L1D_LINES` | 512 | the number of L1D lines, a power of two. The default is 16 KiB. |
 
@@ -23,7 +23,7 @@ The outputs to the SDRAM controller and the bus come from registers (the bus wri
 | `clk` | in | the CPU clock, 100 MHz. Everything in the CPU runs on its rising edge. |
 | `reset` | in | synchronous reset, active high |
 
-- Reset must be 1 for at least one rising edge. During reset, the fetch port reads the first instruction at `0x1E000000`, so it's there when reset ends.
+- Reset must be 1 for at least one rising edge. During reset, the fetch port reads the first instruction at `0x04000000`, so it's there when reset ends.
 - The reset must come from a register in the `clk` domain, for example after a synchronizer when it comes from a button.
 - After reset, the cache controller empties both caches for as many cycles as the larger cache has lines. It doesn't use the SDRAM line port for this.
 
@@ -98,7 +98,7 @@ How long the SDRAM controller takes for a read and a write decides what a cache 
 
 ## Bus
 
-Every read and write outside SDRAM and the CPU-internal I/O registers goes over the bus: data reads from the ROM, and the I/O devices. The CPU doesn't decide which device answers. The logic behind the bus decodes `bus_addr`.
+Every read and write outside SDRAM and the CPU-internal I/O registers goes over the bus: data reads from the ROM, the memories at `0x04000000` to `0x07FFFFFF`, and the device registers at `0xFFFF8000` to `0xFFFFFEFF` (see the [memory map](../memory-map.md)). The CPU doesn't decide which device answers. The logic behind the bus, the device bridge, decodes `bus_addr`.
 
 | Port | Direction | Meaning |
 | --- | --- | --- |
@@ -108,6 +108,7 @@ Every read and write outside SDRAM and the CPU-internal I/O registers goes over 
 | `bus_write_data[31:0]` | out | the data of a write, already shifted to its byte lanes |
 | `bus_byte_enable[3:0]` | out | which bytes of the word are written: bit n for bits [8n+7:8n]. For a read, the bytes that the CPU uses. |
 | `bus_ready` | in | 1 for one cycle: the access is done |
+| `bus_error` | in | with `bus_ready`: nothing answers at this address |
 | `bus_read_word[31:0]` | in | the word of a read, in the cycle of `bus_ready` |
 
 The logic behind the bus must follow these rules:
@@ -118,8 +119,9 @@ The logic behind the bus must follow these rules:
 - A device may take as long as it needs, for example a UART that waits until it has room for the next byte. The CPU waits.
 - Accesses are never speculative. Every access on the bus is made by an instruction that is certain to complete, and only once. So a device can safely do something on a read, such as taking a byte from a receive buffer.
 - There is one access at a time. A new request only comes after the answer of the last one.
+- An address where nothing is, such as a gap between devices, is answered too, with `bus_error` = 1 in the cycle of `bus_ready`. A read then gives 0, and a write must do nothing. The CPU sets the bad-address flag of its error register. `bus_error` is only looked at together with `bus_ready`.
 
-The CPU never puts these on the bus: SDRAM addresses, the CPU-internal I/O registers, writes to the ROM, and unmapped addresses. The last two set a flag in the error register instead.
+The CPU never puts these on the bus: SDRAM addresses, the CPU-internal I/O registers, writes to the ROM, and addresses outside the bus's regions. The last two set a flag in the error register instead.
 
 ```text
 cycle           1    2    3    4

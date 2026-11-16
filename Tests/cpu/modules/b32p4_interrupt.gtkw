@@ -5,7 +5,7 @@ tb_b32p4.clk
 -
 -Interrupt controller
 @22
-tb_b32p4.interrupts[7:1]
+tb_b32p4.interrupts[2:1]
 tb_b32p4.dut.mem_stage.interrupt_controller.pending_bits[7:1]
 @28
 tb_b32p4.dut.mem_stage.interrupts_enabled

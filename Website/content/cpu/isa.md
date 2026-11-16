@@ -128,7 +128,7 @@ Defined edge cases:
 
 ### Memory instructions
 
-READ and WRITE access memory at the byte address `A + sext(c16)`.
+READ and WRITE access memory at the byte address `A + sext(c16)`. In the assembler, a constant that's sign-extended can also be written as the 32-bit value it becomes, so `read 0xFFFF8000 r0 D` is the same as `read -32768 r0 D`.
 
 | Instruction | Size field | Mnemonic | Effect |
 | --- | --- | --- | --- |
@@ -169,7 +169,7 @@ The stack is 256 words of on-chip memory, separate from the address space. It's 
 | HALT | `halt` | `PC`: it jumps to itself |
 
 - All targets are byte addresses and must be multiples of 4.
-- The range of absolute `jump` is 0 to 128 MiB which covers SDRAM. Higher jumps should use `jumpo` or `jumpr`.
+- The range of absolute `jump` is 0 to 128 MiB, which covers SDRAM and the ROM. Higher jumps should use `jumpo` or `jumpr`.
 - A branch reaches ±32 KiB from itself, as the argument is an offset from the current PC. Can be combined with a jump instruction for larger jumps.
 - HALT keeps the CPU on one instruction until an interrupt is taken. Implemented by jumping to the current address.
 
@@ -247,7 +247,7 @@ SDRAM is accessed through an instruction cache (L1I) and a data cache (L1D). The
 
 After a reset:
 
-- The CPU starts at `0x1E000000`, in ROM, and SP is 0.
+- The CPU starts at `0x04000000`, in ROM, and SP is 0.
 - `r1`–`r15` and the contents of the hardware stack are undefined.
 - Interrupts are disabled, none are pending, and `PC_BACKUP` is 0.
 - The error register keeps its value. It's only cleared when the FPGA is configured, and by software. So after a reset, software can still see what went wrong before it.
@@ -257,19 +257,19 @@ After a reset:
 
 The full address space is on the [memory map](../memory-map.md) page. What the CPU itself does with it:
 
-- Only SDRAM (`0x00000000`–`0x03FFFFFF`) and the ROM (`0x1E000000`–`0x1E000FFF`) can hold executable code. The CPU starts in the ROM.
-- An unmapped address gives 0 for a read and ignores a write. Both set the bad-address flag.
-- The CPU-internal I/O registers at `0x1F000000` are inside the CPU, and described below.
+- Only SDRAM (`0x00000000`–`0x03FFFFFF`) and the ROM (`0x04000000`–`0x04000FFF`) can hold executable code. The CPU starts in the ROM.
+- An unmapped address gives 0 for a read and ignores a write. Both set the bad-address flag. The CPU finds the unmapped addresses outside its regions itself, and the device bridge those inside the regions behind the bus.
+- The CPU-internal I/O registers at `0xFFFFFF00` are inside the CPU, and described below. With r0 as the base, a read or write reaches them in one instruction, for example `read 0xFFFFFF08 r0 r1` for `ERR_STATUS`.
 
 ### CPU-internal I/O registers
 
 | Address | Name | Access | Contents |
 | --- | --- | --- | --- |
-| `0x1F000000` | `PC_BACKUP` | read/write | the return address of the current interrupt |
-| `0x1F000004` | `SP` | read/write | the hardware stack pointer in bits [7:0]. Reads give 0 in bits [31:8]; writes use only bits [7:0]. |
-| `0x1F000008` | `ERR_STATUS` | read/write | the error flags (below). Any write clears all flags and `ERR_PC`. |
-| `0x1F00000C` | `ERR_PC` | read only | the address of the instruction that caused the first error since the last clear |
-| `0x1F000010` | `INT_ENABLE` | read/write | whether interrupts are enabled, in bit 0. Reads give 0 in bits [31:1]; writes use only bit 0. Taking an interrupt clears it, and `reti` sets it. |
+| `0xFFFFFF00` | `PC_BACKUP` | read/write | the return address of the current interrupt |
+| `0xFFFFFF04` | `SP` | read/write | the hardware stack pointer in bits [7:0]. Reads give 0 in bits [31:8]; writes use only bits [7:0]. |
+| `0xFFFFFF08` | `ERR_STATUS` | read/write | the error flags (below). Any write clears all flags and `ERR_PC`. |
+| `0xFFFFFF0C` | `ERR_PC` | read only | the address of the instruction that caused the first error since the last clear |
+| `0xFFFFFF10` | `INT_ENABLE` | read/write | whether interrupts are enabled, in bit 0. Reads give 0 in bits [31:1]; writes use only bit 0. Taking an interrupt clears it, and `reti` sets it. |
 
 ### Error register
 
@@ -282,7 +282,7 @@ The full address space is on the [memory map](../memory-map.md) page. What the C
 | --- | --- | --- | --- |
 | 0 | 1 | illegal instruction | a reserved ALU, multiply/divide, branch-condition or memory-size encoding |
 | 1 | 2 | unaligned access | a word access not at a multiple of 4, or a halfword access not at a multiple of 2 |
-| 2 | 3 | bad address | an access to an unmapped address, a write to ROM, or an access to CPU-internal I/O other than a word access to a register above |
+| 2 | 3 | bad address | an access to an unmapped address (also one that the device bridge finds), a write to ROM, or an access to CPU-internal I/O other than a word access to a register above |
 | 3 | 4 | bad jump target | a taken jump or branch, or a RETI, to an address that isn't a multiple of 4, or that's outside SDRAM and ROM |
 | 4 | 5 | stack overflow | a push when SP is 255 |
 | 5 | 6 | stack underflow | a pop when SP is 0 |

@@ -3,7 +3,7 @@
 ; address rounded down. After each case, the program reads ERR_STATUS and ERR_PC, and
 ; clears them.
 Main:
-    load32 0x1F000000 r10   ; the CPU-internal I/O registers
+    load32 0xFFFFFF00 r10   ; the CPU-internal I/O registers
     load32 0x1000 r13       ; data in SDRAM
     load32 0x11223344 r1
     write 0 r13 r1

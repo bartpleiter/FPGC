@@ -2,7 +2,7 @@
 // A rising edge on an interrupt input makes that interrupt pending, and it stays pending
 // until the CPU takes it. The lowest pending number goes first.
 module cpu_interrupts #(
-    parameter INTERRUPTS = 7  // the number of inputs
+    parameter INTERRUPTS = 2  // the number of inputs
 ) (
     input  wire                clk,
     input  wire                reset,

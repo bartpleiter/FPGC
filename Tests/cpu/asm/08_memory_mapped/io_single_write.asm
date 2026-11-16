@@ -7,7 +7,7 @@
 Main:
     ; Write to UART TX three times
     ; Each write should only execute once
-    load32 0x1C000000 r2  ; first I/O address (no device in the ISS)
+    load32 0xFFFF8000 r2  ; first I/O address (no device in the ISS)
     
     ; First write: 0x11
     load 0x11 r1

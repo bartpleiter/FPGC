@@ -108,7 +108,7 @@ Both instructions go through every line, which takes about 2 cycles per line, pl
 
 ## Interrupts
 
-Interrupts are disabled after a reset. Software enables them by writing 1 to `INT_ENABLE` (`0x1F000010`).
+Interrupts are disabled after a reset. Software enables them by writing 1 to `INT_ENABLE` (`0xFFFFFF10`), for example with `write 0xFFFFFF10 r0 r1`.
 
 - The handler starts at address `0x4`, the second word of SDRAM. So a program usually has a `jump` to its start at `0x0`, and a `jump` to its handler at `0x4`.
 - The bootloader enables interrupts right before it jumps to the program at `0x0`, because only then is there a handler at `0x4`.
@@ -121,7 +121,7 @@ Interrupts are disabled after a reset. Software enables them by writing 1 to `IN
 
 ## Reset
 
-After a reset, the CPU starts at `0x1E000000` in the ROM. The full list of what a reset does is on the [instruction set](isa.md#reset) page. For software, these points matter:
+After a reset, the CPU starts at `0x04000000` in the ROM. The full list of what a reset does is on the [instruction set](isa.md#reset) page. For software, these points matter:
 
 - Registers `r1`–`r15` are undefined. A program must write a register before it reads it.
 - The caches are emptied in the first 512 cycles (with the default cache sizes), while the CPU runs from the ROM. An access to SDRAM in that time waits until it's done.

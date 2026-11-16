@@ -1,6 +1,6 @@
 // Memory access stage (MEM)
 module cpu_mem #(
-    parameter INTERRUPTS = 7,   // the number of interrupt inputs
+    parameter INTERRUPTS = 2,   // the number of interrupt inputs
     parameter L1D_LINES  = 128  // the number of lines of the L1D, a power of two
 ) (
     input  wire        clk,
@@ -71,6 +71,7 @@ module cpu_mem #(
     output wire [31:0] bus_write_data,
     output wire [3:0]  bus_byte_enable,
     input  wire        bus_ready,
+    input  wire        bus_error,
     input  wire [31:0] bus_read_word,
 
     input  wire [INTERRUPTS:1] interrupts,
@@ -263,6 +264,8 @@ wire [31:0] io_read_value;
 wire [31:0] pc_backup;
 wire [7:0]  last_interrupt;
 wire        target_code;
+wire        bus_access;
+reg         slow_error;
 
 wire        jumps  = (ex_mem_redirect && !ex_mem_interrupt) || ex_mem_reti;
 wire [31:0] target = ex_mem_reti ? pc_backup : ex_mem_target;
@@ -271,7 +274,7 @@ wire [31:0] target = ex_mem_reti ? pc_backup : ex_mem_target;
 cpu_memory_map target_map (
     .addr(target),
     .sdram(),
-    .io(),
+    .bus(),
     .rom(),
     .cpu_io(),
     .code(target_code),
@@ -283,6 +286,7 @@ wire unaligned   = (ex_mem_read || ex_mem_write) &&
                    (word ? ex_mem_addr[1:0] != 2'd0 : ex_mem_half && ex_mem_addr[0]);
 wire bad_address = ((ex_mem_read || ex_mem_write) && ex_mem_unmapped) ||
                    (ex_mem_write && ex_mem_rom) ||
+                   (bus_access && slow_error) ||
                    (ex_mem_cpu_io && ex_mem_read && io_bad_read) ||
                    (ex_mem_cpu_io && ex_mem_write && io_bad_write);
 wire bad_target  = jumps && (target[1:0] != 2'd0 || !target_code);
@@ -315,8 +319,8 @@ cpu_io_regs io_regs (
 
 // Slow path for reads outside SDRAM and for bus accesses
 wire bus_region = !ex_mem_sdram && !ex_mem_cpu_io && !ex_mem_unmapped;
-wire bus_access = ex_mem_valid && bus_region && (ex_mem_read || (ex_mem_write && !ex_mem_rom));
-wire slow       = bus_access || (ex_mem_valid && ex_mem_read && !ex_mem_sdram);
+assign bus_access = ex_mem_valid && bus_region && (ex_mem_read || (ex_mem_write && !ex_mem_rom));
+wire slow = bus_access || (ex_mem_valid && ex_mem_read && !ex_mem_sdram);
 
 reg        bus_started;
 reg        slow_done;
@@ -329,6 +333,7 @@ always @(posedge clk) begin
     else if (bus_access)
         bus_started <= 1'b1;
     slow_done <= !reset && slow && !slow_done && (!bus_access || bus_ready);
+    slow_error <= bus_ready && bus_error;
     slow_word <= bus_ready     ? bus_read_word :
                  ex_mem_cpu_io ? io_read_value :
                                  32'd0;

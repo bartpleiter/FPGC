@@ -1,7 +1,7 @@
 ; The CPU-internal I/O registers: PC_BACKUP can be written and read back, SP follows
 ; pushes, pops and writes, and the error register is 0 when nothing went wrong.
 Main:
-    load32 0x1F000000 r10   ; the CPU-internal I/O registers
+    load32 0xFFFFFF00 r10   ; the CPU-internal I/O registers
     load32 0x12345678 r1
     write 0 r10 r1          ; PC_BACKUP
     read 0 r10 r2           ; 0x12345678

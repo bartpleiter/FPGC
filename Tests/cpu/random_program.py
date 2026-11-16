@@ -42,7 +42,7 @@ from b32sim.sim import NUM_INTERRUPTS
 WORK_REGS = [f"r{n}" for n in range(1, 7)]
 SOURCE_REGS = ["r0", *WORK_REGS]
 
-CPU_IO_BASE = 0x1F000000
+CPU_IO_BASE = 0xFFFFFF00
 CPU_IO_OFFSETS = [0, 4, 8, 12, 16]  # PC_BACKUP, SP, ERR_STATUS, ERR_PC, INT_ENABLE
 SP_OFFSET = 4
 INT_ENABLE_OFFSET = 16
@@ -51,9 +51,9 @@ INT_ENABLE_OFFSET = 16
 # 4 KiB further, so accesses cause evictions and write-backs.
 SDRAM_DATA_BASE = 0x10000
 SDRAM_DATA_OFFSETS = [*range(0, 64, 4), *range(0x1000, 0x1040, 4)]
-IO_DATA_BASE = 0x1C000000
+IO_DATA_BASE = 0xFFFF8000
 IO_DATA_OFFSETS = list(range(0, 64, 4))
-ROM_BASE, ROM_SIZE = 0x1E000000, 0x1000
+ROM_BASE, ROM_SIZE = 0x04000000, 0x1000
 
 MAX_STACK_DEPTH = 32
 
@@ -353,13 +353,13 @@ class _Generator:
     # ---- Interrupts ----
 
     def schedule(self) -> list[str]:
-        """The interrupt comments: single ones, and sometimes two or three at once."""
+        """The interrupt comments: single ones, and sometimes both inputs at once."""
         lines = []
         free = [0] * (NUM_INTERRUPTS + 1)  # the first cycle each input can rise again
         # Sometimes the first one comes right away, while the CPU is still in ROM.
         cycle = self.rng.choice([0, self.rng.randint(0, INTERRUPT_SPACING)])
         while cycle < INTERRUPT_CYCLES:
-            count = self.rng.choices([1, 2, 3], [8, 1, 1])[0]
+            count = self.rng.choices([1, 2], [8, 1])[0]
             for number in self.rng.sample(range(1, NUM_INTERRUPTS + 1), count):
                 if cycle >= free[number]:
                     lines.append(f"; interrupt {number} at cycle {cycle}")

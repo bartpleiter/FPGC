@@ -11,17 +11,18 @@ module b32p4_harness #(
 wire clk;
 harness_pll pll (.clk_50(clk_50), .clk_100(clk));
 
-wire [75:0] random;
-source #(76) src (.clk(clk), .din(din), .q(random));
+wire [71:0] random;
+source #(72) src (.clk(clk), .din(din), .q(random));
 
 wire        reset            = random[0];
-wire [7:1]  interrupts       = random[7:1];
-wire        sdram_take       = random[8];
-wire        sdram_read_valid = random[9];
-wire        sdram_next       = random[10];
-wire [31:0] sdram_read_word  = random[42:11];
-wire        bus_answer       = random[43];
-wire [31:0] bus_word         = random[75:44];
+wire [2:1]  interrupts       = random[2:1];
+wire        sdram_take       = random[3];
+wire        sdram_read_valid = random[4];
+wire        sdram_next       = random[5];
+wire [31:0] sdram_read_word  = random[37:6];
+wire        bus_answer       = random[38];
+wire        bus_error_bit    = random[39];
+wire [31:0] bus_word         = random[71:40];
 
 // The ROM, 4 KiB, filled with arbitrary words so Quartus can't simplify the CPU
 reg [31:0] rom [0:1023];
@@ -48,11 +49,12 @@ reg  [31:0] rom_b_word;
 // Bus: ROM port B, and a stub with random answers for the other regions
 always @(posedge clk) begin
     rom_b_word   <= rom[bus_addr[11:2]];
-    bus_from_rom <= bus_request && bus_addr[31:12] == 20'h1E000;
+    bus_from_rom <= bus_request && bus_addr[31:12] == 20'h04000;
     bus_ready    <= bus_from_rom || bus_answer;
 end
 
 wire [31:0] bus_read_word = bus_from_rom ? rom_b_word : bus_word;
+wire        bus_error     = !bus_from_rom && bus_error_bit;
 
 wire        sdram_req;
 wire        sdram_write;
@@ -85,6 +87,7 @@ b32p4 #(
     .bus_write_data(bus_write_data),
     .bus_byte_enable(bus_byte_enable),
     .bus_ready(bus_ready),
+    .bus_error(bus_error),
     .bus_read_word(bus_read_word),
     .interrupts(interrupts),
     .retire_valid(),

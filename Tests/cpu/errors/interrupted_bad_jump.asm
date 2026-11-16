@@ -6,11 +6,11 @@
     jump Main
     jump Interrupt
 Interrupt:
-    load32 0x1F000000 r9
+    load32 0xFFFFFF00 r9
     read 8 r9 r1            ; ERR_STATUS: 0
     reti
 Main:
-    load32 0x1F000000 r10
+    load32 0xFFFFFF00 r10
     load 100 r4
     divu r4 r4 r5
     divu r4 r5 r5

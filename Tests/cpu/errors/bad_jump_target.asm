@@ -4,7 +4,7 @@
 ; from there. After each case, the program reads ERR_STATUS and ERR_PC, and clears
 ; them.
 Main:
-    load32 0x1F000000 r10   ; the CPU-internal I/O registers
+    load32 0xFFFFFF00 r10   ; the CPU-internal I/O registers
     addr2reg Target r1
     jumpr 2 r1              ; to Target + 2, so to Target
     load 1 r15              ; skipped

@@ -2,7 +2,7 @@
 ; SP wraps around to 0. After the first case, the program reads ERR_STATUS and ERR_PC,
 ; and clears them.
 Main:
-    load32 0x1F000000 r10   ; the CPU-internal I/O registers
+    load32 0xFFFFFF00 r10   ; the CPU-internal I/O registers
     load 255 r12
 Fill:
     push r12

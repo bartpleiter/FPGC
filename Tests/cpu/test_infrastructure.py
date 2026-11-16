@@ -8,9 +8,9 @@ from .iss_comparison import RtlTrace, compare
 from .presets import check_preset
 
 ISS = [
-    "1e000000 00000000",
-    "1e000004 00000000 r1=00000005",
-    "1e000008 ffffffff -> 1e000008",
+    "04000000 00000000",
+    "04000004 00000000 r1=00000005",
+    "04000008 ffffffff -> 04000008",
 ]
 
 
@@ -20,14 +20,14 @@ def test_equal_traces_pass() -> None:
 
 def test_first_difference_is_reported_with_its_cycle() -> None:
     rtl = RtlTrace(
-        [ISS[0], "1e000004 00000000 r1=00000006", ISS[2]], [0, 3, 4], "halted"
+        [ISS[0], "04000004 00000000 r1=00000006", ISS[2]], [0, 3, 4], "halted"
     )
     with pytest.raises(AssertionError) as e:
         compare(ISS, rtl, "fpgc cpu wave b32p4 x.asm")
     message = str(e.value)
     assert "differ at instruction 1 (cycle 3)" in message
-    assert "RTL  1e000004 00000000 r1=00000006" in message
-    assert "  1e000000 00000000" in message  # the instruction before it
+    assert "RTL  04000004 00000000 r1=00000006" in message
+    assert "  04000000 00000000" in message  # the instruction before it
     assert "fpgc cpu wave b32p4 x.asm" in message
 
 

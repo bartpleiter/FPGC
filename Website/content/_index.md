@@ -12,4 +12,4 @@ FPGC (FPGA Computer) is a personal hobby project where I build an entire compute
 
 **Why?** Building things yourself helps you to understand how it works, it is very satisfying to create your own physical device running your own logic and software, and it is fun to take "full-stack developer" to the extreme.
 
-I have been working on this project on and off since 2018, going from zero knowledge on FPGAs to where this project is right now. This means I had to restart a lot of times.
+I have been working on this project on and off since 2018, going from zero knowledge on FPGAs to where this project is right now. This means I had to restart a lot of times. To see the journey of how I designed this iteration from the ground up again, you can follow the [blog series from the beginning here](../blog/introduction/index.md), which starts at an introduction to the project, the CPU design, and then everything on top of it.

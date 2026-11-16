@@ -31,10 +31,12 @@ from b32asm.isa import (
 
 MASK = 0xFFFFFFFF
 
+# The memory map. Every other address is unmapped: an access to it is a bad address,
+# whether the CPU or the device bridge finds it.
 SDRAM_BASE, SDRAM_SIZE = 0x00000000, 64 << 20
-IO_BASE, IO_SIZE = 0x1C000000, 0x02000000
-ROM_BASE, ROM_SIZE = 0x1E000000, 4 << 10
-CPU_IO_BASE, CPU_IO_SIZE = 0x1F000000, 0x14
+ROM_BASE, ROM_SIZE = 0x04000000, 4 << 10
+IO_BASE, IO_SIZE = 0xFFFF8000, 0x7F00  # the device registers, 256 bytes per device
+CPU_IO_BASE, CPU_IO_SIZE = 0xFFFFFF00, 0x14
 
 # CPU-internal I/O registers
 PC_BACKUP_ADDR = CPU_IO_BASE + 0x0
@@ -45,7 +47,7 @@ INT_ENABLE_ADDR = CPU_IO_BASE + 0x10
 
 STACK_DEPTH = 256
 INTERRUPT_VECTOR = 0x4
-NUM_INTERRUPTS = 7
+NUM_INTERRUPTS = 2
 
 
 class ErrorKind(IntEnum):
@@ -303,7 +305,7 @@ class Machine:
         return self.err_flags | (self.err_first << 8)
 
     def request_interrupt(self, number: int) -> None:
-        """A rising edge on interrupt input `number` (1 to 7)."""
+        """A rising edge on interrupt input `number` (1 to NUM_INTERRUPTS)."""
         if not 1 <= number <= NUM_INTERRUPTS:
             raise ValueError(f"no interrupt {number}")
         self.pending |= 1 << (number - 1)

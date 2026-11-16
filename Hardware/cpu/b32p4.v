@@ -1,7 +1,7 @@
 // B32P4
 // Top-level design of the CPU.
 module b32p4 #(
-    parameter INTERRUPTS = 7,    // the number of interrupt inputs, at most 255
+    parameter INTERRUPTS = 2,    // the number of interrupt inputs, at most 255
     parameter L1I_LINES  = 128,  // the number of L1i cache lines, a power of two
     parameter L1D_LINES  = 512   // the number of L1d cache lines, a power of two
 ) (
@@ -28,6 +28,7 @@ module b32p4 #(
     output wire [31:0] bus_write_data,
     output wire [3:0]  bus_byte_enable,
     input  wire        bus_ready,
+    input  wire        bus_error,
     input  wire [31:0] bus_read_word,
 
     input  wire [INTERRUPTS:1] interrupts,
@@ -437,6 +438,7 @@ cpu_mem #(
     .bus_write_data(bus_write_data),
     .bus_byte_enable(bus_byte_enable),
     .bus_ready(bus_ready),
+    .bus_error(bus_error),
     .bus_read_word(bus_read_word),
     .interrupts(interrupts),
     .interrupt_pending(interrupt_pending),

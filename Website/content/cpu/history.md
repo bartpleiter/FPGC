@@ -20,7 +20,7 @@ B32P3 had reached its limits, so B32P4 is a rewrite, as part of the rewrite of t
 
 The third pipelined design, mainly a redesign of the pipeline of B32P2 with the same instruction set. Back to a classic five-stage pipeline (IF, ID, EX, MEM, WB), with the critical paths broken up to reach 100 MHz on the Cyclone IV for the first time. It was also the first CPU that was byte-addressable instead of word-addressable.
 
-B32P3 was a bit of an experiment, to see how far the project could go. It eventually ran Doom, allowed me to test its performance limits, and it got features like DMA and a math coprocessor with its own registers, all mainly to get a first experience with these kinds of hardware extensions so a redesign could implement them properly. At some point the limits of the design was reached and timing problems became too severe to continue.
+B32P3 was a bit of an experiment, to see how far the project could go. It eventually ran Doom, allowed me to test its performance limits, and it got features like DMA and a math coprocessor with its own registers, all mainly to get a first experience with these kinds of hardware extensions so a redesign could implement them properly. At some point the limits of the design were reached and timing problems became too severe to continue.
 
 ## B32P2
 

@@ -8,7 +8,7 @@
     jump Interrupt
 Interrupt:
     readintid r1            ; 2
-    load32 0x1F000000 r2
+    load32 0xFFFFFF00 r2
     read 0 r2 r3            ; PC_BACKUP: the address of the branch
     reti
 Main:

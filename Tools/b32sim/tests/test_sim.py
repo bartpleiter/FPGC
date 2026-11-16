@@ -98,7 +98,7 @@ def test_little_endian_subword_access() -> None:
 
 def test_cpu_io_registers() -> None:
     machine = run_rom(
-        """load32 0x1F000000 r1
+        """load32 0xFFFFFF00 r1
         load 99 r2
         write 0 r1 r2
         push r2
@@ -175,18 +175,18 @@ def test_interrupt_is_taken_at_a_taken_branch_and_returns() -> None:
     )
     for _ in range(4):
         machine.step()
-    machine.request_interrupt(3)
     machine.request_interrupt(2)
+    machine.request_interrupt(1)
     first = machine.step()  # the jump at Main is replaced by the interrupt
-    assert first.interrupt == 2 and machine.pc == 4
+    assert first.interrupt == 1 and machine.pc == 4
     assert machine.pc_backup == first.pc and not machine.interrupts_enabled
     machine.step()  # jump Handler
     machine.step()  # readintid
-    assert machine.regs[5] == 2
+    assert machine.regs[5] == 1
     reti = machine.step()
     assert reti.redirect == first.pc and machine.interrupts_enabled
     second = machine.step()  # the next pending one, at the same jump
-    assert second.interrupt == 3
+    assert second.interrupt == 2
 
 
 def test_interrupts_are_disabled_after_reset() -> None:
@@ -313,20 +313,20 @@ ILLEGAL = [
     ("load 2 r1\nread 0 r1 r2", ErrorKind.UNALIGNED_ACCESS),
     ("load 1 r1\nwriteh 0 r1 r1", ErrorKind.UNALIGNED_ACCESS),
     ("load32 0x10000000 r1\nread 0 r1 r2", ErrorKind.BAD_ADDRESS),
-    ("load32 0x1E000000 r1\nwrite 0 r1 r1", ErrorKind.BAD_ADDRESS),
-    ("load32 0x1F000000 r1\nreadb 0 r1 r2", ErrorKind.BAD_ADDRESS),
-    ("load32 0x1F00000C r1\nwrite 0 r1 r1", ErrorKind.BAD_ADDRESS),
-    ("load32 0x1F000010 r1\nwriteb 0 r1 r1", ErrorKind.BAD_ADDRESS),
-    ("load32 0x1F000014 r1\nread 0 r1 r2", ErrorKind.BAD_ADDRESS),
+    ("load32 0x04000000 r1\nwrite 0 r1 r1", ErrorKind.BAD_ADDRESS),
+    ("load32 0xFFFFFF00 r1\nreadb 0 r1 r2", ErrorKind.BAD_ADDRESS),
+    ("load32 0xFFFFFF0C r1\nwrite 0 r1 r1", ErrorKind.BAD_ADDRESS),
+    ("load32 0xFFFFFF10 r1\nwriteb 0 r1 r1", ErrorKind.BAD_ADDRESS),
+    ("load32 0xFFFFFF14 r1\nread 0 r1 r2", ErrorKind.BAD_ADDRESS),
     ("pop r1", ErrorKind.STACK_UNDERFLOW),
     (
-        "load32 0x1F000000 r1\nload 255 r2\nwrite 4 r1 r2\npush r2",
+        "load32 0xFFFFFF00 r1\nload 255 r2\nwrite 4 r1 r2\npush r2",
         ErrorKind.STACK_OVERFLOW,
     ),
-    ("load32 0x1E000002 r1\njumpr 4 r1", ErrorKind.BAD_JUMP_TARGET),
-    ("jump 0x4000000", ErrorKind.BAD_JUMP_TARGET),
+    ("load32 0x04000002 r1\njumpr 4 r1", ErrorKind.BAD_JUMP_TARGET),
+    ("jump 0x4001000", ErrorKind.BAD_JUMP_TARGET),
     (
-        "load32 0x1F000000 r1\nload32 0x1E000002 r2\nwrite 0 r1 r2\nreti",
+        "load32 0xFFFFFF00 r1\nload32 0x04000002 r2\nwrite 0 r1 r2\nreti",
         ErrorKind.BAD_JUMP_TARGET,
     ),
 ]

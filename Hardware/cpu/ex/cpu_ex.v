@@ -217,7 +217,7 @@ assign ex_addr = ex_a + id_ex_constant;
 cpu_memory_map memory_map (
     .addr(ex_addr),
     .sdram(ex_sdram),
-    .io(),
+    .bus(),
     .rom(ex_rom),
     .cpu_io(ex_cpu_io),
     .code(),

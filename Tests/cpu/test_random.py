@@ -7,7 +7,7 @@ import pytest
 
 from b32asm.assembler import assemble
 from b32asm.isa import Opcode, decode
-from b32sim.sim import ROM_BASE, ROM_SIZE, SDRAM_BASE, Machine
+from b32sim.sim import NUM_INTERRUPTS, ROM_BASE, ROM_SIZE, SDRAM_BASE, Machine
 
 from .iss_comparison import BOOT_ROM
 from .random_program import generate
@@ -36,7 +36,7 @@ def test_random_program_with_interrupts(seed: int) -> None:
     taken = 0
     for step in range(100_000):
         if step % 50 == 0:
-            machine.request_interrupt(step // 50 % 7 + 1)
+            machine.request_interrupt(step // 50 % NUM_INTERRUPTS + 1)
         taken += machine.step().interrupt is not None
         if machine.halted:
             break

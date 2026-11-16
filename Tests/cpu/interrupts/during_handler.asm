@@ -1,8 +1,8 @@
 ; An interrupt that comes during the handler waits, even when it has a lower number:
 ; interrupts don't nest. It's taken right after RETI, at the HALT it returns to.
-; interrupt 3 at cycle 40
+; interrupt 2 at cycle 40
 ; interrupt 1 at cycle 250
-; interrupts taken: 3 1
+; interrupts taken: 2 1
     jump Main
     jump Interrupt
 Interrupt:

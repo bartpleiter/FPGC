@@ -1,11 +1,11 @@
 ; The handler changes PC_BACKUP directly before RETI, so RETI returns somewhere else
 ; (as a task switch would). RETI must see that write.
-; interrupt 5 at cycle 20
-; interrupts taken: 5
+; interrupt 2 at cycle 20
+; interrupts taken: 2
     jump Main
     jump Interrupt
 Interrupt:
-    load32 0x1F000000 r2
+    load32 0xFFFFFF00 r2
     addr2reg Elsewhere r3
     write 0 r2 r3           ; PC_BACKUP
     reti

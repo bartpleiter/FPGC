@@ -198,13 +198,13 @@ The read mux has three inputs:
 | the L1D | a read of SDRAM that hits |
 | `slow_word` | every other read: the bus, a CPU-internal register, or 0 for an unmapped address |
 
-The slow path handles everything outside SDRAM. It makes MEM busy until the word is in the register `slow_word`, and the read uses that register in the next cycle. A read of a CPU-internal register takes one extra cycle this way. A bus access takes two more than the device needs: one to make the request from a register, and one to use the answer. Writes outside SDRAM wait for the bus's answer too.
+The slow path handles everything outside SDRAM. It makes MEM busy until the word is in the register `slow_word`, and the read uses that register in the next cycle. A read of a CPU-internal register takes one extra cycle this way. A bus access takes two more than the device needs: one to make the request from a register, and one to use the answer. Writes outside SDRAM wait for the bus's answer too. Together with the word, the register `slow_error` keeps whether the answer had `bus_error`, and the instruction then sets the bad-address flag when it finishes, like any other error.
 
 ## Reset
 
 The reset is synchronous.
 
-- All valid bits are cleared, and IF fetches `0x1E000000` during the reset.
+- All valid bits are cleared, and IF fetches `0x04000000` during the reset.
 - Cleared to 0: `SP`, `PC_BACKUP`, the interrupt number, the pending interrupts and the interrupt enable.
 - Not reset: the register file (`r1`–`r15` are undefined) and the error register, which starts at 0 when the FPGA is configured and keeps its value over a reset.
 - The cache controller empties both caches after the reset. See [Caches](caches.md#reset).

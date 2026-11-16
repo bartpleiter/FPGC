@@ -15,7 +15,7 @@ from b32asm.assembler import AsmError, assemble
     "--base",
     default="0",
     show_default=True,
-    help="Address of the first instruction, e.g. 0x1E000000 for ROM.",
+    help="Address of the first instruction, e.g. 0x04000000 for ROM.",
 )
 def main(source: Path, output: Path, base: str) -> None:
     """Assemble SOURCE into a little-endian binary image OUTPUT."""

@@ -169,6 +169,15 @@ def _fit_signed(value: int, bits: int, what: str) -> int:
     return value & ((1 << bits) - 1)
 
 
+def _fit_extended(value: int, bits: int, what: str) -> int:
+    """Like _fit_signed, for a constant that the CPU sign-extends to 32 bits. It may
+    also be written as the 32-bit value it becomes: 0xFFFF8000 for -32768, so that
+    `write 0xFFFF8000 r0 r1` writes to that address."""
+    if (1 << 32) - (1 << (bits - 1)) <= value < (1 << 32):
+        value -= 1 << 32
+    return _fit_signed(value, bits, what)
+
+
 def _fit_unsigned(value: int, bits: int, what: str) -> int:
     if not 0 <= value < (1 << bits):
         raise ValueError(f"{what} {value} does not fit in {bits} bits unsigned")
@@ -219,17 +228,17 @@ def _encode(st: Statement, labels: dict[str, int]) -> int:
             opcode = Opcode.ARITH if m in ALU_OPS else Opcode.ARITHM
             return encode(opcode, op=op, a=ra.number, b=b.number, d=rd.number)
         opcode = Opcode.ARITHC if m in ALU_OPS else Opcode.ARITHMC
-        c16 = _fit_signed(b, 16, "constant")
+        c16 = _fit_extended(b, 16, "constant")
         return encode(opcode, op=op, c16=c16, a=ra.number, d=rd.number)
 
     if m in READ_OPS:
         offset, ra, rd = _check(m, ops, int, Reg, Reg)
-        c16 = _fit_signed(offset, 16, "offset")
+        c16 = _fit_extended(offset, 16, "offset")
         return encode(Opcode.READ, c16=c16, a=ra.number, size=READ_OPS[m], d=rd.number)
 
     if m in WRITE_OPS:
         offset, ra, rb = _check(m, ops, int, Reg, Reg)
-        c16 = _fit_signed(offset, 16, "offset")
+        c16 = _fit_extended(offset, 16, "offset")
         return encode(
             Opcode.WRITE, c16=c16, a=ra.number, b=rb.number, size=WRITE_OPS[m]
         )
@@ -262,7 +271,7 @@ def _encode(st: Statement, labels: dict[str, int]) -> int:
 
     if m in ("jumpr", "jumpro"):
         offset, rb = _check(m, ops, int, Reg)
-        c16 = _fit_signed(offset, 16, "offset")
+        c16 = _fit_extended(offset, 16, "offset")
         return encode(Opcode.JUMPR, c16=c16, b=rb.number, o=int(m == "jumpro"))
 
     if m == "savpc":
@@ -273,7 +282,7 @@ def _encode(st: Statement, labels: dict[str, int]) -> int:
         value, rd = _check(m, ops, (int, LabelRef), Reg)
         if isinstance(value, LabelRef):
             value = _resolve(value, labels) - st.address
-        c16 = _fit_signed(value, 16, "offset")
+        c16 = _fit_extended(value, 16, "offset")
         return encode(Opcode.SAVPC, c16=c16, d=rd.number)
 
     if m == "push":

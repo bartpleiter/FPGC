@@ -26,7 +26,7 @@
 //   +sdram_dump=<file> after the HALT, write the SDRAM words of DUMP_BYTES at DUMP_BASE,
 //                      where the random programs keep their data, one per line in hex
 //
-// The ROM (4 KiB at 0x1E000000) is a BRAM with a clock enable. Every other fetch, and
+// The ROM (4 KiB at 0x04000000) is a BRAM with a clock enable. Every other fetch, and
 // every read and write of SDRAM (64 MiB at 0), goes through the L1 caches, and from
 // there through the line model. Reads of the ROM as data, and the I/O region, go over
 // the bus.
@@ -89,7 +89,7 @@ wire        fetch_en;
 reg  [31:0] rom_word;
 
 // As many interrupt inputs as the ISS has
-localparam INTERRUPTS = 7;
+localparam INTERRUPTS = 2;
 
 reg  [INTERRUPTS:1] interrupts = {INTERRUPTS{1'b0}};
 
@@ -137,6 +137,7 @@ b32p4 #(
     .bus_write_data(bus_write_data),
     .bus_byte_enable(bus_byte_enable),
     .bus_ready(bus_ready),
+    .bus_error(bus_error),
     .bus_read_word(bus_read_word),
     .interrupts(interrupts),
     .retire_valid(retire_valid),

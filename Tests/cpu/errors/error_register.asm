@@ -3,7 +3,7 @@
 ; is recorded in detail. A write to ERR_STATUS clears it before the events of that
 ; write itself.
 Main:
-    load32 0x1F000000 r10   ; the CPU-internal I/O registers
+    load32 0xFFFFFF00 r10   ; the CPU-internal I/O registers
     load32 0x10000000 r12   ; unmapped
 
     beq r0 r0 Skip          ; flushes the illegal instructions behind it

@@ -2,7 +2,7 @@
 ; size. Each one sets the illegal-instruction flag (kind 1), and does nothing else.
 ; After each case, the program reads ERR_STATUS and ERR_PC, and clears them.
 Main:
-    load32 0x1F000000 r10   ; the CPU-internal I/O registers
+    load32 0xFFFFFF00 r10   ; the CPU-internal I/O registers
     load32 0x1000 r13       ; data in SDRAM
     load 7 r1
     write 0 r13 r0

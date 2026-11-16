@@ -4,7 +4,7 @@
 ; after that. The read of the ROM goes over the bus too, as data, and the add behind
 ; the last read waits until that read has its word.
     addr2reg Table r1
-    load32 0x1C000000 r2    ; the I/O region
+    load32 0xFFFF8000 r2    ; the I/O region
     read 0 r1 r3            ; 0x12345678, from the ROM
     write 0 r2 r3           ; to the I/O region
     read 0 r2 r4            ; 0x12345678, back from the I/O region

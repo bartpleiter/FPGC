@@ -6,9 +6,9 @@
 ; The unmapped address and the ROM address have the same low bits as a word in SDRAM
 ; that holds 5, so a read or write that ignores the region would show up there.
 Main:
-    load32 0x1F000000 r10   ; the CPU-internal I/O registers
-    load32 0x10001000 r12   ; unmapped, between SDRAM and I/O
-    load32 0x1E000000 r13   ; ROM
+    load32 0xFFFFFF00 r10   ; the CPU-internal I/O registers
+    load32 0x10001000 r12   ; unmapped, above the memories
+    load32 0x04000000 r13   ; ROM
     load32 0x1000 r11       ; SDRAM, with the same bits [25:2] as r12
     load32 0x2000000 r9     ; SDRAM, with the same bits [25:2] as r13
     load 5 r1

@@ -1,12 +1,11 @@
-; Three interrupts at the same time are taken one at a time, the lowest number first,
+; Two interrupts at the same time are taken one at a time, the lowest number first,
 ; at the branch of the loop. The handler shifts each number into r7, so r7 ends as
-; 0x123. Its own taken branch is not interrupted, because interrupts are disabled until
+; 0x12. Its own taken branch is not interrupted, because interrupts are disabled until
 ; RETI. The interrupts come once the loop runs, with every cache size and latency, so
 ; that r7 is written before the handler reads it.
-; interrupt 3 at cycle 400
-; interrupt 1 at cycle 400
 ; interrupt 2 at cycle 400
-; interrupts taken: 1 2 3
+; interrupt 1 at cycle 400
+; interrupts taken: 1 2
     jump Main
     jump Interrupt
 Interrupt:

@@ -9,11 +9,43 @@ The 32-bit address space of the FPGC, as the CPU sees it. All addresses are byte
 | Address range | Size | Region | Reached through |
 | --- | --- | --- | --- |
 | `0x00000000`–`0x03FFFFFF` | 64 MiB | SDRAM | the L1 caches |
-| `0x1C000000`–`0x1DFFFFFF` | 32 MiB | I/O devices | the bus |
-| `0x1E000000`–`0x1E000FFF` | 4 KiB | ROM | the fetch port for instructions, the bus for data |
-| `0x1F000000`–`0x1F000013` | 5 registers | CPU-internal I/O registers | inside the CPU |
+| `0x04000000`–`0x04000FFF` | 4 KiB | ROM | the fetch port for instructions, the bus for data |
+| `0x05000000`–`0x05FFFFFF` | 16 MiB | GPU memories (to be built) | the bus |
+| `0x06000000`–`0x06FFFFFF` | 16 MiB | external SRAM (to be built) | the bus |
+| `0xFFFF8000`–`0xFFFFFEFF` | 127 × 256 bytes | device registers | the bus |
+| `0xFFFFFF00`–`0xFFFFFF13` | 5 registers | CPU-internal I/O registers | inside the CPU |
 
-Every other address is unmapped. A read from it gives 0, a write to it is ignored, and both set the bad-address flag of the [error register](cpu/isa.md#error-register).
+Every other address is unmapped. A read from it gives 0, a write to it is ignored, and both set the bad-address flag of the [error register](cpu/isa.md#error-register). That includes the addresses inside a region that nothing uses, such as the rest of the ROM's 16 MiB, or the end of a device's 256 bytes.
+
+```text
+0x00000000  +--------------------------+
+            | SDRAM, 64 MiB            |
+0x04000000  +--------------------------+
+            | ROM, 4 KiB               |
+0x05000000  +--------------------------+
+            | GPU memories             |
+0x06000000  +--------------------------+
+            | external SRAM            |
+0x07000000  +--------------------------+
+            | unmapped                 |
+0xFFFF8000  +--------------------------+
+            | device registers         |
+0xFFFFFF00  +--------------------------+
+            | CPU-internal registers   |
+0xFFFFFFFF  +--------------------------+
+```
+
+## Why it's laid out this way
+
+- SDRAM starts at 0, so a program starts at `0x0`.
+- Every memory is below 128 MiB, the range of the absolute `jump`. So code in SDRAM can jump straight to the ROM, and the other way round.
+- The registers are in the last 32 KiB. A read or write adds a sign-extended 16-bit offset to a register, so with r0 as the register, an offset from `-32768` to `-1` reaches `0xFFFF8000` to `0xFFFFFFFF`. Every register is then one instruction away, without loading its address first. The assembler accepts the address itself as the offset:
+
+  ```text
+  write 0xFFFF8000 r0 r1      ; the same as write -32768 r0 r1
+  ```
+
+- The CPU only tells apart SDRAM, the ROM, its own registers, and the rest. Everything else in the regions above goes over the bus to the device bridge, which knows the devices and memories behind it. A new device then doesn't change the CPU.
 
 ## SDRAM
 
@@ -22,16 +54,22 @@ The main memory, for code and data. The CPU reaches it through its instruction a
 - A program in SDRAM starts at `0x0`. Address `0x4` is where the CPU goes when it takes an interrupt.
 - The contents of SDRAM are undefined after a reset.
 
-## I/O devices
-
-The devices, such as the UART, are reached over the bus. Which device answers at which address is defined with the devices, which are still to be built. Only addresses in this range go to the devices, and the CPU never reads them before it's certain that the instruction will complete.
-
 ## ROM
 
-The boot ROM, 1,024 words. The CPU starts at `0x1E000000` after a reset.
+The boot ROM, 1,024 words. The CPU starts at `0x04000000` after a reset.
 
 - It holds code, and data that the code reads.
 - Writes to the ROM are illegal: they're ignored, and set the bad-address flag.
+
+## GPU memories and external SRAM
+
+These regions are reserved for the GPU, which is still to be designed. Until then, nothing answers there.
+
+## Device registers
+
+The devices, such as the UART, are reached over the bus. Each device has 256 bytes, starting at `0xFFFF8000`. Which device is at which address is described with the devices, which are still to be built.
+
+The CPU never makes a bus access before it's certain that the instruction will complete. So a device can safely do something when it's read, such as taking a byte from a receive buffer.
 
 ## CPU-internal I/O registers
 

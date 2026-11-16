@@ -6,7 +6,7 @@ each number of cache lines.
 Interrupts come at times the ISS can't know, so the RTL runs first, and the ISS takes
 each interrupt at the instruction where the RTL took it. The ISS only does that where
 the ISA allows it, so an interrupt at the wrong place is still a difference. A program
-gets its interrupts from comments such as `; interrupt 3 at cycle 120`: interrupt
+gets its interrupts from comments such as `; interrupt 2 at cycle 120`: interrupt
 input 3 goes high at the end of cycle 120, and low again PULSE cycles later.
 
 A program runs from the ROM, or from SDRAM, through the L1I: a program with interrupts,
@@ -62,7 +62,7 @@ BOOT_ROM = """
     jump Boot
     halt
 Boot:
-    load32 0x1F000000 r1
+    load32 0xFFFFFF00 r1
     load 1 r2
     write 16 r1 r2  ; INT_ENABLE
     jump 0

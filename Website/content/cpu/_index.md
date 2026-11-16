@@ -3,9 +3,9 @@ title: CPU (B32P4)
 weight: 1
 ---
 
-B32P4 (Bart's 32-bit Pipelined processor, version 4) is the CPU of the FPGC. It's a 32-bit RISC CPU with a five-stage pipeline, designed from scratch, and runs at 100 MHz on the Cyclone IV EP4CE40 FPGA.
+B32P4 (Bart's 32-bit Pipelined processor, version 4) is the CPU of the FPGC. It's a 32-bit RISC CPU with a five-stage pipeline, designed from scratch, and runs at 100 MHz on a Cyclone IV EP4CE40 FPGA.
 
-The design goal is a CPU that is simple enough to explain completely. Every hazard is handled in hardware, so software never has to know about the pipeline: no nops, and no rules about the order of instructions. At best, it finishes one instruction every cycle.
+The goal of the CPU is not to make a competitor to RISC-V or ARM. Instead, the goal is to create a good CPU that is designed by a single person from scratch without using existing components, meaning it has to be simple enough to be understood and implemented by one person. Still, it needs to be fast enough to be able to run Doom at a playable frame rate with C compiler overhead.
 
 The story of how it was designed, step by step, is in the [CPU blog series](../blog/cpu-general-design/index.md).
 
@@ -86,7 +86,7 @@ The address space of the whole system, including the regions that the CPU reache
 
 | Parameter | Default | Meaning |
 | --- | --- | --- |
-| `INTERRUPTS` | 7 | the number of interrupt inputs, at most 255 |
+| `INTERRUPTS` | 2 | the number of interrupt inputs, at most 255 |
 | `L1I_LINES` | 128 | the number of L1I lines, a power of two. A line is 32 bytes, so the default is 4 KiB. |
 | `L1D_LINES` | 512 | the number of L1D lines, a power of two. The default is 16 KiB. |
 
@@ -105,7 +105,7 @@ The other CPU pages use these words without explaining them again.
 | cache line | 8 words (32 bytes) at an address that is a multiple of 32: what a cache stores and what a miss transfers |
 | commit | the moment an instruction changes the state of the machine. This happens in MEM, except for the register write, which happens in WB. |
 | constant | a value that is part of the instruction itself (`c16` or `c27` on the ISA page) |
-| CPU-internal I/O registers | the registers inside the CPU at `0x1F000000`, such as `PC_BACKUP`, `SP` and the error register |
+| CPU-internal I/O registers | the registers inside the CPU at `0xFFFFFF00`, such as `PC_BACKUP`, `SP` and the error register |
 | current | a cache output that belongs to the instruction in the stage right now: it was read at that instruction's address, and the cache controller hasn't changed that cache since. Only a current output is used. |
 | dirty | a cache line that was written, and must be written back to SDRAM before it's replaced |
 | early restart | taking the needed word from SDRAM the moment it arrives, before the rest of the line |

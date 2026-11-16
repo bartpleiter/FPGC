@@ -4,7 +4,7 @@
 ; first run left behind.
 ; reset at cycle 600
 Main:
-    load32 0x1F000000 r10   ; the CPU-internal I/O registers
+    load32 0xFFFFFF00 r10   ; the CPU-internal I/O registers
     read 8 r10 r1           ; ERR_STATUS: 0 at the first start, 0x101 after the reset
     read 12 r10 r2          ; ERR_PC: 0, then the address of the .dw
     .dw 0x08000123          ; a reserved ALU operation: kind 1

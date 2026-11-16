@@ -1,9 +1,9 @@
 ; The CPU takes the lowest number that is pending when the jump leaves MEM, not the one
-; that was pending first. Interrupt 5 comes first, but 1 comes before the next jump, so
-; 1 is taken first, and 5 right after its RETI.
-; interrupt 5 at cycle 40
+; that was pending first. Interrupt 2 comes first, but 1 comes before the next jump, so
+; 1 is taken first, and 2 right after its RETI.
+; interrupt 2 at cycle 40
 ; interrupt 1 at cycle 80
-; interrupts taken: 1 5
+; interrupts taken: 1 2
     jump Main
     jump Interrupt
 Interrupt:

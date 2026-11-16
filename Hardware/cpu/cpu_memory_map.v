@@ -1,29 +1,33 @@
 // Memory map
-// Tells which region an address is in as one-hot bits.
+// Tells which region an address is in.
 module cpu_memory_map (
     input  wire [31:0] addr,
 
     // Regions. All 0 for an unmapped address.
     output wire        sdram,
-    output wire        io,        // Memory Unit
     output wire        rom,
-    output wire        cpu_io,    // CPU-internal I/O registers
+    output wire        bus,
+    output wire        cpu_io,
 
-    output wire        code,      // Region can hold code: SDRAM or ROM
+    output wire        code,      // Region can hold code
     output wire        unmapped
 );
 
-localparam                              SDRAM_SIZE   = 32'h04000000;
-localparam IO_BASE      = 32'h1C000000, IO_SIZE      = 32'h02000000;
-localparam ROM_BASE     = 32'h1E000000, ROM_SIZE     = 32'h00001000;
-localparam CPU_IO_BASE  = 32'h1F000000, CPU_IO_SIZE  = 32'h00000014;
+// SDRAM:     0x00000000, via L1d
+// ROM:       0x04000000, via the bus for data reads
+// Memories:  0x04000000 to 0x07FFFFFF
+// Devices:   0xFFFF8000 to 0xFFFFFEFF
+// CPU I/O:   0xFFFFFF00, via the CPU's internal registers
+localparam CPU_IO_SIZE = 8'h14;
 
-assign sdram   = addr < SDRAM_SIZE;
-assign io      = addr >= IO_BASE      && addr < IO_BASE      + IO_SIZE;
-assign rom     = addr >= ROM_BASE     && addr < ROM_BASE     + ROM_SIZE;
-assign cpu_io  = addr >= CPU_IO_BASE  && addr < CPU_IO_BASE  + CPU_IO_SIZE;
+wire top = addr[31:15] == 17'h1FFFF;
+
+assign sdram   = addr[31:26] == 6'b000000;
+assign rom     = addr[31:12] == 20'h04000;
+assign bus     = addr[31:26] == 6'b000001 || (top && addr[14:8] != 7'h7F);
+assign cpu_io  = top && addr[14:8] == 7'h7F && addr[7:0] < CPU_IO_SIZE;
 
 assign code     = sdram || rom;
-assign unmapped = !(sdram || io || rom || cpu_io);
+assign unmapped = !(sdram || bus || cpu_io);
 
 endmodule

@@ -34,7 +34,7 @@ module cpu_if #(
     output wire                           busy_if
 );
 
-localparam ROM_BASE = 32'h1E000000;  // where the CPU starts after reset
+localparam ROM_BASE = 32'h04000000;  // where the CPU starts after reset
 localparam INDEX    = $clog2(L1I_LINES);
 
 /* verilator lint_off PINCONNECTEMPTY */
@@ -43,7 +43,7 @@ wire in_rom;
 cpu_memory_map pc_map (
     .addr(pc),
     .sdram(),
-    .io(),
+    .bus(),
     .rom(in_rom),
     .cpu_io(),
     .code(),

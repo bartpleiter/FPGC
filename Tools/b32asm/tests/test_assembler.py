@@ -57,8 +57,8 @@ def test_sext() -> None:
 
 
 def test_labels_and_relative_targets() -> None:
-    program = assemble("Start:\n nop\n beq r0 r0 Start\n jump Start\n", 0x1E000000)
-    assert program.labels == {"Start": 0x1E000000}
+    program = assemble("Start:\n nop\n beq r0 r0 Start\n jump Start\n", 0x04000000)
+    assert program.labels == {"Start": 0x04000000}
     beq, jump = decode(program.words[1]), decode(program.words[2])
     assert sext(beq["c16"], 16) == -4
     assert (
@@ -67,7 +67,7 @@ def test_labels_and_relative_targets() -> None:
 
 
 def test_savpc_to_a_label_is_relative() -> None:
-    program = assemble("savpc Next r1\njump 0\nNext:\n", 0x1E000000)
+    program = assemble("savpc Next r1\njump 0\nNext:\n", 0x04000000)
     assert sext(decode(program.words[0])["c16"], 16) == 8
 
 
@@ -79,8 +79,22 @@ def test_jump_to_number_is_absolute() -> None:
 def test_load32_and_addr2reg() -> None:
     assert len(assemble("load32 0x1234 r1").words) == 1
     assert assemble("load32 -1 r1").words == [0x1CFFFF11, 0x1DFFFF11]
-    program = assemble("addr2reg Data r2\nData:\n.dw 7 -1", 0x1E000000)
-    assert program.words == [0x1C000822, 0x1D1E0022, 7, 0xFFFFFFFF]
+    program = assemble("addr2reg Data r2\nData:\n.dw 7 -1", 0x04000000)
+    assert program.words == [0x1C000822, 0x1D040022, 7, 0xFFFFFFFF]
+
+
+@pytest.mark.parametrize(
+    ("source", "word"),
+    [
+        # A constant may be written as the 32-bit value it's sign-extended to.
+        ("write 0xFFFF8000 r0 r1", assemble("write -32768 r0 r1").words[0]),
+        ("read 0xFFFFFF08 r0 r2", assemble("read -248 r0 r2").words[0]),
+        ("add r1 0xFFFFFFFF r2", assemble("add r1 -1 r2").words[0]),
+        ("jumpr 0xFFFFFFFC r3", assemble("jumpr -4 r3").words[0]),
+    ],
+)
+def test_sign_extended_constants(source: str, word: int) -> None:
+    assert assemble(source).words == [word]
 
 
 @pytest.mark.parametrize(
@@ -88,6 +102,8 @@ def test_load32_and_addr2reg() -> None:
     [
         ("frobnicate r1", "unknown instruction"),
         ("add r1 40000 r2", "does not fit"),
+        ("write 0xFFFF7FFC r0 r1", "does not fit"),
+        ("read 0x8000 r0 r1", "does not fit"),
         ("load -1 r1", "does not fit"),
         ("add r1 r2", "needs 3 operand"),
         ("push 5", "wrong kind"),

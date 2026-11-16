@@ -13,8 +13,8 @@ tb_cpu_memory_map.dut.addr[31:0]
 -Regions
 @28
 tb_cpu_memory_map.dut.sdram
-tb_cpu_memory_map.dut.io
 tb_cpu_memory_map.dut.rom
+tb_cpu_memory_map.dut.bus
 tb_cpu_memory_map.dut.cpu_io
 @200
 -

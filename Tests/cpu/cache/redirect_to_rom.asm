@@ -9,7 +9,7 @@
     nop
     nop
     nop
-    load32 0x1E000004 r2    ; words 4 and 5: the halt in the ROM
+    load32 0x04000004 r2    ; words 4 and 5: the halt in the ROM
     nop
     jumpr 0 r2              ; word 7: line 1 misses behind it, and its fill starts
     nop                     ; word 8, in line 1: fetched, then flushed
