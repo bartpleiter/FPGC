@@ -21,7 +21,7 @@ wire [31:0] bus_read_word;
 wire [11:2] rom_addr;
 reg  [31:0] rom_read_word;
 wire        uart_tx;
-wire [4:0]  leds;
+wire        user_led;
 wire        timer_irq;
 wire        uart_irq;
 
@@ -45,7 +45,7 @@ device_bridge #(
     .rom_read_word(rom_read_word),
     .uart_rx(uart_rx),
     .uart_tx(uart_tx),
-    .leds(leds),
+    .user_led(user_led),
     .switches(switches),
     .timer_irq(timer_irq),
     .uart_irq(uart_irq)
@@ -57,7 +57,7 @@ initial begin
                    bus_request, bus_write, bus_addr, bus_write_data, bus_byte_enable,
                    uart_rx, switches) == 9)
         @(negedge clk) $fwrite(outputs_fd, "%h %h %h %h %h %h %h\n", bus_ready,
-                               bus_error, bus_read_word, leds, timer_irq, uart_irq,
+                               bus_error, bus_read_word, user_led, timer_irq, uart_irq,
                                uart_tx);
     tb_close;
 end

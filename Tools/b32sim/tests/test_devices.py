@@ -38,8 +38,8 @@ def test_board() -> None:
         """
     )
     m.run()
-    assert board.leds == 0b10110
-    assert m.regs[2:4] == [0b10110, 0b1010]
+    assert board.led == 0
+    assert m.regs[2:4] == [0, 0b1010]
 
 
 def test_counter_counts_instructions() -> None:

@@ -81,3 +81,5 @@ With the interrupt: write 1 to CONTROL, and interrupt 2 comes when a byte is wai
 ## After a reset
 
 Both buffers are empty, STATUS is 0, and the interrupt is disabled. A byte that was being sent is cut off.
+
+The transmitter then keeps the line high for one byte time (10 µs) before it sends the next byte, so the PC's side always sees a cut-off byte end before a new one starts. After the FPGA is configured, the line is high from the start.

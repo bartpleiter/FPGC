@@ -74,10 +74,41 @@ class IoConfig(BaseModel):
     wave_dir: Path = Path("build/io/wave")
 
 
+class SystemConfig(BaseModel):
+    top: str = "fpgc"
+    # The RTL files of the top level, used in simulation, linting and Quartus. The CPU's
+    # and the I/O devices' files come on top of these.
+    rtl_files: list[Path] = [
+        Path("Hardware/system/fpgc.v"),
+        Path("Hardware/system/reset_control.v"),
+        Path("Hardware/system/activity_leds.v"),
+        Path("Hardware/system/rom.v"),
+    ]
+    # The PLL, only for Quartus. Simulation and linting use pll_model instead.
+    pll_file: Path = Path("Hardware/system/system_pll.v")
+    pll_model: Path = Path("Tests/system/system_pll.v")
+    pins_file: Path = Path("Hardware/system/pins.qsf")
+    sdc_file: Path = Path("Hardware/system/fpgc.sdc")
+    boot_rom: Path = Path("Software/boot/boot.asm")
+    tests_dir: Path = Path("Tests/system")
+    gtkwave_rc: Path = Path("Tests/common/gtkwaverc")
+    build_dir: Path = Path("build/system")
+    quartus_dir: Path = Path("build/system/quartus")
+    wave_dir: Path = Path("build/system/wave")
+
+
+class BoardConfig(BaseModel):
+    port: str = "/dev/ttyUSB0"  # the USB serial chip
+    baud: int = 1_000_000
+    jtag_cable: str = "USB-Blaster"  # as `quartus_pgm -l` lists it
+
+
 class Config(BaseModel):
     build_dir: Path = Path("build")
     cpu: CpuConfig = CpuConfig()
     io: IoConfig = IoConfig()
+    system: SystemConfig = SystemConfig()
+    board: BoardConfig = BoardConfig()
     website: WebsiteConfig = WebsiteConfig()
 
 

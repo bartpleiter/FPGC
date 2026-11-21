@@ -1,0 +1,16 @@
+[*] GTKWave preset for activity_leds (fpgc system wave activity_leds)
+@28
+tb_activity_leds.clk
+@820
+tb_activity_leds.label[95:0]
+@28
+tb_activity_leds.dut.reset
+@22
+tb_activity_leds.dut.counter[1:0]
+@28
+tb_activity_leds.dut.tick
+@22
+tb_activity_leds.dut.activity[1:0]
+tb_activity_leds.dut.active[1:0]
+tb_activity_leds.dut.seen[1:0]
+tb_activity_leds.dut.leds[1:0]

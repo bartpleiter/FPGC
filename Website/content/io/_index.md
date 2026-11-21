@@ -4,7 +4,7 @@ weight: 3
 reader: programming
 ---
 
-The devices that software reaches through registers: the UART, the timer, the cycle counter and the board register with the LEDs and DIP switches. They sit behind the device bridge on the CPU's bus, in the device registers of the [memory map](../memory-map.md).
+The devices that software reaches through registers: the UART, the timer, the cycle counter and the board register with the user LED and the DIP switches. They sit behind the device bridge on the CPU's bus, in the device registers of the [memory map](../memory-map.md).
 
 ## The devices
 
@@ -13,7 +13,7 @@ The devices that software reaches through registers: the UART, the timer, the cy
 | 0 | `0xFFFF8000` | UART | 2 | [UART](uart.md) |
 | 1 | `0xFFFF8100` | cycle counter | none | [Timer and cycle counter](timer.md) |
 | 2 | `0xFFFF8200` | timer | 1 | [Timer and cycle counter](timer.md) |
-| 3 | `0xFFFF8300` | board: LEDs and DIP switches | none | [below](#board-register) |
+| 3 | `0xFFFF8300` | board: user LED and DIP switches | none | [below](#board-register) |
 
 Device n has the 256 bytes from `0xFFFF8000` + 256 × n. A device that's added later gets the next number.
 
@@ -74,18 +74,20 @@ Done:
 
 ## Board register
 
-The five LEDs that no device uses, and the four DIP switches.
+The user LED and the four DIP switches.
 
 | Address | Register | Read | Write |
 | --- | --- | --- | --- |
-| `0xFFFF8300` | LEDS | bits [4:0]: the LEDs | bits [4:0]: bit n turns LED n on (1) or off (0) |
+| `0xFFFF8300` | LED | bit 0: the user LED | bit 0: turns the user LED on (1) or off (0) |
 | `0xFFFF8304` | SWITCHES | bits [3:0]: the four DIP switches | ignored |
 
 The switches are read through a synchronizer, so a change shows up in the register two cycles later.
 
+The user LED is the only LED that software controls. The board's other LEDs show what the hardware does, such as the UART's lines, and software can't change them (see [System](../system.md#leds)).
+
 ## After a reset
 
-- Every register is 0: the LEDs are off, the timer is stopped, and every interrupt is disabled.
+- Every register is 0: the user LED is off, the timer is stopped, and every interrupt is disabled.
 - The UART's buffers are empty.
 - The cycle counter starts again at 0.
 

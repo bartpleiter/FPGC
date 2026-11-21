@@ -1,0 +1,24 @@
+[*] GTKWave preset for fpgc (fpgc system wave fpgc)
+@28
+tb_fpgc.clk
+@200
+-Reset
+@28
+tb_fpgc.dut.locked
+tb_fpgc.dut.reset_n
+tb_fpgc.dut.uart_rts_n
+tb_fpgc.dut.uart_dtr_n
+tb_fpgc.dut.reset
+@200
+-
+-UART
+@28
+tb_fpgc.dut.uart_tx
+tb_fpgc.dut.uart_rx
+@200
+-
+-LEDs
+@28
+tb_fpgc.dut.led_uart_tx
+tb_fpgc.dut.led_uart_rx
+tb_fpgc.dut.led_user

@@ -1,9 +1,10 @@
-// PLL of the timing harness, with the outputs of the full system
-// 50 MHz in; c1 is the 100 MHz CPU clock. The other outputs are unused here, but they
-// set the same VCO and clock uncertainty as in the full system.
-module harness_pll (
+// PLL
+// 50 MHz in; c1 is the 100 MHz system clock, and c2 the SDRAM clock later. The other
+// outputs are unused for now, but set the same VCO and clock uncertainty.
+module system_pll (
     input  wire clk_50,
-    output wire clk_100
+    output wire clk_100,
+    output wire locked   // the clocks are stable
 );
 
 wire [4:0] clocks;
@@ -44,10 +45,12 @@ altpll #(
     .port_clk3("PORT_USED"),
     .port_clk4("PORT_USED"),
     .port_inclk0("PORT_USED"),
+    .port_locked("PORT_USED"),
     .width_clock(5)
 ) pll (
     .inclk({1'b0, clk_50}),
-    .clk(clocks)
+    .clk(clocks),
+    .locked(locked)
 );
 
 endmodule

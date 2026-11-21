@@ -23,7 +23,7 @@ def compile_tb(
     tb: Path,
     sources: list[Path] | tuple[Path, ...],
     out: Path,
-    parameters: dict[str, int] | None = None,
+    parameters: dict[str, int | str] | None = None,
     include_dirs: list[Path] | tuple[Path, ...] = (),
     defines: list[str] | tuple[str, ...] = (),
 ) -> Path:

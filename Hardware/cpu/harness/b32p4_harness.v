@@ -9,7 +9,9 @@ module b32p4_harness #(
 );
 
 wire clk;
-harness_pll pll (.clk_50(clk_50), .clk_100(clk));
+/* verilator lint_off PINCONNECTEMPTY */
+system_pll pll (.clk_50(clk_50), .clk_100(clk), .locked());
+/* verilator lint_on PINCONNECTEMPTY */
 
 wire [71:0] random;
 source #(72) src (.clk(clk), .din(din), .q(random));

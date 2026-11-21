@@ -20,7 +20,7 @@ The bridge has no state of a device. It decodes, answers and gives strobes. Each
                    |   +------+ +---------------+ +-------+ +-----+ |
                    +------|-----------------------------|-------|---+
                           |                             |       |
-                    rx, tx, interrupt 2           interrupt 1  LEDs, DIP switches
+                    rx, tx, interrupt 2           interrupt 1  user LED, DIP switches
 ```
 
 ## What goes where
@@ -59,7 +59,7 @@ The bus side is the CPU's bus: `bus_request`, `bus_write`, `bus_addr`, `bus_writ
 | `rom_read_word[31:0]` | in | the ROM's word, in the cycle after `rom_addr` |
 | `uart_rx` | in | the UART's receive line |
 | `uart_tx` | out | the UART's transmit line |
-| `leds[4:0]` | out | the LEDs of the board register, 1 is on |
+| `user_led` | out | the user LED, 1 is on |
 | `switches[3:0]` | in | the DIP switches, not synchronized |
 | `timer_irq` | out | the timer's interrupt, to the CPU's interrupt 1 |
 | `uart_irq` | out | the UART's interrupt, to the CPU's interrupt 2 |
@@ -128,7 +128,7 @@ What each device gets from the bridge, and what it gives back:
 | `uart` | `transmit` with a byte, `receive`, `clear` (the errors), `configure` with the interrupt enable | `tx_full`, `received` with the byte taken, `rx_waiting`, `overflow`, `framing_error`, `irq_enable`, `irq` |
 | `cycle_counter` | `take_snapshot` | `snapshot`, 64 bits |
 | `timer` | `start` with a count, `configure` with periodic and the interrupt enable, `clear` | `count`, `periodic`, `irq_enable`, `expired`, `irq` |
-| `board_io` | `set_leds` with the LEDs | `leds`, `switches` (synchronized) |
+| `board_io` | `set_led` with the LED | `led`, `switches` (synchronized) |
 
 The bridge knows where each bit of a register is. A device only knows what it's told: the timer gets `periodic` as a signal of its own, not as bit 0 of a word.
 
@@ -164,4 +164,4 @@ The files are in `Hardware/io/`.
 | `fifo.v` | a buffer in a small RAM, for the UART: a byte that's taken comes out in the next cycle |
 | `cycle_counter.v` | the cycle counter and its snapshot |
 | `timer.v` | the timer |
-| `board_io.v` | the LEDs and the DIP switches, with a synchronizer |
+| `board_io.v` | the user LED, and the DIP switches with a synchronizer |

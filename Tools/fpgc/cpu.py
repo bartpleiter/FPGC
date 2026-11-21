@@ -6,7 +6,7 @@ import click
 
 from fpgc.common import lint_rtl, run
 from fpgc.config import CONFIG
-from fpgc.quartus import compile_and_report, compile_seeds, prepare
+from fpgc.quartus import compile_and_report, compile_seeds, harness_sdc, prepare
 
 cfg = CONFIG.cpu
 
@@ -151,21 +151,23 @@ def timing(
         files, top = tuple(cfg.rtl_files), top or cfg.harness_top
     top = top or files[0].stem
     name = top
-    parameters = {}
+    parameters: dict[str, int | str] = {}
     if l1i_lines is not None:
         name += f"-l1i{l1i_lines}"
         parameters["L1I_LINES"] = l1i_lines
     if l1d_lines is not None:
         name += f"-l1d{l1d_lines}"
         parameters["L1D_LINES"] = l1d_lines
-    sources = sorted(cfg.harness_dir.glob("*.v")) + list(files)
+    # The harness, with the system's PLL
+    sources = sorted(cfg.harness_dir.glob("*.v")) + [CONFIG.system.pll_file]
+    sources += list(files)
     out_dirs = {
         s: cfg.timing_dir / (name if s == 1 else f"{name}-seed{s}")
         for s in (range(1, seeds + 1) if seeds else [seed])
     }
     for s, out_dir in out_dirs.items():
-        periods = (cfg.clock_period_ns, cfg.board_clock_period_ns)
-        prepare(out_dir, top, sources, cfg.device, periods, s, parameters)
+        sdc = harness_sdc((cfg.clock_period_ns, cfg.board_clock_period_ns))
+        prepare(out_dir, top, sources, cfg.device, sdc, s, parameters)
     if seeds:
         compile_seeds(cfg.quartus_bin, out_dirs, top)
     else:

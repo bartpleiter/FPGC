@@ -76,24 +76,24 @@ class DeviceBridge:
 
 
 class Board:
-    """The LEDs that no device uses, and the DIP switches."""
+    """The user LED and the DIP switches."""
 
-    LEDS, SWITCHES = 0x00, 0x04
+    LED, SWITCHES = 0x00, 0x04
 
     def __init__(self, switches: int = 0) -> None:
         self.switches = switches
-        self.leds = 0
+        self.led = 0
 
     def read(self, reg: int) -> int:
-        if reg == self.LEDS:
-            return self.leds
+        if reg == self.LED:
+            return self.led
         if reg == self.SWITCHES:
             return self.switches & 0xF
         raise BusError(f"no board register {reg:#x}")
 
     def write(self, reg: int, value: int) -> None:
-        if reg == self.LEDS:
-            self.leds = value & 0x1F
+        if reg == self.LED:
+            self.led = value & 1
         elif reg != self.SWITCHES:
             raise BusError(f"no board register {reg:#x}")
 
@@ -101,7 +101,7 @@ class Board:
         pass
 
     def reset(self) -> None:
-        self.leds = 0
+        self.led = 0
 
     def irq(self) -> bool:
         return False

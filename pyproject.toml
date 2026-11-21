@@ -9,6 +9,7 @@ dependencies = [
     "click>=8.5.0",
     "hugo==0.168.0",
     "pydantic>=2.14.1",
+    "pyserial>=3.5",
 ]
 
 [dependency-groups]
@@ -18,6 +19,7 @@ dev = [
     "pytest-cov>=7.1.0",
     "pytest-xdist>=3.8.0",
     "ruff>=0.16.7",
+    "types-pyserial>=3.5.0.20261104",
 ]
 
 [project.scripts]

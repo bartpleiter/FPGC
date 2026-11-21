@@ -2,7 +2,7 @@
 
 A test is a script: bus accesses at given cycles, with the rx line and the switches
 next to them. The test checks the answer of every access (the cycle it comes in, its
-error and its word), the interrupts and the LEDs at chosen cycles, and the bytes on
+error and its word), the interrupts and the user LED at chosen cycles, and the bytes on
 the tx line. The devices' own behavior is tested in their unit tests; these tests
 check the decoding, the answers, and that every register reaches its device.
 """
@@ -29,7 +29,7 @@ OUTPUTS = [
     "bus_ready",
     "bus_error",
     "bus_read_word",
-    "leds",
+    "user_led",
     "timer_irq",
     "uart_irq",
     "uart_tx",
@@ -44,12 +44,12 @@ UART_TRANSMIT, UART_RECEIVE, UART_STATUS, UART_CONTROL = range(
 )
 COUNTER_SNAPSHOT, COUNTER_LOW, COUNTER_HIGH = range(0xFFFF8100, 0xFFFF810C, 4)
 TIMER_COUNT, TIMER_CONTROL, TIMER_STATUS = range(0xFFFF8200, 0xFFFF820C, 4)
-BOARD_LEDS, BOARD_SWITCHES = 0xFFFF8300, 0xFFFF8304
+BOARD_LED, BOARD_SWITCHES = 0xFFFF8300, 0xFFFF8304
 REGISTERS = [
     *range(0xFFFF8000, 0xFFFF8010, 4),
     *range(0xFFFF8100, 0xFFFF810C, 4),
     *range(0xFFFF8200, 0xFFFF820C, 4),
-    BOARD_LEDS,
+    BOARD_LED,
     BOARD_SWITCHES,
 ]
 
@@ -171,9 +171,9 @@ def test_registers_after_reset() -> None:
 def test_writes_reach_the_devices() -> None:
     """A write to each register that has an effect, and a read that shows it."""
     s = Script()
-    s.access("leds", BOARD_LEDS, 0xFFFFFF35)  # only bits [4:0]
-    s.expect(leds=0x15)
-    s.access("leds", BOARD_LEDS, word=0x15)
+    s.access("led", BOARD_LED, 0xFFFFFFF7)  # only bit 0
+    s.expect(user_led=1)
+    s.access("led", BOARD_LED, word=1)
     s.access("uart ctrl", UART_CONTROL, 3)
     s.access("uart ctrl", UART_CONTROL, word=1)
     s.access("timer ctrl", TIMER_CONTROL, 3)
@@ -211,8 +211,8 @@ def test_nothing_there() -> None:
     for addr in [0xFFFF8400, 0xFFFF9000, 0xFFFFFE00]:  # devices 4, 16 and 126
         s.access("no device", addr, error=1)
     s.access("readb", UART_STATUS, error=1, enables=0x1)
-    s.access("writeh", BOARD_LEDS, 0x1F, error=1, enables=0x3)
-    s.expect(leds=0)
+    s.access("writeh", BOARD_LED, 0x1, error=1, enables=0x3)
+    s.expect(user_led=0)
     s.access("rom end", ROM + 0x1000, error=1)
     s.access("gpu", 0x05000000, error=1)
     s.access("sram", 0x06000000, 1, error=1)
@@ -239,16 +239,16 @@ def test_rom() -> None:
 
 def test_random() -> None:
     """Random accesses to every region, with every size, against a model of the
-    registers that hold still: the LEDs, the switches and the settings."""
+    registers that hold still: the user LED, the switches and the settings."""
     rng = random.Random(1)
     s = Script()
-    leds = uart_control = timer_control = 0
+    led = uart_control = timer_control = 0
     still = [UART_TRANSMIT, UART_RECEIVE, UART_STATUS, UART_CONTROL]
     still += [COUNTER_SNAPSHOT, COUNTER_LOW]
-    still += [COUNTER_HIGH, TIMER_COUNT, TIMER_CONTROL, TIMER_STATUS, BOARD_LEDS]
+    still += [COUNTER_HIGH, TIMER_COUNT, TIMER_CONTROL, TIMER_STATUS, BOARD_LED]
     still += [BOARD_SWITCHES]
     writable = [UART_RECEIVE, UART_STATUS, UART_CONTROL, COUNTER_LOW, COUNTER_HIGH]
-    writable += [TIMER_CONTROL, TIMER_STATUS, BOARD_LEDS, BOARD_SWITCHES]
+    writable += [TIMER_CONTROL, TIMER_STATUS, BOARD_LED, BOARD_SWITCHES]
     for _ in range(1500):
         kind = rng.random()
         if kind < 0.15:
@@ -271,8 +271,8 @@ def test_random() -> None:
             error = 1
         elif write:
             assert data is not None
-            if word_addr == BOARD_LEDS:
-                leds = data & 0x1F
+            if word_addr == BOARD_LED:
+                led = data & 1
             elif word_addr == UART_CONTROL:
                 uart_control = data & 1
             elif word_addr == TIMER_CONTROL:
@@ -281,7 +281,7 @@ def test_random() -> None:
             word = {
                 UART_CONTROL: uart_control,
                 TIMER_CONTROL: timer_control,
-                BOARD_LEDS: leds,
+                BOARD_LED: led,
                 BOARD_SWITCHES: SWITCHES,
             }.get(word_addr, 0)
         s.access(
@@ -297,6 +297,7 @@ def test_uart() -> None:
     s = Script()
     s.line.idle(BYTE + 100)
     s.line.send(b"ab")
+    s.wait_until(BYTE + 10)  # the line is high for a byte after the reset
     quick = [s.access("tx", UART_TRANSMIT, c) for c in data[:33]]
     s.access("status", UART_STATUS, word=TX_FULL)
     slow = s.access("tx", UART_TRANSMIT, data[33], hold=BYTE)
@@ -309,7 +310,7 @@ def test_uart() -> None:
     s.access("rx", UART_RECEIVE, word=ord("b"))
     s.expect(uart_irq=0)
     s.access("rx", UART_RECEIVE, word=0)
-    s.wait_until(36 * BYTE)
+    s.wait_until(37 * BYTE)
     assert s.run("uart") == data
     assert all(a.latency == 0 for a in quick)
     assert BYTE // 2 < slow.latency < BYTE
@@ -332,7 +333,7 @@ def test_timer_interrupt() -> None:
     s.run("timer")
 
 
-# The demo reads a word and a byte of the ROM, sets the LEDs, starts the timer, reads
+# The demo reads a word and a byte of the ROM, turns on the user LED, starts the timer, reads
 # its count, and takes a snapshot of the cycle counter. Then it makes three accesses
 # that nothing takes: a byte read of a device register, device 9, which doesn't
 # exist, and the GPU's region, which is empty for now.
@@ -340,7 +341,7 @@ def test_demo() -> None:
     s = Script()
     s.access("read rom", ROM + 0x10, word=rom_word(0x10))
     s.access("readb rom", ROM + 0x13, word=rom_word(0x13), enables=0x8)
-    s.access("write leds", BOARD_LEDS, 0b00101)
+    s.access("write led", BOARD_LED, 1)
     s.access("timer 100", TIMER_COUNT, 100)
     s.access("read count", TIMER_COUNT, word=100 - 2)
     snapshot = s.access("snapshot", COUNTER_SNAPSHOT, 0)

@@ -9,7 +9,7 @@ module uart_tx #(
     input  wire [7:0] data,
     output wire       busy,
 
-    output reg        tx
+    output reg        tx = 1'b1  // high from configuration on
 );
 
 localparam [15:0] BIT = CLOCKS_PER_BIT;
@@ -24,7 +24,7 @@ always @(posedge clk) begin
     if (reset) begin
         tx     <= 1'b1;
         shift  <= 9'h1FF;
-        bits   <= 4'd0;
+        bits   <= 4'd10; // To make sure the line stays high for a while after a reset
         clocks <= 16'd0;
     end else if (!busy) begin
         if (start) begin

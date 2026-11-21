@@ -5,12 +5,15 @@ from pathlib import Path
 
 import click
 
+from fpgc.board import board
 from fpgc.common import run
 from fpgc.config import CONFIG
 from fpgc.cpu import cpu
 from fpgc.cpu import lint as cpu_lint
 from fpgc.io import io
 from fpgc.io import lint as io_lint
+from fpgc.system import lint as system_lint
+from fpgc.system import system
 from fpgc.website import website
 
 
@@ -21,8 +24,10 @@ def main() -> None:
         raise click.UsageError("run fpgc from the root of the FPGC repository")
 
 
+main.add_command(board)
 main.add_command(cpu)
 main.add_command(io)
+main.add_command(system)
 main.add_command(website)
 
 
@@ -44,6 +49,7 @@ def check(ctx: click.Context) -> None:
     run("mypy", "Tools")
     ctx.invoke(cpu_lint)
     ctx.invoke(io_lint)
+    ctx.invoke(system_lint)
     run("pytest", "-q")
 
 

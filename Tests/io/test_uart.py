@@ -38,6 +38,7 @@ BENCH = UnitBench(
 
 BYTE = 10 * BIT
 DEPTH = 32
+READY = BYTE + 2  # after a reset, the line stays high for a byte before a byte
 
 
 class Script:
@@ -142,16 +143,17 @@ def test_transmit_full() -> None:
     when the first byte is sent."""
     data = bytes(range(0x40, 0x40 + 34))
     s = Script()
+    s.wait_until(READY)
     s.transmit(data[:32])
     s.expect(tx_full=0)
     s.transmit(data[32:33])
     s.expect(tx_full=1)
-    s.wait_until(BYTE - 10)
+    s.wait_until(READY + BYTE - 10)
     s.expect(tx_full=1)
-    s.wait_until(BYTE + 20)
+    s.wait_until(READY + BYTE + 20)
     s.expect(tx_full=0)
     s.transmit(data[33:])
-    s.wait_until(36 * BYTE)
+    s.wait_until(37 * BYTE)
     assert s.run("transmit_full") == data
 
 
@@ -223,9 +225,27 @@ def test_reset() -> None:
     assert all(o["tx"] for o in s.outputs[after:])
 
 
-# The demo sends "Hi", while a "!" arrives on the rx line. Then it enables the
-# interrupt, which comes at once, and takes the "!", which ends the interrupt. Scroll
-# to about 2.1 µs for the reception.
+def test_line_high_for_a_byte_after_reset() -> None:
+    """After a reset, also one in the middle of a byte, the line stays high for a
+    whole byte before the next byte starts, so a receiver always sees the cut-off byte
+    end first."""
+    s = Script()
+    s.wait_until(READY)
+    s.transmit(b"x")
+    s.wait_until(READY + 4 * BIT)  # in the middle of the x
+    s.reset()
+    after = s.cycle
+    s.transmit(b"y")
+    s.wait_until(after + 3 * BYTE)
+    assert s.run("high_after_reset", tx_from=after) == b"y"
+    tx = [o["tx"] for o in s.outputs]
+    assert all(tx[after - 1 : after - 1 + BYTE])
+    assert not all(tx[after - 1 : after - 1 + BYTE + 10])
+
+
+# The demo sends "Hi", while a "!" arrives on the rx line. The line stays high for a
+# byte after the reset before the "H". Then it enables the interrupt, which comes at
+# once, and takes the "!", which ends the interrupt. Scroll to about 21 µs for that.
 def test_demo() -> None:
     s = Script()
     s.transmit(b"Hi")
@@ -236,5 +256,5 @@ def test_demo() -> None:
     s.expect(irq=1)
     s.receive(ord("!"))
     s.expect(irq=0)
-    s.wait_until(2 * BYTE + 400)
+    s.wait_until(3 * BYTE + 400)
     assert s.run("demo", demo=True) == b"Hi"

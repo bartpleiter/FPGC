@@ -23,7 +23,7 @@ module device_bridge #(
     // Pins
     input  wire        uart_rx,
     output wire        uart_tx,
-    output wire [4:0]  leds,
+    output wire        user_led,
     input  wire [3:0]  switches,
 
     // Interrupts
@@ -42,7 +42,7 @@ localparam COUNTER_HIGH     = 32'hFFFF8108;
 localparam TIMER_COUNT      = 32'hFFFF8200;
 localparam TIMER_CONTROL    = 32'hFFFF8204;
 localparam TIMER_STATUS     = 32'hFFFF8208;
-localparam BOARD_LEDS       = 32'hFFFF8300;
+localparam BOARD_LED        = 32'hFFFF8300;
 localparam BOARD_SWITCHES   = 32'hFFFF8304;
 
 wire rom  = bus_addr[31:12] == 20'h04000;
@@ -59,7 +59,7 @@ reg        counter_snapshot;
 reg        timer_start;
 reg        timer_configure;
 reg        timer_clear;
-reg        board_set_leds;
+reg        board_set_led;
 reg [31:0] data;
 
 // From the devices
@@ -93,7 +93,7 @@ always @(posedge clk) begin
     timer_start      <= 1'b0;
     timer_configure  <= 1'b0;
     timer_clear      <= 1'b0;
-    board_set_leds   <= 1'b0;
+    board_set_led    <= 1'b0;
     data             <= bus_write_data;
 
     if (!reset && (bus_request || waiting)) begin
@@ -125,7 +125,7 @@ always @(posedge clk) begin
                 TIMER_COUNT:      timer_start      <= 1'b1;
                 TIMER_CONTROL:    timer_configure  <= 1'b1;
                 TIMER_STATUS:     timer_clear      <= 1'b1;
-                BOARD_LEDS:       board_set_leds   <= 1'b1;
+                BOARD_LED:        board_set_led    <= 1'b1;
                 BOARD_SWITCHES:   ;
                 default:          bus_error        <= 1'b1;
             endcase
@@ -151,7 +151,7 @@ always @(posedge clk) begin
                 TIMER_COUNT:      bus_read_word <= timer_count;
                 TIMER_CONTROL:    bus_read_word <= {30'd0, timer_irq_enable, timer_periodic};
                 TIMER_STATUS:     bus_read_word <= {31'd0, timer_expired};
-                BOARD_LEDS:       bus_read_word <= {27'd0, leds};
+                BOARD_LED:        bus_read_word <= {31'd0, user_led};
                 BOARD_SWITCHES:   bus_read_word <= {28'd0, board_switches};
                 default:          bus_error     <= 1'b1;
             endcase
@@ -209,9 +209,9 @@ timer timer (
 board_io board (
     .clk(clk),
     .reset(reset),
-    .set_leds(board_set_leds),
-    .leds_in(data[4:0]),
-    .leds(leds),
+    .set_led(board_set_led),
+    .led_in(data[0]),
+    .led(user_led),
     .switch_pins(switches),
     .switches(board_switches)
 );

@@ -1,11 +1,11 @@
-// Board LEDs and DIP switches
+// Board user LED and DIP switches
 module board_io (
     input  wire       clk,
     input  wire       reset,
 
-    input  wire       set_leds,     // takes leds_in
-    input  wire [4:0] leds_in,
-    output reg  [4:0] leds,         // 1 is on
+    input  wire       set_led,      // takes led_in
+    input  wire       led_in,
+    output reg        led,          // the user LED, 1 is on
 
     input  wire [3:0] switch_pins,  // DIP switches
     output reg  [3:0] switches      // synchronized
@@ -20,9 +20,9 @@ end
 
 always @(posedge clk) begin
     if (reset)
-        leds <= 5'd0;
-    else if (set_leds)
-        leds <= leds_in;
+        led <= 1'b0;
+    else if (set_led)
+        led <= led_in;
 end
 
 endmodule

@@ -1,0 +1,24 @@
+[*] GTKWave preset for reset_control (fpgc system wave reset_control)
+@28
+tb_reset_control.clk
+@820
+tb_reset_control.label[95:0]
+@200
+-Pins
+@28
+tb_reset_control.dut.locked
+tb_reset_control.dut.button_n
+tb_reset_control.dut.rts_n
+tb_reset_control.dut.dtr_n
+@200
+-
+-Reset
+@28
+tb_reset_control.dut.stable
+tb_reset_control.dut.pressed
+tb_reset_control.dut.pc
+@24
+tb_reset_control.dut.pc_count[16:0]
+@28
+tb_reset_control.dut.pc_reset
+tb_reset_control.dut.reset

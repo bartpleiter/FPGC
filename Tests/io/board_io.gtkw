@@ -5,10 +5,10 @@ tb_board_io.clk
 tb_board_io.label[95:0]
 @28
 tb_board_io.dut.reset
-tb_board_io.dut.set_leds
+tb_board_io.dut.set_led
+tb_board_io.dut.led_in
+tb_board_io.dut.led
 @22
-tb_board_io.dut.leds_in[4:0]
-tb_board_io.dut.leds[4:0]
 @200
 -
 -Switches

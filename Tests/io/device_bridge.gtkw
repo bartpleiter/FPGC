@@ -31,7 +31,7 @@ tb_device_bridge.dut.rom_read_word[31:0]
 -
 -To the devices
 @28
-tb_device_bridge.dut.board_set_leds
+tb_device_bridge.dut.board_set_led
 tb_device_bridge.dut.timer_start
 tb_device_bridge.dut.counter_snapshot
 @22
@@ -39,8 +39,8 @@ tb_device_bridge.dut.data[31:0]
 @200
 -
 -From the devices
-@22
-tb_device_bridge.dut.leds[4:0]
+@28
+tb_device_bridge.dut.user_led
 @24
 tb_device_bridge.dut.timer_count[31:0]
 @22

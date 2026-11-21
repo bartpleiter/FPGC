@@ -84,34 +84,41 @@ CORNER_NAMES = {
 WORST_CORNER = "7_slow_1200mv_100c"
 
 
+def harness_sdc(periods: tuple[float, float]) -> str:
+    """The SDC of a timing harness: `periods` are those of the clk and clk_50 pins."""
+    period, board_period = periods
+    return SDC.format(period=period, board_period=board_period)
+
+
 def prepare(
     out_dir: Path,
     top: str,
     files: list[Path],
     device: str,
-    periods: tuple[float, float],
+    sdc: str,
     seed: int,
-    parameters: dict[str, int] | None = None,
+    parameters: dict[str, int | str] | None = None,
+    extra_qsf: str = "",
 ) -> None:
     """Write the project, the SDC and the STA script of one compile into `out_dir`.
 
-    `periods` are those of the clk and clk_50 pins. `parameters` overrides
-    parameters of the top level.
+    `sdc` is the text of the SDC. `parameters` overrides parameters of the top level,
+    and `extra_qsf` is added to the project, such as the pins.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     qsf = QSF.format(device=device, top=top, seed=seed)
     qsf += "".join(
-        f"set_parameter -name {name} {value}\n"
+        f'set_parameter -name {name} "{value}"\n'
+        if isinstance(value, str)
+        else f"set_parameter -name {name} {value}\n"
         for name, value in (parameters or {}).items()
     )
     qsf += "".join(
         f"set_global_assignment -name VERILOG_FILE {f.absolute()}\n" for f in files
     )
+    qsf += extra_qsf
     (out_dir / f"{top}.qsf").write_text(qsf)
-    period, board_period = periods
-    (out_dir / f"{top}.sdc").write_text(
-        SDC.format(period=period, board_period=board_period)
-    )
+    (out_dir / f"{top}.sdc").write_text(sdc)
     (out_dir / "report.tcl").write_text(STA_SCRIPT.format(top=top))
 
 
