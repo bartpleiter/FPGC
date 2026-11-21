@@ -1,0 +1,14 @@
+[*] GTKWave preset for cycle_counter (fpgc io wave cycle_counter)
+@28
+tb_cycle_counter.clk
+@820
+tb_cycle_counter.label[95:0]
+@28
+tb_cycle_counter.dut.reset
+tb_cycle_counter.dut.take_snapshot
+@200
+-
+-Counter
+@22
+tb_cycle_counter.dut.count[63:0]
+tb_cycle_counter.dut.snapshot[63:0]

@@ -28,3 +28,9 @@ def run(
         if log is not None:
             print(f"failed, see {log}", file=sys.stderr)
         sys.exit(exit_code)
+
+
+def lint_rtl(files: list[Path]) -> None:
+    """Lint RTL with Verilator, with every file's module as the top once."""
+    for top in [f.stem for f in files]:
+        run("verilator", "--lint-only", "-Wall", "--quiet", "--top-module", top, *files)

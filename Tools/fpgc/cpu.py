@@ -4,7 +4,7 @@ from pathlib import Path
 
 import click
 
-from fpgc.common import run
+from fpgc.common import lint_rtl, run
 from fpgc.config import CONFIG
 from fpgc.quartus import compile_and_report, compile_seeds, prepare
 
@@ -38,16 +38,7 @@ def test(pattern: str, wave: bool, seeds: int) -> None:
 @cpu.command()
 def lint() -> None:
     """Lint the CPU RTL with Verilator."""
-    for top in [f.stem for f in cfg.rtl_files]:
-        run(
-            "verilator",
-            "--lint-only",
-            "-Wall",
-            "--quiet",
-            "--top-module",
-            top,
-            *cfg.rtl_files,
-        )
+    lint_rtl(cfg.rtl_files)
 
 
 @cpu.command()

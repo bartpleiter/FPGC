@@ -7,7 +7,10 @@ import click
 
 from fpgc.common import run
 from fpgc.config import CONFIG
-from fpgc.cpu import cpu, lint
+from fpgc.cpu import cpu
+from fpgc.cpu import lint as cpu_lint
+from fpgc.io import io
+from fpgc.io import lint as io_lint
 from fpgc.website import website
 
 
@@ -19,6 +22,7 @@ def main() -> None:
 
 
 main.add_command(cpu)
+main.add_command(io)
 main.add_command(website)
 
 
@@ -38,7 +42,8 @@ def check(ctx: click.Context) -> None:
     run("ruff", "format", "--check")
     run("ruff", "check")
     run("mypy", "Tools")
-    ctx.invoke(lint)
+    ctx.invoke(cpu_lint)
+    ctx.invoke(io_lint)
     run("pytest", "-q")
 
 

@@ -3,7 +3,7 @@
 // signals, bus_request to bus_read_word. The testbench must have `clk`, `reset`, the
 // ROM as `reg [31:0] rom [0:1023]` (4 KiB at 0x04000000), `cycle` (an integer, the
 // number of the current cycle), `sdram_latency` and SDRAM_RANDOM of
-// sdram_line_model.vh, and a task `stop` that ends the simulation.
+// sdram_line_model.vh, INTERRUPTS, and a task `stop` that ends the simulation.
 //
 // The bus has one access at a time. bus_request is 1 for one cycle, and the address,
 // the write data and the byte enables stay the same until the answer: bus_ready is 1 for
@@ -24,6 +24,9 @@
 // answer. A protocol error ends
 // the run with a "protocol error" line.
 //
+// The model has no interrupts: device_interrupts is 0. Its task bus_finish, which the
+// testbench calls before it stops, has nothing to do.
+//
 // Plusargs: +seed=<n>, the seed of the random latencies (default 0).
 
 // ---- The bus ----
@@ -36,6 +39,13 @@ wire [3:0]  bus_byte_enable;
 reg         bus_ready = 1'b0;
 reg  [31:0] bus_read_word = 32'bx;
 reg         bus_error = 1'bx;
+
+wire [INTERRUPTS:1] device_interrupts = {INTERRUPTS{1'b0}};
+
+task bus_finish;
+    begin
+    end
+endtask
 
 // ---- The model ----
 

@@ -1,0 +1,21 @@
+[*] GTKWave preset for uart_rx (fpgc io wave uart_rx)
+@28
+tb_uart_rx.clk
+@820
+tb_uart_rx.label[95:0]
+@28
+tb_uart_rx.dut.reset
+tb_uart_rx.dut.rx
+tb_uart_rx.dut.line
+@200
+-
+-Receiver
+@24
+tb_uart_rx.dut.state[2:0]
+tb_uart_rx.dut.clocks[15:0]
+tb_uart_rx.dut.bits[2:0]
+@22
+tb_uart_rx.dut.data[7:0]
+@28
+tb_uart_rx.dut.valid
+tb_uart_rx.dut.framing_error

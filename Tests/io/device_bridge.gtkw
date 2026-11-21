@@ -1,0 +1,47 @@
+[*] GTKWave preset for device_bridge (fpgc io wave device_bridge)
+@28
+tb_device_bridge.clk
+@820
+tb_device_bridge.label[95:0]
+@28
+tb_device_bridge.dut.reset
+@200
+-
+-Bus
+@28
+tb_device_bridge.dut.bus_request
+tb_device_bridge.dut.bus_write
+@22
+tb_device_bridge.dut.bus_addr[31:0]
+tb_device_bridge.dut.bus_write_data[31:0]
+tb_device_bridge.dut.bus_byte_enable[3:0]
+@28
+tb_device_bridge.dut.waiting
+tb_device_bridge.dut.bus_ready
+tb_device_bridge.dut.bus_error
+@22
+tb_device_bridge.dut.bus_read_word[31:0]
+@200
+-
+-ROM
+@22
+tb_device_bridge.dut.rom_addr[11:2]
+tb_device_bridge.dut.rom_read_word[31:0]
+@200
+-
+-To the devices
+@28
+tb_device_bridge.dut.board_set_leds
+tb_device_bridge.dut.timer_start
+tb_device_bridge.dut.counter_snapshot
+@22
+tb_device_bridge.dut.data[31:0]
+@200
+-
+-From the devices
+@22
+tb_device_bridge.dut.leds[4:0]
+@24
+tb_device_bridge.dut.timer_count[31:0]
+@22
+tb_device_bridge.dut.snapshot[63:0]

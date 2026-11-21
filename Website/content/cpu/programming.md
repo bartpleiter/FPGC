@@ -88,6 +88,7 @@ Everything outside SDRAM and the CPU itself goes over the bus: reads of data fro
 | --- | --- |
 | a device that answers in the cycle after the request | 3 |
 | a device that needs `D` cycles | `D` + 2 |
+| a data read from the ROM | 4 |
 
 So for data that's used a lot, SDRAM is faster than the ROM, because the cache makes most of its reads free.
 

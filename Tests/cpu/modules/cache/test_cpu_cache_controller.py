@@ -11,9 +11,9 @@ from pathlib import Path
 
 import pytest
 
+from ....common.presets import check_preset
+from ....common.unit_bench import label_hex
 from ...cache_model import LINE_WORDS, Caches, Read, Transfer, Write
-from ...presets import check_preset
-from ...unit_bench import label_hex
 from ...verilog import BUILD_DIR, RTL_FILES, WAVE_DIR, compile_tb, run_vvp
 
 FOLDER = Path(__file__).parent

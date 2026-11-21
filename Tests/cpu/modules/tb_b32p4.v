@@ -1,6 +1,9 @@
 // The testbench of the ISS comparison. It runs a program on b32p4 with the ROM, the
-// SDRAM line model behind the cache controller, and the bus model on the bus. It raises the interrupt inputs as a
-// schedule says, and writes the retire port to a trace file.
+// SDRAM line model behind the cache controller, and the bus model on the bus. It raises
+// the interrupt inputs as a schedule says, and writes the retire port to a trace file.
+//
+// Compiled with the macro DEVICES, it has the device bridge and the devices on the bus
+// instead of the bus model (Tests/io/devices.vh), and their interrupts.
 //
 // A trace line is the cycle number, then the record in the format of the ISS trace
 // (b32sim's Retired), so pytest can compare the two line by line. The testbench stops
@@ -80,7 +83,14 @@ bit [31:0] sdram [0:(1 << 24) - 1];
 
 reg [31:0] rom [0:1023];
 
+// As many interrupt inputs as the ISS has
+localparam INTERRUPTS = 2;
+
+`ifdef DEVICES
+`include "devices.vh"
+`else
 `include "bus_model.vh"
+`endif
 
 // ---- The CPU ----
 
@@ -88,10 +98,8 @@ wire [31:0] fetch_addr;
 wire        fetch_en;
 reg  [31:0] rom_word;
 
-// As many interrupt inputs as the ISS has
-localparam INTERRUPTS = 2;
-
-reg  [INTERRUPTS:1] interrupts = {INTERRUPTS{1'b0}};
+reg  [INTERRUPTS:1] scheduled = {INTERRUPTS{1'b0}};  // by +interrupts
+wire [INTERRUPTS:1] interrupts = scheduled | device_interrupts;
 
 wire        retire_valid;
 wire [31:0] retire_pc;
@@ -192,7 +200,7 @@ endtask
 
 always @(posedge clk) begin
     while (!reset && next_cycle == cycle) begin
-        interrupts[next_number] <= next_value[0];
+        scheduled[next_number] <= next_value[0];
         read_schedule;
     end
 end
@@ -294,6 +302,7 @@ always @(posedge clk) begin
             last_pc = retire_pc;
             if (retire_instr == HALT && !retire_irq) begin
                 dump_sdram;
+                bus_finish;
                 $display("halted after %0d cycles and %0d instructions",
                          cycle + 1, retired);
                 stop;

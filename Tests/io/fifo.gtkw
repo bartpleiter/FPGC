@@ -1,0 +1,27 @@
+[*] GTKWave preset for fifo (fpgc io wave fifo)
+@28
+tb_fifo.clk
+@820
+tb_fifo.label[95:0]
+@28
+tb_fifo.dut.reset
+@200
+-
+-Ports
+@28
+tb_fifo.dut.push
+@22
+tb_fifo.dut.write_data[7:0]
+@28
+tb_fifo.dut.pop
+@22
+tb_fifo.dut.read_data[7:0]
+@28
+tb_fifo.dut.empty
+tb_fifo.dut.full
+@200
+-
+-Pointers
+@24
+tb_fifo.dut.write_ptr[5:0]
+tb_fifo.dut.read_ptr[5:0]

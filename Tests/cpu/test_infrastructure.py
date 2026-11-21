@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
+from ..common.presets import check_preset
 from .iss_comparison import RtlTrace, compare
-from .presets import check_preset
 
 ISS = [
     "04000000 00000000",

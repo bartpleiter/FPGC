@@ -27,14 +27,25 @@ goes on with what the RTL does after the reset, from the start of the program. S
 undefined after a reset, and the ISS clears it, so it loads the program's SDRAM image
 again: that's what the testbench's SDRAM still has, as long as the program doesn't read
 a line that was written back before the reset. RtlTrace.reset says where the reset came.
+
+A program with the comment `; devices` runs with the device bridge and the devices of
+Hardware/io on the bus, instead of the bus model (Tests/io/devices.vh), and their
+interrupts instead of a schedule. The devices count cycles and the UART's line runs in
+cycles, which the ISS doesn't have, so the ISS takes the word of every device read from
+the RTL's trace (Replay). A comment `; uart input "text" at cycle C` sends the bytes of
+the Python string to the UART from cycle C on. The bytes that the UART sends must be the
+bytes that the program wrote to it in the ISS, and those of a comment
+`; uart output "text"`, if the program has one.
 """
 
+import ast
 import functools
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from b32asm.assembler import assemble
+from b32sim.devices import Board, CycleCounter, DeviceBridge, Timer, Uart
 from b32sim.sim import (
     ROM_BASE,
     ROM_SIZE,
@@ -45,7 +56,9 @@ from b32sim.sim import (
     SimError,
 )
 
-from .verilog import BUILD_DIR, MODULES_DIR, REPO, RTL_FILES, compile_tb, run_vvp
+from ..common.verilog import compile_tb as compile_area_tb
+from ..io.verilog import IO
+from .verilog import BUILD_DIR, CPU, MODULES_DIR, REPO, RTL_FILES, compile_tb, run_vvp
 
 COMPARISON_DIR = BUILD_DIR / "iss_comparison"
 CONTEXT = 10  # instructions shown before a mismatch
@@ -58,6 +71,9 @@ DATA_BYTES = 0x2000
 INTERRUPT_COMMENT = re.compile(r"^\s*; interrupt (\d) at cycle (\d+)", re.MULTILINE)
 RESET_COMMENT = re.compile(r"^\s*; reset at cycle (\d+)", re.MULTILINE)
 SDRAM_COMMENT = "; runs from SDRAM"
+DEVICES_COMMENT = re.compile(r"^\s*; devices\s*$", re.MULTILINE)
+UART_INPUT_COMMENT = re.compile(r'^\s*; uart input (".*") at cycle (\d+)', re.MULTILINE)
+UART_OUTPUT_COMMENT = re.compile(r'^\s*; uart output (".*")', re.MULTILINE)
 BOOT_ROM = """
     jump Boot
     halt
@@ -71,14 +87,54 @@ CCACHE = 0x70000000  # the instruction word of ccache, and of ccached with bit 0
 
 
 @functools.cache
-def compile_b32p4(lines: int) -> Path:
-    """Compile the ISS comparison testbench with `lines` lines in each L1 cache."""
-    return compile_tb(
+def compile_b32p4(lines: int, devices: bool = False) -> Path:
+    """Compile the ISS comparison testbench with `lines` lines in each L1 cache, and
+    with the devices instead of the bus model if `devices`."""
+    if not devices:
+        return compile_tb(
+            MODULES_DIR / "tb_b32p4.v",
+            RTL_FILES,
+            COMPARISON_DIR / f"tb_b32p4_{lines}.vvp",
+            {"LINES": lines},
+        )
+    return compile_area_tb(
         MODULES_DIR / "tb_b32p4.v",
-        RTL_FILES,
-        COMPARISON_DIR / f"tb_b32p4_{lines}.vvp",
+        CPU.rtl_files + IO.rtl_files,
+        COMPARISON_DIR / f"tb_b32p4_{lines}_devices.vvp",
         {"LINES": lines},
+        CPU.include_dirs + IO.include_dirs,
+        ["DEVICES"],
     )
+
+
+class Replay:
+    """The devices of the ISS in a comparison with the RTL's devices.
+
+    A device read gives the word of the RTL's record (`word`), and the interrupts come
+    from the RTL's trace, so the models' levels are left out. The models still refuse
+    the accesses that the devices refuse, and the UART's model collects the output.
+    """
+
+    def __init__(self) -> None:
+        self.uart = Uart()
+        self.bridge = DeviceBridge([self.uart, CycleCounter(), Timer(), Board()])
+        self.word: int | None = None
+
+    def read_word(self, offset: int, size: int = 4) -> int:
+        word = self.bridge.read_word(offset, size)
+        return word if self.word is None else self.word
+
+    def write_word(self, offset: int, value: int, mask: int) -> None:
+        self.bridge.write_word(offset, value, mask)
+
+    def tick(self) -> None:
+        self.bridge.tick()
+
+    def reset(self) -> None:
+        self.bridge.reset()
+
+    def interrupt_levels(self) -> int:
+        return 0
 
 
 @dataclass(frozen=True)
@@ -123,6 +179,7 @@ class RtlTrace:
     reset: str | None = None
     before_reset: "RtlTrace | None" = None
     memory_checked: bool = False  # the SDRAM was compared with the ISS's memory
+    uart_output: bytes = b""  # what the UART sent, with the devices
 
 
 def interrupt_schedule(source: str) -> list[tuple[int, int, int]]:
@@ -184,6 +241,20 @@ def run_iss_comparison(
         interrupts_file = out_dir / "interrupts.txt"
         interrupts_file.write_text("".join(f"{c} {n} {v}\n" for c, n, v in schedule))
         plusargs["interrupts"] = interrupts_file
+    devices = DEVICES_COMMENT.search(source) is not None
+    uart_output = out_dir / "uart_output.txt"
+    uart_output.unlink(missing_ok=True)
+    if devices:
+        plusargs["uart_output"] = uart_output
+        uart_input = [
+            (int(cycle), byte)
+            for text, cycle in UART_INPUT_COMMENT.findall(source)
+            for byte in ast.literal_eval(text).encode("latin-1")
+        ]
+        if uart_input:
+            input_file = out_dir / "uart_input.txt"
+            input_file.write_text("".join(f"{c} {b:02x}\n" for c, b in uart_input))
+            plusargs["uart_input"] = input_file
     if vcd is not None:
         vcd.parent.mkdir(parents=True, exist_ok=True)
         plusargs["vcd"] = vcd
@@ -193,7 +264,7 @@ def run_iss_comparison(
     dump_file = out_dir / "sdram_dump.hex"
     dump_file.unlink(missing_ok=True)
     plusargs["sdram_dump"] = dump_file
-    output = run_vvp(compile_b32p4(memories.lines), **plusargs).splitlines()
+    output = run_vvp(compile_b32p4(memories.lines, devices), **plusargs).splitlines()
 
     reads = [line.split() for line in sdram_log.read_text().splitlines()]
     rtl = RtlTrace(
@@ -214,7 +285,7 @@ def run_iss_comparison(
         rtl.records.append(record)
     assert not reset or rtl.reset, "the reset didn't come before the HALT"
 
-    machine = Machine(strict=strict, io=Ram())
+    machine = Machine(strict=strict, io=Replay() if devices else Ram())
     machine.load(ROM_BASE, rom.to_bytes())
     machine.load(SDRAM_BASE, sdram.to_bytes())
     rerun = f"fpgc cpu wave b32p4 {program_file.relative_to(REPO)}{memories.options()}"
@@ -232,7 +303,28 @@ def run_iss_comparison(
     if written_back(expected):
         compare_memory(machine, dump_file, rerun)
         rtl.memory_checked = True
+    if isinstance(machine.io, Replay):
+        rtl.uart_output = compare_uart(source, machine.io.uart, uart_output, rerun)
     return rtl
+
+
+def compare_uart(source: str, uart: Uart, output_file: Path, rerun: str) -> bytes:
+    """Fail if the bytes from the RTL's UART aren't those that the ISS's program wrote
+    to it, or those of the program's output comment. Returns them."""
+    __tracebackhide__ = True
+    lines = output_file.read_text().split("\n") if output_file.exists() else []
+    bad = [line for line in lines if line.endswith(" bad")]
+    assert not bad, f"the UART sent a byte without its stop bit\nwaveform:  {rerun}"
+    sent = bytes(int(line, 16) for line in lines if line)
+    assert sent == bytes(uart.output), (
+        f"the UART sent {sent!r}, the ISS's program wrote {bytes(uart.output)!r}"
+        f"\nwaveform:  {rerun}"
+    )
+    comment = UART_OUTPUT_COMMENT.search(source)
+    if comment:
+        expected = ast.literal_eval(comment.group(1)).encode("latin-1")
+        assert sent == expected, f"the UART sent {sent!r}, expected {expected!r}"
+    return sent
 
 
 def written_back(trace: list[str]) -> bool:
@@ -282,6 +374,9 @@ def iss_step(machine: Machine, rtl_record: str | None) -> str:
     taken = re.search(r" irq (\d)", rtl_record) if rtl_record else None
     if taken:
         machine.request_interrupt(int(taken.group(1)))
+    if isinstance(machine.io, Replay):
+        word = re.search(r" r\d+=([\da-f]{8})", rtl_record) if rtl_record else None
+        machine.io.word = int(word.group(1), 16) if word else None
     return str(machine.step())
 
 

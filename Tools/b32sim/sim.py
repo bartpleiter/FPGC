@@ -14,7 +14,7 @@ Two modes:
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from b32asm.isa import (
     ALU_OPS,
@@ -28,6 +28,7 @@ from b32asm.isa import (
     decode,
     sext,
 )
+from b32sim.devices import BusError
 
 MASK = 0xFFFFFFFF
 
@@ -75,10 +76,21 @@ class SimError(Exception):
 
 
 class Device(Protocol):
-    """Word storage behind an address region. Offsets are word-aligned."""
+    """Word storage behind an address region. Offsets are word-aligned. `size` is the
+    number of bytes the CPU reads. A device raises BusError for an access it doesn't
+    take, which is a bad address."""
 
-    def read_word(self, offset: int) -> int: ...
+    def read_word(self, offset: int, size: int = 4) -> int: ...
     def write_word(self, offset: int, value: int, mask: int) -> None: ...
+
+
+@runtime_checkable
+class Clocked(Protocol):
+    """A device with a clock and interrupts, such as the device bridge."""
+
+    def tick(self) -> None: ...
+    def reset(self) -> None: ...
+    def interrupt_levels(self) -> int: ...
 
 
 class Ram:
@@ -87,7 +99,7 @@ class Ram:
     def __init__(self) -> None:
         self.words: dict[int, int] = {}
 
-    def read_word(self, offset: int) -> int:
+    def read_word(self, offset: int, size: int = 4) -> int:
         return self.words.get(offset, 0)
 
     def write_word(self, offset: int, value: int, mask: int) -> None:
@@ -101,7 +113,7 @@ class NullIo:
     def __init__(self) -> None:
         self.writes: list[tuple[int, int, int]] = []
 
-    def read_word(self, offset: int) -> int:
+    def read_word(self, offset: int, size: int = 4) -> int:
         return 0
 
     def write_word(self, offset: int, value: int, mask: int) -> None:
@@ -279,6 +291,9 @@ class Machine:
         self.halted = False
         self.regions[0].device = Ram()
         self._current_pc = self.pc
+        self._levels = 0  # the interrupt levels of the devices, after the last step
+        if isinstance(self.io, Clocked):
+            self.io.reset()
 
     # ---- Loading and inspecting ----
 
@@ -322,7 +337,17 @@ class Machine:
         raise SimError(f"no HALT within {max_steps} steps")
 
     def step(self) -> Retired:
-        """Execute one instruction, or take an interrupt instead of it."""
+        """Execute one instruction, or take an interrupt instead of it. Then the devices
+        get one tick, and a rising interrupt level makes that interrupt pending."""
+        r = self._step()
+        if isinstance(self.io, Clocked):
+            self.io.tick()
+            levels = self.io.interrupt_levels()
+            self.pending |= levels & ~self._levels
+            self._levels = levels
+        return r
+
+    def _step(self) -> Retired:
         pc = self.pc
         word = self._fetch(pc)
         ins = decode(word)
@@ -527,7 +552,11 @@ class Machine:
             self._illegal(ErrorKind.BAD_ADDRESS, f"read from unmapped {address:08x}")
             return 0
         region, offset = found
-        return region.device.read_word(offset)
+        try:
+            return region.device.read_word(offset, size)
+        except BusError as e:
+            self._illegal(ErrorKind.BAD_ADDRESS, f"read from {address:08x}: {e}")
+            return 0
 
     def _write_word(self, address: int, data: int, mask: int) -> None:
         if CPU_IO_BASE <= address < CPU_IO_BASE + CPU_IO_SIZE:
@@ -543,7 +572,10 @@ class Machine:
                 ErrorKind.BAD_ADDRESS, f"write to {region.name} at {address:08x}"
             )
             return
-        region.device.write_word(offset, data, mask)
+        try:
+            region.device.write_word(offset, data, mask)
+        except BusError as e:
+            self._illegal(ErrorKind.BAD_ADDRESS, f"write to {address:08x}: {e}")
 
     def _cpu_io_read(self, address: int, size: int) -> int:
         values = {

@@ -98,7 +98,7 @@ How long the SDRAM controller takes for a read and a write decides what a cache 
 
 ## Bus
 
-Every read and write outside SDRAM and the CPU-internal I/O registers goes over the bus: data reads from the ROM, the memories at `0x04000000` to `0x07FFFFFF`, and the device registers at `0xFFFF8000` to `0xFFFFFEFF` (see the [memory map](../memory-map.md)). The CPU doesn't decide which device answers. The logic behind the bus, the device bridge, decodes `bus_addr`.
+Every read and write outside SDRAM and the CPU-internal I/O registers goes over the bus: data reads from the ROM, the memories at `0x04000000` to `0x07FFFFFF`, and the device registers at `0xFFFF8000` to `0xFFFFFEFF` (see the [memory map](../memory-map.md)). The CPU doesn't decide which device answers. The logic behind the bus, the [device bridge](../io/bridge.md), decodes `bus_addr`.
 
 | Port | Direction | Meaning |
 | --- | --- | --- |

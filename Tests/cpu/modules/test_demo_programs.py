@@ -15,8 +15,8 @@ from pathlib import Path
 
 import pytest
 
+from ...common.presets import check_preset
 from ..iss_comparison import Memories, run_iss_comparison
-from ..presets import check_preset
 from ..verilog import WAVE_DIR
 
 DEMOS = sorted(Path(__file__).parent.rglob("*.asm"))

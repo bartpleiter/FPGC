@@ -43,7 +43,7 @@ class CpuConfig(BaseModel):
     ]
     tests_dir: Path = Path("Tests/cpu")
     modules_dir: Path = Path("Tests/cpu/modules")
-    gtkwave_rc: Path = Path("Tests/cpu/modules/gtkwaverc")
+    gtkwave_rc: Path = Path("Tests/common/gtkwaverc")
     build_dir: Path = Path("build/cpu")
     wave_dir: Path = Path("build/cpu/wave")
     tool_dirs: list[Path] = [Path("Tools/b32asm"), Path("Tools/b32sim")]
@@ -56,9 +56,28 @@ class CpuConfig(BaseModel):
     board_clock_period_ns: float = 20.0  # clk_50, into the harness's PLL
 
 
+class IoConfig(BaseModel):
+    # The RTL files of the device bridge and the devices
+    rtl_files: list[Path] = [
+        Path("Hardware/io/device_bridge.v"),
+        Path("Hardware/io/board_io.v"),
+        Path("Hardware/io/cycle_counter.v"),
+        Path("Hardware/io/timer.v"),
+        Path("Hardware/io/fifo.v"),
+        Path("Hardware/io/uart_rx.v"),
+        Path("Hardware/io/uart_tx.v"),
+        Path("Hardware/io/uart.v"),
+    ]
+    tests_dir: Path = Path("Tests/io")
+    gtkwave_rc: Path = Path("Tests/common/gtkwaverc")
+    build_dir: Path = Path("build/io")
+    wave_dir: Path = Path("build/io/wave")
+
+
 class Config(BaseModel):
     build_dir: Path = Path("build")
     cpu: CpuConfig = CpuConfig()
+    io: IoConfig = IoConfig()
     website: WebsiteConfig = WebsiteConfig()
 
 

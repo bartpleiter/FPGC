@@ -1,0 +1,18 @@
+[*] GTKWave preset for board_io (fpgc io wave board_io)
+@28
+tb_board_io.clk
+@820
+tb_board_io.label[95:0]
+@28
+tb_board_io.dut.reset
+tb_board_io.dut.set_leds
+@22
+tb_board_io.dut.leds_in[4:0]
+tb_board_io.dut.leds[4:0]
+@200
+-
+-Switches
+@22
+tb_board_io.dut.switch_pins[3:0]
+tb_board_io.dut.switches_sync[3:0]
+tb_board_io.dut.switches[3:0]
