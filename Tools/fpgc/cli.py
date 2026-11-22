@@ -12,6 +12,8 @@ from fpgc.cpu import cpu
 from fpgc.cpu import lint as cpu_lint
 from fpgc.io import io
 from fpgc.io import lint as io_lint
+from fpgc.sdram import lint as sdram_lint
+from fpgc.sdram import sdram
 from fpgc.system import lint as system_lint
 from fpgc.system import system
 from fpgc.website import website
@@ -27,6 +29,7 @@ def main() -> None:
 main.add_command(board)
 main.add_command(cpu)
 main.add_command(io)
+main.add_command(sdram)
 main.add_command(system)
 main.add_command(website)
 
@@ -49,6 +52,7 @@ def check(ctx: click.Context) -> None:
     run("mypy", "Tools")
     ctx.invoke(cpu_lint)
     ctx.invoke(io_lint)
+    ctx.invoke(sdram_lint)
     ctx.invoke(system_lint)
     run("pytest", "-q")
 

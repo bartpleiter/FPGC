@@ -74,6 +74,17 @@ class IoConfig(BaseModel):
     wave_dir: Path = Path("build/io/wave")
 
 
+class SdramConfig(BaseModel):
+    # The RTL file of the SDRAM controller
+    rtl_files: list[Path] = [Path("Hardware/sdram/sdram_controller.v")]
+    # The model of one SDRAM chip, only for simulation
+    chip_model: Path = Path("Tests/sdram/sdram_chip.v")
+    tests_dir: Path = Path("Tests/sdram")
+    gtkwave_rc: Path = Path("Tests/common/gtkwaverc")
+    build_dir: Path = Path("build/sdram")
+    wave_dir: Path = Path("build/sdram/wave")
+
+
 class SystemConfig(BaseModel):
     top: str = "fpgc"
     # The RTL files of the top level, used in simulation, linting and Quartus. The CPU's
@@ -107,6 +118,7 @@ class Config(BaseModel):
     build_dir: Path = Path("build")
     cpu: CpuConfig = CpuConfig()
     io: IoConfig = IoConfig()
+    sdram: SdramConfig = SdramConfig()
     system: SystemConfig = SystemConfig()
     board: BoardConfig = BoardConfig()
     website: WebsiteConfig = WebsiteConfig()

@@ -94,7 +94,7 @@ sdram_next        0    1    1    1    1    1    1    1    1    0    0
 sdram_write_word  -    -   w0   w1   w2   w3   w4   w5   w6   w7    -
 ```
 
-How long the SDRAM controller takes for a read and a write decides what a cache miss costs. See [Programming notes](programming.md#memory).
+How long the SDRAM controller takes for a read and a write decides what a cache miss costs. See [Programming notes](programming.md#memory), and the [SDRAM controller](../sdram.md) for how it serves this port.
 
 ## Bus
 

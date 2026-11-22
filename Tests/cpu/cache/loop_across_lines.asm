@@ -4,9 +4,10 @@
 ; iteration makes two write-backs and two fills, while the loop itself hits in the L1I
 ; from the second iteration on. IF follows the fill of line 0 as its words arrive
 ; (early restart), and reaches line 1 only after that fill, when the first read has
-; already missed. Line 2 is the code behind the halt.
+; already missed. Line 2 is the code behind the halt, whose fetch comes before the
+; halt retires with the line model, but not with the SDRAM controller.
 ; runs from SDRAM
-; sdram reads: 0 800 1 880 800 880 800 880 2
+; sdram reads: 0 800 1 880 800 880 800 880 (2)
 ; sdram writes: 800 880 800 880 800
     load32 0x10000 r1
     load 3 r2               ; the iterations

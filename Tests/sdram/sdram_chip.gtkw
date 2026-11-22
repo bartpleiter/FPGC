@@ -1,0 +1,27 @@
+[*] GTKWave preset for sdram_chip (fpgc sdram wave sdram_chip)
+@28
+tb_sdram_chip.clk
+@820
+tb_sdram_chip.label[95:0]
+@200
+-
+-Pins
+@28
+tb_sdram_chip.dut.cs_n
+tb_sdram_chip.dut.ras_n
+tb_sdram_chip.dut.cas_n
+tb_sdram_chip.dut.we_n
+@22
+tb_sdram_chip.dut.ba[1:0]
+tb_sdram_chip.dut.a[12:0]
+tb_sdram_chip.dut.dqm[1:0]
+tb_sdram_chip.dut.dq[15:0]
+@200
+-
+-Model
+@24
+tb_sdram_chip.dut.error[4:0]
+@28
+tb_sdram_chip.dut.reading
+tb_sdram_chip.dut.writing
+tb_sdram_chip.dut.showing

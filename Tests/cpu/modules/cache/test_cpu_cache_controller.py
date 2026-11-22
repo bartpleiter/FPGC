@@ -240,7 +240,7 @@ def random_lines(rng: random.Random) -> list[int]:
 
 
 LINES = [(128, 128), (4, 4), (4, 128), (128, 4)]
-LATENCIES = ["1", "6", "rand"]
+LATENCIES = ["1", "7", "rand"]
 
 
 @pytest.mark.parametrize("latency", LATENCIES)
@@ -304,7 +304,7 @@ def test_demo() -> None:
         for n in range(LINE_WORDS)
     }
     vcd = WAVE_DIR / f"{UNIT}.vcd"
-    check(DEMO, sdram, "demo", (4, 4), "6", vcd=vcd)
+    check(DEMO, sdram, "demo", (4, 4), "7", vcd=vcd)
     check_preset(FOLDER / f"{UNIT}.gtkw", vcd)
     for view in FOLDER.glob(f"{UNIT}.*.gtkw"):
         check_preset(view, vcd)

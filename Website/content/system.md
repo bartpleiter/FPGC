@@ -4,7 +4,7 @@ weight: 4
 reader: hardware
 ---
 
-The top level of the FPGC, `fpgc`: the CPU, the boot ROM and the [device bridge](io/bridge.md) on the board, with the clock, the reset and the LEDs. There's no SDRAM controller yet, so the CPU only runs from the ROM.
+The top level of the FPGC, `fpgc`: the CPU, the boot ROM and the [device bridge](io/bridge.md) on the board, with the clock, the reset and the LEDs. The [SDRAM controller](sdram.md) isn't in the top level yet, so the CPU only runs from the ROM.
 
 ```text
                 +-----------------------------------------------------------+

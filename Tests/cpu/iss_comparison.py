@@ -58,6 +58,7 @@ from b32sim.sim import (
 
 from ..common.verilog import compile_tb as compile_area_tb
 from ..io.verilog import IO
+from ..sdram.verilog import SDRAM
 from .verilog import BUILD_DIR, CPU, MODULES_DIR, REPO, RTL_FILES, compile_tb, run_vvp
 
 COMPARISON_DIR = BUILD_DIR / "iss_comparison"
@@ -87,23 +88,38 @@ CCACHE = 0x70000000  # the instruction word of ccache, and of ccached with bit 0
 
 
 @functools.cache
-def compile_b32p4(lines: int, devices: bool = False) -> Path:
-    """Compile the ISS comparison testbench with `lines` lines in each L1 cache, and
-    with the devices instead of the bus model if `devices`."""
-    if not devices:
+def compile_b32p4(lines: int, devices: bool = False, controller: bool = False) -> Path:
+    """Compile the ISS comparison testbench with `lines` lines in each L1 cache, with
+    the devices instead of the bus model if `devices`, and with the SDRAM controller and
+    the chip models instead of the line model if `controller`."""
+    if not devices and not controller:
         return compile_tb(
             MODULES_DIR / "tb_b32p4.v",
             RTL_FILES,
             COMPARISON_DIR / f"tb_b32p4_{lines}.vvp",
             {"LINES": lines},
         )
+    rtl_files = CPU.rtl_files
+    include_dirs = CPU.include_dirs
+    defines = []
+    suffix = ""
+    if devices:
+        rtl_files += IO.rtl_files
+        include_dirs += IO.include_dirs
+        defines.append("DEVICES")
+        suffix += "_devices"
+    if controller:
+        rtl_files += SDRAM.rtl_files
+        include_dirs += SDRAM.include_dirs
+        defines.append("SDRAM_CONTROLLER")
+        suffix += "_controller"
     return compile_area_tb(
         MODULES_DIR / "tb_b32p4.v",
-        CPU.rtl_files + IO.rtl_files,
-        COMPARISON_DIR / f"tb_b32p4_{lines}_devices.vvp",
+        rtl_files,
+        COMPARISON_DIR / f"tb_b32p4_{lines}{suffix}.vvp",
         {"LINES": lines},
-        CPU.include_dirs + IO.include_dirs,
-        ["DEVICES"],
+        include_dirs,
+        defines,
     )
 
 
@@ -137,20 +153,26 @@ class Replay:
         return 0
 
 
+CONTROLLER = "controller"  # Memories.sdram for the SDRAM controller
+
+
 @dataclass(frozen=True)
 class Memories:
     """The caches and the SDRAM model of the testbench.
 
     `lines` is the number of lines of each L1 cache. `sdram` is the latency of the SDRAM
     line model, the cycles to the first word of a line (at least 1), or "rand" for a
-    random latency per request from `seed`.
+    random latency per request from `seed`, or CONTROLLER for the SDRAM controller with
+    two chip models instead of the line model.
     """
 
     lines: int = 128
-    sdram: str = "6"
+    sdram: str = "7"
     seed: int = 0
 
     def plusargs(self) -> dict[str, object]:
+        if self.sdram == CONTROLLER:
+            return {"seed": self.seed}
         return {"sdram_latency": self.sdram, "seed": self.seed}
 
     def options(self) -> str:
@@ -163,7 +185,7 @@ class Memories:
         )
 
 
-DEFAULT = Memories()  # the caches of B32P4 with B32P3's SDRAM timing
+DEFAULT = Memories()  # the caches of B32P4 with the SDRAM controller's timing
 
 
 @dataclass
@@ -264,7 +286,10 @@ def run_iss_comparison(
     dump_file = out_dir / "sdram_dump.hex"
     dump_file.unlink(missing_ok=True)
     plusargs["sdram_dump"] = dump_file
-    output = run_vvp(compile_b32p4(memories.lines, devices), **plusargs).splitlines()
+    controller = memories.sdram == CONTROLLER
+    output = run_vvp(
+        compile_b32p4(memories.lines, devices, controller), **plusargs
+    ).splitlines()
 
     reads = [line.split() for line in sdram_log.read_text().splitlines()]
     rtl = RtlTrace(

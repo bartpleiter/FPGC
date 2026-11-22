@@ -61,9 +61,10 @@ def lint() -> None:
 )
 @click.option(
     "--sdram-latency",
-    default="6",
+    default="7",
     show_default=True,
-    help="The cycles from an SDRAM request to the first word of the line, or rand.",
+    help="The cycles from an SDRAM request to the first word of the line, rand, or"
+    " controller for the SDRAM controller with two chip models.",
 )
 @click.option(
     "--latency-seed",

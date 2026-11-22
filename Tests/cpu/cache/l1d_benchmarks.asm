@@ -1,5 +1,5 @@
-; The micro-benchmarks of the L1D (test_l1d_micro_benchmarks), with B32P3's SDRAM
-; timing. The loop runs twice, and the second time the code hits in the L1I, so only
+; The micro-benchmarks of the L1D (test_l1d_micro_benchmarks), with the SDRAM
+; controller's timing. The loop runs twice, and the second time the code hits in the L1I, so only
 ; the L1D makes MEM wait. Its first read is a clean miss: the line it replaces was only
 ; read. It continues with its word as soon as that arrives (early restart), and so does
 ; the read of the next word, which arrives in the cycle after. The nops give the rest of

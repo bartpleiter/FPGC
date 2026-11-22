@@ -67,13 +67,13 @@ SDRAM is reached through the caches. A hit costs nothing. A miss waits for the l
 - `L`: the cycles from a line request until the first word arrives
 - `W`: the cycles that a write of a line keeps the SDRAM controller busy before it can start the next request
 
-| Situation | Extra cycles | With `L` = 6 and `W` = 14 |
+| Situation | Extra cycles | With the [SDRAM controller](../sdram.md), `L` = 7 and `W` = 13 |
 | --- | --- | --- |
-| a miss | `L` + 2 | 8 |
+| a miss | `L` + 2 | 9 |
 | a miss that first writes back a changed line | `W` + `L` + 2 | 22 |
 | a read of the next word of the line that just missed | 0 | 0 |
 
-The example numbers are those of the SDRAM controller of the previous FPGC version. They'll be replaced by those of the new SDRAM controller once it exists.
+Every 750 cycles, the SDRAM controller refreshes the SDRAM for 6 cycles. A miss in that time waits up to 6 cycles more.
 
 - The line comes in order, starting at the word that was needed. So straight-line code that runs into a new line continues one instruction per cycle as the words arrive, and so does a read of the next word.
 - A read or write miss works the same way. A write miss reads the line first, and then writes into it.

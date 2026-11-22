@@ -14,6 +14,7 @@ from b32asm.assembler import assemble
 from b32sim.sim import SDRAM_BASE
 
 from .iss_comparison import (
+    CONTROLLER,
     DEFAULT,
     RESET_COMMENT,
     SDRAM_COMMENT,
@@ -24,13 +25,16 @@ from .iss_comparison import (
 from .random_program import generate
 
 # Each L1 cache with 128 lines, and with 4, so that nearly every line misses and is
-# evicted again. Each with the SDRAM at its shortest latency, and at random latencies.
-# The random programs get their own seed for the latencies too.
+# evicted again. Each with the SDRAM line model at its shortest latency and at random
+# latencies, and with the SDRAM controller and two chip models. The random programs get
+# their own seed for the latencies too.
 MEMORIES = {
     "lines128": Memories(128, "1"),
     "lines4": Memories(4, "1"),
     "lines128_rand": Memories(128, "rand"),
     "lines4_rand": Memories(4, "rand"),
+    "lines128_controller": Memories(128, CONTROLLER),
+    "lines4_controller": Memories(4, CONTROLLER),
 }
 
 # The directed programs run from the ROM and from SDRAM, each with all of MEMORIES.
@@ -116,15 +120,22 @@ def test_cache_program(wave_dir: Path | None, path: Path, mode: str) -> None:
     Each says which lines it reads from SDRAM, in order, as the line number (address
     bits [25:5]) in hex: `; sdram reads: 0 1`, and which lines it writes back, if any:
     `; sdram writes: 800`. That's the same with 128 and with 4 lines, as the programs
-    fit in 4 lines of each cache.
+    fit in 4 lines of each cache. A last read in brackets, `; sdram reads: 0 1 (2)`,
+    depends on the SDRAM's timing: IF's fetch of the line behind the HALT, which may or
+    may not come before the HALT retires.
     """
     name = f"{path.stem}_{mode}"
     vcd = wave_dir / f"{name}.vcd" if wave_dir else None
     source = path.read_text()
     rtl = run_iss_comparison(source, name, vcd, memories=MEMORIES[mode])
-    reads = re.search(r"^; sdram reads: ([\da-f ]+)$", source, re.MULTILINE)
+    reads = re.search(
+        r"^; sdram reads: ([\da-f ]+)( \(([\da-f]+)\))?$", source, re.MULTILINE
+    )
     assert reads, "no '; sdram reads:' comment"
-    assert rtl.sdram_reads == [int(line, 16) for line in reads.group(1).split()]
+    expected_reads = [int(line, 16) for line in reads.group(1).split()]
+    if reads.group(3) and rtl.sdram_reads != expected_reads:
+        expected_reads.append(int(reads.group(3), 16))
+    assert rtl.sdram_reads == expected_reads
     writes = re.search(r"^; sdram writes: ([\da-f ]+)$", source, re.MULTILINE)
     expected = writes.group(1).split() if writes else []
     assert rtl.sdram_writes == [int(line, 16) for line in expected]
@@ -148,11 +159,12 @@ def test_reset_program(wave_dir: Path | None, path: Path, mode: str) -> None:
 
 
 def test_clean_l1i_miss() -> None:
-    """The micro-benchmark of a clean L1I miss, with B32P3's SDRAM timing (DEFAULT).
+    """The micro-benchmark of a clean L1I miss, with the SDRAM controller's timing
+    (DEFAULT).
 
-    IF waits at most 8 cycles for the first word of the line, which comes first, and
+    IF waits at most 9 cycles for the first word of the line, which comes first, and
     which IF passes on in the cycle it arrives (l1-cache.md, "Misses" and "Early
-    restart"). So the first instruction of line 1 retires at most 9 cycles after the
+    restart"). So the first instruction of line 1 retires at most 10 cycles after the
     last one of line 0.
     """
     path = Path(__file__).parent / "cache" / "clean_miss.asm"
@@ -160,7 +172,7 @@ def test_clean_l1i_miss() -> None:
     pcs = [int(r.split()[0], 16) for r in rtl.records]
     first = pcs.index(0x20)
     assert pcs[first - 1] == 0x1C
-    assert rtl.cycles[first] - rtl.cycles[first - 1] - 1 <= 8
+    assert rtl.cycles[first] - rtl.cycles[first - 1] - 1 <= 9
 
 
 def retired_at(rtl: RtlTrace, pc: int, occurrence: int = 1) -> int:
@@ -179,10 +191,10 @@ def waited(rtl: RtlTrace, pc: int, occurrence: int = 1) -> int:
 
 
 def test_l1d_micro_benchmarks() -> None:
-    """The micro-benchmarks of the L1D, with B32P3's SDRAM timing (DEFAULT).
+    """The micro-benchmarks of the L1D, with the SDRAM controller's timing (DEFAULT).
 
     In the second iteration of l1d_benchmarks.asm, each access waits in MEM for at
-    most: a clean miss 8 cycles and a miss with a dirty line 22, as each continues with
+    most: a clean miss 9 cycles and a miss with a dirty line 22, as each continues with
     its word as it arrives (l1-cache.md, "Misses" and "Early restart"), the read of the
     next word, which arrives in the cycle after, nothing, a read or write hit nothing,
     and a read right behind a write one cycle (the write-then-access stall). An
@@ -190,7 +202,7 @@ def test_l1d_micro_benchmarks() -> None:
     """
     path = Path(__file__).parent / "cache" / "l1d_benchmarks.asm"
     rtl = run_iss_comparison(path.read_text(), "l1d_benchmarks", memories=DEFAULT)
-    assert waited(rtl, 0x18, 2) <= 8  # the clean miss
+    assert waited(rtl, 0x18, 2) <= 9  # the clean miss
     assert waited(rtl, 0x1C, 2) == 0  # the next word
     assert waited(rtl, 0x40, 2) == 0  # a read hit
     assert waited(rtl, 0x44, 2) == 0  # a write hit
@@ -199,7 +211,7 @@ def test_l1d_micro_benchmarks() -> None:
 
 
 def test_early_restart() -> None:
-    """Early restart in IF and MEM, with B32P3's SDRAM timing (DEFAULT).
+    """Early restart in IF and MEM, with the SDRAM controller's timing (DEFAULT).
 
     A word that a stage waits for goes on in the cycle it arrives from SDRAM, and one
     that has passed is read from the cache after the fill. The programs are in cache/.
@@ -215,7 +227,7 @@ def test_early_restart() -> None:
     # for the first word of its own line (the clean miss).
     rtl = run("follow_fill")
     assert all(waited(rtl, pc) == 0 for pc in range(0x24, 0x40, 4))
-    assert waited(rtl, 0x40) <= 10
+    assert waited(rtl, 0x40) <= 11
 
     # The jump back to word 4, the last word of the fill, takes it as it arrives: one
     # cycle more than the 3 of a taken jump to a hit. Word 5 has passed by then.
@@ -238,9 +250,9 @@ def test_early_restart() -> None:
 
 
 def test_ccache_micro_benchmarks() -> None:
-    """The micro-benchmarks of CCACHE, with B32P3's SDRAM timing (DEFAULT).
+    """The micro-benchmarks of CCACHE, with the SDRAM controller's timing (DEFAULT).
 
-    With 128 lines, the walk takes 2 cycles per line, and about 15 more for each dirty
+    With 128 lines, the walk takes 2 cycles per line, and about 14 more for each dirty
     line that it writes back (l1-cache.md, "CCACHE, CCACHED and reset"). The first
     ccache waits in MEM right behind a write, the second right behind the redirect of a
     ccached, which costs 4 cycles from one retire to the next.
@@ -249,7 +261,7 @@ def test_ccache_micro_benchmarks() -> None:
     rtl = run_iss_comparison(path.read_text(), "ccache_benchmarks", memories=DEFAULT)
     dirty = retired_at(rtl, 0x1C)
     clean = retired_at(rtl, 0x24)
-    assert rtl.cycles[dirty] - rtl.cycles[dirty - 1] - 1 <= 260 + 4 * 15
+    assert rtl.cycles[dirty] - rtl.cycles[dirty - 1] - 1 <= 260 + 4 * 14
     assert rtl.cycles[clean] - rtl.cycles[clean - 1] - 4 <= 260
 
 

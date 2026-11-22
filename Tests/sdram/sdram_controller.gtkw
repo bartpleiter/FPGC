@@ -1,0 +1,26 @@
+[*] GTKWave preset for sdram_controller (fpgc sdram wave sdram_controller)
+@28
+tb_sdram_controller.clk
+tb_sdram_controller.reset
+@200
+-
+-Line port
+@28
+tb_sdram_controller.sdram_req
+tb_sdram_controller.sdram_write
+tb_sdram_controller.sdram_take
+tb_sdram_controller.sdram_next
+@22
+tb_sdram_controller.sdram_write_word[31:0]
+@28
+tb_sdram_controller.sdram_read_valid
+@22
+tb_sdram_controller.sdram_read_word[31:0]
+@200
+-
+-SDRAM pins
+@820
+tb_sdram_controller.command[63:0]
+@22
+tb_sdram_controller.a[12:0]
+tb_sdram_controller.dq[31:0]

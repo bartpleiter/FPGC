@@ -27,8 +27,9 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     )
     group.addoption(
         "--sdram-latency",
-        default="6",
-        help="The latency of the SDRAM for the demos: cycles to the first word, or rand.",
+        default="7",
+        help="The SDRAM for the demos: the line model's cycles to the first word, rand,"
+        " or controller.",
     )
     group.addoption(
         "--latency-seed",

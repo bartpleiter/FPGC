@@ -14,14 +14,17 @@
 //     in the cycle after the last word.
 //   - A write asks for the first word with sdram_next in the cycle of the take, and for
 //     the others in the cycles after. It takes each word in the cycle after its
-//     sdram_next, and writes it into the SDRAM. It's idle again N + 8 cycles after the
+//     sdram_next, and writes it into the SDRAM. It's idle again N + 6 cycles after the
 //     cycle it saw the request, but not before the cycle after the last word.
 //
-// The default latency of 6 is B32P3's SDRAM controller: the first word of a read 6
-// cycles after the request is seen, and a write keeps it busy for 14 cycles (ACTIVATE,
-// the row delay, the 8 words, and the write and precharge times). A random latency is
-// 6 for most requests and 10 to 40 for some, and then there are also random gaps
-// between the words, and the first sdram_next of a write can come later.
+// The default latency of 7 is the SDRAM controller's (Hardware/sdram), as measured in
+// the ISS comparison through the controller: the first word of a read 7 cycles after
+// the request is seen, and a write keeps it busy for 13 cycles (ACTIVATE, the row
+// delay, the 8 words, and the write and precharge times). The controller can take the
+// next request a little earlier after a read, and is busy for 6 cycles now and then
+// with a refresh; the testbenches that use the controller itself cover that. A random
+// latency is 7 for most requests and 10 to 40 for some, and then there are also random
+// gaps between the words, and the first sdram_next of a write can come later.
 //
 // It checks the protocol: a request must stay the same until it's taken, a write must
 // start at word 0, and a word to write must not be X. A protocol error ends the run
@@ -29,7 +32,7 @@
 //
 // Plusargs:
 //
-//   +sdram_latency=<l>  a number of cycles of at least 1, or rand (default 6)
+//   +sdram_latency=<l>  a number of cycles of at least 1, or rand (default 7)
 //   +seed=<n>           the seed of the random latencies (default 0)
 //   +sdram_log=<file>   writes a line for each request: "<cycle> read <line> <first>"
 //                       when a read is taken, and "<cycle> write <line> <8 words>" when
@@ -52,7 +55,7 @@ wire [31:0] sdram_write_word;
 
 localparam SDRAM_RANDOM = -1;
 
-integer sdram_latency = 6;  // a number of cycles, or SDRAM_RANDOM
+integer sdram_latency = 7;  // a number of cycles, or SDRAM_RANDOM
 integer sdram_seed = 0;
 integer sdram_log_fd = 0;
 
@@ -76,12 +79,12 @@ reg  [2:0]  sdram_waiting_first;
 
 integer     sdram_r;
 
-// The latency of a request: usually 6, and 10 to 40 for one in four
+// The latency of a request: usually 7, and 10 to 40 for one in four
 function integer sdram_request_latency(input integer latency, input [31:0] r);
     if (latency != SDRAM_RANDOM)
         sdram_request_latency = latency;
     else if (r[1:0] != 2'd0)
-        sdram_request_latency = 6;
+        sdram_request_latency = 7;
     else
         sdram_request_latency = 10 + r[7:2] % 31;
 endfunction
@@ -136,8 +139,8 @@ always @(posedge clk) begin
                             sdram_written[2], sdram_written[3], sdram_written[4],
                             sdram_written[5], sdram_written[6], sdram_written[7]);
                 sdram_busy    = 1'b0;
-                sdram_idle_at = sdram_seen + sdram_n + 8 > cycle + 1
-                              ? sdram_seen + sdram_n + 8 : cycle + 1;
+                sdram_idle_at = sdram_seen + sdram_n + 6 > cycle + 1
+                              ? sdram_seen + sdram_n + 6 : cycle + 1;
             end
         end
 
@@ -198,7 +201,7 @@ initial begin
     if ($value$plusargs("sdram_latency=%s", sdram_latency_arg) && sdram_latency_arg == "rand")
         sdram_latency = SDRAM_RANDOM;
     else if (!$value$plusargs("sdram_latency=%d", sdram_latency))
-        sdram_latency = 6;
+        sdram_latency = 7;
     if (sdram_latency != SDRAM_RANDOM && sdram_latency < 1)
         $fatal(1, "+sdram_latency must be at least 1");
     if (!$value$plusargs("seed=%d", sdram_seed))

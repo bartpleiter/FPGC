@@ -3,7 +3,9 @@
 // the interrupt inputs as a schedule says, and writes the retire port to a trace file.
 //
 // Compiled with the macro DEVICES, it has the device bridge and the devices on the bus
-// instead of the bus model (Tests/io/devices.vh), and their interrupts.
+// instead of the bus model (Tests/io/devices.vh), and their interrupts. Compiled with the
+// macro SDRAM_CONTROLLER, it has the SDRAM controller and two SDRAM chip models instead
+// of the line model (Tests/sdram/sdram_chips.vh).
 //
 // A trace line is the cycle number, then the record in the format of the ISS trace
 // (b32sim's Retired), so pytest can compare the two line by line. The testbench stops
@@ -12,7 +14,7 @@
 // The parameter LINES is the number of lines of each L1 cache.
 //
 // Plusargs, besides those of sdram_line_model.vh (+sdram_latency, +seed, +sdram_log)
-// and bus_model.vh (+seed):
+// or sdram_chips.vh (+sdram_log), and bus_model.vh (+seed):
 //
 //   +rom=<file>        the program as hex words ($readmemh), 1024 of them (required)
 //   +sdram=<file>      hex words for the start of the SDRAM, such as a program that runs
@@ -31,7 +33,7 @@
 //
 // The ROM (4 KiB at 0x04000000) is a BRAM with a clock enable. Every other fetch, and
 // every read and write of SDRAM (64 MiB at 0), goes through the L1 caches, and from
-// there through the line model. Reads of the ROM as data, and the I/O region, go over
+// there through the line model or the controller. Reads of the ROM as data, and the I/O region, go over
 // the bus.
 `timescale 1ns / 1ps
 module tb_b32p4 #(
@@ -70,16 +72,33 @@ task dump_sdram;
     if ($value$plusargs("sdram_dump=%s", dump_path)) begin
         dump_fd = $fopen(dump_path, "w");
         for (dump_i = 0; dump_i < DUMP_BYTES / 4; dump_i = dump_i + 1)
-            $fwrite(dump_fd, "%08x\n", sdram[DUMP_BASE / 4 + dump_i]);
+            $fwrite(dump_fd, "%08x\n", memory_word(DUMP_BASE / 4 + dump_i));
         $fclose(dump_fd);
     end
 endtask
 
+`ifdef SDRAM_CONTROLLER
+`include "sdram_chips.vh"
+
+// For bus_model.vh, which has random latencies only with a random SDRAM latency
+localparam SDRAM_RANDOM = -1;
+integer sdram_latency = 0;
+`else
 // The SDRAM, for the line model. A 2-state array starts at 0, like
 // the SDRAM of the ISS, and Icarus keeps 64 MiB of it small and fast.
 bit [31:0] sdram [0:(1 << 24) - 1];
 
 `include "sdram_line_model.vh"
+
+// The SDRAM's word at a word address (byte address [25:2])
+function [31:0] memory_word(input [23:0] address);
+    memory_word = sdram[address];
+endfunction
+
+task set_memory_word(input [23:0] address, input [31:0] word);
+    sdram[address] = word;
+endtask
+`endif
 
 reg [31:0] rom [0:1023];
 
@@ -179,9 +198,9 @@ always @(posedge clk)
 // SDRAM's word at the PC.
 always @(posedge clk) begin
     if (!reset && !dut.stall_if && !dut.if_stage.in_rom &&
-        dut.if_instr !== sdram[dut.pc[25:2]]) begin
+        dut.if_instr !== memory_word(dut.pc[25:2])) begin
         $display("IF moved on in cycle %0d with %08x at %08x, where the SDRAM has %08x",
-                 cycle, dut.if_instr, dut.pc, sdram[dut.pc[25:2]]);
+                 cycle, dut.if_instr, dut.pc, memory_word(dut.pc[25:2]));
         stop;
     end
 end
@@ -238,7 +257,7 @@ task load_sdram(input [8*256-1:0] path);
         if (fd == 0)
             $fatal(1, "cannot read %0s", path);
         for (words = 0; $fscanf(fd, "%h\n", word) == 1; words = words + 1)
-            sdram[words] = word;
+            set_memory_word(words, word);
         $fclose(fd);
     end
 endtask
