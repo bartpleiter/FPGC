@@ -374,4 +374,17 @@ set_location_assignment PIN_AB20 -to gpio[9]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to gpio[9]
 
 # The PLL at PLL 2, whose dedicated clock output is SDRAM_CLK's pin (B20)
-set_location_assignment PLL_2 -to "system_pll:pll|altpll:pll|altpll_oi72:auto_generated|pll1"
+set_location_assignment PLL_2 -to "system_pll:pll|altpll:pll|*:auto_generated|pll1"
+
+# SDRAM: the registers of the pins in the I/O cells. SDRAM_CSn has none: every command
+# selects the chips, so it's a constant 0.
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_A[*]
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_BA[*]
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_RASn
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_CASn
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_WEn
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_DQM[*]
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_DQ[*]
+set_instance_assignment -name FAST_OUTPUT_ENABLE_REGISTER ON -to SDRAM_DQ[*]
+set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM_DQ[*]
+

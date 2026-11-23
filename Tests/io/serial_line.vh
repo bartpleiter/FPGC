@@ -1,7 +1,9 @@
 // A serial line at 1 Mbaud on a UART, for testbenches. Include it inside the testbench
 // module. It drives `uart_rx_line` (a wire it declares) and listens to `uart_tx_line`,
 // which the testbench declares. The testbench must have `clk` and `cycle` (an integer,
-// the number of the current cycle).
+// the number of the current cycle). A testbench can define the macro UART_BIT before
+// the include for another number of cycles per bit than 100, and must then give the
+// UART the same.
 //
 // Plusargs:
 //
@@ -10,7 +12,10 @@
 //   +uart_output=<file>  the bytes from the UART, one per line in hex, with " bad" after
 //                        a byte without its stop bit
 
-localparam UART_BIT = 100;  // cycles per bit
+`ifndef UART_BIT
+`define UART_BIT 100
+`endif
+localparam UART_BIT = `UART_BIT;  // cycles per bit
 
 reg [8*256-1:0] uart_path;
 reg             uart_line = 1'b1;  // to the UART's rx

@@ -87,8 +87,8 @@ class SdramConfig(BaseModel):
 
 class SystemConfig(BaseModel):
     top: str = "fpgc"
-    # The RTL files of the top level, used in simulation, linting and Quartus. The CPU's
-    # and the I/O devices' files come on top of these.
+    # The RTL files of the top level, used in simulation, linting and Quartus. The CPU's,
+    # the I/O devices' and the SDRAM controller's files come on top of these.
     rtl_files: list[Path] = [
         Path("Hardware/system/fpgc.v"),
         Path("Hardware/system/reset_control.v"),

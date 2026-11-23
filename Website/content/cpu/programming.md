@@ -112,7 +112,7 @@ Both instructions go through every line, which takes about 2 cycles per line, pl
 Interrupts are disabled after a reset. Software enables them by writing 1 to `INT_ENABLE` (`0xFFFFFF10`), for example with `write 0xFFFFFF10 r0 r1`.
 
 - The handler starts at address `0x4`, the second word of SDRAM. So a program usually has a `jump` to its start at `0x0`, and a `jump` to its handler at `0x4`.
-- The bootloader enables interrupts right before it jumps to the program at `0x0`, because only then is there a handler at `0x4`.
+- The [boot ROM](../boot.md) leaves interrupts disabled when it starts a program. The program enables them itself once its handler at `0x4` is ready, so a program without interrupts needs no handler.
 - An interrupt is taken at a jump, `jumpr`, taken branch or `halt`, in place of that instruction. It costs the same as that jump: 3 extra cycles. A long stretch of code without a taken branch or jump delays the interrupt until the next one. To wait for an interrupt, use `halt`.
 - The CPU only saves the PC (in `PC_BACKUP`), and disables interrupts. The handler must save every register it changes, for example with `push` and `pop`.
 - `readintid D` gives the number of the interrupt. `reti` jumps back to the interrupted jump or branch, which then runs as if nothing happened, and enables interrupts again.
@@ -127,7 +127,7 @@ After a reset, the CPU starts at `0x04000000` in the ROM. The full list of what 
 - Registers `r1`–`r15` are undefined. A program must write a register before it reads it.
 - The caches are emptied in the first 512 cycles (with the default cache sizes), while the CPU runs from the ROM. An access to SDRAM in that time waits until it's done.
 - The contents of SDRAM are undefined. Changed lines that were still in the L1D are not written back, so after a reset SDRAM may miss the last writes of the program that ran before.
-- The error register keeps its value. A bootloader can print it at every start to see what went wrong before the reset, and then clear it by writing `ERR_STATUS`.
+- The error register keeps its value. The [boot ROM](../boot.md) prints it at every start, to show what went wrong before the reset, and then clears it.
 
 ## The hardware stack
 

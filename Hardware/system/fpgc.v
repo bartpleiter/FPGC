@@ -1,10 +1,11 @@
 // FPGC
 // Top level: every pin of the board. Pins that aren't used yet are held in a safe state.
 module fpgc #(
-    parameter ROM_CONTENTS    = "rom.hex",
-    parameter PC_RESET_CYCLES = 100000,  // 1 ms
-    parameter LED_TICK_BITS   = 23,      // 84 ms
-    parameter CLOCKS_PER_BIT  = 100      // 1 Mbaud
+    parameter ROM_CONTENTS       = "rom.hex",
+    parameter PC_RESET_CYCLES    = 100000,  // 1 ms
+    parameter LED_TICK_BITS      = 23,      // 84 ms
+    parameter CLOCKS_PER_BIT     = 100,     // 1 Mbaud
+    parameter SDRAM_PAUSE_CYCLES = 20000    // 200 us
 ) (
     // Clocks
     input  wire        sys_clk_50,
@@ -127,12 +128,14 @@ module fpgc #(
 
 // Clock and reset
 wire clk;
+wire clk_sdram;
 wire locked;
 wire reset;
 
 system_pll pll (
     .clk_50(sys_clk_50),
     .clk_100(clk),
+    .clk_sdram(clk_sdram),
     .locked(locked)
 );
 
@@ -163,6 +166,15 @@ wire        bus_error;
 wire [31:0] bus_read_word;
 wire        timer_irq;
 wire        uart_irq;
+wire        sdram_req;
+wire        sdram_write;
+wire [25:5] sdram_line;
+wire [2:0]  sdram_first;
+wire        sdram_take;
+wire        sdram_read_valid;
+wire [31:0] sdram_read_word;
+wire        sdram_next;
+wire [31:0] sdram_write_word;
 
 /* verilator lint_off PINCONNECTEMPTY */
 b32p4 cpu (
@@ -171,16 +183,15 @@ b32p4 cpu (
     .fetch_addr(fetch_addr),
     .fetch_en(fetch_en),
     .rom_word(rom_word),
-    // No SDRAM controller yet: an SDRAM access waits forever
-    .sdram_req(),
-    .sdram_write(),
-    .sdram_line(),
-    .sdram_first(),
-    .sdram_take(1'b0),
-    .sdram_read_valid(1'b0),
-    .sdram_read_word(32'd0),
-    .sdram_next(1'b0),
-    .sdram_write_word(),
+    .sdram_req(sdram_req),
+    .sdram_write(sdram_write),
+    .sdram_line(sdram_line),
+    .sdram_first(sdram_first),
+    .sdram_take(sdram_take),
+    .sdram_read_valid(sdram_read_valid),
+    .sdram_read_word(sdram_read_word),
+    .sdram_next(sdram_next),
+    .sdram_write_word(sdram_write_word),
     .bus_request(bus_request),
     .bus_write(bus_write),
     .bus_addr(bus_addr),
@@ -210,6 +221,34 @@ b32p4 cpu (
     .retire_irq_id()
 );
 /* verilator lint_on PINCONNECTEMPTY */
+
+// SDRAM
+sdram_controller #(
+    .PAUSE_CYCLES(SDRAM_PAUSE_CYCLES)
+) sdram (
+    .clk(clk),
+    .reset(reset),
+    .sdram_req(sdram_req),
+    .sdram_write(sdram_write),
+    .sdram_line(sdram_line),
+    .sdram_first(sdram_first),
+    .sdram_take(sdram_take),
+    .sdram_read_valid(sdram_read_valid),
+    .sdram_read_word(sdram_read_word),
+    .sdram_next(sdram_next),
+    .sdram_write_word(sdram_write_word),
+    .sdram_cs_n(SDRAM_CSn),
+    .sdram_ras_n(SDRAM_RASn),
+    .sdram_cas_n(SDRAM_CASn),
+    .sdram_we_n(SDRAM_WEn),
+    .sdram_cke(SDRAM_CKE),
+    .sdram_a(SDRAM_A),
+    .sdram_ba(SDRAM_BA),
+    .sdram_dqm(SDRAM_DQM),
+    .sdram_dq(SDRAM_DQ)
+);
+
+assign SDRAM_CLK = clk_sdram;
 
 // Boot ROM
 wire [11:2] rom_addr;
@@ -265,18 +304,6 @@ assign led_gpu   = 1'b0;
 assign led_flash = 1'b0;
 assign led_usb   = 1'b0;
 assign led_eth   = 1'b0;
-
-// SDRAM: deselected, clock enable low, data lines not driven
-assign SDRAM_CLK  = 1'b0;
-assign SDRAM_CSn  = 1'b1;
-assign SDRAM_WEn  = 1'b1;
-assign SDRAM_CASn = 1'b1;
-assign SDRAM_RASn = 1'b1;
-assign SDRAM_CKE  = 1'b0;
-assign SDRAM_A    = 13'd0;
-assign SDRAM_BA   = 2'd0;
-assign SDRAM_DQM  = 4'b1111;
-assign SDRAM_DQ   = 32'bz;
 
 // SRAM: deselected, no read or write, data lines not driven
 assign SRAM_CSn = 1'b1;

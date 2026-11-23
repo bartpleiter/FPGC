@@ -38,6 +38,12 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         help="The seed of the random latencies for the demos.",
     )
     group.addoption(
+        "--board",
+        action="store_true",
+        help="Run the tests on the board (Tests/board), over its serial port. Without"
+        " it, they're left out.",
+    )
+    group.addoption(
         "--seeds",
         type=int,
         default=100,

@@ -46,8 +46,9 @@ set_false_path -from [all_registers] -to [all_outputs]
 """
 
 # Writes timing.tsv with, per corner, the setup and hold summary, the number of failing
-# endpoints and the worst setup path to each of the 1000 worst endpoints. The 10
-# worst paths of each corner are also written in full to worst_<corner>.rpt.
+# endpoints and the worst setup path to each of the 1000 worst endpoints, and the
+# worst setup and hold slack of each group of pins (pin_reports). The 10 worst paths
+# of each corner are also written in full to worst_<corner>.rpt.
 STA_SCRIPT = """\
 project_open {top}
 create_timing_netlist
@@ -71,7 +72,7 @@ foreach corner [get_available_operating_conditions] {{
     }}
     report_timing -setup -npaths 10 -nworst 1 -detail full_path \\
         -file worst_$corner.rpt
-}}
+{pin_reports}}}
 close $out
 project_close
 """
@@ -82,6 +83,16 @@ CORNER_NAMES = {
     "MIN_fast_1200mv_-40c": "Fast -40C",
 }
 WORST_CORNER = "7_slow_1200mv_100c"
+
+
+# The worst setup and hold path of a group of pins, at one corner, in the STA script
+PIN_REPORT = """\
+    foreach check {{setup hold}} {{
+        foreach_in_collection p [get_timing_paths -$check -npaths 1 {paths}] {{
+            puts $out "pins\\t$corner\\t{name}\\t$check\\t[get_path_info $p -slack]"
+        }}
+    }}
+"""
 
 
 def harness_sdc(periods: tuple[float, float]) -> str:
@@ -99,11 +110,14 @@ def prepare(
     seed: int,
     parameters: dict[str, int | str] | None = None,
     extra_qsf: str = "",
+    pin_groups: dict[str, str] | None = None,
 ) -> None:
     """Write the project, the SDC and the STA script of one compile into `out_dir`.
 
     `sdc` is the text of the SDC. `parameters` overrides parameters of the top level,
-    and `extra_qsf` is added to the project, such as the pins.
+    and `extra_qsf` is added to the project, such as the pins. `pin_groups` names
+    groups of pins whose worst setup and hold slack get reported: each is the options
+    of get_timing_paths that select the group's paths, such as "-from [get_ports x]".
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     qsf = QSF.format(device=device, top=top, seed=seed)
@@ -119,7 +133,13 @@ def prepare(
     qsf += extra_qsf
     (out_dir / f"{top}.qsf").write_text(qsf)
     (out_dir / f"{top}.sdc").write_text(sdc)
-    (out_dir / "report.tcl").write_text(STA_SCRIPT.format(top=top))
+    pin_reports = "".join(
+        PIN_REPORT.format(name=name, paths=paths)
+        for name, paths in (pin_groups or {}).items()
+    )
+    (out_dir / "report.tcl").write_text(
+        STA_SCRIPT.format(top=top, pin_reports=pin_reports)
+    )
 
 
 def compile_quietly(quartus_bin: Path, out_dir: Path, top: str) -> bool:
@@ -187,6 +207,7 @@ class Timing:
     failing: dict[str, int]  # corner -> failing endpoints
     groups: dict[tuple[str, str], float]  # (from, to) -> worst slack at WORST_CORNER
     counts: dict[tuple[str, str], int]  # (from, to) -> endpoints in the 1000 worst
+    pins: dict[str, dict[str, float]]  # pin group -> setup/hold -> worst over corners
 
     def worst(self, check: str) -> float:
         """The worst slack of `check` (setup or hold) over every corner."""
@@ -194,12 +215,15 @@ class Timing:
 
 
 def read_timing(out_dir: Path) -> Timing:
-    t = Timing(defaultdict(dict), {}, {}, defaultdict(int))
+    t = Timing(defaultdict(dict), {}, {}, defaultdict(int), defaultdict(dict))
     for row in (out_dir / "timing.tsv").read_text().splitlines():
         kind, corner, *rest = row.split("\t")
         if kind == "summary":  # one line per clock domain
             check, slack = rest[0], float(rest[1])
             t.slacks[corner][check] = min(t.slacks[corner].get(check, slack), slack)
+        elif kind == "pins":
+            name, check, slack = rest[0], rest[1], float(rest[2])
+            t.pins[name][check] = min(t.pins[name].get(check, slack), slack)
         elif kind == "failing":
             t.failing[corner] = int(rest[0])
         elif kind == "path" and corner == WORST_CORNER:
@@ -225,8 +249,24 @@ def summary(out_dir: Path, top: str) -> str:
     ranked = sorted(t.groups.items(), key=lambda item: item[1])
     for (src, dst), slack in ranked[:10]:
         lines.append(f"  {slack:+.3f} ns  {t.counts[(src, dst)]:4}  {src} -> {dst}")
+    lines += pins_summary(t.pins)
     lines.append("Resources: " + resources(out_dir / "output_files", top))
     return "\n".join(lines)
+
+
+def pins_summary(pins: dict[str, dict[str, float]]) -> list[str]:
+    """The lines of the pin groups' worst slacks over every corner."""
+    if not pins:
+        return []
+    lines = ["Pins, the worst over every corner:"]
+    for name, checks in pins.items():
+        setup, hold = checks.get("setup"), checks.get("hold")
+        lines.append(
+            f"  {name:16} setup {setup:+.3f} ns, hold {hold:+.3f} ns"
+            if setup is not None and hold is not None
+            else f"  {name:16} no paths"
+        )
+    return lines
 
 
 def seeds_summary(out_dirs: dict[int, Path], top: str) -> str:
@@ -262,6 +302,15 @@ def seeds_summary(out_dirs: dict[int, Path], top: str) -> str:
             f"  {min(slacks):+.3f} ns  {len(slacks):2}  {statistics.mean(slacks):+.3f} ns"
             f"  {src} -> {dst}"
         )
+    pins: dict[str, dict[str, float]] = defaultdict(dict)
+    for t in timings.values():
+        for name, checks in t.pins.items():
+            for check, slack in checks.items():
+                pins[name][check] = min(pins[name].get(check, slack), slack)
+    lines += [
+        line.replace("every corner", "every seed and corner")
+        for line in pins_summary(pins)
+    ]
     first = next(iter(out_dirs.values()))
     lines.append("Resources: " + resources(first / "output_files", top))
     return "\n".join(lines)

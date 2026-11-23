@@ -1,6 +1,6 @@
 ---
 title: SDRAM controller
-weight: 5
+weight: 6
 reader: hardware
 ---
 
@@ -17,7 +17,7 @@ reader: hardware
  read words, ... +-------------------+           +--------------------------+
 ```
 
-The controller isn't part of the top level yet. It's tested in simulation, with a model of the chips, under the CPU.
+In the [top level](system.md), the controller is connected to the CPU's line port and to the board's SDRAM pins.
 
 ## The chips
 
@@ -61,7 +61,7 @@ The line port is the CPU's: `sdram_req`, `sdram_write`, `sdram_line`, `sdram_fir
 | `sdram_dqm[3:0]` | out | the byte masks: 1 until the initialization is done, then 0 |
 | `sdram_dq[31:0]` | in and out | the data |
 
-Every output except `sdram_cke` comes straight from a register. On the board, the chips will get their own copy of the clock, shifted later, so that a word read from the chips arrives in the input registers 3 cycles after the READ was sent. That's set up in the top level, together with the timing of the pins, which isn't done yet.
+Every output except `sdram_cke` comes straight from a register. The chips get their own copy of the clock, later than the FPGA's, so that a word read from the chips arrives in the input registers 3 cycles after the READ was sent (see [Pin timing](#pin-timing)).
 
 ## A read
 
@@ -124,6 +124,23 @@ A reset can come at any moment, also in the middle of a line. The controller the
 
 The pause leaves the chips without a refresh for 200 µs. That's within the datasheet: with a refresh every 7.5 µs, the 8,192 rows take 61.44 ms, so each row is still refreshed within 64 ms.
 
+## Pin timing
+
+The FPGA and the chips run on the same 100 MHz, but the chips get their own copy of the clock, `SDRAM_CLK`, from a second output of the PLL, 7.81 ns later than the FPGA's clock. Every signal between them must arrive inside a window around the edge that takes it in:
+
+- Commands, addresses and write data leave the FPGA's registers at the FPGA's edge, and must be at the chips at least 1.5 ns before the chips' edge (tS), and stay at least 0.8 ns after it (tH).
+- A word read from the chips appears at most 6 ns after the chips' edge (tAC), and stays until at least 3 ns after the next one (tOH). The FPGA's input register must take it in between.
+
+A later `SDRAM_CLK` gives the commands more time and the read words less. From the datasheet, the FPGA's delays and the board's trace lengths, the phase must be between about 6.0 and 9.7 ns, and 7.81 ns is close to the middle. The PLL sets the phase in steps of 312.5 ps.
+
+How it's built so that the timing is the same in every compile:
+
+- The PLL is at PLL 2, whose dedicated clock output is the `SDRAM_CLK` pin (B20). So the clock doesn't go through ordinary routing.
+- The registers of the command, address, DQM and DQ pins are in the FPGA's I/O cells, next to the pins: the output registers, DQ's output enable (one per pin) and DQ's input registers. `SDRAM_CSn` has no register: every command selects the chips, so it's a constant 0.
+- The timing constraints (`Hardware/system/fpgc.sdc`) give the timing analysis the window: a clock on the `SDRAM_CLK` pin, and the chips' setup and hold, tAC and tOH, with the shortest and longest traces of each group of pins. A word is captured 3 cycles after its READ, one cycle later than the analysis assumes by default, which the constraints say too.
+
+So the timing analysis checks every SDRAM pin at every corner, together with the rest of the design.
+
 ## What it costs
 
 | Number | Cycles | What |
@@ -169,8 +186,9 @@ The controller is one state machine with one wait counter, and two shift registe
 - Every output, the line port's and the pins', comes straight from a register, with no logic after it (`sdram_cke` is a constant). So the pin registers can be in the FPGA's I/O cells, and the CPU's paths don't start at the SDRAM's pins.
 - The read word goes through two registers: the input register at the pin, and `sdram_read_word`. The CPU uses `sdram_read_word` in the same cycle, in its fetch and memory stages.
 - The data path runs every cycle without a condition: the input registers follow DQ, and the output registers follow `sdram_write_word`. The schedules decide when a word counts.
-- The cycle counts are constants for 100 MHz. Another clock needs other numbers. `READ_DELAY`, the 4 cycles from the READ to `sdram_read_word`, depends on the phase of the chips' clock.
+- The cycle counts are constants for 100 MHz. Another clock needs other numbers. `READ_DELAY`, the 4 cycles from the READ to `sdram_read_word`, depends on the phase of the chips' clock, and so do the constraints of the pins.
+- The pins' registers must stay in the I/O cells: nothing else may read the output registers, and the input registers may only feed `sdram_read_word`.
 
 ## Files
 
-The controller is `Hardware/sdram/sdram_controller.v`.
+The controller is `Hardware/sdram/sdram_controller.v`. The phase of the SDRAM's clock is in `Hardware/system/system_pll.v`, the pins' I/O cell registers in `Hardware/system/pins.qsf`, and their constraints in `Hardware/system/fpgc.sdc`.

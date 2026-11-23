@@ -1,7 +1,10 @@
-// Testbench of the top level, fpgc, with the simulation model of the PLL and the
-// serial line of serial_line.vh on the UART. The model passes the board clock through,
-// so the testbench drives sys_clk_50 at 100 MHz. The PC's reset takes 50 cycles here,
-// and the activity LEDs' tick comes every 256 cycles.
+// Testbench of the top level, fpgc, with the simulation model of the PLL, the serial
+// line of serial_line.vh on the UART, and two SDRAM chip models (sdram_chip.v) on the
+// SDRAM's pins. The model passes the board clock through, so the testbench drives
+// sys_clk_50 at 100 MHz. The PC's reset takes 50 cycles here, the activity LEDs' tick
+// comes every 256 cycles, the SDRAM's pause is 100 cycles, and the UART runs at 5 Mbaud
+// (20 cycles per bit), so a program loads 5 times faster. When a chip model reports
+// a broken rule, the run stops with an error.
 //
 // Plusargs, besides those of serial_line.vh:
 //
@@ -11,12 +14,14 @@
 //                      1 releases it)
 //   +trace=<file>      a line "c reset user rx tx" at every cycle in which the reset or
 //                      an LED changed, and at the end lines "pin <name> <value>" with
-//                      the pins that aren't used yet
+//                      the pins that aren't used yet, and "sdram initialized 1" once
+//                      both chip models have their mode and 8 refreshes
 //   +vcd=<file>        also dump the top level's signals
 `timescale 1ns / 1ps
 module tb_fpgc;
 
 parameter ROM_CONTENTS = "rom.hex";
+parameter SDRAM_PAUSE_CYCLES = 100;
 
 reg clk = 1'b0;
 always #5 clk = !clk;
@@ -36,11 +41,18 @@ wire      led_gpu;
 wire      led_flash;
 wire      led_usb;
 wire      led_eth;
-wire      SDRAM_CSn;
-wire      SDRAM_CKE;
 wire      SDRAM_CLK;
+wire      SDRAM_CSn;
+wire      SDRAM_WEn;
+wire      SDRAM_CASn;
+wire      SDRAM_RASn;
+wire      SDRAM_CKE;
+wire [12:0] SDRAM_A;
+wire [1:0] SDRAM_BA;
 wire [3:0] SDRAM_DQM;
 wire [31:0] SDRAM_DQ;
+wire [4:0] sdram_error_lo;
+wire [4:0] sdram_error_hi;
 wire      SRAM_CSn;
 wire      SRAM_WEn;
 wire      SRAM_OEn;
@@ -54,24 +66,27 @@ wire      flash2_cs;
 wire      flash2_miso;
 wire [7:0] audio_dac_data;
 
+`define UART_BIT 20
 `include "serial_line.vh"
 
 /* verilator lint_off PINCONNECTEMPTY */
 fpgc #(
     .ROM_CONTENTS(ROM_CONTENTS),
     .PC_RESET_CYCLES(50),
-    .LED_TICK_BITS(8)
+    .LED_TICK_BITS(8),
+    .CLOCKS_PER_BIT(20),
+    .SDRAM_PAUSE_CYCLES(SDRAM_PAUSE_CYCLES)
 ) dut (
     .sys_clk_50(clk),
     .sys_clk_header(1'b0),
     .SDRAM_CLK(SDRAM_CLK),
     .SDRAM_CSn(SDRAM_CSn),
-    .SDRAM_WEn(),
-    .SDRAM_CASn(),
-    .SDRAM_RASn(),
+    .SDRAM_WEn(SDRAM_WEn),
+    .SDRAM_CASn(SDRAM_CASn),
+    .SDRAM_RASn(SDRAM_RASn),
     .SDRAM_CKE(SDRAM_CKE),
-    .SDRAM_A(),
-    .SDRAM_BA(),
+    .SDRAM_A(SDRAM_A),
+    .SDRAM_BA(SDRAM_BA),
     .SDRAM_DQM(SDRAM_DQM),
     .SDRAM_DQ(SDRAM_DQ),
     .SRAM_CSn(SRAM_CSn),
@@ -139,6 +154,50 @@ fpgc #(
 );
 /* verilator lint_on PINCONNECTEMPTY */
 
+// The SDRAM: two chip models on the SDRAM's pins, with the PLL model's clock
+sdram_chip #(
+    .PAUSE(SDRAM_PAUSE_CYCLES * 10_000)
+) sdram_lo (
+    .clk(SDRAM_CLK),
+    .cke(SDRAM_CKE),
+    .cs_n(SDRAM_CSn),
+    .ras_n(SDRAM_RASn),
+    .cas_n(SDRAM_CASn),
+    .we_n(SDRAM_WEn),
+    .ba(SDRAM_BA),
+    .a(SDRAM_A),
+    .dqm(SDRAM_DQM[1:0]),
+    .dq(SDRAM_DQ[15:0]),
+    .error(sdram_error_lo)
+);
+
+sdram_chip #(
+    .PAUSE(SDRAM_PAUSE_CYCLES * 10_000)
+) sdram_hi (
+    .clk(SDRAM_CLK),
+    .cke(SDRAM_CKE),
+    .cs_n(SDRAM_CSn),
+    .ras_n(SDRAM_RASn),
+    .cas_n(SDRAM_CASn),
+    .we_n(SDRAM_WEn),
+    .ba(SDRAM_BA),
+    .a(SDRAM_A),
+    .dqm(SDRAM_DQM[3:2]),
+    .dq(SDRAM_DQ[31:16]),
+    .error(sdram_error_hi)
+);
+
+// A reset of the system pauses the refresh (sdram decision 11). A broken rule of the
+// SDRAM ends the run with an error.
+always @(posedge clk) begin
+    if (dut.reset) begin
+        sdram_lo.pause_refresh_check;
+        sdram_hi.pause_refresh_check;
+    end
+    if (sdram_error_lo != 5'd0 || sdram_error_hi != 5'd0)
+        $fatal(1, "an SDRAM chip model reports a broken rule in cycle %0d", cycle);
+end
+
 // The pin events
 reg [8*256-1:0] path;
 integer events_fd;
@@ -190,11 +249,9 @@ task trace_pins;
         $fwrite(trace_fd, "pin led_flash %b\n", led_flash);
         $fwrite(trace_fd, "pin led_usb %b\n", led_usb);
         $fwrite(trace_fd, "pin led_eth %b\n", led_eth);
-        $fwrite(trace_fd, "pin SDRAM_CLK %b\n", SDRAM_CLK);
-        $fwrite(trace_fd, "pin SDRAM_CSn %b\n", SDRAM_CSn);
-        $fwrite(trace_fd, "pin SDRAM_CKE %b\n", SDRAM_CKE);
-        $fwrite(trace_fd, "pin SDRAM_DQM %b\n", SDRAM_DQM);
-        $fwrite(trace_fd, "pin SDRAM_DQ %b\n", SDRAM_DQ);
+        $fwrite(trace_fd, "sdram initialized %b\n",
+                sdram_lo.mode_set && sdram_lo.refreshes >= 8 &&
+                sdram_hi.mode_set && sdram_hi.refreshes >= 8);
         $fwrite(trace_fd, "pin SRAM_CSn %b\n", SRAM_CSn);
         $fwrite(trace_fd, "pin SRAM_WEn %b\n", SRAM_WEn);
         $fwrite(trace_fd, "pin SRAM_OEn %b\n", SRAM_OEn);

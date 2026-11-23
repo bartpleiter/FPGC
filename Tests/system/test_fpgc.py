@@ -1,6 +1,7 @@
 """The whole top level, fpgc, with the boot ROM, in simulation: the boot lines on the
-UART, the echo, the three sources of reset, the LEDs, and the pins that aren't used
-yet.
+UART, loading programs over it into the SDRAM (the chip models) and running them, the
+three sources of reset, the LEDs, the SDRAM's initialization, and the pins that aren't
+used yet.
 
 The PLL is a model that locks after 20 cycles, the PC's reset takes 50 cycles instead
 of 1 ms, and the activity LEDs' tick comes every 256 cycles (see tb_fpgc.v).
@@ -9,6 +10,7 @@ of 1 ms, and the activity LEDs' tick comes every 256 cycles (see tb_fpgc.v).
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from fpgc.loader import load_message, ok_line, program_bytes
 from fpgc.rom import write_rom_hex
 
 from ..common.presets import check_preset
@@ -17,8 +19,9 @@ from .verilog import SYSTEM
 
 FOLDER = Path(__file__).parent
 BOOT = FOLDER.parents[1] / "Software/boot/boot.asm"
+PROGRAMS = FOLDER.parents[1] / "Software/programs"
 BOOT_LINES = b"boot: err 00000000 pc 00000000\r\nboot: ready\r\n"
-BYTE = 1000  # cycles per byte on the line
+BYTE = 200  # cycles per byte on the line, at 5 Mbaud (see tb_fpgc.v)
 BOOTED = 50 * BYTE  # the boot lines are sent by then
 PINS = {"reset_n": 0, "rts_n": 1, "dtr_n": 2, "locked": 3}
 
@@ -31,6 +34,7 @@ class Run:
     # cycle, then reset, user LED, rx LED and tx LED, at every change
     changes: list[tuple[int, int, int, int, int]] = field(default_factory=list)
     pins: dict[str, str] = field(default_factory=dict)  # the unused pins at the end
+    sdram_initialized: bool = False  # both chip models have their mode and refreshes
 
     def resets(self) -> list[int]:
         """The cycles in which a reset started."""
@@ -86,6 +90,8 @@ def run(
         words = line.split()
         if words[0] == "pin":
             result.pins[words[1]] = words[2]
+        elif words[0] == "sdram":
+            result.sdram_initialized = words[2] == "1"
         else:
             # x, before the first clock edge, counts as -1
             c, reset, user, rx, tx = (int(w) if w != "x" else -1 for w in words)
@@ -100,12 +106,45 @@ def test_boot_lines_and_leds() -> None:
     assert r.lit(4), "the tx LED never lit"
     assert not r.lit(3), "the rx LED lit without input"
     assert not r.lit(2), "the user LED lit"
+    assert r.sdram_initialized, "the SDRAM wasn't initialized"
 
 
-def test_echo() -> None:
-    r = run("echo", BOOTED + 4 * BYTE, uart_input=[(BOOTED, ord("o")), (0, ord("k"))])
-    assert r.output == BOOT_LINES + b"ok"
+def sent(message: bytes, at: int) -> list[tuple[int, int]]:
+    """The UART input of `message`, from cycle `at` on, without a pause between the
+    bytes, as the PC sends it."""
+    return [(at if i == 0 else 0, b) for i, b in enumerate(message)]
+
+
+def test_load() -> None:
+    """The hello world is loaded into SDRAM, runs, and returns to the boot ROM."""
+    hello = program_bytes((PROGRAMS / "hello.asm").read_text(), "hello.asm")
+    message = load_message(hello)
+    r = run("load", BOOTED + (len(message) + 80) * BYTE, sent(message, BOOTED))
+    assert r.output == (
+        BOOT_LINES + ok_line(hello) + b"\r\nhello, world\r\n" + BOOT_LINES
+    )
     assert r.lit(3), "the rx LED never lit"
+
+
+def test_memtest() -> None:
+    """The memory test over 1 KiB (32 lines) instead of 64 MiB, through the caches,
+    the SDRAM controller and the chip models."""
+    source = (PROGRAMS / "memtest.asm").read_text()
+    source = source.replace("load32 0x04000000 r6", "load32 0x00010400 r6")
+    program = program_bytes(source, "memtest.asm")
+    message = load_message(program)
+    cycles = BOOTED + len(message) * BYTE + 150_000  # the test takes about 100,000
+    r = run("memtest", cycles, sent(message, BOOTED))
+    assert r.output == (
+        BOOT_LINES
+        + ok_line(program)
+        + b"\r\n"
+        + b"memtest: pass 00000000 done, errors 00000000\r\n"
+        + b"memtest: pass 00000001 done, errors 00000000\r\n"
+        + b"memtest: pass 00000002 done, errors 00000000\r\n"
+        + b"memtest: done, errors 00000000\r\n"
+        + BOOT_LINES
+    )
 
 
 def test_unused_pins() -> None:
@@ -117,11 +156,6 @@ def test_unused_pins() -> None:
         "led_flash": "0",
         "led_usb": "0",
         "led_eth": "0",
-        "SDRAM_CLK": "0",
-        "SDRAM_CSn": "1",
-        "SDRAM_CKE": "0",
-        "SDRAM_DQM": "1111",
-        "SDRAM_DQ": "z" * 32,
         "SRAM_CSn": "1",
         "SRAM_WEn": "1",
         "SRAM_OEn": "1",
@@ -171,8 +205,14 @@ def test_resets() -> None:
     assert r.output == 4 * BOOT_LINES
 
 
-# The demo boots, and echoes an "!". The boot lines are sent from about 0.5 µs on, and
-# the echo comes at about 500 µs.
+# The demo boots, and loads and runs the hello world. The boot lines are sent from about
+# 0.5 µs on, the program from 500 µs on, and it runs at about 1.5 ms.
 def test_demo() -> None:
-    r = run("demo", BOOTED + 3 * BYTE, uart_input=[(BOOTED, ord("!"))], demo=True)
-    assert r.output == BOOT_LINES + b"!"
+    hello = program_bytes((PROGRAMS / "hello.asm").read_text(), "hello.asm")
+    message = load_message(hello)
+    r = run(
+        "demo", BOOTED + (len(message) + 80) * BYTE, sent(message, BOOTED), demo=True
+    )
+    assert r.output == (
+        BOOT_LINES + ok_line(hello) + b"\r\nhello, world\r\n" + BOOT_LINES
+    )

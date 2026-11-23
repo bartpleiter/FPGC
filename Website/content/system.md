@@ -1,19 +1,24 @@
 ---
 title: System
-weight: 4
+weight: 5
 reader: hardware
 ---
 
-The top level of the FPGC, `fpgc`: the CPU, the boot ROM and the [device bridge](io/bridge.md) on the board, with the clock, the reset and the LEDs. The [SDRAM controller](sdram.md) isn't in the top level yet, so the CPU only runs from the ROM.
+The top level of the FPGC, `fpgc`: the CPU, the boot ROM, the [device bridge](io/bridge.md) and the [SDRAM controller](sdram.md) on the board, with the clock, the reset and the LEDs.
 
 ```text
                 +-----------------------------------------------------------+
- sys_clk_50 --> | system_pll --> clk (100 MHz), locked                      |
+ sys_clk_50 --> | system_pll --> clk (100 MHz), clk_sdram, locked           |
  reset_n -----> | reset_control --> reset                                   |
  uart_rts_n --> |                                                           |
  uart_dtr_n --> |   rom (4 KiB) <-- fetch --- b32p4 --- bus --> device_bridge |
                 |               <-- data reads ---------------------+       |
                 |                                 <-- interrupts ---+       |
+                |                             |                             |
+                |                         line port                         |
+                |                             |                             |
+ SDRAM pins <-> | <------------------- sdram_controller                     |
+ SDRAM_CLK <--- | <-- clk_sdram                                             |
  uart_rx -----> | ----------------------------------------------> UART      |
  uart_tx <----- | <---------------------------------------------- UART      |
  dipsw -------> | ----------------------------------------------> board     |
@@ -25,7 +30,9 @@ The top level of the FPGC, `fpgc`: the CPU, the boot ROM and the [device bridge]
 
 ## Clock
 
-The board's 50 MHz oscillator, on pin T2, goes into the PLL, which makes the 100 MHz clock of the whole design. The PLL is placed at PLL 2, whose dedicated output reaches the SDRAM's clock pin, for the SDRAM controller later. The oscillator's pin isn't a dedicated input of PLL 2, so the input reaches it through ordinary routing. That shifts all of the PLL's outputs together, and doesn't change the timing between them.
+The board's 50 MHz oscillator, on pin T2, goes into the PLL, which makes the 100 MHz clock of the whole design. A second output of the PLL makes the SDRAM's clock: also 100 MHz, but 7.81 ns later, on the `SDRAM_CLK` pin (see [SDRAM controller](sdram.md#pin-timing)).
+
+The PLL is placed at PLL 2, whose dedicated output reaches the `SDRAM_CLK` pin. The oscillator's pin isn't a dedicated input of PLL 2, so the input reaches it through ordinary routing. That shifts all of the PLL's outputs together, and doesn't change the timing between them.
 
 ## Reset
 
@@ -45,7 +52,7 @@ One reset, `reset`, for the whole design, from three sources:
 
 4 KiB with two read ports: one for the CPU's instruction fetches, and one for data reads through the device bridge. Its contents come from `Software/boot/boot.asm`, assembled into a hex file when the design is built. The CPU starts at its first word, `0x04000000`, after every reset.
 
-The program quiets the devices, prints the error register and `boot: ready` over the UART, and then sends back every byte it receives.
+The program quiets the devices, prints the error register and `boot: ready` over the UART, and then loads programs into SDRAM and runs them: see [Boot ROM](boot.md).
 
 ## LEDs
 
@@ -77,7 +84,6 @@ The top level has every pin of the board, 169 of them, as 3.3-V LVTTL. Pins that
 
 | Chip | State |
 | --- | --- |
-| SDRAM | deselected (CS# high), clock enable low, clock low, data masks high, data lines not driven |
 | SRAM | deselected (CS# high), no read or write (OE# and WE# high), data lines not driven |
 | SPI flash, SD card, USB chips, Ethernet chip | deselected (CS# high), clock low, the flash's write protect and hold high |
 | HDMI | a constant level on every pair |
@@ -90,13 +96,17 @@ Pins on no net at all are inputs with a weak pull-up.
 
 The SDC constrains the 50 MHz clock, and the PLL's clocks follow from it. The asynchronous inputs (the button, the UART's lines, the DIP switches) and the slow outputs (the UART's transmit line, the LEDs) aren't timed: each goes through a synchronizer, or changes far slower than the clock.
 
+The SDRAM's pins are timed against the SDRAM's clock, with the delays of the chips and the board's traces. See [SDRAM controller](sdram.md#pin-timing).
+
 ## Building and programming
 
 | Command | What |
 | --- | --- |
-| `fpgc system build` | assembles the boot ROM, generates the Quartus project, compiles it, and reports the timing at every corner |
+| `fpgc system build` | assembles the boot ROM, generates the Quartus project, compiles it, and reports the timing at every corner, with the SDRAM's pins on their own. With `--seeds 10`, it compiles 10 seeds, for the sign-off. |
 | `fpgc board program` | programs the FPGA over JTAG. The board's flash isn't changed, so the design is gone after a power cycle. |
 | `fpgc board console` | shows what the board sends, and sends each typed line. With `--reset`, it resets the board first. |
+| `fpgc board run <program.asm>` | loads a program into SDRAM and runs it (see [Boot ROM](boot.md)), and shows what it sends until it's back in the boot ROM |
+| `fpgc board test` | runs the tests on the board: the hello world, a load with a flipped bit, the memory test over all 64 MiB, an interrupt program, the CPU's cache programs, and random programs, each compared with the ISS. `--seeds` sets the number of random programs. |
 
 ## Modules
 

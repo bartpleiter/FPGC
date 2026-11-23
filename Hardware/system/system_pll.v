@@ -1,15 +1,18 @@
 // PLL
-// 50 MHz in; c1 is the 100 MHz system clock, and c2 the SDRAM clock later. The other
-// outputs are unused for now, but set the same VCO and clock uncertainty.
+// 50 MHz in; c1 is the 100 MHz system clock, and c2 the SDRAM's clock: the same, but
+// later. The other outputs are unused for now, but set the same VCO and clock
+// uncertainty.
 module system_pll (
     input  wire clk_50,
     output wire clk_100,
-    output wire locked   // the clocks are stable
+    output wire clk_sdram,
+    output wire locked     // the clocks are stable
 );
 
 wire [4:0] clocks;
 
-assign clk_100 = clocks[1];
+assign clk_100   = clocks[1];
+assign clk_sdram = clocks[2];
 
 altpll #(
     .bandwidth_type("AUTO"),
@@ -24,7 +27,7 @@ altpll #(
     .clk2_divide_by(1),
     .clk2_duty_cycle(50),
     .clk2_multiply_by(2),
-    .clk2_phase_shift("7500"),
+    .clk2_phase_shift("7813"),  // in steps of 312.5 ps
     .clk3_divide_by(2),
     .clk3_duty_cycle(50),
     .clk3_multiply_by(1),

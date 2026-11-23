@@ -230,7 +230,7 @@ After RETI, the interrupted control-flow instruction executes as if nothing happ
 Other rules:
 
 - No nesting: an interrupt that arrives during the handler stays pending until after RETI.
-- Interrupts are disabled after reset. Software enables and disables them with the `INT_ENABLE` register. The bootloader enables them right before it jumps to the program in SDRAM, as the handler is at `0x4`.
+- Interrupts are disabled after reset. Software enables and disables them with the `INT_ENABLE` register. The [boot ROM](../boot.md) leaves them disabled when it starts a program in SDRAM: the program enables them once its handler at `0x4` is ready.
 - The instruction right after a write to `INT_ENABLE` may still use the old value. So when it's a jump or branch, an interrupt can still be taken there right after a write that disables interrupts (and RETI then enables them again), or not yet right after a write that enables them. Code that must not be interrupted puts another instruction between the write and the first jump or branch.
 - Reading `pc_backup`: the handler can read and write it via a CPU-internal register, for example to switch tasks.
 

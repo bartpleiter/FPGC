@@ -4,7 +4,7 @@ import click
 
 from fpgc.common import run
 from fpgc.config import CONFIG
-from fpgc.quartus import compile_and_report, prepare
+from fpgc.quartus import compile_and_report, compile_seeds, prepare
 from fpgc.rom import write_rom_hex
 
 cfg = CONFIG.system
@@ -26,15 +26,26 @@ def test(pattern: str) -> None:
 
 @system.command()
 def lint() -> None:
-    """Lint the top level's RTL with Verilator, with the PLL's simulation model."""
+    """Lint the top level's RTL with Verilator, with the PLL's simulation model, whose
+    delay for the SDRAM's clock Verilator ignores (--no-timing)."""
     files = [
         *cfg.rtl_files,
         cfg.pll_model,
         *CONFIG.cpu.rtl_files,
         *CONFIG.io.rtl_files,
+        *CONFIG.sdram.rtl_files,
     ]
     for top in [f.stem for f in cfg.rtl_files]:
-        run("verilator", "--lint-only", "-Wall", "--quiet", "--top-module", top, *files)
+        run(
+            "verilator",
+            "--lint-only",
+            "-Wall",
+            "--no-timing",
+            "--quiet",
+            "--top-module",
+            top,
+            *files,
+        )
 
 
 @system.command()
@@ -56,30 +67,54 @@ def wave(module: str) -> None:
     )
 
 
+# The SDRAM's pins, for the timing summary
+SDRAM_PINS = {
+    "SDRAM commands": "-to [get_ports {SDRAM_A[*] SDRAM_BA[*] SDRAM_CSn SDRAM_RASn"
+    " SDRAM_CASn SDRAM_WEn}]",
+    "SDRAM data out": "-to [get_ports {SDRAM_DQ[*] SDRAM_DQM[*]}]",
+    "SDRAM data in": "-from [get_ports {SDRAM_DQ[*]}]",
+}
+
+
 @system.command()
-def build() -> None:
+@click.option(
+    "--seeds",
+    type=int,
+    help="Compile with seeds 1 to SEEDS in parallel, and summarise over them: the"
+    " sign-off, in which every seed must pass.",
+)
+def build(seeds: int | None) -> None:
     """Build the top level in Quartus, with the boot ROM, and report its timing.
 
     Assembles the boot ROM, generates the Quartus project in the build folder, compiles
-    it, and prints the timing at every corner and the resources. The bitstream is
-    output_files/fpgc.sof in that folder.
+    it, and prints the timing at every corner, the slack of the SDRAM's pins and the
+    resources. The bitstream is output_files/fpgc.sof in that folder, from seed 1.
     """
-    out_dir = cfg.quartus_dir
-    rom = write_rom_hex(cfg.boot_rom, out_dir / "rom.hex")
+    rom = write_rom_hex(cfg.boot_rom, cfg.quartus_dir / "rom.hex")
     files = [
         *cfg.rtl_files,
         cfg.pll_file,
         *CONFIG.cpu.rtl_files,
         *CONFIG.io.rtl_files,
+        *CONFIG.sdram.rtl_files,
     ]
-    prepare(
-        out_dir,
-        cfg.top,
-        files,
-        CONFIG.cpu.device,
-        cfg.sdc_file.read_text(),
-        seed=1,
-        parameters={"ROM_CONTENTS": str(rom.absolute())},
-        extra_qsf=cfg.pins_file.read_text(),
-    )
-    compile_and_report(CONFIG.cpu.quartus_bin, out_dir, cfg.top)
+    out_dirs = {
+        s: cfg.quartus_dir if s == 1 else cfg.quartus_dir.with_name(f"quartus-seed{s}")
+        for s in range(1, (seeds or 1) + 1)
+    }
+    for s, out_dir in out_dirs.items():
+        prepare(
+            out_dir,
+            cfg.top,
+            files,
+            CONFIG.cpu.device,
+            cfg.sdc_file.read_text(),
+            seed=s,
+            parameters={"ROM_CONTENTS": str(rom.absolute())},
+            extra_qsf=cfg.pins_file.read_text(),
+            pin_groups=SDRAM_PINS,
+        )
+    if seeds:
+        compile_seeds(CONFIG.cpu.quartus_bin, out_dirs, cfg.top)
+    else:
+        compile_and_report(CONFIG.cpu.quartus_bin, cfg.quartus_dir, cfg.top)
