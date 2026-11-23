@@ -6,6 +6,12 @@ resolution-markers = [
     "python_full_version < '3.15'",
 ]
 
+[manifest]
+members = [
+    "b32asm",
+    "fpgc",
+]
+
 [[package]]
 name = "annotated-types"
 version = "0.8.0"
@@ -78,6 +84,17 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/23/bf/b419c3205ce1143ba7c69baef4f0ba43c14d8712113bf34f9e0d27d609be/ast_serialize-0.11.2-cp39-abi3-win_amd64.whl", hash = "sha256:b9065dd23131a23b41f5bab3bf4e9b3c350a3fe8e36e8200eded9b729fcea484", size = 1165434, upload-time = "2026-09-13T18:48:52.169Z" },
     { url = "https://files.pythonhosted.org/packages/91/a7/c8bbb2173f7a7131b3b2412035b2d814ab5ef2ce9799bd06f07c451640e4/ast_serialize-0.11.2-cp39-abi3-win_arm64.whl", hash = "sha256:dab599cbdcb7b45b18c41fad746645580b3a24357082b7f0e8921cd373804f27", size = 1136031, upload-time = "2026-09-13T18:48:54.04Z" },
 ]
+
+[[package]]
+name = "b32asm"
+version = "1.0.0"
+source = { editable = "Toolchain/b32asm" }
+dependencies = [
+    { name = "click" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "click", specifier = ">=8.5.0" }]
 
 [[package]]
 name = "click"
@@ -195,6 +212,7 @@ name = "fpgc"
 version = "1.0.0"
 source = { editable = "." }
 dependencies = [
+    { name = "b32asm" },
     { name = "click" },
     { name = "hugo" },
     { name = "pydantic" },
@@ -213,6 +231,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "b32asm", editable = "Toolchain/b32asm" },
     { name = "click", specifier = ">=8.5.0" },
     { name = "hugo", specifier = "==0.168.0" },
     { name = "pydantic", specifier = ">=2.14.1" },

@@ -1,5 +1,5 @@
-"""Unit test of activity_leds, against a model of the tick and the two flags per LED
-(io decision 15). The tick comes every 4 cycles here."""
+"""Unit test of activity_leds, against a model of the tick and the two flags per LED.
+The tick comes every 4 cycles here."""
 
 import random
 from pathlib import Path

@@ -111,6 +111,27 @@ def test_sign_extended_constants(source: str, word: int) -> None:
         ("add r1 4x r2", "invalid operand"),
         ("jump Nowhere", "unknown label"),
         ("A:\nA:", "defined twice"),
+        (".equ A 1\nA:", "defined twice"),
+        ("A:\n.equ A 1", "defined twice"),
+        (".equ A 1\n.equ A 2", "defined twice"),
+        (".equ A", "a name and a value"),
+        (".equ r1 5", "can't be the name"),
+        (".equ A B", "must be a number"),
+        (".ds hello", "double quotes"),
+        ('.ds "a" "b"', "inside quotes"),
+        (r'.ds "a\q"', "unknown escape"),
+        ("load 0o17 r1", "invalid operand"),
+        ("load 0X10 r1", "invalid operand"),
+        ("load 1__0 r1", "invalid operand"),
+        ("load 0x_10 r1", "invalid operand"),
+        ("load 10_ r1", "invalid operand"),
+        ("load 017x r1", "invalid operand"),
+        ("load 'ab' r1", "one character"),
+        ("load '' r1", "one character"),
+        ("load 'a r1", "invalid character"),
+        ("load ''' r1", "invalid character"),
+        (".dw Nowhere", "unknown label"),
+        ('.ds "é"', "not an ASCII"),
         ("jumpo 2", "not a multiple of 4"),
         ("beq r0 r0 6", "not a multiple of 4"),
     ],
@@ -118,6 +139,51 @@ def test_sign_extended_constants(source: str, word: int) -> None:
 def test_errors(source: str, message: str) -> None:
     with pytest.raises(AsmError, match=message):
         assemble(source)
+
+
+def test_strings() -> None:
+    """4 characters per word, the first in the lowest byte, ended by a 0 and padded
+    to a whole word. A ; in a string isn't a comment."""
+    assert assemble('.ds "abc"').words == [0x00636261]
+    assert assemble('.ds "abcd"').words == [0x64636261, 0]
+    assert assemble('.ds ""').words == [0]
+    assert assemble('.ds "a;b" ; comment').words == [0x00623B61]
+    assert assemble(r'.ds "\r\n\t\\\"\0"').words == [0x5C090A0D, 0x00000022]
+    program = assemble('.ds "hello"\nNext:\n', 0x100)
+    assert program.labels == {"Next": 0x108}
+
+
+def test_numbers() -> None:
+    same = assemble(".dw 10 0x1F 5 -3 -16 0xFFFF8000 1000").words
+    assert assemble(".dw 1_0 0x1f 0b101 -3 -0x10 0xFFFF_8000 1_000").words == same
+    assert assemble(".dw 0b1010_0000 007").words == [0xA0, 7]
+
+
+def test_characters() -> None:
+    """A character is its number, with the escapes of strings. ; and spaces
+    inside a character are part of it."""
+    assert assemble("load 'L' r2").words == assemble("load 0x4C r2").words
+    source = r".dw 'a' ' ' ';' '\n' '\'' '\\' '\"' '\0' ; ' ' is a space"
+    assert assemble(source).words == [0x61, 0x20, 0x3B, 0x0A, 0x27, 0x5C, 0x22, 0]
+    assert assemble('.ds "it\'s"').words == [0x73277469, 0]
+
+
+def test_labels_in_data() -> None:
+    program = assemble("Table:\n.dw First Second\nFirst:\nnop\nSecond:\n", 0x100)
+    assert program.words == [0x108, 0x10C, 0]
+
+
+def test_constants() -> None:
+    source = """
+        .equ UART 0xFFFF8000
+        .equ TRANSMIT UART
+        .equ BIG 0x12345678
+        write TRANSMIT r0 r1
+        load32 BIG r2
+        .dw BIG
+    """
+    same = "write 0xFFFF8000 r0 r1\nload32 0x12345678 r2\n.dw 0x12345678"
+    assert assemble(source).words == assemble(same).words
 
 
 def test_error_location() -> None:

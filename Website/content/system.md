@@ -7,26 +7,33 @@ reader: hardware
 The top level of the FPGC, `fpgc`: the CPU, the boot ROM, the [device bridge](io/bridge.md) and the [SDRAM controller](sdram.md) on the board, with the clock, the reset and the LEDs.
 
 ```text
-                +-----------------------------------------------------------+
- sys_clk_50 --> | system_pll --> clk (100 MHz), clk_sdram, locked           |
- reset_n -----> | reset_control --> reset                                   |
- uart_rts_n --> |                                                           |
- uart_dtr_n --> |   rom (4 KiB) <-- fetch --- b32p4 --- bus --> device_bridge |
-                |               <-- data reads ---------------------+       |
-                |                                 <-- interrupts ---+       |
-                |                             |                             |
-                |                         line port                         |
-                |                             |                             |
- SDRAM pins <-> | <------------------- sdram_controller                     |
- SDRAM_CLK <--- | <-- clk_sdram                                             |
- uart_rx -----> | ----------------------------------------------> UART      |
- uart_tx <----- | <---------------------------------------------- UART      |
- dipsw -------> | ----------------------------------------------> board     |
- led_user <---- | <---------------------------------------------- board     |
- led_uart_rx <- | <-- activity_leds <-- the UART's lines                    |
- led_uart_tx <- |                                                           |
-                +-----------------------------------------------------------+
+               ROM fetch port   +---------------+
+         +--------------------> |      rom      |
+         |                      +---------------+
+         |                              ^
+         |                              | data reads
+   +-----------+       bus      +---------------+
+   |   b32p4   | -------------> | device_bridge | <--> UART, user LED, switches
+   |           | <------------- |               |
+   +-----------+   interrupts   +---------------+
+         |
+         | SDRAM line port
+         v
++------------------+
+| sdram_controller | <--> SDRAM
++------------------+
 ```
+
+The CPU reaches everything through its four connections (see [CPU interface](cpu/interface.md)):
+
+| Connection | What goes over it |
+| --- | --- |
+| ROM fetch port | the instructions from the ROM, which the CPU runs after a reset |
+| SDRAM line port | the caches' line reads and writes, for the 64 MiB of SDRAM at address 0 |
+| bus | the other reads and writes, except those of the CPU's own registers: data from the ROM, and the device registers |
+| interrupts | one line from the timer, one from the UART |
+
+Every module runs on the 100 MHz clock from the PLL, and has the one reset: see [Clock](#clock) and [Reset](#reset).
 
 ## Clock
 

@@ -46,7 +46,7 @@ class CpuConfig(BaseModel):
     gtkwave_rc: Path = Path("Tests/common/gtkwaverc")
     build_dir: Path = Path("build/cpu")
     wave_dir: Path = Path("build/cpu/wave")
-    tool_dirs: list[Path] = [Path("Tools/b32asm"), Path("Tools/b32sim")]
+    tool_dirs: list[Path] = [Path("Toolchain/b32asm"), Path("Tools/b32sim")]
     harness_dir: Path = Path("Hardware/cpu/harness")
     harness_top: str = "b32p4_harness"
     timing_dir: Path = Path("build/cpu/timing")

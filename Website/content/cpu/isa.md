@@ -161,14 +161,15 @@ The stack is 256 words of on-chip memory, separate from the address space. It's 
 
 | Instruction | Mnemonic | New PC |
 | --- | --- | --- |
-| JUMP, O = 0 | `jump c27` or `jump label` | `zext(c27)` |
-| JUMP, O = 1 | `jumpo c27` | `PC + sext(c27)` |
+| JUMP, O = 0 | `jump c27` | `zext(c27)` |
+| JUMP, O = 1 | `jumpo c27` or `jump label` | `PC + sext(c27)` |
 | JUMPR, O = 0 | `jumpr c16 B` | `B + sext(c16)` |
 | JUMPR, O = 1 | `jumpro c16 B` | `PC + B + sext(c16)` |
 | BRANCH | `beq A B c16` or `beq A B label`, ... | `PC + sext(c16)` if the condition holds, else `PC + 4` |
 | HALT | `halt` | `PC`: it jumps to itself |
 
 - All targets are byte addresses and must be multiples of 4.
+- The assembler turns a jump to a label into `jumpo`, with the offset to the label. A jump to a number is always the absolute `jump`. See [labels](../toolchain/assembly.md#labels).
 - The range of absolute `jump` is 0 to 128 MiB, which covers SDRAM and the ROM. Higher jumps should use `jumpo` or `jumpr`.
 - A branch reaches ±32 KiB from itself, as the argument is an offset from the current PC. Can be combined with a jump instruction for larger jumps.
 - HALT keeps the CPU on one instruction until an interrupt is taken. Implemented by jumping to the current address.

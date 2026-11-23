@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 authors = [{name = "Bart Pleiter"}]
 dependencies = [
+    "b32asm",
     "click>=8.5.0",
     "hugo==0.168.0",
     "pydantic>=2.14.1",
@@ -24,7 +25,6 @@ dev = [
 
 [project.scripts]
 fpgc = "fpgc.cli:main"
-b32asm = "b32asm.cli:main"
 b32sim = "b32sim.cli:main"
 
 [build-system]
@@ -33,14 +33,20 @@ build-backend = "uv_build"
 
 [tool.uv.build-backend]
 module-root = "Tools"
-module-name = ["fpgc", "b32asm", "b32sim"]
+module-name = ["fpgc", "b32sim"]
+
+[tool.uv.workspace]
+members = ["Toolchain/*"]
+
+[tool.uv.sources]
+b32asm = { workspace = true }
 
 [tool.ruff]
-src = ["Tools"]
+src = ["Tools", "Toolchain/b32asm"]
 extend-exclude = ["Website/themes"]
 
 [tool.pytest.ini_options]
-testpaths = ["Tools", "Tests"]
+testpaths = ["Tools", "Toolchain", "Tests"]
 # -n auto runs the tests in parallel
 addopts = ["--import-mode=importlib", "-n", "auto"]
 

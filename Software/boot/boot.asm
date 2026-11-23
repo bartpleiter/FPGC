@@ -11,29 +11,43 @@
 ; Functions are called with `savpc 8 r15` and `jump`, and return with `jumpr 0 r15`.
 ; ReceiveByte is called with r14 instead, so ReceiveWord can call it.
 
+.equ PC_BACKUP 0xFFFFFF00
+.equ SP 0xFFFFFF04
+.equ ERR_STATUS 0xFFFFFF08
+.equ ERR_PC 0xFFFFFF0C
+.equ INT_ENABLE 0xFFFFFF10
+.equ UART_TRANSMIT 0xFFFF8000
+.equ UART_RECEIVE 0xFFFF8004
+.equ UART_STATUS 0xFFFF8008
+.equ UART_CONTROL 0xFFFF800C
+.equ TIMER_COUNT 0xFFFF8200
+.equ TIMER_CONTROL 0xFFFF8204
+.equ TIMER_STATUS 0xFFFF8208
+.equ SDRAM_END 0x04000000
+
 Start:
-    write 0xFFFFFF10 r0 r0      ; INT_ENABLE: no interrupts
-    write 0xFFFFFF00 r0 r0      ; PC_BACKUP: 0
-    write 0xFFFFFF04 r0 r0      ; SP: an empty stack
-    write 0xFFFF800C r0 r0      ; UART CONTROL: no interrupt
-    write 0xFFFF8204 r0 r0      ; timer CONTROL: one-shot, no interrupt
-    write 0xFFFF8200 r0 r0      ; timer COUNT: stopped
-    write 0xFFFF8208 r0 r0      ; timer STATUS: flag cleared
+    write INT_ENABLE r0 r0      ; no interrupts
+    write PC_BACKUP r0 r0
+    write SP r0 r0              ; an empty stack
+    write UART_CONTROL r0 r0    ; no interrupt
+    write TIMER_CONTROL r0 r0   ; one-shot, no interrupt
+    write TIMER_COUNT r0 r0     ; stopped
+    write TIMER_STATUS r0 r0    ; the flag cleared
 
     ; boot: err <ERR_STATUS> pc <ERR_PC>
     addr2reg TextErr r1
     savpc 8 r15
     jump PrintText
-    read 0xFFFFFF08 r0 r1       ; ERR_STATUS
+    read ERR_STATUS r0 r1
     savpc 8 r15
     jump PrintHex
     addr2reg TextPc r1
     savpc 8 r15
     jump PrintText
-    read 0xFFFFFF0C r0 r1       ; ERR_PC
+    read ERR_PC r0 r1
     savpc 8 r15
     jump PrintHex
-    write 0xFFFFFF08 r0 r0      ; clears the error register
+    write ERR_STATUS r0 r0      ; clears the error register
     addr2reg TextNewline r1
     savpc 8 r15
     jump PrintText
@@ -47,7 +61,7 @@ Ready:
 Command:
     savpc 8 r14
     jump ReceiveByte
-    load 0x4C r2                ; "L"
+    load 'L' r2
     bne r1 r2 Command
 
 ; The length in r6, a multiple of 4 and at most 64 MiB
@@ -56,7 +70,7 @@ Command:
     or r3 r0 r6
     and r6 3 r2
     bne r2 r0 BadLength
-    load32 0x04000000 r2
+    load32 SDRAM_END r2
     bgt r6 r2 BadLength
 
 ; The program: each word to SDRAM at r7, and each byte into the CRC in r5
@@ -127,10 +141,10 @@ BadLength:
 
 ; Waits for a byte, and returns it in r1. Uses r2. Returns with r14.
 ReceiveByte:
-    read 0xFFFF8008 r0 r2       ; UART STATUS
+    read UART_STATUS r0 r2
     and r2 1 r2                 ; a byte is waiting
     beq r2 r0 ReceiveByte
-    read 0xFFFF8004 r0 r1       ; RECEIVE
+    read UART_RECEIVE r0 r1
     jumpr 0 r14
 
 ; Receives a word, lowest byte first, into r3. Uses r1, r2, r8 and r14.
@@ -147,12 +161,12 @@ ReceiveWordNext:
     bne r8 r2 ReceiveWordNext
     jumpr 0 r15
 
-; Prints the text at r1, one character per word, up to a 0. Uses r1 and r2.
+; Prints the string at r1, up to its 0. Uses r1 and r2.
 PrintText:
-    read 0 r1 r2
+    readbu 0 r1 r2
     beq r2 r0 PrintTextDone
-    write 0xFFFF8000 r0 r2      ; TRANSMIT
-    add r1 4 r1
+    write UART_TRANSMIT r0 r2
+    add r1 1 r1
     jump PrintText
 PrintTextDone:
     jumpr 0 r15
@@ -165,26 +179,25 @@ PrintHexNext:
     shiftr r1 28 r2             ; the highest digit
     shiftl r1 4 r1
     blt r2 r4 PrintHexDigit
-    add r2 0x27 r2              ; a to f: 0x61 is 0x30 + 10 + 0x27
+    add r2 39 r2                ; a to f: 'a' is '0' + 10 + 39
 PrintHexDigit:
-    add r2 0x30 r2
-    write 0xFFFF8000 r0 r2      ; TRANSMIT
+    add r2 '0' r2
+    write UART_TRANSMIT r0 r2
     sub r3 1 r3
     bne r3 r0 PrintHexNext
     jumpr 0 r15
 
-TextErr:        ; "boot: err "
-    .dw 0x62 0x6F 0x6F 0x74 0x3A 0x20 0x65 0x72 0x72 0x20 0
-TextPc:         ; " pc "
-    .dw 0x20 0x70 0x63 0x20 0
-TextReady:      ; "boot: ready\r\n"
-    .dw 0x62 0x6F 0x6F 0x74 0x3A 0x20 0x72 0x65 0x61 0x64 0x79 0x0D 0x0A 0
-TextOk:         ; "boot: ok "
-    .dw 0x62 0x6F 0x6F 0x74 0x3A 0x20 0x6F 0x6B 0x20 0
-TextBad:        ; "boot: bad "
-    .dw 0x62 0x6F 0x6F 0x74 0x3A 0x20 0x62 0x61 0x64 0x20 0
-TextBadLength:  ; "boot: bad length\r\n"
-    .dw 0x62 0x6F 0x6F 0x74 0x3A 0x20 0x62 0x61 0x64 0x20 0x6C 0x65 0x6E 0x67 0x74 0x68
-    .dw 0x0D 0x0A 0
-TextNewline:    ; "\r\n"
-    .dw 0x0D 0x0A 0
+TextErr:
+    .ds "boot: err "
+TextPc:
+    .ds " pc "
+TextReady:
+    .ds "boot: ready\r\n"
+TextOk:
+    .ds "boot: ok "
+TextBad:
+    .ds "boot: bad "
+TextBadLength:
+    .ds "boot: bad length\r\n"
+TextNewline:
+    .ds "\r\n"

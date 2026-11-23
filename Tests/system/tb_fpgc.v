@@ -187,7 +187,7 @@ sdram_chip #(
     .error(sdram_error_hi)
 );
 
-// A reset of the system pauses the refresh (sdram decision 11). A broken rule of the
+// A reset of the system pauses the refresh check of the chips. A broken rule of the
 // SDRAM ends the run with an error.
 always @(posedge clk) begin
     if (dut.reset) begin

@@ -5,11 +5,10 @@
 // sdram_write_word. The testbench must have `clk`, `reset`, `cycle` (an integer, the
 // number of the current cycle) and a task `stop` that ends the simulation.
 //
-// The chips get the clock 7.9 ns later (sdram decision 6), and the pause after power up
-// and after a reset is 1 us (100 cycles) instead of 200 us. A reset of the testbench
-// resets the controller too, as on the board, and pauses the chips' refresh check
-// (sdram decision 11). When a chip reports a broken rule, the run stops with a line
-// "sdram error: ...".
+// The chips get the clock 7.9 ns later, and the pause after power up and after a
+// reset is 1 us (100 cycles) instead of 200 us. A reset of the testbench resets the
+// controller too, as on the board, and pauses the chips' refresh check. When a chip
+// reports a broken rule, the run stops with a line "sdram error: ...".
 //
 // For the testbench, the SDRAM's words: the function memory_word and the task
 // set_memory_word read and write the word at a word address (byte address [25:2]),

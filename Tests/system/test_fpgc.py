@@ -130,7 +130,8 @@ def test_memtest() -> None:
     """The memory test over 1 KiB (32 lines) instead of 64 MiB, through the caches,
     the SDRAM controller and the chip models."""
     source = (PROGRAMS / "memtest.asm").read_text()
-    source = source.replace("load32 0x04000000 r6", "load32 0x00010400 r6")
+    assert ".equ END 0x04000000" in source
+    source = source.replace(".equ END 0x04000000", ".equ END 0x00010400")
     program = program_bytes(source, "memtest.asm")
     message = load_message(program)
     cycles = BOOTED + len(message) * BYTE + 150_000  # the test takes about 100,000

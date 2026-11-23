@@ -10,14 +10,20 @@
 ; r11 the errors, r12 the pass, r13 the start. Pattern is called with r14, and the
 ; print functions with r15; they use r1 to r4.
 
-    load32 0x00010000 r13       ; START
-    load32 0x04000000 r6        ; END
+.equ UART_TRANSMIT 0xFFFF8000
+.equ BOOT_ROM 0x04000000
+.equ START 0x00010000
+.equ END 0x04000000
+.equ SEED 0x2545F491
+
+    load32 START r13
+    load32 END r6
     load 0 r11
     load 0 r12
 
 Pass:
     or r13 r0 r7
-    load32 0x2545F491 r9        ; the random seed
+    load32 SEED r9
 Write:
     savpc 8 r14
     jump Pattern
@@ -27,7 +33,7 @@ Write:
     ccache                      ; to the SDRAM, and out of the caches
 
     or r13 r0 r7
-    load32 0x2545F491 r9
+    load32 SEED r9
 Check:
     savpc 8 r14
     jump Pattern
@@ -89,7 +95,7 @@ CheckNext:
     addr2reg TextNewline r1
     savpc 8 r15
     jump PrintText
-    jump 0x04000000             ; back to the boot ROM
+    jump BOOT_ROM
 
 ; The word for address r7 in pass r12 into r8. Pass 2 takes the next random word from
 ; r9. Uses r2. Returns with r14.
@@ -112,12 +118,12 @@ PatternInverted:
     not r7 r8
     jumpr 0 r14
 
-; Prints the text at r1, one character per word, up to a 0. Uses r1 and r2.
+; Prints the string at r1, up to its 0. Uses r1 and r2.
 PrintText:
-    read 0 r1 r2
+    readbu 0 r1 r2
     beq r2 r0 PrintTextDone
-    write 0xFFFF8000 r0 r2      ; UART TRANSMIT
-    add r1 4 r1
+    write UART_TRANSMIT r0 r2
+    add r1 1 r1
     jump PrintText
 PrintTextDone:
     jumpr 0 r15
@@ -130,27 +136,25 @@ PrintHexNext:
     shiftr r1 28 r2             ; the highest digit
     shiftl r1 4 r1
     blt r2 r4 PrintHexDigit
-    add r2 0x27 r2              ; a to f: 0x61 is 0x30 + 10 + 0x27
+    add r2 39 r2                ; a to f: 'a' is '0' + 10 + 39
 PrintHexDigit:
-    add r2 0x30 r2
-    write 0xFFFF8000 r0 r2      ; UART TRANSMIT
+    add r2 '0' r2
+    write UART_TRANSMIT r0 r2
     sub r3 1 r3
     bne r3 r0 PrintHexNext
     jumpr 0 r15
 
-TextError:     ; "memtest: error at "
-    .dw 0x6D 0x65 0x6D 0x74 0x65 0x73 0x74 0x3A 0x20 0x65 0x72 0x72 0x6F 0x72 0x20 0x61
-    .dw 0x74 0x20 0
-TextWrote:     ; " wrote "
-    .dw 0x20 0x77 0x72 0x6F 0x74 0x65 0x20 0
-TextRead:      ; " read "
-    .dw 0x20 0x72 0x65 0x61 0x64 0x20 0
-TextPass:      ; "memtest: pass "
-    .dw 0x6D 0x65 0x6D 0x74 0x65 0x73 0x74 0x3A 0x20 0x70 0x61 0x73 0x73 0x20 0
-TextErrors:    ; " done, errors "
-    .dw 0x20 0x64 0x6F 0x6E 0x65 0x2C 0x20 0x65 0x72 0x72 0x6F 0x72 0x73 0x20 0
-TextDone:      ; "memtest: done, errors "
-    .dw 0x6D 0x65 0x6D 0x74 0x65 0x73 0x74 0x3A 0x20 0x64 0x6F 0x6E 0x65 0x2C 0x20 0x65
-    .dw 0x72 0x72 0x6F 0x72 0x73 0x20 0
-TextNewline:   ; "\r\n"
-    .dw 0x0D 0x0A 0
+TextError:
+    .ds "memtest: error at "
+TextWrote:
+    .ds " wrote "
+TextRead:
+    .ds " read "
+TextPass:
+    .ds "memtest: pass "
+TextErrors:
+    .ds " done, errors "
+TextDone:
+    .ds "memtest: done, errors "
+TextNewline:
+    .ds "\r\n"

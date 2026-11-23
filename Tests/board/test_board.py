@@ -1,4 +1,4 @@
-"""Tests on the board (system decision 5): programs that the boot ROM loads and runs,
+"""Tests on the board: programs that the boot ROM loads and runs,
 compared with the ISS or with what they must print. Run with `fpgc board test`, with
 the current `fpgc system build` programmed on the board (`fpgc board program`).
 

@@ -56,20 +56,23 @@ The `<crc>` is the one the boot ROM computed, in hex. If the board gets fewer by
 - If it uses interrupts, it needs a handler at `0x4`, and enables interrupts itself once the handler is ready (see the [programming notes](cpu/programming.md#interrupts)).
 - When it's done, it jumps back with `jump 0x04000000`. The boot ROM then starts from the top, prints the error register, and waits for the next program.
 
-A hello world:
+A hello world (the [assembly language](toolchain/assembly.md) page explains it line by line):
 
 ```text
+.equ UART_TRANSMIT 0xFFFF8000
+.equ BOOT_ROM 0x04000000
+
     addr2reg Text r1
 Next:
-    read 0 r1 r2
+    readbu 0 r1 r2              ; the next character
     beq r2 r0 Done
-    write 0xFFFF8000 r0 r2      ; UART TRANSMIT
-    add r1 4 r1
+    write UART_TRANSMIT r0 r2
+    add r1 1 r1
     jump Next
 Done:
-    jump 0x04000000             ; back to the boot ROM
+    jump BOOT_ROM
 Text:
-    .dw 0x68 0x69 0x0D 0x0A 0   ; "hi\r\n"
+    .ds "hello, world\r\n"
 ```
 
 `Software/programs/` has this one as `hello.asm`, and a memory test, `memtest.asm`, which tests the SDRAM behind it with three patterns and prints each error.

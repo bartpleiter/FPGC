@@ -3,7 +3,8 @@
 Two passes:
 
 1. Parse each line, expand pseudo-instructions into real instructions and give
-   every instruction and data word its address. This collects the labels.
+   every instruction and data word its address. This collects the labels, and
+   replaces each constant (`.equ`) by its value.
 2. Encode each statement into one 32-bit word, now that all labels are known.
 """
 
@@ -24,6 +25,10 @@ from b32asm.isa import (
 _LABEL_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*):$")
 _NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _REG_RE = re.compile(r"^r([0-9]|1[0-5])$")
+# Decimal, hex and binary, with _ allowed between digits.
+_NUMBER_RE = re.compile(
+    r"^-?(0x[0-9A-Fa-f]+(_[0-9A-Fa-f]+)*|0b[01]+(_[01]+)*|[0-9]+(_[0-9]+)*)$"
+)
 
 
 class AsmError(Exception):
@@ -73,24 +78,34 @@ def assemble(source: str, base: int = 0, filename: str = "<input>") -> Program:
     """Assemble `source` for a program that starts at address `base`."""
     statements: list[Statement] = []
     labels: dict[str, int] = {}
+    constants: dict[str, int] = {}
 
     # Pass 1 parses, expands and places the instructions.
     for number, text in enumerate(source.splitlines(), start=1):
         location = f"{filename}:{number}"
-        code = text.split(";", 1)[0].strip()
+        code = _strip_comment(text).strip()
         if not code:
             continue
         address = base + 4 * len(statements)
         if match := _LABEL_RE.match(code):
             name = match.group(1)
-            if name in labels:
-                raise AsmError(f"{location}: label '{name}' is defined twice")
+            if name in labels or name in constants:
+                raise AsmError(f"{location}: '{name}' is defined twice")
             labels[name] = address
             continue
-        mnemonic, *tokens = code.split()
+        mnemonic, *more = code.split(maxsplit=1)
+        rest = more[0] if more else ""
         try:
-            operands = [_parse_operand(t) for t in tokens]
-            statements += _expand(mnemonic, operands, location)
+            if mnemonic == ".ds":
+                statements += _string(rest, location)
+            elif mnemonic == ".equ":
+                name, value = _constant(_split(rest), constants)
+                if name in labels or name in constants:
+                    raise ValueError(f"'{name}' is defined twice")
+                constants[name] = value
+            else:
+                operands = [_parse_operand(t, constants) for t in _split(rest)]
+                statements += _expand(mnemonic, operands, location)
         except (ValueError, TypeError) as e:
             raise AsmError(f"{location}: {e}") from None
 
@@ -107,17 +122,129 @@ def assemble(source: str, base: int = 0, filename: str = "<input>") -> Program:
     return Program(base, words, labels)
 
 
-def _parse_operand(token: str) -> Operand:
+def _strip_comment(text: str) -> str:
+    """The line without its comment. A ; in a string or a character doesn't start
+    one."""
+    quote = ""
+    escaped = False
+    for i, char in enumerate(text):
+        if escaped:
+            escaped = False
+        elif char == "\\" and quote:
+            escaped = True
+        elif char in "\"'" and (not quote or char == quote):
+            quote = "" if quote else char
+        elif char == ";" and not quote:
+            return text[:i]
+    return text
+
+
+def _split(text: str) -> list[str]:
+    """The operands of a line, split at spaces and tabs, but not inside a
+    character such as ' '."""
+    tokens = []
+    token = ""
+    in_char = False
+    escaped = False
+    for char in text:
+        if char.isspace() and not in_char:
+            if token:
+                tokens.append(token)
+            token = ""
+            continue
+        token += char
+        if escaped:
+            escaped = False
+        elif char == "\\" and in_char:
+            escaped = True
+        elif char == "'":
+            in_char = not in_char
+    if token:
+        tokens.append(token)
+    return tokens
+
+
+def _parse_operand(token: str, constants: dict[str, int]) -> Operand:
     if match := _REG_RE.match(token):
         return Reg(int(match.group(1)))
     if re.match(r"^r[0-9]+$", token):
         raise ValueError(f"there is no register '{token}'")
+    if token in constants:
+        return constants[token]
     if _NAME_RE.match(token):
         return LabelRef(token)
-    try:
-        return int(token, 0)
-    except ValueError:
-        raise ValueError(f"invalid operand '{token}'") from None
+    if token.startswith("'"):
+        if len(token) < 2 or not token.endswith("'"):
+            raise ValueError(f"invalid character {token}")
+        chars = _unquote(token[1:-1], "'")
+        if len(chars) != 1:
+            raise ValueError(f"{token} must be one character")
+        return ord(chars)
+    if _NUMBER_RE.match(token):
+        sign = -1 if token.startswith("-") else 1
+        digits = token.lstrip("-").replace("_", "")
+        base = {"0x": 16, "0b": 2}.get(digits[:2], 10)
+        return sign * int(digits[2:] if base != 10 else digits, base)
+    raise ValueError(f"invalid operand '{token}'")
+
+
+_ESCAPES = {
+    "r": "\r",
+    "n": "\n",
+    "t": "\t",
+    "0": "\0",
+    "\\": "\\",
+    '"': '"',
+    "'": "'",
+}
+
+
+def _unquote(text: str, quote: str) -> str:
+    """The characters between the quotes of a string or a character, with the
+    escapes replaced. Only ASCII."""
+    chars = []
+    i = 0
+    while i < len(text):
+        char = text[i]
+        if char == "\\":
+            i += 1
+            escape = text[i] if i < len(text) else ""
+            if escape not in _ESCAPES:
+                raise ValueError(f"unknown escape '\\{escape}'")
+            char = _ESCAPES[escape]
+        elif char == quote:
+            raise ValueError(f"a {quote} inside quotes needs a \\")
+        if not char.isascii():
+            raise ValueError(f"'{char}' is not an ASCII character")
+        chars.append(char)
+        i += 1
+    return "".join(chars)
+
+
+def _string(text: str, location: str) -> list[Statement]:
+    """A .ds string as data words: 4 characters per word, the first in the lowest
+    byte, ended by a 0 and padded with zeros to a whole word."""
+    if len(text) < 2 or text[0] != '"' or text[-1] != '"':
+        raise ValueError(".ds needs one string in double quotes")
+    data = _unquote(text[1:-1], '"').encode("ascii") + b"\0"
+    data += bytes(-len(data) % 4)
+    return [
+        Statement(".dw", [int.from_bytes(data[i : i + 4], "little")], location)
+        for i in range(0, len(data), 4)
+    ]
+
+
+def _constant(tokens: list[str], constants: dict[str, int]) -> tuple[str, int]:
+    """The name and the value of an .equ."""
+    if len(tokens) != 2:
+        raise ValueError(".equ needs a name and a value")
+    name, token = tokens
+    if not _NAME_RE.match(name) or _REG_RE.match(name):
+        raise ValueError(f"'{name}' can't be the name of a constant")
+    value = _parse_operand(token, constants)
+    if not isinstance(value, int):
+        raise TypeError(f"the value of {name} must be a number or a constant")
+    return name, value
 
 
 def _expand(mnemonic: str, operands: list[Operand], location: str) -> list[Statement]:
@@ -205,7 +332,9 @@ def _encode(st: Statement, labels: dict[str, int]) -> int:
     m, ops = st.mnemonic, st.operands
 
     if m == ".dw":
-        (value,) = _check(m, ops, int)
+        (value,) = _check(m, ops, (int, LabelRef))
+        if isinstance(value, LabelRef):
+            value = _resolve(value, labels)
         if not -(1 << 31) <= value < (1 << 32):
             raise ValueError(f"{value} does not fit in 32 bits")
         return value & 0xFFFFFFFF

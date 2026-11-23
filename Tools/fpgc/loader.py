@@ -1,4 +1,4 @@
-"""The boot ROM's loading protocol on the PC's side (boot decision 3)."""
+"""The boot ROM's loading protocol on the PC's side (see the Boot ROM page)."""
 
 import zlib
 

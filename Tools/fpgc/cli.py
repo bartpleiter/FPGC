@@ -49,7 +49,7 @@ def check(ctx: click.Context) -> None:
     """Check formatting, lint, types and the RTL, and run all tests."""
     run("ruff", "format", "--check")
     run("ruff", "check")
-    run("mypy", "Tools")
+    run("mypy", "Tools", "Toolchain")
     ctx.invoke(cpu_lint)
     ctx.invoke(io_lint)
     ctx.invoke(sdram_lint)

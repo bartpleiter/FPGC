@@ -22,23 +22,31 @@ There is no Makefile and there are no shell scripts. The project is a collection
 ## Layout
 
 ```
-pyproject.toml     the one Python project; declares the fpgc command (and later the toolchain commands)
-Tools/fpgc/
-  cli.py           the fpgc group: registers the area groups, plus check, test and clean
-  config.py        all settings: one pydantic model per area
-  common.py        run()
-  website.py       fpgc website ...
+pyproject.toml     the root Python project: the fpgc command and the ISS, and the uv workspace
+Tools/             automation: what builds, checks and tests the project
+  fpgc/
+    cli.py         the fpgc group: registers the area groups, plus check, test and clean
+    config.py      all settings: one pydantic model per area
+    common.py      run()
+    website.py     fpgc website ...
+  b32sim/          the instruction set simulator
+Toolchain/         core: the PC tools that make FPGC programs, each its own project
+  b32asm/          the assembler, with its own pyproject.toml, README and tests
+Software/          core: what runs on the FPGC (the boot ROM program, programs)
+Hardware/          core: the RTL
 Website/           Hugo site with the docs and the blog (see website.md)
-Tests/             system tests for FPGC components (once they exist)
+Tests/             tests of the hardware and the software
 build/             all generated output; gitignored; `fpgc clean` deletes it
 ```
+
+Core never depends on automation. Automation may use core: `fpgc` and the tests import the assembler, and the ISS uses its instruction table.
 
 ## Rules
 
 1. **Every project task is an `fpgc` command.** No Makefile, no shell scripts, no standalone Python scripts. Vendored projects with their own Makefile (such as QBE) are built by an `fpgc` command that calls `make -C`.
 2. **Commands are `fpgc <area> <action>`**, such as `fpgc website serve` or `fpgc cpu test`. One module per area, registered with one line in `cli.py`. Only project-wide commands (`check`, `test`, `clean`) sit at the top level.
 3. **Every command has a one-line docstring.** That line is the help text.
-4. **Toolchain programs (assembler, linker, ...) are separate programs**, each with its own package in `Tools/` and its own `[project.scripts]` entry. `fpgc` starts them with `run()` and never imports them.
+4. **Toolchain programs (assembler, linker, ...) are separate projects** in `Toolchain/`, each with its own `pyproject.toml` and command, so they can be installed and used without the rest of the repository. They never import anything from `Tools/`.
 5. **External programs are started with `run()`** from `common.py`. It prints the command and stops `fpgc` with the same exit code if the command fails.
 6. **All settings and paths live in `config.py`**, in the area's pydantic model. Paths are relative to the repository root. Commands don't hardcode paths, hosts or ports. To change a value for one run, a command has an option whose default comes from the config, such as `--port`.
 7. **All output goes to `build/`, each artifact at its own path.** Nothing is written into the source tree, and no two commands share an output file.
@@ -103,18 +111,17 @@ A command that needs another one first calls it with `ctx.invoke(...)`, as `fpgc
 
 ## Adding a toolchain program
 
-A toolchain program, such as the assembler, is its own command and not part of `fpgc`:
+A toolchain program, such as the assembler, is its own project and not part of `fpgc`:
 
-1. Create `Tools/<tool>/` with a `cli.py` that has a `main()`.
-2. In `pyproject.toml`, add it to `module-name` (`module-name = ["fpgc", "<tool>"]`) and add `<tool> = "<tool>.cli:main"` to `[project.scripts]`.
-3. Run `uv sync`. `<tool>` is now a command in the venv.
-4. Put its tests in `Tools/<tool>/tests/`.
+1. Create `Toolchain/<tool>/` with a `pyproject.toml` (as `Toolchain/b32asm/pyproject.toml`: its dependencies, `<tool> = "<tool>.cli:main"` in `[project.scripts]`, and `module-root = ""`), a README, the package in `Toolchain/<tool>/<tool>/` with a `cli.py` that has a `main()`, and its tests in `Toolchain/<tool>/tests/`.
+2. In the root `pyproject.toml`, add `"<tool>"` to the dependencies and `<tool> = { workspace = true }` to `[tool.uv.sources]`. The workspace already has every folder in `Toolchain/` as a member.
+3. Run `uv sync`. `<tool>` is now a command in the venv, installed editable.
 
 ## Review checklist
 
 - [ ] `fpgc -h` (or `fpgc <area> -h`) shows the new command with a clear one-line description.
 - [ ] No paths, hosts or ports in commands: they come from `config.py`.
 - [ ] All output is under `build/`, and `git status` is clean after running the command.
-- [ ] External programs are started with `run()`. Toolchain programs are not imported.
+- [ ] External programs are started with `run()`. Toolchain programs don't import from `Tools/`.
 - [ ] No new `.sh` files, standalone scripts or custom test runners.
 - [ ] `fpgc check` passes.

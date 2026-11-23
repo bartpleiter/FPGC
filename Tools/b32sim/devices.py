@@ -6,7 +6,7 @@ timer of N cycles expires after N instructions. Where that matters, such as in t
 ISS comparison, the values come from the RTL instead.
 
 Every device that can interrupt has a level: its event flag while its interrupt is
-enabled (io decision 12). The ISS makes an interrupt pending when its level rises.
+enabled. The ISS makes an interrupt pending when its level rises.
 """
 
 from typing import Protocol

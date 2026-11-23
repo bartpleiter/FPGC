@@ -80,7 +80,7 @@ def _send_lines(link: serial.Serial) -> None:
 
 
 class BoardLink:
-    """The boot ROM's protocol over an open serial port (boot decision 3).
+    """The boot ROM's protocol over an open serial port (see the Boot ROM page).
 
     What the board sends is shown on the terminal as it comes, if `echo`, and kept in
     `received`. `ready` is whether the board's last line was `boot: ready`, as after a
@@ -187,9 +187,9 @@ def run_program(source: Path, port: str, timeout: float, corrupt: bool) -> None:
     """Load the program SOURCE into SDRAM over the UART, run it, and show what it
     sends until it returns to the boot ROM.
 
-    Resets the board, waits for `boot: ready`, sends the program with its CRC-32
-    (boot decision 3), and checks the answer, with up to 3 tries. Stops at the next
-    `boot: ready`, at Ctrl-C, or after the timeout. Fails if the program doesn't load,
+    Resets the board, waits for `boot: ready`, sends the program with its CRC-32,
+    and checks the answer, with up to 3 tries. Stops at the next `boot: ready`, at
+    Ctrl-C, or after the timeout. Fails if the program doesn't load,
     or doesn't return.
     """
     program = program_bytes(source.read_text(), str(source))

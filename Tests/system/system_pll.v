@@ -1,6 +1,6 @@
 // Simulation model of system_pll (Hardware/system/system_pll.v), for the testbenches
 // and linting. It passes its input clock through, so a testbench drives sys_clk_50 at
-// 100 MHz, and gives it 7.9 ns later as the SDRAM's clock (sdram decision 6). It sets
+// 100 MHz, and gives it 7.9 ns later as the SDRAM's clock. It sets
 // `locked` after LOCK_CYCLES. A testbench can force `locked` to 0 to play a PLL that
 // loses its lock. Its delay is in the testbench's time unit, ns.
 module system_pll #(

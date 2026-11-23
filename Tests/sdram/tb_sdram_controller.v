@@ -2,9 +2,9 @@
 // as the board's 32-bit SDRAM, and a driver that plays the CPU's cache controller on the
 // line port.
 //
-// The chips get the clock shifted by 7.9 ns (sdram decision 6), without the delays of
-// the pins and the board's traces, which the timing analysis checks. The pause after
-// power up and after a reset is 1 us here instead of 200 us.
+// The chips get the clock shifted by 7.9 ns, without the delays of the pins and the
+// board's traces, which the timing analysis checks. The pause after power up and after
+// a reset is 1 us here instead of 200 us.
 //
 // The driver sends random reads (from every first word) and writes of a pool of 16
 // lines, with random gaps, also back to back. It keeps a reference copy of the lines,

@@ -1,5 +1,5 @@
 """The boot ROM program (Software/boot/boot.asm) in the ISS, with the devices: its boot
-lines, and loading programs over the UART (boot decision 3), with the programs of
+lines, and loading programs over the UART, with the programs of
 Software/programs."""
 
 from pathlib import Path
@@ -77,7 +77,8 @@ def test_bad_length() -> None:
 
 def memtest(source: str, steps: int) -> bytes:
     """Run the memory test over 64 words instead of 64 MiB, and return its lines."""
-    source = source.replace("load32 0x04000000 r6", "load32 0x00010100 r6")
+    assert ".equ END 0x04000000" in source
+    source = source.replace(".equ END 0x04000000", ".equ END 0x00010100")
     program = program_bytes(source, "memtest.asm")
     uart, _ = boot(load_message(program), steps=steps)
     output = bytes(uart.output)
@@ -100,7 +101,7 @@ def test_memtest_errors() -> None:
     """With another seed for the check than for the writes, every random word is
     wrong: the first 16 are printed, and all 64 counted."""
     source = (PROGRAMS / "memtest.asm").read_text()
-    writes, checks = source.rsplit("load32 0x2545F491 r9", 1)
+    writes, checks = source.rsplit("load32 SEED r9", 1)
     source = writes + "load32 0x12345678 r9" + checks
     lines = memtest(source, 200_000).splitlines()
     errors = [line for line in lines if line.startswith(b"memtest: error at ")]
