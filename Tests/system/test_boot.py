@@ -5,7 +5,7 @@ Software/programs."""
 from pathlib import Path
 
 from b32asm.assembler import assemble
-from b32sim.devices import Board, CycleCounter, DeviceBridge, Timer, Uart
+from b32sim.devices import Board, CycleCounter, DeviceBridge, Timer, Uart, spi_buses
 from b32sim.sim import ROM_BASE, Machine
 from uartload.protocol import crc, load_message, ok_line
 
@@ -26,7 +26,8 @@ def boot(
     have all arrived. The Machine is appended to `machine`, if given."""
     uart, timer = Uart(incoming), Timer()
     bridge = DeviceBridge(
-        [uart, CycleCounter(), timer, Board()], interrupts={1: timer, 2: uart}
+        [uart, CycleCounter(), timer, Board(), *spi_buses()],
+        interrupts={1: timer, 2: uart},
     )
     uart.write(Uart.CONTROL, 1)
     timer.write(0x04, 3)  # CONTROL: periodic, with the interrupt

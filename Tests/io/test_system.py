@@ -7,12 +7,23 @@ Tests/cpu/iss_comparison.py). A program with illegal cases (bad_*) runs with the
 hardware mode. `fpgc cpu wave b32p4 Tests/io/programs/<program>.asm` shows a run.
 """
 
+import ast
 import re
 from pathlib import Path
 
 import pytest
 
-from ..cpu.iss_comparison import DEFAULT, Memories, RtlTrace, run_iss_comparison
+from b32asm.assembler import assemble
+from b32sim.devices import Board, CycleCounter, DeviceBridge, Timer, Uart, spi_buses
+from b32sim.sim import ROM_BASE, Machine
+
+from ..cpu.iss_comparison import (
+    DEFAULT,
+    UART_OUTPUT_COMMENT,
+    Memories,
+    RtlTrace,
+    run_iss_comparison,
+)
 
 PROGRAMS = sorted((Path(__file__).parent / "programs").glob("*.asm"))
 
@@ -60,3 +71,18 @@ def test_switches_and_errors() -> None:
     statuses = [re.search(r" r3=([\da-f]{8})", r) for r in rtl.records]
     # each time kind 3, a bad address
     assert [int(s.group(1), 16) for s in statuses if s] == [0x304] * 3
+
+
+def test_spi_flash_in_the_iss() -> None:
+    """The SPI program in the ISS alone, with its own flash model instead of the RTL's
+    words: the same UART output as the RTL."""
+    path = Path(__file__).parent / "programs" / "spi_flash.asm"
+    source = path.read_text()
+    expected = UART_OUTPUT_COMMENT.search(source)
+    assert expected
+    uart = Uart()
+    bridge = DeviceBridge([uart, CycleCounter(), Timer(), Board(), *spi_buses()])
+    m = Machine(io=bridge)
+    m.load(ROM_BASE, assemble(source, ROM_BASE, str(path)).to_bytes())
+    m.run()
+    assert bytes(uart.output) == ast.literal_eval(expected.group(1)).encode()

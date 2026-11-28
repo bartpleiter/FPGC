@@ -9,18 +9,22 @@ reader: hardware
 The bridge has no state of a device. It decodes, answers and gives strobes. Each device has its own state and logic: the UART's buffers, the timer's count, the cycle counter's snapshot.
 
 ```text
-                   +-----------------------------------------------+
- CPU bus --------> | device_bridge                                 |
-                   |   decodes the address, answers the bus        |
- <-- ready, error, |                                               |
-     read word     |     strobes, data |      ^ outputs            |
-                   |                   v      |                    |
+                   +------------------------------------------------+
+ CPU bus --------> | device_bridge                                  |
+                   |   decodes the address, answers the bus         |
+ <-- ready, error, |                                                |
+     read word     |     strobes, data |      ^ outputs             |
+                   |                   v      |                     |
  ROM data port <-> |   +------+ +---------------+ +-------+ +-----+ |
                    |   | uart | | cycle_counter | | timer | |board| |
                    |   +------+ +---------------+ +-------+ +-----+ |
-                   +------|-----------------------------|-------|---+
-                          |                             |       |
-                    rx, tx, interrupt 2           interrupt 1  user LED, DIP switches
+                   |   +------------------------------------------+ |
+                   |   | spi: flash1, flash2, usb1, usb2, eth, sd | |
+                   |   +------------------------------------------+ |
+                   +------------------------------------------------+
+
+ uart: rx, tx, interrupt 2     timer: interrupt 1     board: user LED, switches
+ spi: one per SPI bus, each with its own pins
 ```
 
 ## What goes where

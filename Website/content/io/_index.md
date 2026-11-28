@@ -4,7 +4,7 @@ weight: 3
 reader: programming
 ---
 
-The devices that software reaches through registers: the UART, the timer, the cycle counter and the board register with the user LED and the DIP switches. They sit behind the device bridge on the CPU's bus, in the device registers of the [memory map](../memory-map.md).
+The devices that software reaches through registers: the UART, the timer, the cycle counter, the board register with the user LED and the DIP switches, and the SPI buses. They sit behind the device bridge on the CPU's bus, in the device registers of the [memory map](../memory-map.md).
 
 ## The devices
 
@@ -14,13 +14,14 @@ The devices that software reaches through registers: the UART, the timer, the cy
 | 1 | `0xFFFF8100` | cycle counter | none | [Timer and cycle counter](timer.md) |
 | 2 | `0xFFFF8200` | timer | 1 | [Timer and cycle counter](timer.md) |
 | 3 | `0xFFFF8300` | board: user LED and DIP switches | none | [below](#board-register) |
+| 4 to 9 | `0xFFFF8400` to `0xFFFF8900` | SPI buses: flash 1, flash 2, USB 1, USB 2, Ethernet, the SD card | none | to come |
 
 Device n has the 256 bytes from `0xFFFF8000` + 256 × n. A device that's added later gets the next number.
 
 ## Rules for the registers
 
 - Every register is a 32-bit word at a multiple of 4, and only `read` and `write` reach it. A byte or halfword access to a device register is a bad address.
-- A register that the device doesn't have, and a device number without a device (4 to 126), are bad addresses too. A bad read gives 0 and a bad write does nothing, and both set the bad-address flag of the [error register](../cpu/isa.md#error-register).
+- A register that the device doesn't have, and a device number without a device (10 to 126), are bad addresses too. A bad read gives 0 and a bad write does nothing, and both set the bad-address flag of the [error register](../cpu/isa.md#error-register).
 - Bits that a register doesn't use read as 0, and writes to them are ignored.
 - With r0 as the base register, every device register is one instruction away. The assembler takes the address as the offset:
 

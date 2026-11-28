@@ -1,10 +1,11 @@
 // Testbench of the top level, fpgc, with the simulation model of the PLL, the serial
 // line of serial_line.vh on the UART, and two SDRAM chip models (sdram_chip.v) on the
 // SDRAM's pins. The model passes the board clock through, so the testbench drives
-// sys_clk_50 at 100 MHz. The PC's reset takes 50 cycles here, the activity LEDs' tick
-// comes every 256 cycles, the SDRAM's pause is 100 cycles, and the UART runs at 5 Mbaud
-// (20 cycles per bit), so a program loads 5 times faster. When a chip model reports
-// a broken rule, the run stops with an error.
+// sys_clk_50 at 100 MHz. Each flash has a flash model (flash_chip.v, erased, 64 KiB),
+// and every SPI data line is pulled up. The PC's reset takes 50 cycles here, the
+// activity LEDs' tick comes every 256 cycles, the SDRAM's pause is 100 cycles, and the
+// UART runs at 5 Mbaud (20 cycles per bit), so a program loads 5 times faster. When a
+// chip model reports a broken rule, the run stops with an error.
 //
 // Plusargs, besides those of serial_line.vh:
 //
@@ -12,11 +13,13 @@
 //   +events=<file>     lines "c p v": at cycle c, set pin p to v. Pins: 0 reset_n,
 //                      1 uart_rts_n, 2 uart_dtr_n, 3 the PLL's locked (0 forces it low,
 //                      1 releases it)
-//   +trace=<file>      a line "c reset user rx tx" at every cycle in which the reset or
-//                      an LED changed, and at the end lines "pin <name> <value>" with
-//                      the pins that aren't used yet, and "sdram initialized 1" once
-//                      both chip models have their mode and 8 refreshes
+//   +trace=<file>      a line "c reset user rx tx flash" at every cycle in which the
+//                      reset or an LED changed, and at the end lines "pin <name>
+//                      <value>" with the pins that aren't used yet, and "sdram
+//                      initialized 1" once both chip models have their mode and 8
+//                      refreshes
 //   +vcd=<file>        also dump the top level's signals
+`include "flash_chip.v"
 `timescale 1ns / 1ps
 module tb_fpgc;
 
@@ -62,8 +65,13 @@ wire      usb2_cs;
 wire      eth_cs;
 wire      sd_cs;
 wire      flash1_cs;
+wire      flash1_clk;
+tri1 [3:0] flash1_io;
+wire [3:0] flash1_error;
 wire      flash2_cs;
-wire      flash2_miso;
+wire      flash2_clk;
+tri1 [3:0] flash2_io;
+wire [3:0] flash2_error;
 wire [7:0] audio_dac_data;
 
 `define UART_BIT 20
@@ -113,17 +121,17 @@ fpgc #(
     .HDMI_D2_P(),
     .HDMI_D2_N(),
     .flash1_cs(flash1_cs),
-    .flash1_clk(),
-    .flash1_mosi(),
-    .flash1_miso(1'b1),
-    .flash1_wp_n(),
-    .flash1_hold_n(),
+    .flash1_clk(flash1_clk),
+    .flash1_mosi(flash1_io[0]),
+    .flash1_miso(flash1_io[1]),
+    .flash1_wp_n(flash1_io[2]),
+    .flash1_hold_n(flash1_io[3]),
     .flash2_cs(flash2_cs),
-    .flash2_clk(),
-    .flash2_mosi(),
-    .flash2_miso(flash2_miso),
-    .flash2_wp_n(),
-    .flash2_hold_n(),
+    .flash2_clk(flash2_clk),
+    .flash2_mosi(flash2_io[0]),
+    .flash2_miso(flash2_io[1]),
+    .flash2_wp_n(flash2_io[2]),
+    .flash2_hold_n(flash2_io[3]),
     .uart_rx(uart_rx_line),
     .uart_tx(uart_tx_line),
     .uart_rts_n(uart_rts_n),
@@ -187,6 +195,29 @@ sdram_chip #(
     .error(sdram_error_hi)
 );
 
+// The flashes
+flash_chip #(
+    .ADDRESS_BITS(16)
+) flash1 (
+    .cs_n(flash1_cs),
+    .clk(flash1_clk),
+    .io(flash1_io),
+    .error(flash1_error)
+);
+
+flash_chip #(
+    .ADDRESS_BITS(16)
+) flash2 (
+    .cs_n(flash2_cs),
+    .clk(flash2_clk),
+    .io(flash2_io),
+    .error(flash2_error)
+);
+
+always @(posedge clk)
+    if (flash1_error != 4'd0 || flash2_error != 4'd0)
+        $fatal(1, "a flash model reports a broken rule in cycle %0d", cycle);
+
 // A reset of the system pauses the refresh check of the chips. A broken rule of the
 // SDRAM ends the run with an error.
 always @(posedge clk) begin
@@ -228,13 +259,13 @@ end
 
 // The trace
 integer trace_fd = 0;
-reg [3:0] traced = 4'bxxxx;
-wire [3:0] watched = {dut.reset, led_user, led_uart_rx, led_uart_tx};
+reg [4:0] traced = 5'bxxxxx;
+wire [4:0] watched = {dut.reset, led_user, led_uart_rx, led_uart_tx, led_flash};
 
 always @(posedge clk) begin
     if (trace_fd != 0 && watched !== traced)
-        $fwrite(trace_fd, "%0d %b %b %b %b\n", cycle, watched[3], watched[2],
-                watched[1], watched[0]);
+        $fwrite(trace_fd, "%0d %b %b %b %b %b\n", cycle, watched[4], watched[3],
+                watched[2], watched[1], watched[0]);
     traced <= watched;
 end
 
@@ -262,7 +293,6 @@ task trace_pins;
         $fwrite(trace_fd, "pin sd_cs %b\n", sd_cs);
         $fwrite(trace_fd, "pin flash1_cs %b\n", flash1_cs);
         $fwrite(trace_fd, "pin flash2_cs %b\n", flash2_cs);
-        $fwrite(trace_fd, "pin flash2_miso %b\n", flash2_miso);
         $fwrite(trace_fd, "pin audio_dac_data %b\n", audio_dac_data);
     end
 endtask

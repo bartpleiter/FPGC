@@ -75,7 +75,8 @@ The devices are reached over the bus. Each device has 256 bytes, starting at `0x
 | `0xFFFF8100` | [cycle counter](io/timer.md#cycle-counter) |
 | `0xFFFF8200` | [timer](io/timer.md#timer) |
 | `0xFFFF8300` | [board register](io/_index.md#board-register): user LED and DIP switches |
-| `0xFFFF8400`–`0xFFFFFEFF` | unused |
+| `0xFFFF8400`–`0xFFFF89FF` | six SPI buses, 256 bytes each: flash 1, flash 2, USB 1, USB 2, Ethernet, the SD card |
+| `0xFFFF8A00`–`0xFFFFFEFF` | unused |
 
 The CPU never makes a bus access before it's certain that the instruction will complete. So a device can safely do something when it's read, such as taking a byte from a receive buffer.
 

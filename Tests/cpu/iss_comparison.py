@@ -45,7 +45,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from b32asm.assembler import assemble
-from b32sim.devices import Board, CycleCounter, DeviceBridge, Timer, Uart
+from b32sim.devices import Board, CycleCounter, DeviceBridge, Timer, Uart, spi_buses
 from b32sim.sim import (
     ROM_BASE,
     ROM_SIZE,
@@ -133,7 +133,9 @@ class Replay:
 
     def __init__(self) -> None:
         self.uart = Uart()
-        self.bridge = DeviceBridge([self.uart, CycleCounter(), Timer(), Board()])
+        self.bridge = DeviceBridge(
+            [self.uart, CycleCounter(), Timer(), Board(), *spi_buses()]
+        )
         self.word: int | None = None
 
     def read_word(self, offset: int, size: int = 4) -> int:

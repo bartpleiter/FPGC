@@ -24,6 +24,7 @@ INPUTS = [
     "bus_byte_enable",
     "uart_rx",
     "switches",
+    "spi_irq_n",
 ]
 OUTPUTS = [
     "bus_ready",
@@ -33,6 +34,7 @@ OUTPUTS = [
     "timer_irq",
     "uart_irq",
     "uart_tx",
+    "spi_cs_n",
 ]
 BENCH = UnitBench(
     unit="device_bridge", folder=Path(__file__).parent, inputs=INPUTS, outputs=OUTPUTS
@@ -84,6 +86,11 @@ class Script:
         self.line = Line()
         self.checks: dict[int, Vector] = {}
         self.outputs: list[Vector] = []
+        self.irq_n: list[tuple[int, int]] = [(0, 0x3F)]  # cycle, SPI interrupt pins
+
+    def spi_irq_n(self, pins: int) -> None:
+        """The SPI buses' interrupt pins from now on, 0 is active."""
+        self.irq_n.append((self.cycle, pins))
 
     def access(
         self,
@@ -114,8 +121,10 @@ class Script:
         length = max(self.cycle, len(self.line.samples)) + 20
         rx = self.line.samples + [1] * (length - len(self.line.samples))
         labels = self.line.labels + [""] * (length - len(self.line.labels))
+        irq_n = [max((c, p) for c, p in self.irq_n if c <= t)[1] for t in range(length)]
         vectors = [
-            dict.fromkeys(INPUTS, 0) | {"uart_rx": rx[t], "switches": SWITCHES}
+            dict.fromkeys(INPUTS, 0)
+            | {"uart_rx": rx[t], "switches": SWITCHES, "spi_irq_n": irq_n[t]}
             for t in range(length)
         ]
         for t in self.resets:
@@ -208,7 +217,7 @@ def test_nothing_there() -> None:
     for addr in [0xFFFF8010, 0xFFFF80FC, 0xFFFF810C, 0xFFFF820C, 0xFFFF8308]:
         s.access(f"{addr & 0xFFF:x}", addr, error=1)
         s.access(f"{addr & 0xFFF:x}", addr, 5, error=1)
-    for addr in [0xFFFF8400, 0xFFFF9000, 0xFFFFFE00]:  # devices 4, 16 and 126
+    for addr in [0xFFFF8A00, 0xFFFF9000, 0xFFFFFE00]:  # devices 10, 16 and 126
         s.access("no device", addr, error=1)
     s.access("readb", UART_STATUS, error=1, enables=0x1)
     s.access("writeh", BOARD_LED, 0x1, error=1, enables=0x3)
@@ -256,7 +265,7 @@ def test_random() -> None:
         elif kind < 0.75:
             addr = rng.choice(still) + rng.choice([0, 0, 0, 0, 1, 2, 3])
         elif kind < 0.9:
-            addr = 0xFFFF8000 + rng.randrange(0, 0x8000)
+            addr = 0xFFFF8000 + rng.choice([0, 0xA00]) + rng.randrange(0, 0x400)
         else:
             addr = rng.getrandbits(32)
         enables = rng.choice([0xF, 0xF, 0xF, 0x1, 0x2, 0x4, 0x8, 0x3, 0xC])
@@ -335,8 +344,9 @@ def test_timer_interrupt() -> None:
 
 # The demo reads a word and a byte of the ROM, turns on the user LED, starts the timer, reads
 # its count, and takes a snapshot of the cycle counter. Then it makes three accesses
-# that nothing takes: a byte read of a device register, device 9, which doesn't
-# exist, and the GPU's region, which is empty for now.
+# that nothing takes: a byte read of a device register, device 10, which doesn't
+# exist, and the GPU's region, which is empty for now. Last, it reads the JEDEC ID of
+# flash 1, and a word of it with a quad read.
 def test_demo() -> None:
     s = Script()
     s.access("read rom", ROM + 0x10, word=rom_word(0x10))
@@ -347,6 +357,125 @@ def test_demo() -> None:
     snapshot = s.access("snapshot", COUNTER_SNAPSHOT, 0)
     s.access("read low", COUNTER_LOW, word=snapshot.cycle)
     s.access("readb uart", UART_STATUS, enables=0x1, error=1)
-    s.access("read dev 9", 0xFFFF8900, error=1)
+    s.access("read dev 10", 0xFFFF8A00, error=1)
     s.access("write gpu", 0x05000000, 1, error=1)
+    s.access("select", spi(0, SPI_CONTROL), 1)
+    s.access("9F", spi(0, SPI_BYTE), 0x9F)
+    for value in (0xEF, 0x40, 0x18):
+        s.access("id", spi(0, SPI_BYTE), word=value, hold=SPI_HOLD)
+    s.access("deselect", spi(0, SPI_CONTROL), 0, hold=SPI_HOLD)
+    quad_read(s, 0, 0x20)
     s.run("demo", demo=True)
+
+
+SPI = 0xFFFF8400
+MASK = 0xFFFFFFFF
+SPI_BYTE, SPI_WORD, SPI_CONTROL, SPI_STATUS = 0x0, 0x4, 0x8, 0xC
+SPI_HOLD = 400  # enough for a word at 12.5 MHz
+
+
+def spi(bus: int, reg: int) -> int:
+    return SPI + 0x100 * bus + reg
+
+
+def flash_byte(bus: int, k: int) -> int:
+    """The testbench's flash content."""
+    return (k * 3 + 1 + 64 * bus) & 0xFF
+
+
+def flash_word(bus: int, k: int) -> int:
+    return sum(flash_byte(bus, k + i) << (8 * i) for i in range(4))
+
+
+def command(opcode: int, address: int) -> int:
+    """The command and its address as a word: the command goes first."""
+    a = address.to_bytes(3, "big")
+    return int.from_bytes(bytes([opcode, *a]), "little")
+
+
+def quad_read(s: Script, bus: int, address: int) -> None:
+    """6Bh: a word of flash `bus` from `address`."""
+    s.access("select", spi(bus, SPI_CONTROL), 1)
+    s.access("6B", spi(bus, SPI_WORD), command(0x6B, address))
+    s.access("quad", spi(bus, SPI_CONTROL), 3, hold=SPI_HOLD)
+    s.access("dummy", spi(bus, SPI_WORD), word=0xFFFFFFFF, hold=SPI_HOLD)
+    s.access("data", spi(bus, SPI_WORD), word=flash_word(bus, address), hold=SPI_HOLD)
+    s.access("deselect", spi(bus, SPI_CONTROL), 0, hold=SPI_HOLD)
+
+
+def test_spi_control_and_status() -> None:
+    """CONTROL on every bus: only the flashes have QUAD. STATUS shows the interrupt
+    pins, two cycles late through the synchronizer."""
+    s = Script()
+    for bus in range(6):
+        s.access("control", spi(bus, SPI_CONTROL), word=0)
+        s.access("status", spi(bus, SPI_STATUS), word=0)
+        s.access("set", spi(bus, SPI_CONTROL), 3)
+        s.access("control", spi(bus, SPI_CONTROL), word=3 if bus < 2 else 1)
+    s.expect(spi_cs_n=0)
+    for bus in range(6):
+        s.access("clear", spi(bus, SPI_CONTROL), 0)
+    s.expect(spi_cs_n=0x3F)
+    s.spi_irq_n(0b101011)  # USB 1 and Ethernet
+    s.wait_until(s.cycle + 3)
+    for bus in range(6):
+        s.access("status", spi(bus, SPI_STATUS), word=int(bus in (2, 4)))
+    s.access("write status", spi(2, SPI_STATUS), 0)  # ignored
+    s.access("status", spi(2, SPI_STATUS), word=1)
+    s.run("spi_control")
+    assert all(a.latency == 0 for a in s.accesses)
+
+
+def test_spi_nothing_there() -> None:
+    """Accesses that the SPI buses refuse."""
+    s = Script()
+    s.access("readb", spi(0, SPI_BYTE), error=1, enables=0x1)
+    s.access("writeh", spi(1, SPI_CONTROL), 1, error=1, enables=0x3)
+    s.expect(spi_cs_n=0x3F)
+    for bus in range(6):
+        s.access("0x10", spi(bus, 0x10), error=1)
+        s.access("0xFC", spi(bus, 0xFC), 1, error=1)
+    s.run("spi_nothing_there")
+
+
+def test_spi_receive_without_device() -> None:
+    """A receive on a bus without a device gives 1s, and takes 8 or 32 clocks."""
+    s = Script()
+    byte = [
+        s.access("byte", spi(bus, SPI_BYTE), word=0xFF, hold=SPI_HOLD)
+        for bus in range(6)
+    ]
+    word = [
+        s.access("word", spi(bus, SPI_WORD), word=MASK, hold=SPI_HOLD)
+        for bus in range(6)
+    ]
+    s.run("spi_no_device")
+    for accesses, clocks in ((byte, 8), (word, 32)):
+        for bus, a in enumerate(accesses):
+            half = [1, 1, 4, 4, 4, 2][bus]
+            assert 2 * half * clocks < a.latency < 2 * half * clocks + 6, (
+                bus,
+                a.latency,
+            )
+
+
+def test_spi_flash() -> None:
+    """The JEDEC ID and reads with 03h and 6Bh from both flashes, and a write that
+    waits until the transfer before it is done."""
+    s = Script()
+    for bus in (0, 1):
+        s.access("select", spi(bus, SPI_CONTROL), 1)
+        s.access("9F", spi(bus, SPI_BYTE), 0x9F)
+        for value in (0xEF, 0x40, 0x18):
+            s.access("id", spi(bus, SPI_BYTE), word=value, hold=SPI_HOLD)
+        s.access("deselect", spi(bus, SPI_CONTROL), 0, hold=SPI_HOLD)
+        s.access("select", spi(bus, SPI_CONTROL), 1)
+        s.access("03", spi(bus, SPI_WORD), command(0x03, 0x123))
+        waits = s.access(
+            "data", spi(bus, SPI_WORD), word=flash_word(bus, 0x123), hold=SPI_HOLD
+        )
+        s.access("data", spi(bus, SPI_BYTE), word=flash_byte(bus, 0x127), hold=SPI_HOLD)
+        s.access("deselect", spi(bus, SPI_CONTROL), 0, hold=SPI_HOLD)
+        quad_read(s, bus, 0x200 + bus)
+    s.run("spi_flash")
+    assert waits.latency > 120  # the command's 64 cycles, then its own 64

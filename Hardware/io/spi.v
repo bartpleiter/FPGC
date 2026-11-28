@@ -21,6 +21,10 @@ module spi #(
     output reg         select,         // the chip select is low
     output reg         quad,           // receives use IO0 to IO3
 
+    // The device's interrupt pin
+    input  wire        irq_n,
+    output reg         irq,            // synchronized, 1 is active
+
     // Pins, IO0 is MOSI and IO1 is MISO on one line
     output reg         spi_clk,
     output reg         cs_n,
@@ -41,6 +45,7 @@ reg        words;      // this transfer is a word
 reg        rose;       // the SPI clock rose at the last edge
 reg        capture;    // io_sampled holds the bits of the last rise
 reg [3:0]  io_sampled; // in the pins' input registers
+reg        irq_sync;
 
 wire running   = clocks != 6'd0;
 wire half_done = count == HALF - 8'd1;
@@ -53,6 +58,11 @@ assign received = words ? {rx[7:0], rx[15:8], rx[23:16], rx[31:24]} : {24'd0, rx
 // One cycle after the rise, the device's bits are in the input registers
 always @(posedge clk)
     io_sampled <= io_in;
+
+always @(posedge clk) begin
+    irq_sync <= !irq_n;
+    irq      <= irq_sync;
+end
 
 always @(posedge clk) begin
     if (reset) begin

@@ -32,8 +32,8 @@ class Run:
     """What a run of the testbench gave."""
 
     output: bytes
-    # cycle, then reset, user LED, rx LED and tx LED, at every change
-    changes: list[tuple[int, int, int, int, int]] = field(default_factory=list)
+    # cycle, then reset, user LED, rx LED, tx LED and flash LED, at every change
+    changes: list[tuple[int, int, int, int, int, int]] = field(default_factory=list)
     pins: dict[str, str] = field(default_factory=dict)  # the unused pins at the end
     sdram_initialized: bool = False  # both chip models have their mode and refreshes
 
@@ -43,7 +43,7 @@ class Run:
         return [c[0] for c, b in zip(self.changes, before) if c[1] == 1 and b != 1]
 
     def lit(self, led: int) -> bool:
-        """Whether an LED was on at some point: 2 user, 3 rx, 4 tx."""
+        """Whether an LED was on at some point: 2 user, 3 rx, 4 tx, 5 flash."""
         return any(c[led] == 1 for c in self.changes)
 
 
@@ -95,8 +95,8 @@ def run(
             result.sdram_initialized = words[2] == "1"
         else:
             # x, before the first clock edge, counts as -1
-            c, reset, user, rx, tx = (int(w) if w != "x" else -1 for w in words)
-            result.changes.append((c, reset, user, rx, tx))
+            c, reset, user, rx, tx, flash = (int(w) if w != "x" else -1 for w in words)
+            result.changes.append((c, reset, user, rx, tx, flash))
     return result
 
 
@@ -149,6 +149,19 @@ def test_memtest() -> None:
     )
 
 
+def test_spi_flash() -> None:
+    """The SPI program of the I/O tests, loaded into SDRAM, with the flash models on
+    the board's flash pins."""
+    path = FOLDER.parent / "io" / "programs" / "spi_flash.asm"
+    program = assemble(path.read_text(), 0, str(path)).to_bytes()
+    message = load_message(program)
+    r = run("spi_flash", BOOTED + len(message) * BYTE + 30_000, sent(message, BOOTED))
+    assert r.output == (
+        BOOT_LINES + ok_line(program) + b"\r\nspi: id 001840ef errors 00000000\r\n"
+    )
+    assert r.lit(5), "the flash LED never lit"
+
+
 def test_unused_pins() -> None:
     """Every chip that isn't used yet is deselected, and nothing drives a data line."""
     r = run("pins", 100)
@@ -168,7 +181,6 @@ def test_unused_pins() -> None:
         "sd_cs": "1",
         "flash1_cs": "1",
         "flash2_cs": "1",
-        "flash2_miso": "z",
         "audio_dac_data": "0" * 8,
     }
 

@@ -261,11 +261,15 @@ def pins_summary(pins: dict[str, dict[str, float]]) -> list[str]:
     lines = ["Pins, the worst over every corner:"]
     for name, checks in pins.items():
         setup, hold = checks.get("setup"), checks.get("hold")
-        lines.append(
-            f"  {name:16} setup {setup:+.3f} ns, hold {hold:+.3f} ns"
-            if setup is not None and hold is not None
-            else f"  {name:16} no paths"
-        )
+        if setup is None and hold is None:
+            lines.append(f"  {name:16} no paths")
+        else:
+            lines.append(
+                f"  {name:16} setup "
+                + (f"{setup:+.3f} ns" if setup is not None else "not checked")
+                + ", hold "
+                + (f"{hold:+.3f} ns" if hold is not None else "not checked")
+            )
     return lines
 
 

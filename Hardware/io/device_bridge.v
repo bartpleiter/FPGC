@@ -26,6 +26,43 @@ module device_bridge #(
     output wire        user_led,
     input  wire [3:0]  switches,
 
+    // SPI flash 1 and 2, with four data lines
+    output wire        flash1_clk,
+    output wire        flash1_cs_n,
+    output wire [3:0]  flash1_io_out,
+    output wire [3:0]  flash1_io_enable,
+    input  wire [3:0]  flash1_io_in,
+    output wire        flash2_clk,
+    output wire        flash2_cs_n,
+    output wire [3:0]  flash2_io_out,
+    output wire [3:0]  flash2_io_enable,
+    input  wire [3:0]  flash2_io_in,
+
+    // USB 1 and 2 (CH376T)
+    output wire        usb1_clk,
+    output wire        usb1_cs_n,
+    output wire        usb1_mosi,
+    input  wire        usb1_miso,
+    input  wire        usb1_irq_n,
+    output wire        usb2_clk,
+    output wire        usb2_cs_n,
+    output wire        usb2_mosi,
+    input  wire        usb2_miso,
+    input  wire        usb2_irq_n,
+
+    // Ethernet (ENC28J60)
+    output wire        eth_clk,
+    output wire        eth_cs_n,
+    output wire        eth_mosi,
+    input  wire        eth_miso,
+    input  wire        eth_irq_n,
+
+    // SD card
+    output wire        sd_clk,
+    output wire        sd_cs_n,
+    output wire        sd_mosi,
+    input  wire        sd_miso,
+
     // Interrupts
     output wire        timer_irq,
     output wire        uart_irq
@@ -45,8 +82,25 @@ localparam TIMER_STATUS     = 32'hFFFF8208;
 localparam BOARD_LED        = 32'hFFFF8300;
 localparam BOARD_SWITCHES   = 32'hFFFF8304;
 
+// SPI registers, in each bus's 256 bytes from 0xFFFF8400
+localparam SPI_BYTE    = 8'h00;
+localparam SPI_WORD    = 8'h04;
+localparam SPI_CONTROL = 8'h08;
+localparam SPI_STATUS  = 8'h0C;
+
+// The SPI buses' numbers, in the address from 0xFFFF8400
+localparam FLASH1 = 0;
+localparam FLASH2 = 1;
+localparam USB1   = 2;
+localparam USB2   = 3;
+localparam ETH    = 4;
+localparam SD     = 5;
+
 wire rom  = bus_addr[31:12] == 20'h04000;
 wire word = bus_byte_enable == 4'b1111;
+wire spi  = bus_addr[31:12] == 20'hFFFF8 && bus_addr[11:8] >= 4'd4 && bus_addr[11:8] <= 4'd9;
+
+wire [2:0] n = bus_addr[10:8] - 3'd4;  // the SPI bus, FLASH1 to SD
 
 assign rom_addr = bus_addr[11:2];
 
@@ -60,6 +114,10 @@ reg        timer_start;
 reg        timer_configure;
 reg        timer_clear;
 reg        board_set_led;
+reg [5:0]  spi_send;       // per SPI bus, by its number
+reg [5:0]  spi_receive;
+reg [5:0]  spi_configure;
+reg        spi_word;
 reg [31:0] data;
 
 // From the devices
@@ -76,9 +134,15 @@ wire        timer_periodic;
 wire        timer_irq_enable;
 wire        timer_expired;
 wire [3:0]  board_switches;
+wire [5:0]  spi_busy;
+wire [191:0] spi_received;
+wire [5:0]  spi_select;
+wire [5:0]  spi_quad;
+wire [5:0]  spi_irq;
 
 // Answer
-reg waiting;  // the access waits for the ROM or the UART
+reg waiting;      // the access waits for the ROM, the UART or an SPI bus
+reg spi_started;  // the receive of an SPI read has started
 
 always @(posedge clk) begin
     bus_ready        <= 1'b0;
@@ -94,7 +158,13 @@ always @(posedge clk) begin
     timer_configure  <= 1'b0;
     timer_clear      <= 1'b0;
     board_set_led    <= 1'b0;
+    spi_send         <= 6'd0;
+    spi_receive      <= 6'd0;
+    spi_configure    <= 6'd0;
+    spi_word         <= bus_addr[2];
     data             <= bus_write_data;
+    if (reset)
+        spi_started <= 1'b0;
 
     if (!reset && (bus_request || waiting)) begin
         bus_ready <= 1'b1;
@@ -108,6 +178,41 @@ always @(posedge clk) begin
             end
         end else if (!word) begin
             bus_error <= 1'b1;
+        end else if (spi) begin
+            // Every access waits until the bus's last transfer is done
+            case (bus_addr[7:0])
+                SPI_BYTE, SPI_WORD:
+                    if (bus_write) begin
+                        bus_ready   <= !spi_busy[n];
+                        waiting     <= spi_busy[n];
+                        spi_send[n] <= !spi_busy[n];
+                    end else if (spi_started) begin
+                        // Then until its own receive is done
+                        bus_ready   <= !spi_busy[n];
+                        waiting     <= spi_busy[n];
+                        spi_started <= spi_busy[n];
+                        if (!spi_busy[n])
+                            bus_read_word <= spi_received[32*n +: 32];
+                    end else begin
+                        bus_ready      <= 1'b0;
+                        waiting        <= 1'b1;
+                        spi_receive[n] <= !spi_busy[n];
+                        spi_started    <= !spi_busy[n];
+                    end
+                SPI_CONTROL:
+                    if (bus_write) begin
+                        bus_ready        <= !spi_busy[n];
+                        waiting          <= spi_busy[n];
+                        spi_configure[n] <= !spi_busy[n];
+                    end else begin
+                        bus_read_word <= {30'd0, spi_quad[n], spi_select[n]};
+                    end
+                SPI_STATUS:
+                    if (!bus_write)
+                        bus_read_word <= {31'd0, spi_irq[n]};
+                default:
+                    bus_error <= 1'b1;
+            endcase
         end else if (bus_write) begin
             case (bus_addr)
                 UART_TRANSMIT: begin
@@ -215,5 +320,178 @@ board_io board (
     .switch_pins(switches),
     .switches(board_switches)
 );
+
+// SPI buses, with the half period of their clock in cycles: 50 MHz for the flashes,
+// 12.5 MHz for USB and Ethernet, 25 MHz for the SD card
+spi #(
+    .HALF_PERIOD(1),
+    .QUAD(1)
+) flash1 (
+    .clk(clk),
+    .reset(reset),
+    .send(spi_send[FLASH1]),
+    .receive(spi_receive[FLASH1]),
+    .word(spi_word),
+    .send_data(data),
+    .received(spi_received[32*FLASH1 +: 32]),
+    .busy(spi_busy[FLASH1]),
+    .configure(spi_configure[FLASH1]),
+    .select_in(data[0]),
+    .quad_in(data[1]),
+    .select(spi_select[FLASH1]),
+    .quad(spi_quad[FLASH1]),
+    .irq_n(1'b1),
+    .irq(spi_irq[FLASH1]),
+    .spi_clk(flash1_clk),
+    .cs_n(flash1_cs_n),
+    .io_out(flash1_io_out),
+    .io_enable(flash1_io_enable),
+    .io_in(flash1_io_in)
+);
+
+spi #(
+    .HALF_PERIOD(1),
+    .QUAD(1)
+) flash2 (
+    .clk(clk),
+    .reset(reset),
+    .send(spi_send[FLASH2]),
+    .receive(spi_receive[FLASH2]),
+    .word(spi_word),
+    .send_data(data),
+    .received(spi_received[32*FLASH2 +: 32]),
+    .busy(spi_busy[FLASH2]),
+    .configure(spi_configure[FLASH2]),
+    .select_in(data[0]),
+    .quad_in(data[1]),
+    .select(spi_select[FLASH2]),
+    .quad(spi_quad[FLASH2]),
+    .irq_n(1'b1),
+    .irq(spi_irq[FLASH2]),
+    .spi_clk(flash2_clk),
+    .cs_n(flash2_cs_n),
+    .io_out(flash2_io_out),
+    .io_enable(flash2_io_enable),
+    .io_in(flash2_io_in)
+);
+
+// On the buses with one data line, IO0 is MOSI and IO1 is MISO
+// verilator lint_off UNUSEDSIGNAL
+wire [3:0] usb1_io_out;
+wire [3:0] usb2_io_out;
+wire [3:0] eth_io_out;
+wire [3:0] sd_io_out;
+// verilator lint_on UNUSEDSIGNAL
+
+assign usb1_mosi = usb1_io_out[0];
+assign usb2_mosi = usb2_io_out[0];
+assign eth_mosi  = eth_io_out[0];
+assign sd_mosi   = sd_io_out[0];
+
+/* verilator lint_off PINCONNECTEMPTY */
+spi #(
+    .HALF_PERIOD(4),
+    .QUAD(0)
+) usb1 (
+    .clk(clk),
+    .reset(reset),
+    .send(spi_send[USB1]),
+    .receive(spi_receive[USB1]),
+    .word(spi_word),
+    .send_data(data),
+    .received(spi_received[32*USB1 +: 32]),
+    .busy(spi_busy[USB1]),
+    .configure(spi_configure[USB1]),
+    .select_in(data[0]),
+    .quad_in(data[1]),
+    .select(spi_select[USB1]),
+    .quad(spi_quad[USB1]),
+    .irq_n(usb1_irq_n),
+    .irq(spi_irq[USB1]),
+    .spi_clk(usb1_clk),
+    .cs_n(usb1_cs_n),
+    .io_out(usb1_io_out),
+    .io_enable(),
+    .io_in({2'b11, usb1_miso, 1'b1})
+);
+
+spi #(
+    .HALF_PERIOD(4),
+    .QUAD(0)
+) usb2 (
+    .clk(clk),
+    .reset(reset),
+    .send(spi_send[USB2]),
+    .receive(spi_receive[USB2]),
+    .word(spi_word),
+    .send_data(data),
+    .received(spi_received[32*USB2 +: 32]),
+    .busy(spi_busy[USB2]),
+    .configure(spi_configure[USB2]),
+    .select_in(data[0]),
+    .quad_in(data[1]),
+    .select(spi_select[USB2]),
+    .quad(spi_quad[USB2]),
+    .irq_n(usb2_irq_n),
+    .irq(spi_irq[USB2]),
+    .spi_clk(usb2_clk),
+    .cs_n(usb2_cs_n),
+    .io_out(usb2_io_out),
+    .io_enable(),
+    .io_in({2'b11, usb2_miso, 1'b1})
+);
+
+spi #(
+    .HALF_PERIOD(4),
+    .QUAD(0)
+) eth (
+    .clk(clk),
+    .reset(reset),
+    .send(spi_send[ETH]),
+    .receive(spi_receive[ETH]),
+    .word(spi_word),
+    .send_data(data),
+    .received(spi_received[32*ETH +: 32]),
+    .busy(spi_busy[ETH]),
+    .configure(spi_configure[ETH]),
+    .select_in(data[0]),
+    .quad_in(data[1]),
+    .select(spi_select[ETH]),
+    .quad(spi_quad[ETH]),
+    .irq_n(eth_irq_n),
+    .irq(spi_irq[ETH]),
+    .spi_clk(eth_clk),
+    .cs_n(eth_cs_n),
+    .io_out(eth_io_out),
+    .io_enable(),
+    .io_in({2'b11, eth_miso, 1'b1})
+);
+
+spi #(
+    .HALF_PERIOD(2),
+    .QUAD(0)
+) sd (
+    .clk(clk),
+    .reset(reset),
+    .send(spi_send[SD]),
+    .receive(spi_receive[SD]),
+    .word(spi_word),
+    .send_data(data),
+    .received(spi_received[32*SD +: 32]),
+    .busy(spi_busy[SD]),
+    .configure(spi_configure[SD]),
+    .select_in(data[0]),
+    .quad_in(data[1]),
+    .select(spi_select[SD]),
+    .quad(spi_quad[SD]),
+    .irq_n(1'b1),
+    .irq(spi_irq[SD]),
+    .spi_clk(sd_clk),
+    .cs_n(sd_cs_n),
+    .io_out(sd_io_out),
+    .io_enable(),
+    .io_in({2'b11, sd_miso, 1'b1})
+);
+/* verilator lint_on PINCONNECTEMPTY */
 
 endmodule

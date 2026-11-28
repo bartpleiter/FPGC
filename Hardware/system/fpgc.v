@@ -36,17 +36,13 @@ module fpgc #(
     output wire        usb1_cs,
     output wire        usb1_clk,
     output wire        usb1_mosi,
-    // verilator lint_off UNUSEDSIGNAL
     input  wire        usb1_miso,
     input  wire        usb1_nint,
-    // verilator lint_on UNUSEDSIGNAL
     output wire        usb2_cs,
     output wire        usb2_clk,
     output wire        usb2_mosi,
-    // verilator lint_off UNUSEDSIGNAL
     input  wire        usb2_miso,
     input  wire        usb2_nint,
-    // verilator lint_on UNUSEDSIGNAL
 
     // HDMI
     output wire        HDMI_CLK_P,
@@ -61,12 +57,10 @@ module fpgc #(
     // SPI flash
     output wire        flash1_cs,
     output wire        flash1_clk,
-    output wire        flash1_mosi,
-    // verilator lint_off UNUSEDSIGNAL
-    input  wire        flash1_miso,
-    // verilator lint_on UNUSEDSIGNAL
-    output wire        flash1_wp_n,
-    output wire        flash1_hold_n,
+    inout  wire        flash1_mosi,    // IO0
+    inout  wire        flash1_miso,    // IO1
+    inout  wire        flash1_wp_n,    // IO2
+    inout  wire        flash1_hold_n,  // IO3
     output wire        flash2_cs,
     output wire        flash2_clk,
     inout  wire        flash2_mosi,    // IO0
@@ -84,9 +78,7 @@ module fpgc #(
     output wire        sd_cs,
     output wire        sd_clk,
     output wire        sd_mosi,
-    // verilator lint_off UNUSEDSIGNAL
     input  wire        sd_miso,
-    // verilator lint_on UNUSEDSIGNAL
     output wire        sd_data2_nc,
     // verilator lint_off UNUSEDSIGNAL
     input  wire        sd_data1_nc,
@@ -102,10 +94,8 @@ module fpgc #(
     output wire        eth_cs,
     output wire        eth_clk,
     output wire        eth_mosi,
-    // verilator lint_off UNUSEDSIGNAL
     input  wire        eth_miso,
     input  wire        eth_nint,
-    // verilator lint_on UNUSEDSIGNAL
 
     // LEDs, 1 is on
     output wire        led_gpu,
@@ -266,6 +256,11 @@ rom #(
 );
 
 // Devices
+wire [3:0] flash1_io_out;
+wire [3:0] flash1_io_enable;
+wire [3:0] flash2_io_out;
+wire [3:0] flash2_io_enable;
+
 device_bridge #(
     .CLOCKS_PER_BIT(CLOCKS_PER_BIT)
 ) bridge (
@@ -285,25 +280,53 @@ device_bridge #(
     .uart_tx(uart_tx),
     .user_led(led_user),
     .switches(dipsw),
+    .flash1_clk(flash1_clk),
+    .flash1_cs_n(flash1_cs),
+    .flash1_io_out(flash1_io_out),
+    .flash1_io_enable(flash1_io_enable),
+    .flash1_io_in({flash1_hold_n, flash1_wp_n, flash1_miso, flash1_mosi}),
+    .flash2_clk(flash2_clk),
+    .flash2_cs_n(flash2_cs),
+    .flash2_io_out(flash2_io_out),
+    .flash2_io_enable(flash2_io_enable),
+    .flash2_io_in({flash2_hold_n, flash2_wp_n, flash2_miso, flash2_mosi}),
+    .usb1_clk(usb1_clk),
+    .usb1_cs_n(usb1_cs),
+    .usb1_mosi(usb1_mosi),
+    .usb1_miso(usb1_miso),
+    .usb1_irq_n(usb1_nint),
+    .usb2_clk(usb2_clk),
+    .usb2_cs_n(usb2_cs),
+    .usb2_mosi(usb2_mosi),
+    .usb2_miso(usb2_miso),
+    .usb2_irq_n(usb2_nint),
+    .eth_clk(eth_clk),
+    .eth_cs_n(eth_cs),
+    .eth_mosi(eth_mosi),
+    .eth_miso(eth_miso),
+    .eth_irq_n(eth_nint),
+    .sd_clk(sd_clk),
+    .sd_cs_n(sd_cs),
+    .sd_mosi(sd_mosi),
+    .sd_miso(sd_miso),
     .timer_irq(timer_irq),
     .uart_irq(uart_irq)
 );
 
-// Activity LEDs: a UART line is active while it's low
+// Activity LEDs: a UART line is active while it's low, an SPI device while it's
+// selected. The flash LED is for both flashes and the SD card.
 activity_leds #(
-    .LEDS(2),
+    .LEDS(5),
     .TICK_BITS(LED_TICK_BITS)
 ) activity_leds (
     .clk(clk),
     .reset(reset),
-    .activity({!uart_tx, !uart_rx}),
-    .leds({led_uart_tx, led_uart_rx})
+    .activity({!flash1_cs || !flash2_cs || !sd_cs, !usb1_cs || !usb2_cs, !eth_cs,
+               !uart_tx, !uart_rx}),
+    .leds({led_flash, led_usb, led_eth, led_uart_tx, led_uart_rx})
 );
 
-assign led_gpu   = 1'b0;
-assign led_flash = 1'b0;
-assign led_usb   = 1'b0;
-assign led_eth   = 1'b0;
+assign led_gpu = 1'b0;
 
 // SRAM: deselected, no read or write, data lines not driven
 assign SRAM_CSn = 1'b1;
@@ -312,31 +335,18 @@ assign SRAM_OEn = 1'b1;
 assign SRAM_A   = 19'd0;
 assign SRAM_DQ  = 8'bz;
 
-// SPI chips: deselected, clock low
-assign usb1_cs       = 1'b1;
-assign usb1_clk      = 1'b0;
-assign usb1_mosi     = 1'b0;
-assign usb2_cs       = 1'b1;
-assign usb2_clk      = 1'b0;
-assign usb2_mosi     = 1'b0;
-assign eth_cs        = 1'b1;
-assign eth_clk       = 1'b0;
-assign eth_mosi      = 1'b0;
-assign sd_cs         = 1'b1;
-assign sd_clk        = 1'b0;
-assign sd_mosi       = 1'b0;
-assign sd_data2_nc   = 1'b1;
-assign flash1_cs     = 1'b1;
-assign flash1_clk    = 1'b0;
-assign flash1_mosi   = 1'b0;
-assign flash1_wp_n   = 1'b1;
-assign flash1_hold_n = 1'b1;
-assign flash2_cs     = 1'b1;
-assign flash2_clk    = 1'b0;
-assign flash2_mosi   = 1'b0;
-assign flash2_miso   = 1'bz;
-assign flash2_wp_n   = 1'b1;
-assign flash2_hold_n = 1'b1;
+// The flashes' data lines, driven by the FPGA only where enabled
+assign flash1_mosi   = flash1_io_enable[0] ? flash1_io_out[0] : 1'bz;
+assign flash1_miso   = flash1_io_enable[1] ? flash1_io_out[1] : 1'bz;
+assign flash1_wp_n   = flash1_io_enable[2] ? flash1_io_out[2] : 1'bz;
+assign flash1_hold_n = flash1_io_enable[3] ? flash1_io_out[3] : 1'bz;
+assign flash2_mosi   = flash2_io_enable[0] ? flash2_io_out[0] : 1'bz;
+assign flash2_miso   = flash2_io_enable[1] ? flash2_io_out[1] : 1'bz;
+assign flash2_wp_n   = flash2_io_enable[2] ? flash2_io_out[2] : 1'bz;
+assign flash2_hold_n = flash2_io_enable[3] ? flash2_io_out[3] : 1'bz;
+
+// The SD card's DAT2 isn't used in SPI mode
+assign sd_data2_nc = 1'b1;
 
 // HDMI: a constant level on every pair
 assign HDMI_CLK_P = 1'b0;

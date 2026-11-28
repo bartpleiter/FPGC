@@ -388,3 +388,43 @@ set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_DQ[*]
 set_instance_assignment -name FAST_OUTPUT_ENABLE_REGISTER ON -to SDRAM_DQ[*]
 set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM_DQ[*]
 
+
+# SPI: the clock, the chip select and the data lines in the I/O cells' registers. On
+# the flashes, the FPGA drives IO0 to IO3 only where enabled, so they also have output
+# enable registers.
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to flash1_clk
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to flash1_cs
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to flash1_mosi
+set_instance_assignment -name FAST_OUTPUT_ENABLE_REGISTER ON -to flash1_mosi
+set_instance_assignment -name FAST_OUTPUT_ENABLE_REGISTER ON -to flash1_wp_n
+set_instance_assignment -name FAST_OUTPUT_ENABLE_REGISTER ON -to flash1_hold_n
+set_instance_assignment -name FAST_INPUT_REGISTER ON -to flash1_mosi
+set_instance_assignment -name FAST_INPUT_REGISTER ON -to flash1_miso
+set_instance_assignment -name FAST_INPUT_REGISTER ON -to flash1_wp_n
+set_instance_assignment -name FAST_INPUT_REGISTER ON -to flash1_hold_n
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to flash2_clk
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to flash2_cs
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to flash2_mosi
+set_instance_assignment -name FAST_OUTPUT_ENABLE_REGISTER ON -to flash2_mosi
+set_instance_assignment -name FAST_OUTPUT_ENABLE_REGISTER ON -to flash2_wp_n
+set_instance_assignment -name FAST_OUTPUT_ENABLE_REGISTER ON -to flash2_hold_n
+set_instance_assignment -name FAST_INPUT_REGISTER ON -to flash2_mosi
+set_instance_assignment -name FAST_INPUT_REGISTER ON -to flash2_miso
+set_instance_assignment -name FAST_INPUT_REGISTER ON -to flash2_wp_n
+set_instance_assignment -name FAST_INPUT_REGISTER ON -to flash2_hold_n
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to usb1_clk
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to usb1_cs
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to usb1_mosi
+set_instance_assignment -name FAST_INPUT_REGISTER ON -to usb1_miso
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to usb2_clk
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to usb2_cs
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to usb2_mosi
+set_instance_assignment -name FAST_INPUT_REGISTER ON -to usb2_miso
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to eth_clk
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to eth_cs
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to eth_mosi
+set_instance_assignment -name FAST_INPUT_REGISTER ON -to eth_miso
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to sd_clk
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to sd_cs
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to sd_mosi
+set_instance_assignment -name FAST_INPUT_REGISTER ON -to sd_miso

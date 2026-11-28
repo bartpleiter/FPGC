@@ -1,6 +1,6 @@
-// The device bridge, with the devices of phase B, behind the bus of the CPU, and a
-// serial line on the UART, for the ISS comparison testbench (tb_b32p4.v compiled with
-// the macro DEVICES). Include it inside the testbench module, before the instance that
+// The device bridge, with its devices, behind the bus of the CPU, and a serial line on
+// the UART, for the ISS comparison testbench (tb_b32p4.v compiled with the macro
+// DEVICES). Include it inside the testbench module, before the instance that
 // connects to the bus: it declares the bus signals, bus_request to bus_read_word, and
 // device_interrupts. The testbench must have `clk`, `reset`, the ROM as
 // `reg [31:0] rom [0:1023]`, `cycle` (an integer, the number of the current cycle)
@@ -8,7 +8,9 @@
 //
 // The timer is interrupt 1 and the UART interrupt 2. The DIP switches are 0101. The
 // ROM's data port gives the word a cycle after its address, as the BRAM's second port
-// will.
+// will. The flashes have an erased flash model each (flash_chip, 64 KiB, which the
+// testbench includes) with pulled-up data lines, the other SPI buses' MISO is 1, and
+// their interrupt pins are inactive.
 //
 // The serial line (serial_line.vh) runs at 1 Mbaud, as the UART, with its plusargs
 // +uart_input and +uart_output. The task bus_finish, which the testbench calls before it
@@ -40,6 +42,55 @@ wire        timer_irq;
 
 wire [INTERRUPTS:1] device_interrupts = {uart_irq, timer_irq};
 
+// ---- The flashes ----
+
+wire        flash1_clk;
+wire        flash1_cs_n;
+wire [3:0]  flash1_io_out;
+wire [3:0]  flash1_io_enable;
+tri1 [3:0]  flash1_io;  // pulled up
+wire        flash2_clk;
+wire        flash2_cs_n;
+wire [3:0]  flash2_io_out;
+wire [3:0]  flash2_io_enable;
+tri1 [3:0]  flash2_io;
+wire        usb1_cs_n;
+wire        usb2_cs_n;
+wire        eth_cs_n;
+wire        sd_cs_n;
+wire [3:0]  flash1_error;
+wire [3:0]  flash2_error;
+
+genvar flash_line;
+generate
+    for (flash_line = 0; flash_line < 4; flash_line = flash_line + 1) begin : flash_lines
+        assign flash1_io[flash_line] = flash1_io_enable[flash_line] ? flash1_io_out[flash_line] : 1'bz;
+        assign flash2_io[flash_line] = flash2_io_enable[flash_line] ? flash2_io_out[flash_line] : 1'bz;
+    end
+endgenerate
+
+flash_chip #(
+    .ADDRESS_BITS(16)
+) flash1 (
+    .cs_n(flash1_cs_n),
+    .clk(flash1_clk),
+    .io(flash1_io),
+    .error(flash1_error)
+);
+
+flash_chip #(
+    .ADDRESS_BITS(16)
+) flash2 (
+    .cs_n(flash2_cs_n),
+    .clk(flash2_clk),
+    .io(flash2_io),
+    .error(flash2_error)
+);
+
+always @(posedge clk)
+    if (flash1_error != 4'd0 || flash2_error != 4'd0)
+        $fatal(1, "a flash model reports a broken rule in cycle %0d", cycle);
+
 device_bridge #(
     .CLOCKS_PER_BIT(100)
 ) bridge (
@@ -59,6 +110,35 @@ device_bridge #(
     .uart_tx(uart_tx_line),
     .user_led(),
     .switches(4'b0101),
+    .flash1_clk(flash1_clk),
+    .flash1_cs_n(flash1_cs_n),
+    .flash1_io_out(flash1_io_out),
+    .flash1_io_enable(flash1_io_enable),
+    .flash1_io_in(flash1_io),
+    .flash2_clk(flash2_clk),
+    .flash2_cs_n(flash2_cs_n),
+    .flash2_io_out(flash2_io_out),
+    .flash2_io_enable(flash2_io_enable),
+    .flash2_io_in(flash2_io),
+    .usb1_clk(),
+    .usb1_cs_n(usb1_cs_n),
+    .usb1_mosi(),
+    .usb1_miso(1'b1),
+    .usb1_irq_n(1'b1),
+    .usb2_clk(),
+    .usb2_cs_n(usb2_cs_n),
+    .usb2_mosi(),
+    .usb2_miso(1'b1),
+    .usb2_irq_n(1'b1),
+    .eth_clk(),
+    .eth_cs_n(eth_cs_n),
+    .eth_mosi(),
+    .eth_miso(1'b1),
+    .eth_irq_n(1'b1),
+    .sd_clk(),
+    .sd_cs_n(sd_cs_n),
+    .sd_mosi(),
+    .sd_miso(1'b1),
     .timer_irq(timer_irq),
     .uart_irq(uart_irq)
 );

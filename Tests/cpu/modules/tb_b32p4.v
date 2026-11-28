@@ -35,6 +35,9 @@
 // every read and write of SDRAM (64 MiB at 0), goes through the L1 caches, and from
 // there through the line model or the controller. Reads of the ROM as data, and the I/O region, go over
 // the bus.
+`ifdef DEVICES
+`include "flash_chip.v"
+`endif
 `timescale 1ns / 1ps
 module tb_b32p4 #(
     parameter LINES = 128

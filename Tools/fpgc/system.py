@@ -67,12 +67,17 @@ def wave(module: str) -> None:
     )
 
 
-# The SDRAM's pins, for the timing summary
-SDRAM_PINS = {
+# The SDRAM's and the SPI buses' pins, for the timing summary
+PIN_GROUPS = {
     "SDRAM commands": "-to [get_ports {SDRAM_A[*] SDRAM_BA[*] SDRAM_CSn SDRAM_RASn"
     " SDRAM_CASn SDRAM_WEn}]",
     "SDRAM data out": "-to [get_ports {SDRAM_DQ[*] SDRAM_DQM[*]}]",
     "SDRAM data in": "-from [get_ports {SDRAM_DQ[*]}]",
+    "Flash data out": "-to [get_ports {flash1_mosi flash2_mosi}]",
+    "Flash data in": "-from [get_ports {flash1_mosi flash1_miso flash1_wp_n"
+    " flash1_hold_n flash2_mosi flash2_miso flash2_wp_n flash2_hold_n}]",
+    "SPI data out": "-to [get_ports {usb1_mosi usb2_mosi eth_mosi sd_mosi}]",
+    "SPI data in": "-from [get_ports {usb1_miso usb2_miso eth_miso sd_miso}]",
 }
 
 
@@ -87,7 +92,7 @@ def build(seeds: int | None) -> None:
     """Build the top level in Quartus, with the boot ROM, and report its timing.
 
     Assembles the boot ROM, generates the Quartus project in the build folder, compiles
-    it, and prints the timing at every corner, the slack of the SDRAM's pins and the
+    it, and prints the timing at every corner, the slack of the SDRAM's and SPI pins and the
     resources. The bitstream is output_files/fpgc.sof in that folder, from seed 1.
     """
     rom = write_rom_hex(cfg.boot_rom, cfg.quartus_dir / "rom.hex")
@@ -112,7 +117,7 @@ def build(seeds: int | None) -> None:
             seed=s,
             parameters={"ROM_CONTENTS": str(rom.absolute())},
             extra_qsf=cfg.pins_file.read_text(),
-            pin_groups=SDRAM_PINS,
+            pin_groups=PIN_GROUPS,
         )
     if seeds:
         compile_seeds(CONFIG.cpu.quartus_bin, out_dirs, cfg.top)

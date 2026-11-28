@@ -16,7 +16,7 @@ and returns what it prints.
 from pathlib import Path
 
 from b32asm.assembler import assemble
-from b32sim.devices import Board, CycleCounter, DeviceBridge, Timer, Uart
+from b32sim.devices import Board, CycleCounter, DeviceBridge, Timer, Uart, spi_buses
 from b32sim.sim import ROM_BASE, Machine
 
 REPO = Path(__file__).resolve().parents[2]
@@ -86,7 +86,10 @@ def expected(program: bytes, max_steps: int = 2_000_000) -> bytes:
     """What the program prints in the ISS, in hardware mode, until it jumps back to the
     boot ROM."""
     uart = Uart()
-    m = Machine(strict=False, io=DeviceBridge([uart, CycleCounter(), Timer(), Board()]))
+    m = Machine(
+        strict=False,
+        io=DeviceBridge([uart, CycleCounter(), Timer(), Board(), *spi_buses()]),
+    )
     m.load(ROM_BASE, assemble(BOOT.read_text(), ROM_BASE, str(BOOT)).to_bytes())
     m.load(0, program)
     m.pc = 0

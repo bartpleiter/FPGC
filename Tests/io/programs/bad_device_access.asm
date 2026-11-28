@@ -10,7 +10,7 @@
     read 0xFFFF8310 r0 r2       ; not a register of the board
     read 0xFFFFFF08 r0 r3
     write 0xFFFFFF08 r0 r0
-    write 0xFFFF8400 r0 r1      ; no device 4
+    write 0xFFFF8A00 r0 r1      ; no device 10
     read 0xFFFFFF08 r0 r3
     write 0xFFFFFF08 r0 r0
     read 0xFFFF8304 r0 r4       ; the switches

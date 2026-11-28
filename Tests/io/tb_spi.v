@@ -75,6 +75,8 @@ spi #(
     .quad_in(quad_in),
     .select(select),
     .quad(quad),
+    .irq_n(1'b1),
+    .irq(),
     .spi_clk(spi_clk),
     .cs_n(cs_n),
     .io_out(io_out),

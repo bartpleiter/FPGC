@@ -13,8 +13,8 @@ The top level of the FPGC, `fpgc`: the CPU, the boot ROM, the [device bridge](io
          |                              ^
          |                              | data reads
    +-----------+       bus      +---------------+
-   |   b32p4   | -------------> | device_bridge | <--> UART, user LED, switches
-   |           | <------------- |               |
+   |   b32p4   | -------------> | device_bridge | <--> UART, user LED, switches,
+   |           | <------------- |               |      six SPI buses
    +-----------+   interrupts   +---------------+
          |
          | SDRAM line port
@@ -68,14 +68,14 @@ The program quiets the devices, prints the error register and `boot: ready` over
 | user | W1 | the board register's LED, written by software |
 | UART rx | W2 | activity on the UART's receive line |
 | UART tx | Y1 | activity on the UART's transmit line |
-| flash | U2 | off, until the flash's SPI controller exists |
-| USB | V1 | off, until the USB chips' SPI controllers exist |
-| Ethernet | V2 | off, until the Ethernet chip's SPI controller exists |
+| flash | U2 | activity on flash 1, flash 2 or the SD card |
+| USB | V1 | activity on USB 1 or USB 2 |
+| Ethernet | V2 | activity on the Ethernet chip |
 | GPU | U1 | off, until the GPU exists |
 
 Software only controls the user LED. The others show what the hardware does, through `activity_leds`:
 
-- Activity is a level that's 1 while the hardware does something with the outside world. For a UART line, that's the line being low, which it is during every start bit and every 0 bit.
+- Activity is a level that's 1 while the hardware does something with the outside world. For a UART line, that's the line being low, which it is during every start bit and every 0 bit. For an SPI device, it's the device being selected (its CS# low).
 - Every 2^23 cycles (about 84 ms), a tick ends a period. An LED that's off turns on for the next period if there was activity in the last one. An LED that's on turns off for the next period.
 - So a single event of one cycle gives a flash of one period, and continuous activity blinks at about 6 Hz.
 
@@ -92,7 +92,6 @@ The top level has every pin of the board, 169 of them, as 3.3-V LVTTL. Pins that
 | Chip | State |
 | --- | --- |
 | SRAM | deselected (CS# high), no read or write (OE# and WE# high), data lines not driven |
-| SPI flash, SD card, USB chips, Ethernet chip | deselected (CS# high), clock low, the flash's write protect and hold high |
 | HDMI | a constant level on every pair |
 | audio DAC | 0 |
 | display and GPIO headers | inputs |
@@ -101,15 +100,17 @@ Pins on no net at all are inputs with a weak pull-up.
 
 ## Timing
 
-The SDC constrains the 50 MHz clock, and the PLL's clocks follow from it. The asynchronous inputs (the button, the UART's lines, the DIP switches) and the slow outputs (the UART's transmit line, the LEDs) aren't timed: each goes through a synchronizer, or changes far slower than the clock.
+The SDC constrains the 50 MHz clock, and the PLL's clocks follow from it. The asynchronous inputs (the button, the UART's lines, the DIP switches, the interrupt pins of the USB and Ethernet chips) and the slow outputs (the UART's transmit line, the LEDs) aren't timed: each goes through a synchronizer, or changes far slower than the clock.
 
 The SDRAM's pins are timed against the SDRAM's clock, with the delays of the chips and the board's traces. See [SDRAM controller](sdram.md#pin-timing).
+
+The SPI buses' pins are timed the same way, against each bus's clock pin, which is a register that changes every 1, 2 or 4 cycles. The FPGA takes a device's bit one cycle after the rising edge, and the SDC tells the timing analysis so.
 
 ## Building and programming
 
 | Command | What |
 | --- | --- |
-| `fpgc system build` | assembles the boot ROM, generates the Quartus project, compiles it, and reports the timing at every corner, with the SDRAM's pins on their own. With `--seeds 10`, it compiles 10 seeds, for the sign-off. |
+| `fpgc system build` | assembles the boot ROM, generates the Quartus project, compiles it, and reports the timing at every corner, with the SDRAM's and the SPI buses' pins on their own. With `--seeds 10`, it compiles 10 seeds, for the sign-off. |
 | `fpgc board program` | programs the FPGA over JTAG. The board's flash isn't changed, so the design is gone after a power cycle. |
 | `fpgc board console` | shows what the board sends, and sends each typed line. With `--reset`, it resets the board first. |
 | `fpgc board run <program.asm>` | assembles a program, loads it into SDRAM with [uartload](toolchain/uartload.md) and runs it, and shows what it sends until it's back in the boot ROM |

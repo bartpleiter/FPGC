@@ -227,3 +227,175 @@ class Uart:
 
     def irq(self) -> bool:
         return self.enabled and bool(self.incoming)
+
+
+class Flash:
+    """The W25Q128JV SPI flash, as the testbench's model `Tests/io/flash_chip.v`, with
+    the commands the FPGC uses: 9Fh, 05h, 06h, 04h, 03h, 0Bh, 6Bh, 02h, 20h and D8h.
+    Program and erase are done at once, so the busy bit is never set. Commands it
+    doesn't know are ignored, as the chip does.
+
+    It works one clock at a time: `clock` gives the four data lines as the chip shows
+    them before a rising edge, then takes IO0 at the edge.
+    """
+
+    SIZE = 1 << 24
+    ID = 0xEF4018
+
+    def __init__(self, content: bytes = b"") -> None:
+        self.content = content
+        self._memory: bytearray | None = None  # made at the first use: 16 MiB
+        self.wel = False
+        self.selected = False
+        self.n = 0  # rising edges since the chip select fell
+        self.bits = 0  # the bits taken, the last in bit 0
+        self.opcode = 0
+        self.address = 0
+        self.page = bytearray()
+
+    @property
+    def memory(self) -> bytearray:
+        if self._memory is None:
+            self._memory = bytearray(b"\xff" * self.SIZE)
+            self._memory[: len(self.content)] = self.content
+        return self._memory
+
+    def select(self) -> None:
+        self.selected = True
+        self.n = self.bits = 0
+
+    def deselect(self) -> None:
+        """The command is complete when the chip select rises."""
+        if self.selected and self.n >= 8:
+            op = self.opcode
+            if op == 0x06:
+                self.wel = True
+            elif op == 0x04:
+                self.wel = False
+            elif op == 0x02 and self.wel and self.n >= 40 and self.n % 8 == 0:
+                base = self.address & ~0xFF
+                for k, b in enumerate(self.page):
+                    a = base | ((self.address + k) & 0xFF)
+                    self.memory[a] &= b
+                self.wel = False
+            elif op in (0x20, 0xD8) and self.wel and self.n == 32:
+                size = 4096 if op == 0x20 else 65536
+                start = self.address & ~(size - 1)
+                self.memory[start : start + size] = b"\xff" * size
+                self.wel = False
+        self.selected = False
+
+    def _shown(self) -> int:
+        """The data lines after the falling edge that follows rising edge n."""
+        n, op = self.n, self.opcode
+        if n < 8:
+            return 0xF
+        if op == 0x9F:
+            return (self.ID >> (31 - n) & 1) << 1 if n < 32 else 0xF
+        if op == 0x05:
+            return ((int(self.wel) << 1) >> (7 - n % 8) & 1) << 1
+        if op in (0x03, 0x0B) and n >= (32 if op == 0x03 else 40):
+            j = n - (32 if op == 0x03 else 40)
+            b = self.memory[(self.address + j // 8) % self.SIZE]
+            return (b >> (7 - j % 8) & 1) << 1
+        if op == 0x6B and n >= 40:
+            j = n - 40
+            b = self.memory[(self.address + j // 2) % self.SIZE]
+            return b >> 4 if j % 2 == 0 else b & 0xF
+        return 0xF
+
+    def clock(self, io0: int) -> int:
+        if not self.selected:
+            return 0xF
+        shown = self._shown()
+        self.bits = (self.bits << 1 | (io0 & 1)) & MASK
+        self.n += 1
+        if self.n == 8:
+            self.opcode = self.bits & 0xFF
+            self.page = bytearray()
+        elif self.n == 32:
+            self.address = self.bits & 0xFFFFFF
+        elif self.opcode == 0x02 and self.n > 32 and self.n % 8 == 0:
+            if len(self.page) < 256:
+                self.page.append(self.bits & 0xFF)
+        return shown
+
+
+class Spi:
+    """An SPI bus, with a flash behind it or nothing. A transfer either sends or
+    receives, and a receive sends 1s. With QUAD on, a receive takes four bits per
+    clock. Without a device, the data lines read 1."""
+
+    BYTE, WORD, CONTROL, STATUS = 0x00, 0x04, 0x08, 0x0C
+    SELECT, QUAD = 1, 2  # the bits of CONTROL
+
+    def __init__(self, flash: Flash | None = None, quad: bool = False) -> None:
+        self.flash = flash
+        self.can_quad = quad
+        self.control = 0
+        self.irq_pin = False  # the device's interrupt pin is active
+
+    def _lines(self, io0: int) -> int:
+        return self.flash.clock(io0) if self.flash is not None else 0xF
+
+    def _send(self, byte: int) -> None:
+        for i in range(7, -1, -1):
+            self._lines(byte >> i & 1)
+
+    def _receive(self) -> int:
+        if self.control & self.QUAD:
+            high = self._lines(1)
+            return high << 4 | self._lines(1)
+        value = 0
+        for _ in range(8):
+            value = value << 1 | (self._lines(1) >> 1 & 1)
+        return value
+
+    def read(self, reg: int) -> int:
+        if reg == self.BYTE:
+            return self._receive()
+        if reg == self.WORD:
+            return sum(self._receive() << (8 * i) for i in range(4))
+        if reg == self.CONTROL:
+            return self.control
+        if reg == self.STATUS:
+            return int(self.irq_pin)
+        raise BusError(f"no SPI register {reg:#x}")
+
+    def write(self, reg: int, value: int) -> None:
+        if reg == self.BYTE:
+            self._send(value & 0xFF)
+        elif reg == self.WORD:
+            for i in range(4):
+                self._send(value >> (8 * i) & 0xFF)
+        elif reg == self.CONTROL:
+            self._configure(value & (3 if self.can_quad else 1))
+        elif reg != self.STATUS:
+            raise BusError(f"no SPI register {reg:#x}")
+
+    def _configure(self, control: int) -> None:
+        if self.flash is not None:
+            if control & self.SELECT and not self.control & self.SELECT:
+                self.flash.select()
+            elif not control & self.SELECT and self.control & self.SELECT:
+                self.flash.deselect()
+        self.control = control
+
+    def tick(self) -> None:
+        pass
+
+    def reset(self) -> None:
+        self._configure(0)
+
+    def irq(self) -> bool:
+        return False
+
+
+def spi_buses(flash1: Flash | None = None, flash2: Flash | None = None) -> list[Spi]:
+    """The six SPI buses, devices 4 to 9: flash 1, flash 2, USB 1, USB 2, Ethernet and
+    the SD card. Only the flashes have a model, empty unless given."""
+    return [
+        Spi(flash1 or Flash(), quad=True),
+        Spi(flash2 or Flash(), quad=True),
+        *(Spi() for _ in range(4)),
+    ]
