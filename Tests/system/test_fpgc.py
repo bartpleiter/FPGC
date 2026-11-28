@@ -10,8 +10,9 @@ of 1 ms, and the activity LEDs' tick comes every 256 cycles (see tb_fpgc.v).
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from fpgc.loader import load_message, ok_line, program_bytes
+from b32asm.assembler import assemble
 from fpgc.rom import write_rom_hex
+from uartload.protocol import load_message, ok_line
 
 from ..common.presets import check_preset
 from ..common.verilog import compile_tb, run_vvp
@@ -117,7 +118,7 @@ def sent(message: bytes, at: int) -> list[tuple[int, int]]:
 
 def test_load() -> None:
     """The hello world is loaded into SDRAM, runs, and returns to the boot ROM."""
-    hello = program_bytes((PROGRAMS / "hello.asm").read_text(), "hello.asm")
+    hello = assemble((PROGRAMS / "hello.asm").read_text(), 0, "hello.asm").to_bytes()
     message = load_message(hello)
     r = run("load", BOOTED + (len(message) + 80) * BYTE, sent(message, BOOTED))
     assert r.output == (
@@ -132,7 +133,7 @@ def test_memtest() -> None:
     source = (PROGRAMS / "memtest.asm").read_text()
     assert ".equ END 0x04000000" in source
     source = source.replace(".equ END 0x04000000", ".equ END 0x00010400")
-    program = program_bytes(source, "memtest.asm")
+    program = assemble(source, 0, "memtest.asm").to_bytes()
     message = load_message(program)
     cycles = BOOTED + len(message) * BYTE + 150_000  # the test takes about 100,000
     r = run("memtest", cycles, sent(message, BOOTED))
@@ -209,7 +210,7 @@ def test_resets() -> None:
 # The demo boots, and loads and runs the hello world. The boot lines are sent from about
 # 0.5 µs on, the program from 500 µs on, and it runs at about 1.5 ms.
 def test_demo() -> None:
-    hello = program_bytes((PROGRAMS / "hello.asm").read_text(), "hello.asm")
+    hello = assemble((PROGRAMS / "hello.asm").read_text(), 0, "hello.asm").to_bytes()
     message = load_message(hello)
     r = run(
         "demo", BOOTED + (len(message) + 80) * BYTE, sent(message, BOOTED), demo=True

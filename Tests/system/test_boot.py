@@ -7,14 +7,14 @@ from pathlib import Path
 from b32asm.assembler import assemble
 from b32sim.devices import Board, CycleCounter, DeviceBridge, Timer, Uart
 from b32sim.sim import ROM_BASE, Machine
-from fpgc.loader import crc, load_message, ok_line, program_bytes
+from uartload.protocol import crc, load_message, ok_line
 
 REPO = Path(__file__).resolve().parents[2]
 BOOT = REPO / "Software/boot/boot.asm"
 PROGRAMS = REPO / "Software/programs"
 
 BOOT_LINES = b"boot: err 00000000 pc 00000000\r\nboot: ready\r\n"
-HELLO = program_bytes((PROGRAMS / "hello.asm").read_text(), "hello.asm")
+HELLO = assemble((PROGRAMS / "hello.asm").read_text(), 0, "hello.asm").to_bytes()
 
 
 def boot(
@@ -79,7 +79,7 @@ def memtest(source: str, steps: int) -> bytes:
     """Run the memory test over 64 words instead of 64 MiB, and return its lines."""
     assert ".equ END 0x04000000" in source
     source = source.replace(".equ END 0x04000000", ".equ END 0x00010100")
-    program = program_bytes(source, "memtest.asm")
+    program = assemble(source, 0, "memtest.asm").to_bytes()
     uart, _ = boot(load_message(program), steps=steps)
     output = bytes(uart.output)
     assert output.startswith(BOOT_LINES + ok_line(program) + b"\r\n")

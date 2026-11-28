@@ -53,7 +53,7 @@ One reset, `reset`, for the whole design, from three sources:
 
 - Every source goes through a synchronizer, and the reset is a register: the reset is fully synchronous. Its registers start at reset after the FPGA's configuration, so the design is in reset from the start.
 - The reset ends a few cycles after the last source ends. Every register with a reset gets it on a clock edge.
-- Opening a serial port on the PC sets RTS and DTR together, and closing it releases both together, so neither is a reset. Only a program that sets RTS without DTR on purpose resets the board, such as `fpgc board console --reset`. The 1 ms filters out the moment between the two lines' changes, when they are briefly in the reset combination.
+- Opening a serial port on the PC sets RTS and DTR together, and closing it releases both together, so neither is a reset. Only a program that sets RTS without DTR on purpose resets the board, such as [uartload](toolchain/uartload.md) before every load, or `fpgc board console --reset`. The 1 ms filters out the moment between the two lines' changes, when they are briefly in the reset combination.
 
 ## Boot ROM
 
@@ -112,7 +112,7 @@ The SDRAM's pins are timed against the SDRAM's clock, with the delays of the chi
 | `fpgc system build` | assembles the boot ROM, generates the Quartus project, compiles it, and reports the timing at every corner, with the SDRAM's pins on their own. With `--seeds 10`, it compiles 10 seeds, for the sign-off. |
 | `fpgc board program` | programs the FPGA over JTAG. The board's flash isn't changed, so the design is gone after a power cycle. |
 | `fpgc board console` | shows what the board sends, and sends each typed line. With `--reset`, it resets the board first. |
-| `fpgc board run <program.asm>` | loads a program into SDRAM and runs it (see [Boot ROM](boot.md)), and shows what it sends until it's back in the boot ROM |
+| `fpgc board run <program.asm>` | assembles a program, loads it into SDRAM with [uartload](toolchain/uartload.md) and runs it, and shows what it sends until it's back in the boot ROM |
 | `fpgc board test` | runs the tests on the board: the hello world, a load with a flipped bit, the memory test over all 64 MiB, an interrupt program, the CPU's cache programs, and random programs, each compared with the ISS. `--seeds` sets the number of random programs. |
 
 ## Modules

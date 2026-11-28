@@ -32,6 +32,7 @@ Tools/             automation: what builds, checks and tests the project
   b32sim/          the instruction set simulator
 Toolchain/         core: the PC tools that make FPGC programs, each its own project
   b32asm/          the assembler, with its own pyproject.toml, README and tests
+  uartload/        loads a program onto the board through the boot ROM
 Software/          core: what runs on the FPGC (the boot ROM program, programs)
 Hardware/          core: the RTL
 Website/           Hugo site with the docs and the blog (see website.md)
@@ -39,7 +40,7 @@ Tests/             tests of the hardware and the software
 build/             all generated output; gitignored; `fpgc clean` deletes it
 ```
 
-Core never depends on automation. Automation may use core: `fpgc` and the tests import the assembler, and the ISS uses its instruction table.
+Core never depends on automation. Automation may use core: `fpgc` and the tests import the assembler and uartload, and the ISS uses the assembler's instruction table.
 
 ## Rules
 

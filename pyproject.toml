@@ -11,6 +11,7 @@ dependencies = [
     "hugo==0.168.0",
     "pydantic>=2.14.1",
     "pyserial>=3.5",
+    "uartload",
 ]
 
 [dependency-groups]
@@ -40,9 +41,10 @@ members = ["Toolchain/*"]
 
 [tool.uv.sources]
 b32asm = { workspace = true }
+uartload = { workspace = true }
 
 [tool.ruff]
-src = ["Tools", "Toolchain/b32asm"]
+src = ["Tools", "Toolchain/b32asm", "Toolchain/uartload"]
 extend-exclude = ["Website/themes"]
 
 [tool.pytest.ini_options]

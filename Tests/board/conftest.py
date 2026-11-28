@@ -7,8 +7,8 @@ from pathlib import Path
 import pytest
 import serial
 
-from fpgc.board import BoardLink
 from fpgc.config import CONFIG
+from uartload.board import Board
 
 
 def pytest_ignore_collect(collection_path: Path, config: pytest.Config) -> bool:
@@ -16,7 +16,7 @@ def pytest_ignore_collect(collection_path: Path, config: pytest.Config) -> bool:
 
 
 @pytest.fixture(scope="session")
-def board() -> Iterator[BoardLink]:
+def board() -> Iterator[Board]:
     """The board, which must have the current `fpgc system build` on it."""
     with serial.Serial(CONFIG.board.port, CONFIG.board.baud, timeout=0.1) as link:
-        yield BoardLink(link, echo=False)
+        yield Board(link, echo=False)

@@ -7,7 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from fpgc.loader import load_message, ok_line, program_bytes
+from b32asm.assembler import assemble
+from uartload.protocol import load_message, ok_line
 
 from ..board.board_mode import board_mode, expected
 from ..board.test_board import CACHE_PROGRAMS, REGIONS, xorshift_steps
@@ -20,13 +21,15 @@ RESULT = re.compile(rb"result [0-9a-f]{8}\r\n")
 
 @pytest.mark.parametrize("path", CACHE_PROGRAMS, ids=lambda p: p.stem)
 def test_cache_program_in_iss(path: Path) -> None:
-    program = program_bytes(board_mode(path.read_text()), path.stem)
+    program = assemble(board_mode(path.read_text()), 0, path.stem).to_bytes()
     assert RESULT.fullmatch(expected(program))
 
 
 @pytest.mark.parametrize("seed", range(5))
 def test_random_in_iss(seed: int) -> None:
-    program = program_bytes(board_mode(generate(seed, regions=REGIONS)), "random")
+    program = assemble(
+        board_mode(generate(seed, regions=REGIONS)), 0, "random"
+    ).to_bytes()
     assert RESULT.fullmatch(expected(program))
 
 
@@ -40,7 +43,7 @@ def run_loaded(name: str, program: bytes, cycles: int) -> bytes:
 
 
 def test_random_in_system() -> None:
-    program = program_bytes(board_mode(generate(0, regions=REGIONS)), "random")
+    program = assemble(board_mode(generate(0, regions=REGIONS)), 0, "random").to_bytes()
     assert run_loaded("board_random", program, 300_000) == expected(program)
 
 
@@ -49,7 +52,7 @@ def test_interrupts_in_system() -> None:
     source = (BOARD_DIR / "interrupts.asm").read_text()
     source = source.replace("load32 100000 r2", "load32 3000 r2")
     output = run_loaded(
-        "board_interrupts", program_bytes(source, "interrupts"), 100_000
+        "board_interrupts", assemble(source, 0, "interrupts").to_bytes(), 100_000
     )
     found = re.fullmatch(rb"result ([0-9a-f]{8}) interrupts ([0-9a-f]{8})\r\n", output)
     assert found, output

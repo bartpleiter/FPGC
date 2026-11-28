@@ -387,7 +387,7 @@ def _encode(st: Statement, labels: dict[str, int]) -> int:
     if m == "jump":
         (target,) = _check(m, ops, (int, LabelRef))
         if isinstance(target, LabelRef):
-            # A jump to a label is PC-relative, so it also reaches code in ROM.
+            # A jump to a label is PC-relative, so it doesn't depend on the base.
             offset = _resolve(target, labels) - st.address
             return encode(Opcode.JUMP, c27=_fit_signed(offset, 27, "jump offset"), o=1)
         _check_aligned(target, "jump address")

@@ -47,7 +47,7 @@ The `<crc>` is the one the boot ROM computed, in hex. If the board gets fewer by
 
 - At 1 Mbaud, a program loads at 100,000 bytes per second: 1 KiB in about 10 ms. The boot ROM handles each byte well within the 1,000 cycles that a byte takes on the line, so the PC sends the whole program without pauses.
 - Everything the board sends is lines of text, ending with `\r\n`. What the PC sends is binary.
-- `fpgc board run <program.asm>` does all of this on the PC: it assembles the program for address `0x0`, resets the board, waits for `boot: ready`, sends the program, and tries up to 3 times. Then it shows what the program sends, until the program is back in the boot ROM.
+- [uartload](toolchain/uartload.md) does all of this on the PC: it resets the board, waits for `boot: ready`, sends the program, and tries up to 3 times. Then it shows what the program sends, until the program is back in the boot ROM.
 
 ## What a program can expect, and must do
 

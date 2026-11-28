@@ -67,6 +67,7 @@ class IoConfig(BaseModel):
         Path("Hardware/io/uart_rx.v"),
         Path("Hardware/io/uart_tx.v"),
         Path("Hardware/io/uart.v"),
+        Path("Hardware/io/spi.v"),
     ]
     tests_dir: Path = Path("Tests/io")
     gtkwave_rc: Path = Path("Tests/common/gtkwaverc")
